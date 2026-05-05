@@ -1,4 +1,4 @@
-﻿namespace TimPilot.WinForms
+﻿namespace TimePilot.WinForms
 {
     internal static class Program
     {

@@ -1,16 +1,9 @@
-﻿namespace TimPilot.WinForms
+﻿namespace TimePilot.WinForms
 {
     partial class Form1
     {
-        /// <summary>
-        ///  Required designer variable.
-        /// </summary>
         private System.ComponentModel.IContainer components = null;
 
-        /// <summary>
-        ///  Clean up any resources being used.
-        /// </summary>
-        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
             if (disposing && (components != null))
@@ -22,17 +15,46 @@
 
         #region Windows Form Designer generated code
 
-        /// <summary>
-        ///  Required method for Designer support - do not modify
-        ///  the contents of this method with the code editor.
-        /// </summary>
         private void InitializeComponent()
         {
-            this.components = new System.ComponentModel.Container();
-            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 450);
-            this.Text = "Form1";
+            statusLabel = new Label();
+            usageListBox = new ListBox();
+            SuspendLayout();
+            // 
+            // statusLabel
+            // 
+            statusLabel.Dock = DockStyle.Top;
+            statusLabel.Location = new Point(0, 0);
+            statusLabel.Name = "statusLabel";
+            statusLabel.Padding = new Padding(10, 0, 0, 0);
+            statusLabel.Size = new Size(720, 32);
+            statusLabel.TabIndex = 0;
+            statusLabel.TextAlign = ContentAlignment.MiddleLeft;
+            // 
+            // usageListBox
+            // 
+            usageListBox.Dock = DockStyle.Fill;
+            usageListBox.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
+            usageListBox.FormattingEnabled = true;
+            usageListBox.ItemHeight = 17;
+            usageListBox.Location = new Point(0, 32);
+            usageListBox.Name = "usageListBox";
+            usageListBox.Size = new Size(720, 448);
+            usageListBox.TabIndex = 1;
+            // 
+            // Form1
+            // 
+            AutoScaleMode = AutoScaleMode.Font;
+            ClientSize = new Size(720, 480);
+            Controls.Add(usageListBox);
+            Controls.Add(statusLabel);
+            Name = "Form1";
+            Text = "TimePilot";
+            ResumeLayout(false);
         }
+
+        private Label statusLabel;
+        private ListBox usageListBox;
 
         #endregion
     }
