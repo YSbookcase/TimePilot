@@ -93,27 +93,10 @@ refactor/core-usage-tracking
 
 ```text
 main      안정 브랜치
-develop   진행 중인 개발 작업의 기본 통합 브랜치
+develop   프로젝트가 커질 때 사용할 수 있는 통합 브랜치
 ```
 
-### 브랜치 흐름
-
-- `main`은 안정 버전 및 릴리즈 기준 브랜치로 사용한다.
-- `develop`은 진행 중인 개발 작업의 기본 통합 브랜치로 사용한다.
-- 기능, 문서, 리팩터링, 버그 수정, 기타 작업 브랜치는 `develop`을 대상으로 pull request를 생성한다.
-- 프로토타입, 알파, 안정 버전처럼 릴리즈를 준비할 때만 `develop`을 `main`으로 병합한다.
-- 긴급한 릴리즈 수정이 아니라면 `main`에서 직접 작업하지 않는다.
-
-권장 pull request 대상:
-
-```text
-feature/*  -> develop
-docs/*     -> develop
-refactor/* -> develop
-fix/*      -> develop
-chore/*    -> develop
-develop    -> main, 릴리즈 준비 시에만
-```
+작은 문서 수정은 현재 브랜치에서 바로 작업해도 된다. 큰 코드 변경이나 위험한 리팩터링은 별도 브랜치에서 진행한다.
 
 ---
 

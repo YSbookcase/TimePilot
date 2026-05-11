@@ -93,27 +93,10 @@ Main branches:
 
 ```text
 main      stable branch
-develop   default integration branch for active development
+develop   optional integration branch while the project grows
 ```
 
-### Branch Flow
-
-- `main` is the stable release branch.
-- `develop` is the default integration branch for active work.
-- Feature, documentation, refactor, fix, and chore branches should open pull requests into `develop`.
-- Merge `develop` into `main` only when preparing a prototype, alpha, or stable release.
-- Avoid working directly on `main` unless the change is an urgent release correction.
-
-Recommended pull request targets:
-
-```text
-feature/*  -> develop
-docs/*     -> develop
-refactor/* -> develop
-fix/*      -> develop
-chore/*    -> develop
-develop    -> main, only for release preparation
-```
+For small documentation changes, working directly on the current branch is acceptable. Use a feature branch for larger code changes or risky refactors.
 
 ---
 
@@ -121,23 +104,21 @@ develop    -> main, only for release preparation
 
 Use issues for non-trivial work.
 
-Use `docs/GITHUB_ISSUE_GUIDE.md` for the full GitHub Issue draft format, labels, and priority rules.
-
-Use the same general type names as commit messages, but issue titles may use the bracket format from the issue guide.
+Use the same type names as commit messages.
 
 Recommended title format:
 
 ```text
-[Type] <short task description>
+<type>: <short task description>
 ```
 
 Examples:
 
 ```text
-[Feature] Add foreground app display name
-[Documentation] Define SQLite schema
-[Refactor] Move tracking logic to Core project
-[Bug] Correct Korean UI labels
+feat: add foreground app display name
+docs: define SQLite schema
+refactor: move tracking logic to Core project
+fix: correct Korean UI labels
 ```
 
 Recommended issue body:
