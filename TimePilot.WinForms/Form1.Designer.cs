@@ -18,7 +18,11 @@
         private void InitializeComponent()
         {
             statusLabel = new Label();
-            usageListBox = new ListBox();
+            usageGrid = new DataGridView();
+            appNameColumn = new DataGridViewTextBoxColumn();
+            activeUsageTimeColumn = new DataGridViewTextBoxColumn();
+            usageRatioColumn = new DataGridViewTextBoxColumn();
+            ((System.ComponentModel.ISupportInitialize)usageGrid).BeginInit();
             SuspendLayout();
             // 
             // statusLabel
@@ -31,30 +35,65 @@
             statusLabel.TabIndex = 0;
             statusLabel.TextAlign = ContentAlignment.MiddleLeft;
             // 
-            // usageListBox
+            // usageGrid
             // 
-            usageListBox.Dock = DockStyle.Fill;
-            usageListBox.Font = new Font("Segoe UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
-            usageListBox.FormattingEnabled = true;
-            usageListBox.ItemHeight = 17;
-            usageListBox.Location = new Point(0, 32);
-            usageListBox.Name = "usageListBox";
-            usageListBox.Size = new Size(720, 448);
-            usageListBox.TabIndex = 1;
+            usageGrid.AllowUserToAddRows = false;
+            usageGrid.AllowUserToDeleteRows = false;
+            usageGrid.AllowUserToResizeRows = false;
+            usageGrid.AutoGenerateColumns = false;
+            usageGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            usageGrid.BackgroundColor = SystemColors.Window;
+            usageGrid.BorderStyle = BorderStyle.None;
+            usageGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            usageGrid.Columns.AddRange(new DataGridViewColumn[] { appNameColumn, activeUsageTimeColumn, usageRatioColumn });
+            usageGrid.Dock = DockStyle.Fill;
+            usageGrid.Location = new Point(0, 32);
+            usageGrid.MultiSelect = false;
+            usageGrid.Name = "usageGrid";
+            usageGrid.ReadOnly = true;
+            usageGrid.RowHeadersVisible = false;
+            usageGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            usageGrid.Size = new Size(720, 448);
+            usageGrid.TabIndex = 1;
+            // 
+            // appNameColumn
+            // 
+            appNameColumn.DataPropertyName = "AppName";
+            appNameColumn.HeaderText = "앱";
+            appNameColumn.Name = "appNameColumn";
+            appNameColumn.ReadOnly = true;
+            // 
+            // activeUsageTimeColumn
+            // 
+            activeUsageTimeColumn.DataPropertyName = "ActiveUsageTimeText";
+            activeUsageTimeColumn.HeaderText = "활성 사용 시간";
+            activeUsageTimeColumn.Name = "activeUsageTimeColumn";
+            activeUsageTimeColumn.ReadOnly = true;
+            // 
+            // usageRatioColumn
+            // 
+            usageRatioColumn.DataPropertyName = "UsageRatioText";
+            usageRatioColumn.HeaderText = "비율";
+            usageRatioColumn.Name = "usageRatioColumn";
+            usageRatioColumn.ReadOnly = true;
             // 
             // Form1
             // 
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(720, 480);
-            Controls.Add(usageListBox);
+            Controls.Add(usageGrid);
             Controls.Add(statusLabel);
             Name = "Form1";
             Text = "TimePilot";
+            ((System.ComponentModel.ISupportInitialize)usageGrid).EndInit();
             ResumeLayout(false);
         }
 
         private Label statusLabel;
-        private ListBox usageListBox;
+        private DataGridView usageGrid;
+        private DataGridViewTextBoxColumn appNameColumn;
+        private DataGridViewTextBoxColumn activeUsageTimeColumn;
+        private DataGridViewTextBoxColumn usageRatioColumn;
 
         #endregion
     }
