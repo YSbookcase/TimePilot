@@ -6,8 +6,9 @@ TimePilot은 단순히 "현재 활성 창"만 기록하는 앱이 아니라, 사
 
 현재 우선순위는 리소스 사용량이 아니라 시간이다.
 
-따라서 초기 데이터 모델은 다음 세 가지 시간을 분리해서 기록한다.
+따라서 초기 데이터 모델은 다음 네 가지 시간을 분리해서 기록한다.
 
+- TimePilot 앱 자체가 실행되어 기록할 수 있었던 시간
 - 사용자가 실제로 보고 있던 활성 창 시간
 - 입력 없이 기준 시간 이상 대기한 유휴 시간
 - 사용자가 직접 보지 않았더라도 프로그램이 실행되어 있던 시간
@@ -57,11 +58,40 @@ UnknownApp 실행 시간: 14:10 - 15:45
 
 이 데이터는 사용자가 모르는 사이 실행된 프로그램을 찾는 데 도움이 된다.
 
+### 2.4 TimePilot App Runtime
+
+TimePilot 앱 자체가 실행되어 활동을 기록할 수 있었던 시간이다.
+
+예:
+
+```text
+TimePilot 실행 시간: 09:00 - 18:00
+TimePilot 미실행 시간: 18:00 - 20:00
+```
+
+이 데이터는 앱이 꺼져 있어서 기록하지 못한 시간을 구분하는 데 필요하다.
+
 ---
 
 ## 3. 추천 테이블 구조
 
-### 3.1 apps
+### 3.1 app_runtime_sessions
+
+TimePilot 앱 자체의 실행 세션이다.
+
+```text
+id
+started_at
+ended_at
+duration_ms
+last_heartbeat_at
+shutdown_reason
+app_version
+```
+
+이전 실행 세션에 `ended_at`이 없다면 다음 앱 시작 시 비정상 종료로 간주하고, 가능한 경우 마지막 heartbeat 시간을 종료 시간으로 사용한다.
+
+### 3.2 apps
 
 프로그램을 식별하기 위한 마스터 데이터다.
 
@@ -80,7 +110,7 @@ is_excluded
 
 `executable_path`는 사용자 이름 등 민감한 경로를 포함할 수 있으므로 저장 여부를 설정으로 분리할 수 있다.
 
-### 3.2 foreground_sessions
+### 3.3 foreground_sessions
 
 사용자가 활성 창으로 보고 있던 구간이다.
 
@@ -96,7 +126,7 @@ duration_ms
 
 향후 사용자가 허용하면 선택적으로 추가한다.
 
-### 3.3 idle_sessions
+### 3.4 idle_sessions
 
 입력 없이 기준 시간 이상 대기한 구간이다.
 
@@ -111,7 +141,7 @@ foreground_app_id
 
 `foreground_app_id`는 유휴가 시작될 때 활성 창이 무엇이었는지 분석할 때 사용한다.
 
-### 3.4 process_runtime_sessions
+### 3.5 process_runtime_sessions
 
 프로그램이 실행되어 있던 구간이다.
 
@@ -159,26 +189,34 @@ foreground_sessions에는 거의 없음
 
 ## 5. 구현 순서
 
-### Step 1 - 활성 창 세션
+### Step 1 - TimePilot 실행 세션
+
+- 앱 시작 시 `app_runtime_sessions`를 시작한다.
+- 앱 실행 중 heartbeat를 갱신한다.
+- 앱 정상 종료 시 runtime session을 종료한다.
+- 이전 실행이 비정상 종료된 경우 다음 실행 시 식별한다.
+
+### Step 2 - 활성 창 세션
 
 - 활성 앱 변경을 감지한다.
 - 앱이 바뀌면 이전 foreground session을 종료하고 새 session을 시작한다.
 
-### Step 2 - 유휴 세션
+### Step 3 - 유휴 세션
 
 - `GetLastInputInfo` 기반으로 유휴 상태를 감지한다.
 - 기준 시간 이상 입력이 없으면 idle session을 시작한다.
 - 입력이 다시 들어오면 idle session을 종료한다.
 
-### Step 3 - SQLite 저장
+### Step 4 - SQLite 저장
 
+- `app_runtime_sessions`
 - `apps`
 - `foreground_sessions`
 - `idle_sessions`
 
-위 세 테이블을 먼저 저장한다.
+위 네 테이블을 먼저 저장한다.
 
-### Step 4 - 백그라운드 실행 시간
+### Step 5 - 백그라운드 실행 시간
 
 - 주기적으로 실행 중인 프로세스 목록을 스캔한다.
 - 이전 스냅샷과 비교해서 `process_runtime_sessions`를 만든다.
