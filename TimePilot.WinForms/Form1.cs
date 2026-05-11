@@ -88,7 +88,55 @@ namespace TimePilot.WinForms
 
             usageGrid.DataSource = UsageSummaryRowBuilder.FromForegroundUsage(
                 storage.GetForegroundUsageForDay(observedAt));
-            timelineGrid.DataSource = storage.GetActivityTimelineForDay(observedAt);
+            SetGridDataSourcePreservingView(
+                timelineGrid,
+                storage.GetActivityTimelineForDay(observedAt));
+        }
+
+        private static void SetGridDataSourcePreservingView<T>(DataGridView grid, IReadOnlyList<T> rows)
+        {
+            var firstDisplayedIndex = GetFirstDisplayedRowIndex(grid);
+            var selectedIndex = grid.CurrentRow?.Index ?? -1;
+
+            grid.DataSource = rows;
+
+            if (grid.Rows.Count == 0)
+                return;
+
+            var restoredFirstIndex = Math.Min(firstDisplayedIndex, grid.Rows.Count - 1);
+            TrySetFirstDisplayedRowIndex(grid, restoredFirstIndex);
+
+            if (selectedIndex < 0)
+                return;
+
+            var restoredSelectedIndex = Math.Min(selectedIndex, grid.Rows.Count - 1);
+            grid.ClearSelection();
+            grid.Rows[restoredSelectedIndex].Selected = true;
+            grid.CurrentCell = grid.Rows[restoredSelectedIndex].Cells[0];
+            TrySetFirstDisplayedRowIndex(grid, restoredFirstIndex);
+        }
+
+        private static int GetFirstDisplayedRowIndex(DataGridView grid)
+        {
+            try
+            {
+                return Math.Max(grid.FirstDisplayedScrollingRowIndex, 0);
+            }
+            catch (InvalidOperationException)
+            {
+                return 0;
+            }
+        }
+
+        private static void TrySetFirstDisplayedRowIndex(DataGridView grid, int rowIndex)
+        {
+            try
+            {
+                grid.FirstDisplayedScrollingRowIndex = rowIndex;
+            }
+            catch (InvalidOperationException)
+            {
+            }
         }
 
         private static bool IsRunningInDesigner()
