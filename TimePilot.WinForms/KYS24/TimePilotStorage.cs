@@ -154,6 +154,12 @@ namespace TimePilot.WinForms.KYS24
             return (long)command.ExecuteScalar()!;
         }
 
+        public void UpdateAppMetadata(AppMetadata app, DateTimeOffset observedAt)
+        {
+            using var connection = OpenConnection();
+            _ = GetOrCreateAppId(connection, app, observedAt);
+        }
+
         public void EndForegroundSession(long sessionId, DateTimeOffset endedAt)
         {
             using var connection = OpenConnection();

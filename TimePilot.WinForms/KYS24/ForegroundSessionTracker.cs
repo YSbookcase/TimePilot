@@ -4,6 +4,8 @@ namespace TimePilot.WinForms.KYS24
     {
         private readonly TimePilotStorage storage;
         private string? currentProcessName;
+        private string? currentDisplayName;
+        private string? currentExecutablePath;
         private long? currentSessionId;
 
         public ForegroundSessionTracker(TimePilotStorage storage)
@@ -20,11 +22,22 @@ namespace TimePilot.WinForms.KYS24
             }
 
             if (string.Equals(currentProcessName, app.ProcessName, StringComparison.OrdinalIgnoreCase))
+            {
+                if (HasMetadataChanged(app))
+                {
+                    storage.UpdateAppMetadata(app, observedAt);
+                    currentDisplayName = app.DisplayName;
+                    currentExecutablePath = app.ExecutablePath;
+                }
+
                 return;
+            }
 
             EndCurrentSession(observedAt);
 
             currentProcessName = app.ProcessName;
+            currentDisplayName = app.DisplayName;
+            currentExecutablePath = app.ExecutablePath;
             currentSessionId = storage.StartForegroundSession(app, observedAt);
         }
 
@@ -36,6 +49,14 @@ namespace TimePilot.WinForms.KYS24
             storage.EndForegroundSession(sessionId, endedAt);
             currentSessionId = null;
             currentProcessName = null;
+            currentDisplayName = null;
+            currentExecutablePath = null;
+        }
+
+        private bool HasMetadataChanged(AppMetadata app)
+        {
+            return !string.Equals(currentDisplayName, app.DisplayName, StringComparison.Ordinal)
+                || !string.Equals(currentExecutablePath, app.ExecutablePath, StringComparison.OrdinalIgnoreCase);
         }
     }
 }
