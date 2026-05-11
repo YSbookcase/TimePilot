@@ -86,8 +86,10 @@ namespace TimePilot.WinForms
             if (storage is null)
                 return;
 
-            usageGrid.DataSource = UsageSummaryRowBuilder.FromForegroundUsage(
-                storage.GetForegroundUsageForDay(observedAt));
+            SetGridDataSourcePreservingView(
+                usageGrid,
+                UsageSummaryRowBuilder.FromForegroundUsage(
+                    storage.GetForegroundUsageForDay(observedAt)));
             SetGridDataSourcePreservingView(
                 timelineGrid,
                 storage.GetActivityTimelineForDay(observedAt));
