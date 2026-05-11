@@ -7,7 +7,9 @@ namespace TimePilot.WinForms.KYS24
         DateTimeOffset StartedAt,
         DateTimeOffset? EndedAt,
         long DurationMs,
-        string DisplayName)
+        string DisplayName,
+        string? ExecutablePath = null,
+        Image? AppIcon = null)
     {
         public string StartedAtText => StartedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture);
 

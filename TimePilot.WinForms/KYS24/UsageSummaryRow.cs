@@ -4,8 +4,10 @@ namespace TimePilot.WinForms.KYS24
 {
     internal sealed record UsageSummaryRow(
         string AppName,
+        string? ExecutablePath,
         long ActiveUsageMs,
         double UsageRatio,
+        Image? AppIcon = null,
         DateTimeOffset? FirstStartedAt = null,
         DateTimeOffset? LastObservedAt = null)
     {

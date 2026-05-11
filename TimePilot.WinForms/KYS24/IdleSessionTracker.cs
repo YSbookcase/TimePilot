@@ -10,13 +10,13 @@ namespace TimePilot.WinForms.KYS24
             this.storage = storage;
         }
 
-        public void Track(bool isIdle, string? foregroundProcessName, int thresholdMs, DateTimeOffset observedAt)
+        public void Track(bool isIdle, AppMetadata? foregroundApp, int thresholdMs, DateTimeOffset observedAt)
         {
             if (isIdle)
             {
                 if (currentSessionId is null)
                 {
-                    currentSessionId = storage.StartIdleSession(observedAt, thresholdMs, foregroundProcessName);
+                    currentSessionId = storage.StartIdleSession(observedAt, thresholdMs, foregroundApp);
                 }
 
                 return;

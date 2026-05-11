@@ -83,6 +83,7 @@ namespace TimePilot.WinForms.KYS24
                 """;
             command.ExecuteNonQuery();
 
+            EnsureAppsColumns(connection);
             MarkUnexpectedRuntimeSessions(now);
         }
 
@@ -134,10 +135,10 @@ namespace TimePilot.WinForms.KYS24
             runtimeSessionId = null;
         }
 
-        public long StartForegroundSession(string processName, DateTimeOffset startedAt)
+        public long StartForegroundSession(AppMetadata app, DateTimeOffset startedAt)
         {
             using var connection = OpenConnection();
-            var appId = GetOrCreateAppId(connection, processName, startedAt);
+            var appId = GetOrCreateAppId(connection, app, startedAt);
 
             using var command = connection.CreateCommand();
             command.CommandText = """
@@ -151,6 +152,12 @@ namespace TimePilot.WinForms.KYS24
             command.Parameters.AddWithValue("$appId", appId);
             command.Parameters.AddWithValue("$startedAt", FormatTimestamp(startedAt));
             return (long)command.ExecuteScalar()!;
+        }
+
+        public void UpdateAppMetadata(AppMetadata app, DateTimeOffset observedAt)
+        {
+            using var connection = OpenConnection();
+            _ = GetOrCreateAppId(connection, app, observedAt);
         }
 
         public void EndForegroundSession(long sessionId, DateTimeOffset endedAt)
@@ -183,12 +190,12 @@ namespace TimePilot.WinForms.KYS24
             updateCommand.ExecuteNonQuery();
         }
 
-        public long StartIdleSession(DateTimeOffset startedAt, int thresholdMs, string? foregroundProcessName)
+        public long StartIdleSession(DateTimeOffset startedAt, int thresholdMs, AppMetadata? foregroundApp)
         {
             using var connection = OpenConnection();
-            long? foregroundAppId = string.IsNullOrWhiteSpace(foregroundProcessName)
+            long? foregroundAppId = foregroundApp is null || string.IsNullOrWhiteSpace(foregroundApp.ProcessName)
                 ? null
-                : GetOrCreateAppId(connection, foregroundProcessName, startedAt);
+                : GetOrCreateAppId(connection, foregroundApp, startedAt);
 
             using var command = connection.CreateCommand();
             command.CommandText = """
@@ -247,6 +254,7 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 SELECT
                     a.display_name,
+                    a.executable_path,
                     fs.started_at,
                     fs.ended_at
                 FROM foreground_sessions fs
@@ -263,8 +271,9 @@ namespace TimePilot.WinForms.KYS24
             while (reader.Read())
             {
                 var appName = reader.GetString(0);
-                var startedAt = ParseTimestamp(reader.GetString(1));
-                var endedAt = reader.IsDBNull(2) ? now : ParseTimestamp(reader.GetString(2));
+                var executablePath = reader.IsDBNull(1) ? null : reader.GetString(1);
+                var startedAt = ParseTimestamp(reader.GetString(2));
+                var endedAt = reader.IsDBNull(3) ? now : ParseTimestamp(reader.GetString(3));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(endedAt, dayEnd);
                 var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
@@ -273,10 +282,11 @@ namespace TimePilot.WinForms.KYS24
 
                 if (!totals.TryGetValue(appName, out var aggregation))
                 {
-                    aggregation = new UsageAggregation(effectiveStart, effectiveEnd);
+                    aggregation = new UsageAggregation(effectiveStart, effectiveEnd, executablePath);
                     totals[appName] = aggregation;
                 }
 
+                aggregation.ExecutablePath ??= executablePath;
                 aggregation.ActiveUsageMs += durationMs;
                 aggregation.FirstStartedAt = Min(aggregation.FirstStartedAt, effectiveStart);
                 aggregation.LastObservedAt = Max(aggregation.LastObservedAt, effectiveEnd);
@@ -285,6 +295,7 @@ namespace TimePilot.WinForms.KYS24
             return totals
                 .Select(x => new ForegroundUsageSummary(
                     x.Key,
+                    x.Value.ExecutablePath,
                     x.Value.ActiveUsageMs,
                     x.Value.FirstStartedAt,
                     x.Value.LastObservedAt))
@@ -314,6 +325,31 @@ namespace TimePilot.WinForms.KYS24
                 return;
 
             disposed = true;
+        }
+
+        private static void EnsureAppsColumns(SqliteConnection connection)
+        {
+            if (!ColumnExists(connection, "apps", "executable_path"))
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = "ALTER TABLE apps ADD COLUMN executable_path TEXT NULL;";
+                command.ExecuteNonQuery();
+            }
+        }
+
+        private static bool ColumnExists(SqliteConnection connection, string tableName, string columnName)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"PRAGMA table_info({tableName});";
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
         }
 
         private void MarkUnexpectedRuntimeSessions(DateTimeOffset now)
@@ -377,22 +413,26 @@ namespace TimePilot.WinForms.KYS24
             updateCommand.ExecuteNonQuery();
         }
 
-        private long GetOrCreateAppId(SqliteConnection connection, string processName, DateTimeOffset observedAt)
+        private long GetOrCreateAppId(SqliteConnection connection, AppMetadata app, DateTimeOffset observedAt)
         {
             using var insertCommand = connection.CreateCommand();
             insertCommand.CommandText = """
                 INSERT INTO apps (
                     process_name,
                     display_name,
+                    executable_path,
                     first_seen_at,
                     last_seen_at
                 )
-                VALUES ($processName, $displayName, $firstSeenAt, $lastSeenAt)
+                VALUES ($processName, $displayName, $executablePath, $firstSeenAt, $lastSeenAt)
                 ON CONFLICT(process_name) DO UPDATE SET
+                    display_name = excluded.display_name,
+                    executable_path = COALESCE(excluded.executable_path, apps.executable_path),
                     last_seen_at = excluded.last_seen_at;
                 """;
-            insertCommand.Parameters.AddWithValue("$processName", processName);
-            insertCommand.Parameters.AddWithValue("$displayName", processName);
+            insertCommand.Parameters.AddWithValue("$processName", app.ProcessName);
+            insertCommand.Parameters.AddWithValue("$displayName", app.DisplayName);
+            insertCommand.Parameters.AddWithValue("$executablePath", (object?)app.ExecutablePath ?? DBNull.Value);
             insertCommand.Parameters.AddWithValue("$firstSeenAt", FormatTimestamp(observedAt));
             insertCommand.Parameters.AddWithValue("$lastSeenAt", FormatTimestamp(observedAt));
             insertCommand.ExecuteNonQuery();
@@ -403,7 +443,7 @@ namespace TimePilot.WinForms.KYS24
                 FROM apps
                 WHERE process_name = $processName;
                 """;
-            selectCommand.Parameters.AddWithValue("$processName", processName);
+            selectCommand.Parameters.AddWithValue("$processName", app.ProcessName);
             return (long)selectCommand.ExecuteScalar()!;
         }
 
@@ -418,6 +458,7 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 SELECT
                     a.display_name,
+                    a.executable_path,
                     fs.started_at,
                     fs.ended_at
                 FROM foreground_sessions fs
@@ -433,11 +474,12 @@ namespace TimePilot.WinForms.KYS24
             while (reader.Read())
             {
                 var appName = reader.GetString(0);
-                var startedAt = ParseTimestamp(reader.GetString(1));
-                DateTimeOffset? endedAt = reader.IsDBNull(2) ? null : ParseTimestamp(reader.GetString(2));
+                var executablePath = reader.IsDBNull(1) ? null : reader.GetString(1);
+                var startedAt = ParseTimestamp(reader.GetString(2));
+                DateTimeOffset? endedAt = reader.IsDBNull(3) ? null : ParseTimestamp(reader.GetString(3));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(endedAt ?? now, dayEnd);
-                AddTimelineRow(rows, "활성", effectiveStart, endedAt, effectiveEnd, appName);
+                AddTimelineRow(rows, "활성", effectiveStart, endedAt, effectiveEnd, appName, executablePath);
             }
         }
 
@@ -452,6 +494,7 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 SELECT
                     COALESCE(a.display_name, 'Idle'),
+                    a.executable_path,
                     i.started_at,
                     i.ended_at
                 FROM idle_sessions i
@@ -467,11 +510,12 @@ namespace TimePilot.WinForms.KYS24
             while (reader.Read())
             {
                 var foregroundAppName = reader.GetString(0);
-                var startedAt = ParseTimestamp(reader.GetString(1));
-                DateTimeOffset? endedAt = reader.IsDBNull(2) ? null : ParseTimestamp(reader.GetString(2));
+                var executablePath = reader.IsDBNull(1) ? null : reader.GetString(1);
+                var startedAt = ParseTimestamp(reader.GetString(2));
+                DateTimeOffset? endedAt = reader.IsDBNull(3) ? null : ParseTimestamp(reader.GetString(3));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(endedAt ?? now, dayEnd);
-                AddTimelineRow(rows, "유휴", effectiveStart, endedAt, effectiveEnd, foregroundAppName);
+                AddTimelineRow(rows, "유휴", effectiveStart, endedAt, effectiveEnd, foregroundAppName, executablePath);
             }
         }
 
@@ -481,7 +525,8 @@ namespace TimePilot.WinForms.KYS24
             DateTimeOffset effectiveStart,
             DateTimeOffset? originalEnd,
             DateTimeOffset effectiveEnd,
-            string displayName)
+            string displayName,
+            string? executablePath)
         {
             var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
             if (durationMs <= 0)
@@ -492,7 +537,8 @@ namespace TimePilot.WinForms.KYS24
                 effectiveStart,
                 originalEnd,
                 durationMs,
-                displayName));
+                displayName,
+                executablePath));
         }
 
         private SqliteConnection OpenConnection()
@@ -524,13 +570,16 @@ namespace TimePilot.WinForms.KYS24
 
         private sealed class UsageAggregation
         {
-            public UsageAggregation(DateTimeOffset firstStartedAt, DateTimeOffset lastObservedAt)
+            public UsageAggregation(DateTimeOffset firstStartedAt, DateTimeOffset lastObservedAt, string? executablePath)
             {
                 FirstStartedAt = firstStartedAt;
                 LastObservedAt = lastObservedAt;
+                ExecutablePath = executablePath;
             }
 
             public long ActiveUsageMs { get; set; }
+
+            public string? ExecutablePath { get; set; }
 
             public DateTimeOffset FirstStartedAt { get; set; }
 

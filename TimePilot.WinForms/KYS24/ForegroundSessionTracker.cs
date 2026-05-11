@@ -4,6 +4,8 @@ namespace TimePilot.WinForms.KYS24
     {
         private readonly TimePilotStorage storage;
         private string? currentProcessName;
+        private string? currentDisplayName;
+        private string? currentExecutablePath;
         private long? currentSessionId;
 
         public ForegroundSessionTracker(TimePilotStorage storage)
@@ -11,21 +13,32 @@ namespace TimePilot.WinForms.KYS24
             this.storage = storage;
         }
 
-        public void Track(string? processName, bool isIdle, DateTimeOffset observedAt)
+        public void Track(AppMetadata? app, bool isIdle, DateTimeOffset observedAt)
         {
-            if (isIdle || string.IsNullOrWhiteSpace(processName))
+            if (isIdle || app is null || string.IsNullOrWhiteSpace(app.ProcessName))
             {
                 EndCurrentSession(observedAt);
                 return;
             }
 
-            if (string.Equals(currentProcessName, processName, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(currentProcessName, app.ProcessName, StringComparison.OrdinalIgnoreCase))
+            {
+                if (HasMetadataChanged(app))
+                {
+                    storage.UpdateAppMetadata(app, observedAt);
+                    currentDisplayName = app.DisplayName;
+                    currentExecutablePath = app.ExecutablePath;
+                }
+
                 return;
+            }
 
             EndCurrentSession(observedAt);
 
-            currentProcessName = processName;
-            currentSessionId = storage.StartForegroundSession(processName, observedAt);
+            currentProcessName = app.ProcessName;
+            currentDisplayName = app.DisplayName;
+            currentExecutablePath = app.ExecutablePath;
+            currentSessionId = storage.StartForegroundSession(app, observedAt);
         }
 
         public void EndCurrentSession(DateTimeOffset endedAt)
@@ -36,6 +49,14 @@ namespace TimePilot.WinForms.KYS24
             storage.EndForegroundSession(sessionId, endedAt);
             currentSessionId = null;
             currentProcessName = null;
+            currentDisplayName = null;
+            currentExecutablePath = null;
+        }
+
+        private bool HasMetadataChanged(AppMetadata app)
+        {
+            return !string.Equals(currentDisplayName, app.DisplayName, StringComparison.Ordinal)
+                || !string.Equals(currentExecutablePath, app.ExecutablePath, StringComparison.OrdinalIgnoreCase);
         }
     }
 }
