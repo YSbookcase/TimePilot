@@ -1,4 +1,3 @@
-using System.Globalization;
 using TimePilot.WinForms.KYS24;
 
 namespace TimePilot.WinForms
@@ -30,16 +29,7 @@ namespace TimePilot.WinForms
                 ? $"전경: (없음) · {idleText}"
                 : $"전경: {processName} · {idleText}";
             var snapshot = accumulator.SnapshotTotalsMs();
-            usageListBox.BeginUpdate();
-            usageListBox.Items.Clear();
-            foreach (var kv in snapshot.OrderByDescending(x => x.Value))
-            {
-                var span = TimeSpan.FromMilliseconds(kv.Value);
-                var line = string.Format(CultureInfo.CurrentCulture, "{0} — {1:D2}:{2:D2}:{3:D2}",
-                    kv.Key, (int)span.TotalHours, span.Minutes, span.Seconds);
-                usageListBox.Items.Add(line);
-            }
-            usageListBox.EndUpdate();
+            usageGrid.DataSource = UsageSummaryRowBuilder.FromTotals(snapshot);
         }
     }
 }
