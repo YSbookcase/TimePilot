@@ -27,7 +27,7 @@
             statusLabel = new Label();
             mainTabs = new TabControl();
             summaryTab = new TabPage();
-            usageGrid = new DataGridView();
+            usageGrid = new BufferedDataGridView();
             appIconColumn = new DataGridViewImageColumn();
             appNameColumn = new DataGridViewTextBoxColumn();
             firstStartedAtColumn = new DataGridViewTextBoxColumn();
@@ -36,7 +36,7 @@
             usageRatioColumn = new DataGridViewTextBoxColumn();
             switchCountColumn = new DataGridViewTextBoxColumn();
             timelineTab = new TabPage();
-            timelineGrid = new DataGridView();
+            timelineGrid = new BufferedDataGridView();
             timelineTypeColumn = new DataGridViewTextBoxColumn();
             timelineStartedAtColumn = new DataGridViewTextBoxColumn();
             timelineEndedAtColumn = new DataGridViewTextBoxColumn();
@@ -137,9 +137,10 @@
             // 
             usageGrid.AllowUserToAddRows = false;
             usageGrid.AllowUserToDeleteRows = false;
+            usageGrid.AllowUserToOrderColumns = true;
             usageGrid.AllowUserToResizeRows = false;
             usageGrid.AutoGenerateColumns = false;
-            usageGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            usageGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             usageGrid.BackgroundColor = SystemColors.Window;
             usageGrid.BorderStyle = BorderStyle.None;
             usageGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
@@ -150,9 +151,11 @@
             usageGrid.Name = "usageGrid";
             usageGrid.ReadOnly = true;
             usageGrid.RowHeadersVisible = false;
+            usageGrid.ScrollBars = ScrollBars.Both;
             usageGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             usageGrid.Size = new Size(706, 414);
             usageGrid.TabIndex = 1;
+            usageGrid.ColumnHeaderMouseClick += OnUsageGridColumnHeaderMouseClick;
             // 
             // appIconColumn
             // 
@@ -160,6 +163,7 @@
             appIconColumn.DataPropertyName = "AppIcon";
             appIconColumn.HeaderText = "";
             appIconColumn.ImageLayout = DataGridViewImageCellLayout.Zoom;
+            appIconColumn.MinimumWidth = 36;
             appIconColumn.Name = "appIconColumn";
             appIconColumn.ReadOnly = true;
             appIconColumn.Width = 36;
@@ -168,43 +172,61 @@
             // 
             appNameColumn.DataPropertyName = "AppName";
             appNameColumn.HeaderText = "앱";
+            appNameColumn.MinimumWidth = 180;
             appNameColumn.Name = "appNameColumn";
             appNameColumn.ReadOnly = true;
+            appNameColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            appNameColumn.Width = 220;
             // 
             // firstStartedAtColumn
             // 
             firstStartedAtColumn.DataPropertyName = "FirstStartedAtText";
             firstStartedAtColumn.HeaderText = "첫 시작";
+            firstStartedAtColumn.MinimumWidth = 90;
             firstStartedAtColumn.Name = "firstStartedAtColumn";
             firstStartedAtColumn.ReadOnly = true;
+            firstStartedAtColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            firstStartedAtColumn.Width = 100;
             // 
             // lastObservedAtColumn
             // 
             lastObservedAtColumn.DataPropertyName = "LastObservedAtText";
             lastObservedAtColumn.HeaderText = "마지막 감지";
+            lastObservedAtColumn.MinimumWidth = 100;
             lastObservedAtColumn.Name = "lastObservedAtColumn";
             lastObservedAtColumn.ReadOnly = true;
+            lastObservedAtColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            lastObservedAtColumn.Width = 110;
             // 
             // activeUsageTimeColumn
             // 
             activeUsageTimeColumn.DataPropertyName = "ActiveUsageTimeText";
             activeUsageTimeColumn.HeaderText = "활성 사용 시간";
+            activeUsageTimeColumn.MinimumWidth = 120;
             activeUsageTimeColumn.Name = "activeUsageTimeColumn";
             activeUsageTimeColumn.ReadOnly = true;
+            activeUsageTimeColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            activeUsageTimeColumn.Width = 130;
             // 
             // usageRatioColumn
             // 
             usageRatioColumn.DataPropertyName = "UsageRatioText";
             usageRatioColumn.HeaderText = "비율";
+            usageRatioColumn.MinimumWidth = 80;
             usageRatioColumn.Name = "usageRatioColumn";
             usageRatioColumn.ReadOnly = true;
+            usageRatioColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            usageRatioColumn.Width = 90;
             // 
             // switchCountColumn
             // 
             switchCountColumn.DataPropertyName = "SwitchCountText";
             switchCountColumn.HeaderText = "전환 횟수";
+            switchCountColumn.MinimumWidth = 90;
             switchCountColumn.Name = "switchCountColumn";
             switchCountColumn.ReadOnly = true;
+            switchCountColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            switchCountColumn.Width = 100;
             // 
             // timelineTab
             // 
@@ -223,7 +245,7 @@
             timelineGrid.AllowUserToDeleteRows = false;
             timelineGrid.AllowUserToResizeRows = false;
             timelineGrid.AutoGenerateColumns = false;
-            timelineGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            timelineGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
             timelineGrid.BackgroundColor = SystemColors.Window;
             timelineGrid.BorderStyle = BorderStyle.None;
             timelineGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
@@ -234,37 +256,51 @@
             timelineGrid.Name = "timelineGrid";
             timelineGrid.ReadOnly = true;
             timelineGrid.RowHeadersVisible = false;
+            timelineGrid.ScrollBars = ScrollBars.Both;
             timelineGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             timelineGrid.Size = new Size(706, 414);
             timelineGrid.TabIndex = 0;
+            timelineGrid.ColumnHeaderMouseClick += OnTimelineGridColumnHeaderMouseClick;
             // 
             // timelineTypeColumn
             // 
             timelineTypeColumn.DataPropertyName = "ActivityType";
             timelineTypeColumn.HeaderText = "유형";
+            timelineTypeColumn.MinimumWidth = 80;
             timelineTypeColumn.Name = "timelineTypeColumn";
             timelineTypeColumn.ReadOnly = true;
+            timelineTypeColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            timelineTypeColumn.Width = 90;
             // 
             // timelineStartedAtColumn
             // 
             timelineStartedAtColumn.DataPropertyName = "StartedAtText";
             timelineStartedAtColumn.HeaderText = "시작";
+            timelineStartedAtColumn.MinimumWidth = 90;
             timelineStartedAtColumn.Name = "timelineStartedAtColumn";
             timelineStartedAtColumn.ReadOnly = true;
+            timelineStartedAtColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            timelineStartedAtColumn.Width = 100;
             // 
             // timelineEndedAtColumn
             // 
             timelineEndedAtColumn.DataPropertyName = "EndedAtText";
             timelineEndedAtColumn.HeaderText = "종료";
+            timelineEndedAtColumn.MinimumWidth = 90;
             timelineEndedAtColumn.Name = "timelineEndedAtColumn";
             timelineEndedAtColumn.ReadOnly = true;
+            timelineEndedAtColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            timelineEndedAtColumn.Width = 100;
             // 
             // timelineDurationColumn
             // 
             timelineDurationColumn.DataPropertyName = "DurationText";
             timelineDurationColumn.HeaderText = "시간";
+            timelineDurationColumn.MinimumWidth = 100;
             timelineDurationColumn.Name = "timelineDurationColumn";
             timelineDurationColumn.ReadOnly = true;
+            timelineDurationColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            timelineDurationColumn.Width = 110;
             // 
             // timelineAppIconColumn
             // 
@@ -272,6 +308,7 @@
             timelineAppIconColumn.DataPropertyName = "AppIcon";
             timelineAppIconColumn.HeaderText = "";
             timelineAppIconColumn.ImageLayout = DataGridViewImageCellLayout.Zoom;
+            timelineAppIconColumn.MinimumWidth = 36;
             timelineAppIconColumn.Name = "timelineAppIconColumn";
             timelineAppIconColumn.ReadOnly = true;
             timelineAppIconColumn.Width = 36;
@@ -280,8 +317,11 @@
             // 
             timelineDisplayNameColumn.DataPropertyName = "DisplayName";
             timelineDisplayNameColumn.HeaderText = "앱";
+            timelineDisplayNameColumn.MinimumWidth = 220;
             timelineDisplayNameColumn.Name = "timelineDisplayNameColumn";
             timelineDisplayNameColumn.ReadOnly = true;
+            timelineDisplayNameColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            timelineDisplayNameColumn.Width = 260;
             // 
             // Form1
             // 

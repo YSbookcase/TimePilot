@@ -10,6 +10,9 @@ namespace TimePilot.WinForms
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private readonly AppIconCache appIconCache = new();
         private AppSettings settings = AppSettings.LoadDefault();
+        private string usageSortProperty = nameof(UsageSummaryRow.ActiveUsageMs);
+        private SortOrder usageSortOrder = SortOrder.Descending;
+        private bool showRecentTimelineFirst;
         private TimePilotStorage? storage;
         private ForegroundSessionTracker? foregroundSessionTracker;
         private IdleSessionTracker? idleSessionTracker;
@@ -97,11 +100,12 @@ namespace TimePilot.WinForms
 
             SetGridDataSourcePreservingView(
                 usageGrid,
-                AddIcons(UsageSummaryRowBuilder.FromForegroundUsage(
-                    storage.GetForegroundUsageForDay(observedAt))));
+                AddIcons(SortUsageSummaryRows(UsageSummaryRowBuilder.FromForegroundUsage(
+                    storage.GetForegroundUsageForDay(observedAt)))));
             SetGridDataSourcePreservingView(
                 timelineGrid,
-                AddIcons(storage.GetActivityTimelineForDay(observedAt)));
+                AddIcons(SortTimelineRows(storage.GetActivityTimelineForDay(observedAt))));
+            UpdateSortGlyphs();
         }
 
         private void TrackProcessRuntimeSessions(DateTimeOffset observedAt)
@@ -131,9 +135,108 @@ namespace TimePilot.WinForms
                 .ToList();
         }
 
+        private IReadOnlyList<UsageSummaryRow> SortUsageSummaryRows(IReadOnlyList<UsageSummaryRow> rows)
+        {
+            IOrderedEnumerable<UsageSummaryRow> sortedRows = usageSortProperty switch
+            {
+                nameof(UsageSummaryRow.AppName) => OrderUsageRows(rows, x => x.AppName),
+                nameof(UsageSummaryRow.FirstStartedAt) => OrderUsageRows(rows, x => x.FirstStartedAt),
+                nameof(UsageSummaryRow.LastObservedAt) => OrderUsageRows(rows, x => x.LastObservedAt),
+                nameof(UsageSummaryRow.UsageRatio) => OrderUsageRows(rows, x => x.UsageRatio),
+                nameof(UsageSummaryRow.SwitchCount) => OrderUsageRows(rows, x => x.SwitchCount),
+                _ => OrderUsageRows(rows, x => x.ActiveUsageMs)
+            };
+
+            return sortedRows
+                .ThenBy(x => x.AppName)
+                .ToList();
+        }
+
+        private IReadOnlyList<ActivityTimelineRow> SortTimelineRows(IReadOnlyList<ActivityTimelineRow> rows)
+        {
+            return showRecentTimelineFirst
+                ? rows.OrderByDescending(x => x.StartedAt).ToList()
+                : rows.OrderBy(x => x.StartedAt).ToList();
+        }
+
+        private IOrderedEnumerable<UsageSummaryRow> OrderUsageRows<TKey>(
+            IReadOnlyList<UsageSummaryRow> rows,
+            Func<UsageSummaryRow, TKey> keySelector)
+        {
+            return usageSortOrder == SortOrder.Ascending
+                ? rows.OrderBy(keySelector)
+                : rows.OrderByDescending(keySelector);
+        }
+
+        private void OnUsageGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.ColumnIndex < 0)
+                return;
+
+            var propertyName = GetUsageSortPropertyName(usageGrid.Columns[e.ColumnIndex]);
+            if (propertyName is null)
+                return;
+
+            usageSortOrder = string.Equals(usageSortProperty, propertyName, StringComparison.Ordinal)
+                ? ToggleSortOrder(usageSortOrder)
+                : SortOrder.Descending;
+            usageSortProperty = propertyName;
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void OnTimelineGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.ColumnIndex < 0 || timelineGrid.Columns[e.ColumnIndex] != timelineStartedAtColumn)
+                return;
+
+            showRecentTimelineFirst = !showRecentTimelineFirst;
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private string? GetUsageSortPropertyName(DataGridViewColumn column)
+        {
+            return column.Name switch
+            {
+                nameof(appNameColumn) => nameof(UsageSummaryRow.AppName),
+                nameof(firstStartedAtColumn) => nameof(UsageSummaryRow.FirstStartedAt),
+                nameof(lastObservedAtColumn) => nameof(UsageSummaryRow.LastObservedAt),
+                nameof(activeUsageTimeColumn) => nameof(UsageSummaryRow.ActiveUsageMs),
+                nameof(usageRatioColumn) => nameof(UsageSummaryRow.UsageRatio),
+                nameof(switchCountColumn) => nameof(UsageSummaryRow.SwitchCount),
+                _ => null
+            };
+        }
+
+        private void UpdateSortGlyphs()
+        {
+            foreach (DataGridViewColumn column in usageGrid.Columns)
+            {
+                column.HeaderCell.SortGlyphDirection = GetUsageSortPropertyName(column) == usageSortProperty
+                    ? usageSortOrder
+                    : SortOrder.None;
+            }
+
+            foreach (DataGridViewColumn column in timelineGrid.Columns)
+            {
+                column.HeaderCell.SortGlyphDirection = SortOrder.None;
+            }
+
+            timelineStartedAtColumn.HeaderCell.SortGlyphDirection = showRecentTimelineFirst
+                ? SortOrder.Descending
+                : SortOrder.Ascending;
+        }
+
+        private static SortOrder ToggleSortOrder(SortOrder sortOrder)
+        {
+            return sortOrder == SortOrder.Descending
+                ? SortOrder.Ascending
+                : SortOrder.Descending;
+        }
+
         private static void SetGridDataSourcePreservingView<T>(DataGridView grid, IReadOnlyList<T> rows)
         {
-            var firstDisplayedIndex = GetFirstDisplayedRowIndex(grid);
+            var firstDisplayedRowIndex = GetFirstDisplayedRowIndex(grid);
+            var firstDisplayedColumnIndex = GetFirstDisplayedColumnIndex(grid);
             var selectedIndex = grid.CurrentRow?.Index ?? -1;
 
             grid.DataSource = rows;
@@ -141,17 +244,21 @@ namespace TimePilot.WinForms
             if (grid.Rows.Count == 0)
                 return;
 
-            var restoredFirstIndex = Math.Min(firstDisplayedIndex, grid.Rows.Count - 1);
-            TrySetFirstDisplayedRowIndex(grid, restoredFirstIndex);
+            var restoredFirstRowIndex = Math.Min(firstDisplayedRowIndex, grid.Rows.Count - 1);
+            var restoredFirstColumnIndex = Math.Min(firstDisplayedColumnIndex, grid.Columns.Count - 1);
+            TrySetFirstDisplayedRowIndex(grid, restoredFirstRowIndex);
+            TrySetFirstDisplayedColumnIndex(grid, restoredFirstColumnIndex);
 
             if (selectedIndex < 0)
                 return;
 
             var restoredSelectedIndex = Math.Min(selectedIndex, grid.Rows.Count - 1);
+            var restoredSelectedColumnIndex = Math.Min(restoredFirstColumnIndex, grid.Columns.Count - 1);
             grid.ClearSelection();
             grid.Rows[restoredSelectedIndex].Selected = true;
-            grid.CurrentCell = grid.Rows[restoredSelectedIndex].Cells[0];
-            TrySetFirstDisplayedRowIndex(grid, restoredFirstIndex);
+            grid.CurrentCell = grid.Rows[restoredSelectedIndex].Cells[restoredSelectedColumnIndex];
+            TrySetFirstDisplayedRowIndex(grid, restoredFirstRowIndex);
+            TrySetFirstDisplayedColumnIndex(grid, restoredFirstColumnIndex);
         }
 
         private static int GetFirstDisplayedRowIndex(DataGridView grid)
@@ -166,11 +273,35 @@ namespace TimePilot.WinForms
             }
         }
 
+        private static int GetFirstDisplayedColumnIndex(DataGridView grid)
+        {
+            try
+            {
+                return Math.Max(grid.FirstDisplayedScrollingColumnIndex, 0);
+            }
+            catch (InvalidOperationException)
+            {
+                return 0;
+            }
+        }
+
         private static void TrySetFirstDisplayedRowIndex(DataGridView grid, int rowIndex)
         {
             try
             {
                 grid.FirstDisplayedScrollingRowIndex = rowIndex;
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        private static void TrySetFirstDisplayedColumnIndex(DataGridView grid, int columnIndex)
+        {
+            try
+            {
+                if (columnIndex >= 0 && grid.Columns.Count > 0)
+                    grid.FirstDisplayedScrollingColumnIndex = columnIndex;
             }
             catch (InvalidOperationException)
             {
