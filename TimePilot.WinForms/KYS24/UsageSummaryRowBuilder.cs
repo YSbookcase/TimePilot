@@ -12,6 +12,7 @@ namespace TimePilot.WinForms.KYS24
                 .OrderByDescending(x => x.Value)
                 .Select(x => new UsageSummaryRow(
                     x.Key,
+                    null,
                     x.Value,
                     (double)x.Value / totalMs))
                 .ToList();
@@ -27,8 +28,10 @@ namespace TimePilot.WinForms.KYS24
                 .OrderByDescending(x => x.ActiveUsageMs)
                 .Select(x => new UsageSummaryRow(
                     x.AppName,
+                    x.ExecutablePath,
                     x.ActiveUsageMs,
                     (double)x.ActiveUsageMs / totalMs,
+                    null,
                     x.FirstStartedAt,
                     x.LastObservedAt))
                 .ToList();

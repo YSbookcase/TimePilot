@@ -11,21 +11,21 @@ namespace TimePilot.WinForms.KYS24
             this.storage = storage;
         }
 
-        public void Track(string? processName, bool isIdle, DateTimeOffset observedAt)
+        public void Track(AppMetadata? app, bool isIdle, DateTimeOffset observedAt)
         {
-            if (isIdle || string.IsNullOrWhiteSpace(processName))
+            if (isIdle || app is null || string.IsNullOrWhiteSpace(app.ProcessName))
             {
                 EndCurrentSession(observedAt);
                 return;
             }
 
-            if (string.Equals(currentProcessName, processName, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(currentProcessName, app.ProcessName, StringComparison.OrdinalIgnoreCase))
                 return;
 
             EndCurrentSession(observedAt);
 
-            currentProcessName = processName;
-            currentSessionId = storage.StartForegroundSession(processName, observedAt);
+            currentProcessName = app.ProcessName;
+            currentSessionId = storage.StartForegroundSession(app, observedAt);
         }
 
         public void EndCurrentSession(DateTimeOffset endedAt)

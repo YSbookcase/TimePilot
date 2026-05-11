@@ -11,7 +11,7 @@ namespace TimePilot.WinForms.KYS24
         [DllImport("user32.dll", SetLastError = true)]
         private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
 
-        public static string? TryGetForegroundProcessName()
+        public static AppMetadata? TryGetForegroundApp()
         {
             var hwnd = GetForegroundWindow();
             if (hwnd == IntPtr.Zero)
@@ -22,12 +22,59 @@ namespace TimePilot.WinForms.KYS24
             try
             {
                 using var process = Process.GetProcessById((int)processId);
-                return process.ProcessName;
+                var executablePath = TryGetExecutablePath(process);
+                return new AppMetadata(
+                    process.ProcessName,
+                    GetDisplayName(process.ProcessName, executablePath),
+                    executablePath);
             }
             catch
             {
                 return null;
             }
+        }
+
+        private static string? TryGetExecutablePath(Process process)
+        {
+            try
+            {
+                return process.MainModule?.FileName;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static string GetDisplayName(string processName, string? executablePath)
+        {
+            if (string.IsNullOrWhiteSpace(executablePath))
+                return processName;
+
+            try
+            {
+                var versionInfo = FileVersionInfo.GetVersionInfo(executablePath);
+                return FirstNonEmpty(
+                    versionInfo.FileDescription,
+                    versionInfo.ProductName,
+                    Path.GetFileNameWithoutExtension(executablePath),
+                    processName);
+            }
+            catch
+            {
+                return processName;
+            }
+        }
+
+        private static string FirstNonEmpty(params string?[] values)
+        {
+            foreach (var value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                    return value;
+            }
+
+            return "";
         }
     }
 }

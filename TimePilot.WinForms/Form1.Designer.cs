@@ -21,6 +21,7 @@
             mainTabs = new TabControl();
             summaryTab = new TabPage();
             usageGrid = new DataGridView();
+            appIconColumn = new DataGridViewImageColumn();
             appNameColumn = new DataGridViewTextBoxColumn();
             firstStartedAtColumn = new DataGridViewTextBoxColumn();
             lastObservedAtColumn = new DataGridViewTextBoxColumn();
@@ -32,6 +33,7 @@
             timelineStartedAtColumn = new DataGridViewTextBoxColumn();
             timelineEndedAtColumn = new DataGridViewTextBoxColumn();
             timelineDurationColumn = new DataGridViewTextBoxColumn();
+            timelineAppIconColumn = new DataGridViewImageColumn();
             timelineDisplayNameColumn = new DataGridViewTextBoxColumn();
             mainTabs.SuspendLayout();
             summaryTab.SuspendLayout();
@@ -82,7 +84,7 @@
             usageGrid.BackgroundColor = SystemColors.Window;
             usageGrid.BorderStyle = BorderStyle.None;
             usageGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            usageGrid.Columns.AddRange(new DataGridViewColumn[] { appNameColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, usageRatioColumn });
+            usageGrid.Columns.AddRange(new DataGridViewColumn[] { appIconColumn, appNameColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, usageRatioColumn });
             usageGrid.Dock = DockStyle.Fill;
             usageGrid.Location = new Point(3, 3);
             usageGrid.MultiSelect = false;
@@ -92,6 +94,16 @@
             usageGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             usageGrid.Size = new Size(706, 414);
             usageGrid.TabIndex = 1;
+            // 
+            // appIconColumn
+            // 
+            appIconColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+            appIconColumn.DataPropertyName = "AppIcon";
+            appIconColumn.HeaderText = "";
+            appIconColumn.ImageLayout = DataGridViewImageCellLayout.Zoom;
+            appIconColumn.Name = "appIconColumn";
+            appIconColumn.ReadOnly = true;
+            appIconColumn.Width = 36;
             // 
             // appNameColumn
             // 
@@ -149,7 +161,7 @@
             timelineGrid.BackgroundColor = SystemColors.Window;
             timelineGrid.BorderStyle = BorderStyle.None;
             timelineGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            timelineGrid.Columns.AddRange(new DataGridViewColumn[] { timelineTypeColumn, timelineStartedAtColumn, timelineEndedAtColumn, timelineDurationColumn, timelineDisplayNameColumn });
+            timelineGrid.Columns.AddRange(new DataGridViewColumn[] { timelineTypeColumn, timelineStartedAtColumn, timelineEndedAtColumn, timelineDurationColumn, timelineAppIconColumn, timelineDisplayNameColumn });
             timelineGrid.Dock = DockStyle.Fill;
             timelineGrid.Location = new Point(3, 3);
             timelineGrid.MultiSelect = false;
@@ -188,6 +200,16 @@
             timelineDurationColumn.Name = "timelineDurationColumn";
             timelineDurationColumn.ReadOnly = true;
             // 
+            // timelineAppIconColumn
+            // 
+            timelineAppIconColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+            timelineAppIconColumn.DataPropertyName = "AppIcon";
+            timelineAppIconColumn.HeaderText = "";
+            timelineAppIconColumn.ImageLayout = DataGridViewImageCellLayout.Zoom;
+            timelineAppIconColumn.Name = "timelineAppIconColumn";
+            timelineAppIconColumn.ReadOnly = true;
+            timelineAppIconColumn.Width = 36;
+            // 
             // timelineDisplayNameColumn
             // 
             timelineDisplayNameColumn.DataPropertyName = "DisplayName";
@@ -215,6 +237,7 @@
         private TabControl mainTabs;
         private TabPage summaryTab;
         private DataGridView usageGrid;
+        private DataGridViewImageColumn appIconColumn;
         private DataGridViewTextBoxColumn appNameColumn;
         private DataGridViewTextBoxColumn firstStartedAtColumn;
         private DataGridViewTextBoxColumn lastObservedAtColumn;
@@ -226,6 +249,7 @@
         private DataGridViewTextBoxColumn timelineStartedAtColumn;
         private DataGridViewTextBoxColumn timelineEndedAtColumn;
         private DataGridViewTextBoxColumn timelineDurationColumn;
+        private DataGridViewImageColumn timelineAppIconColumn;
         private DataGridViewTextBoxColumn timelineDisplayNameColumn;
 
         #endregion

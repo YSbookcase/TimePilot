@@ -8,6 +8,7 @@ namespace TimePilot.WinForms
         private const int IdleThresholdMs = 120000;
 
         private readonly System.Windows.Forms.Timer sampleTimer = new();
+        private readonly AppIconCache appIconCache = new();
         private TimePilotStorage? storage;
         private ForegroundSessionTracker? foregroundSessionTracker;
         private IdleSessionTracker? idleSessionTracker;
@@ -40,16 +41,16 @@ namespace TimePilot.WinForms
         {
             var observedAt = DateTimeOffset.UtcNow;
             var isIdle = UserIdleChecker.IsIdle(IdleThresholdMs);
-            var processName = ForegroundWindowReader.TryGetForegroundProcessName();
+            var foregroundApp = ForegroundWindowReader.TryGetForegroundApp();
 
             storage?.UpdateRuntimeHeartbeat(observedAt);
-            idleSessionTracker?.Track(isIdle, processName, IdleThresholdMs, observedAt);
-            foregroundSessionTracker?.Track(processName, isIdle, observedAt);
+            idleSessionTracker?.Track(isIdle, foregroundApp, IdleThresholdMs, observedAt);
+            foregroundSessionTracker?.Track(foregroundApp, isIdle, observedAt);
 
             var idleText = isIdle ? "유휴" : "활성";
-            statusLabel.Text = string.IsNullOrEmpty(processName)
+            statusLabel.Text = foregroundApp is null
                 ? $"전경: (없음) · {idleText}"
-                : $"전경: {processName} · {idleText}";
+                : $"전경: {foregroundApp.DisplayName} · {idleText}";
             RefreshViews(observedAt);
         }
 
@@ -61,24 +62,25 @@ namespace TimePilot.WinForms
             foregroundSessionTracker?.EndCurrentSession(endedAt);
             storage?.EndRuntimeSession(endedAt, "normal");
             storage?.Dispose();
+            appIconCache.Dispose();
             sampleTimer.Dispose();
         }
 
         private void ConfigureDesignPreview()
         {
             statusLabel.Text = "전경: Visual Studio · 활성";
-            usageGrid.DataSource = new List<UsageSummaryRow>
+            usageGrid.DataSource = AddIcons(new List<UsageSummaryRow>
             {
-                new("devenv", 3_900_000, 0.54, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now),
-                new("chrome", 1_680_000, 0.23, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-12)),
-                new("explorer", 900_000, 0.13, DateTimeOffset.Now.AddMinutes(-45), DateTimeOffset.Now.AddMinutes(-5))
-            };
-            timelineGrid.DataSource = new List<ActivityTimelineRow>
+                new("Microsoft Visual Studio", null, 3_900_000, 0.54, null, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now),
+                new("Google Chrome", null, 1_680_000, 0.23, null, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-12)),
+                new("File Explorer", null, 900_000, 0.13, null, DateTimeOffset.Now.AddMinutes(-45), DateTimeOffset.Now.AddMinutes(-5))
+            });
+            timelineGrid.DataSource = AddIcons(new List<ActivityTimelineRow>
             {
                 new("활성", DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now.AddHours(-1), 3_600_000, "devenv"),
                 new("유휴", DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-45), 900_000, "devenv"),
                 new("활성", DateTimeOffset.Now.AddMinutes(-45), null, 2_700_000, "chrome")
-            };
+            });
         }
 
         private void RefreshViews(DateTimeOffset observedAt)
@@ -88,11 +90,25 @@ namespace TimePilot.WinForms
 
             SetGridDataSourcePreservingView(
                 usageGrid,
-                UsageSummaryRowBuilder.FromForegroundUsage(
-                    storage.GetForegroundUsageForDay(observedAt)));
+                AddIcons(UsageSummaryRowBuilder.FromForegroundUsage(
+                    storage.GetForegroundUsageForDay(observedAt))));
             SetGridDataSourcePreservingView(
                 timelineGrid,
-                storage.GetActivityTimelineForDay(observedAt));
+                AddIcons(storage.GetActivityTimelineForDay(observedAt)));
+        }
+
+        private IReadOnlyList<UsageSummaryRow> AddIcons(IReadOnlyList<UsageSummaryRow> rows)
+        {
+            return rows
+                .Select(row => row with { AppIcon = appIconCache.GetIcon(row.ExecutablePath) })
+                .ToList();
+        }
+
+        private IReadOnlyList<ActivityTimelineRow> AddIcons(IReadOnlyList<ActivityTimelineRow> rows)
+        {
+            return rows
+                .Select(row => row with { AppIcon = appIconCache.GetIcon(row.ExecutablePath) })
+                .ToList();
         }
 
         private static void SetGridDataSourcePreservingView<T>(DataGridView grid, IReadOnlyList<T> rows)
