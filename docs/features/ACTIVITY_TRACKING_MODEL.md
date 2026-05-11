@@ -8,6 +8,7 @@ The initial priority is time tracking, not resource monitoring.
 
 The first model should track:
 
+- TimePilot app runtime
 - Foreground activity time
 - Idle time after the configured inactivity threshold
 - Process runtime, including background programs
@@ -45,11 +46,38 @@ Which programs were running while I was away?
 Which programs ran in the background but were rarely foreground?
 ```
 
+### 2.4 TimePilot App Runtime
+
+Time during which TimePilot itself was running and able to record activity.
+
+This is needed to distinguish tracked time from missing time:
+
+```text
+When was TimePilot not running?
+How much of the day could not be observed?
+```
+
 ---
 
 ## 3. Recommended Tables
 
-### 3.1 apps
+### 3.1 app_runtime_sessions
+
+TimePilot app runtime sessions.
+
+```text
+id
+started_at
+ended_at
+duration_ms
+last_heartbeat_at
+shutdown_reason
+app_version
+```
+
+If the previous runtime session has no `ended_at`, the next app start should mark it as unexpected using the last heartbeat time when available.
+
+### 3.2 apps
 
 Application identity table.
 
@@ -64,7 +92,7 @@ user_alias
 is_excluded
 ```
 
-### 3.2 foreground_sessions
+### 3.3 foreground_sessions
 
 Foreground app sessions.
 
@@ -78,7 +106,7 @@ duration_ms
 
 Window titles are privacy-sensitive and should not be stored by default.
 
-### 3.3 idle_sessions
+### 3.4 idle_sessions
 
 Idle periods.
 
@@ -91,7 +119,7 @@ threshold_ms
 foreground_app_id
 ```
 
-### 3.4 process_runtime_sessions
+### 3.5 process_runtime_sessions
 
 Time-only process runtime sessions.
 
@@ -129,11 +157,12 @@ rarely or never appears in foreground_sessions
 
 ## 5. Implementation Order
 
-1. Add foreground sessions.
-2. Add idle sessions.
-3. Store `apps`, `foreground_sessions`, and `idle_sessions` in SQLite.
-4. Add time-only `process_runtime_sessions`.
-5. Defer resource tracking until the time model is stable.
+1. Add `app_runtime_sessions` so missing recording time can be identified.
+2. Add foreground sessions.
+3. Add idle sessions.
+4. Store `apps`, `app_runtime_sessions`, `foreground_sessions`, and `idle_sessions` in SQLite.
+5. Add time-only `process_runtime_sessions`.
+6. Defer resource tracking until the time model is stable.
 
 ---
 
