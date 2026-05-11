@@ -513,27 +513,33 @@ namespace TimePilot.WinForms.KYS24
         {
             using var selectCommand = connection.CreateCommand();
             selectCommand.CommandText = """
-                SELECT started_at
+                SELECT started_at, last_observed_at
                 FROM process_runtime_sessions
                 WHERE id = $id AND ended_at IS NULL;
                 """;
             selectCommand.Parameters.AddWithValue("$id", sessionId);
-            var startedAtValue = selectCommand.ExecuteScalar();
-            if (startedAtValue is not string startedAtText)
-                return;
+            DateTimeOffset startedAt;
+            DateTimeOffset lastObservedAt;
+            using (var reader = selectCommand.ExecuteReader())
+            {
+                if (!reader.Read())
+                    return;
 
-            var startedAt = ParseTimestamp(startedAtText);
-            var durationMs = Math.Max(0, (long)(endedAt - startedAt).TotalMilliseconds);
+                startedAt = ParseTimestamp(reader.GetString(0));
+                lastObservedAt = ParseTimestamp(reader.GetString(1));
+            }
+
+            var effectiveEnd = lastObservedAt <= endedAt ? lastObservedAt : endedAt;
+            var durationMs = Math.Max(0, (long)(effectiveEnd - startedAt).TotalMilliseconds);
 
             using var updateCommand = connection.CreateCommand();
             updateCommand.CommandText = """
                 UPDATE process_runtime_sessions
                 SET ended_at = $endedAt,
-                    duration_ms = $durationMs,
-                    last_observed_at = $endedAt
+                    duration_ms = $durationMs
                 WHERE id = $id AND ended_at IS NULL;
                 """;
-            updateCommand.Parameters.AddWithValue("$endedAt", FormatTimestamp(endedAt));
+            updateCommand.Parameters.AddWithValue("$endedAt", FormatTimestamp(effectiveEnd));
             updateCommand.Parameters.AddWithValue("$durationMs", durationMs);
             updateCommand.Parameters.AddWithValue("$id", sessionId);
             updateCommand.ExecuteNonQuery();
