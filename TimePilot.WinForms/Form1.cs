@@ -50,7 +50,7 @@ namespace TimePilot.WinForms
             statusLabel.Text = string.IsNullOrEmpty(processName)
                 ? $"전경: (없음) · {idleText}"
                 : $"전경: {processName} · {idleText}";
-            RefreshUsageGrid(observedAt);
+            RefreshViews(observedAt);
         }
 
         private void OnFormClosed(object? sender, FormClosedEventArgs e)
@@ -73,15 +73,22 @@ namespace TimePilot.WinForms
                 new("chrome", 1_680_000, 0.23, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-12)),
                 new("explorer", 900_000, 0.13, DateTimeOffset.Now.AddMinutes(-45), DateTimeOffset.Now.AddMinutes(-5))
             };
+            timelineGrid.DataSource = new List<ActivityTimelineRow>
+            {
+                new("활성", DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now.AddHours(-1), 3_600_000, "devenv"),
+                new("유휴", DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-45), 900_000, "devenv"),
+                new("활성", DateTimeOffset.Now.AddMinutes(-45), null, 2_700_000, "chrome")
+            };
         }
 
-        private void RefreshUsageGrid(DateTimeOffset observedAt)
+        private void RefreshViews(DateTimeOffset observedAt)
         {
             if (storage is null)
                 return;
 
             usageGrid.DataSource = UsageSummaryRowBuilder.FromForegroundUsage(
                 storage.GetForegroundUsageForDay(observedAt));
+            timelineGrid.DataSource = storage.GetActivityTimelineForDay(observedAt);
         }
 
         private static bool IsRunningInDesigner()

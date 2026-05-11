@@ -292,6 +292,22 @@ namespace TimePilot.WinForms.KYS24
                 .ToList();
         }
 
+        public IReadOnlyList<ActivityTimelineRow> GetActivityTimelineForDay(DateTimeOffset now)
+        {
+            var localDayStart = now.ToLocalTime().Date;
+            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
+            var dayEnd = dayStart.AddDays(1);
+            var rows = new List<ActivityTimelineRow>();
+
+            using var connection = OpenConnection();
+            AddForegroundTimelineRows(connection, rows, dayStart, dayEnd, now);
+            AddIdleTimelineRows(connection, rows, dayStart, dayEnd, now);
+
+            return rows
+                .OrderBy(x => x.StartedAt)
+                .ToList();
+        }
+
         public void Dispose()
         {
             if (disposed)
@@ -389,6 +405,94 @@ namespace TimePilot.WinForms.KYS24
                 """;
             selectCommand.Parameters.AddWithValue("$processName", processName);
             return (long)selectCommand.ExecuteScalar()!;
+        }
+
+        private void AddForegroundTimelineRows(
+            SqliteConnection connection,
+            List<ActivityTimelineRow> rows,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd,
+            DateTimeOffset now)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    a.display_name,
+                    fs.started_at,
+                    fs.ended_at
+                FROM foreground_sessions fs
+                INNER JOIN apps a ON a.id = fs.app_id
+                WHERE fs.started_at < $dayEnd
+                  AND COALESCE(fs.ended_at, $now) > $dayStart;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var appName = reader.GetString(0);
+                var startedAt = ParseTimestamp(reader.GetString(1));
+                DateTimeOffset? endedAt = reader.IsDBNull(2) ? null : ParseTimestamp(reader.GetString(2));
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(endedAt ?? now, dayEnd);
+                AddTimelineRow(rows, "활성", effectiveStart, endedAt, effectiveEnd, appName);
+            }
+        }
+
+        private void AddIdleTimelineRows(
+            SqliteConnection connection,
+            List<ActivityTimelineRow> rows,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd,
+            DateTimeOffset now)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    COALESCE(a.display_name, 'Idle'),
+                    i.started_at,
+                    i.ended_at
+                FROM idle_sessions i
+                LEFT JOIN apps a ON a.id = i.foreground_app_id
+                WHERE i.started_at < $dayEnd
+                  AND COALESCE(i.ended_at, $now) > $dayStart;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var foregroundAppName = reader.GetString(0);
+                var startedAt = ParseTimestamp(reader.GetString(1));
+                DateTimeOffset? endedAt = reader.IsDBNull(2) ? null : ParseTimestamp(reader.GetString(2));
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(endedAt ?? now, dayEnd);
+                AddTimelineRow(rows, "유휴", effectiveStart, endedAt, effectiveEnd, foregroundAppName);
+            }
+        }
+
+        private static void AddTimelineRow(
+            List<ActivityTimelineRow> rows,
+            string activityType,
+            DateTimeOffset effectiveStart,
+            DateTimeOffset? originalEnd,
+            DateTimeOffset effectiveEnd,
+            string displayName)
+        {
+            var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+            if (durationMs <= 0)
+                return;
+
+            rows.Add(new ActivityTimelineRow(
+                activityType,
+                effectiveStart,
+                originalEnd,
+                durationMs,
+                displayName));
         }
 
         private SqliteConnection OpenConnection()
