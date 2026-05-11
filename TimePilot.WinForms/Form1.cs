@@ -10,6 +10,7 @@ namespace TimePilot.WinForms
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private TimePilotStorage? storage;
         private ForegroundSessionTracker? foregroundSessionTracker;
+        private IdleSessionTracker? idleSessionTracker;
 
         public Form1()
         {
@@ -23,6 +24,7 @@ namespace TimePilot.WinForms
 
             storage = TimePilotStorage.CreateDefault();
             foregroundSessionTracker = new ForegroundSessionTracker(storage);
+            idleSessionTracker = new IdleSessionTracker(storage);
 
             var startedAt = DateTimeOffset.UtcNow;
             storage.Initialize(startedAt);
@@ -41,6 +43,7 @@ namespace TimePilot.WinForms
             var processName = ForegroundWindowReader.TryGetForegroundProcessName();
 
             storage?.UpdateRuntimeHeartbeat(observedAt);
+            idleSessionTracker?.Track(isIdle, processName, IdleThresholdMs, observedAt);
             foregroundSessionTracker?.Track(processName, isIdle, observedAt);
 
             var idleText = isIdle ? "유휴" : "활성";
@@ -54,6 +57,7 @@ namespace TimePilot.WinForms
         {
             var endedAt = DateTimeOffset.UtcNow;
             sampleTimer.Stop();
+            idleSessionTracker?.EndCurrentSession(endedAt);
             foregroundSessionTracker?.EndCurrentSession(endedAt);
             storage?.EndRuntimeSession(endedAt, "normal");
             storage?.Dispose();

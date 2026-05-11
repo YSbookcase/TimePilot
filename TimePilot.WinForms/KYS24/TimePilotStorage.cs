@@ -62,8 +62,21 @@ namespace TimePilot.WinForms.KYS24
                     FOREIGN KEY (app_id) REFERENCES apps(id)
                 );
 
+                CREATE TABLE IF NOT EXISTS idle_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    started_at TEXT NOT NULL,
+                    ended_at TEXT NULL,
+                    duration_ms INTEGER NULL,
+                    threshold_ms INTEGER NOT NULL,
+                    foreground_app_id INTEGER NULL,
+                    FOREIGN KEY (foreground_app_id) REFERENCES apps(id)
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_foreground_sessions_started_at
                     ON foreground_sessions(started_at);
+
+                CREATE INDEX IF NOT EXISTS idx_idle_sessions_started_at
+                    ON idle_sessions(started_at);
 
                 CREATE INDEX IF NOT EXISTS idx_app_runtime_sessions_started_at
                     ON app_runtime_sessions(started_at);
@@ -160,6 +173,59 @@ namespace TimePilot.WinForms.KYS24
             using var updateCommand = connection.CreateCommand();
             updateCommand.CommandText = """
                 UPDATE foreground_sessions
+                SET ended_at = $endedAt,
+                    duration_ms = $durationMs
+                WHERE id = $id AND ended_at IS NULL;
+                """;
+            updateCommand.Parameters.AddWithValue("$endedAt", FormatTimestamp(endedAt));
+            updateCommand.Parameters.AddWithValue("$durationMs", durationMs);
+            updateCommand.Parameters.AddWithValue("$id", sessionId);
+            updateCommand.ExecuteNonQuery();
+        }
+
+        public long StartIdleSession(DateTimeOffset startedAt, int thresholdMs, string? foregroundProcessName)
+        {
+            using var connection = OpenConnection();
+            long? foregroundAppId = string.IsNullOrWhiteSpace(foregroundProcessName)
+                ? null
+                : GetOrCreateAppId(connection, foregroundProcessName, startedAt);
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO idle_sessions (
+                    started_at,
+                    threshold_ms,
+                    foreground_app_id
+                )
+                VALUES ($startedAt, $thresholdMs, $foregroundAppId);
+                SELECT last_insert_rowid();
+                """;
+            command.Parameters.AddWithValue("$startedAt", FormatTimestamp(startedAt));
+            command.Parameters.AddWithValue("$thresholdMs", thresholdMs);
+            command.Parameters.AddWithValue("$foregroundAppId", (object?)foregroundAppId ?? DBNull.Value);
+            return (long)command.ExecuteScalar()!;
+        }
+
+        public void EndIdleSession(long sessionId, DateTimeOffset endedAt)
+        {
+            using var connection = OpenConnection();
+            using var selectCommand = connection.CreateCommand();
+            selectCommand.CommandText = """
+                SELECT started_at
+                FROM idle_sessions
+                WHERE id = $id AND ended_at IS NULL;
+                """;
+            selectCommand.Parameters.AddWithValue("$id", sessionId);
+            var startedAtValue = selectCommand.ExecuteScalar();
+            if (startedAtValue is not string startedAtText)
+                return;
+
+            var startedAt = ParseTimestamp(startedAtText);
+            var durationMs = Math.Max(0, (long)(endedAt - startedAt).TotalMilliseconds);
+
+            using var updateCommand = connection.CreateCommand();
+            updateCommand.CommandText = """
+                UPDATE idle_sessions
                 SET ended_at = $endedAt,
                     duration_ms = $durationMs
                 WHERE id = $id AND ended_at IS NULL;
