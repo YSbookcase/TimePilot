@@ -18,13 +18,26 @@
         private void InitializeComponent()
         {
             statusLabel = new Label();
+            mainTabs = new TabControl();
+            summaryTab = new TabPage();
             usageGrid = new DataGridView();
             appNameColumn = new DataGridViewTextBoxColumn();
             firstStartedAtColumn = new DataGridViewTextBoxColumn();
             lastObservedAtColumn = new DataGridViewTextBoxColumn();
             activeUsageTimeColumn = new DataGridViewTextBoxColumn();
             usageRatioColumn = new DataGridViewTextBoxColumn();
+            timelineTab = new TabPage();
+            timelineGrid = new DataGridView();
+            timelineTypeColumn = new DataGridViewTextBoxColumn();
+            timelineStartedAtColumn = new DataGridViewTextBoxColumn();
+            timelineEndedAtColumn = new DataGridViewTextBoxColumn();
+            timelineDurationColumn = new DataGridViewTextBoxColumn();
+            timelineDisplayNameColumn = new DataGridViewTextBoxColumn();
+            mainTabs.SuspendLayout();
+            summaryTab.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)usageGrid).BeginInit();
+            timelineTab.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)timelineGrid).BeginInit();
             SuspendLayout();
             // 
             // statusLabel
@@ -36,6 +49,28 @@
             statusLabel.Size = new Size(720, 32);
             statusLabel.TabIndex = 0;
             statusLabel.TextAlign = ContentAlignment.MiddleLeft;
+            // 
+            // mainTabs
+            // 
+            mainTabs.Controls.Add(summaryTab);
+            mainTabs.Controls.Add(timelineTab);
+            mainTabs.Dock = DockStyle.Fill;
+            mainTabs.Location = new Point(0, 32);
+            mainTabs.Name = "mainTabs";
+            mainTabs.SelectedIndex = 0;
+            mainTabs.Size = new Size(720, 448);
+            mainTabs.TabIndex = 1;
+            // 
+            // summaryTab
+            // 
+            summaryTab.Controls.Add(usageGrid);
+            summaryTab.Location = new Point(4, 24);
+            summaryTab.Name = "summaryTab";
+            summaryTab.Padding = new Padding(3);
+            summaryTab.Size = new Size(712, 420);
+            summaryTab.TabIndex = 0;
+            summaryTab.Text = "요약";
+            summaryTab.UseVisualStyleBackColor = true;
             // 
             // usageGrid
             // 
@@ -49,13 +84,13 @@
             usageGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             usageGrid.Columns.AddRange(new DataGridViewColumn[] { appNameColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, usageRatioColumn });
             usageGrid.Dock = DockStyle.Fill;
-            usageGrid.Location = new Point(0, 32);
+            usageGrid.Location = new Point(3, 3);
             usageGrid.MultiSelect = false;
             usageGrid.Name = "usageGrid";
             usageGrid.ReadOnly = true;
             usageGrid.RowHeadersVisible = false;
             usageGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            usageGrid.Size = new Size(720, 448);
+            usageGrid.Size = new Size(706, 414);
             usageGrid.TabIndex = 1;
             // 
             // appNameColumn
@@ -93,25 +128,105 @@
             usageRatioColumn.Name = "usageRatioColumn";
             usageRatioColumn.ReadOnly = true;
             // 
+            // timelineTab
+            // 
+            timelineTab.Controls.Add(timelineGrid);
+            timelineTab.Location = new Point(4, 24);
+            timelineTab.Name = "timelineTab";
+            timelineTab.Padding = new Padding(3);
+            timelineTab.Size = new Size(712, 420);
+            timelineTab.TabIndex = 1;
+            timelineTab.Text = "타임라인";
+            timelineTab.UseVisualStyleBackColor = true;
+            // 
+            // timelineGrid
+            // 
+            timelineGrid.AllowUserToAddRows = false;
+            timelineGrid.AllowUserToDeleteRows = false;
+            timelineGrid.AllowUserToResizeRows = false;
+            timelineGrid.AutoGenerateColumns = false;
+            timelineGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            timelineGrid.BackgroundColor = SystemColors.Window;
+            timelineGrid.BorderStyle = BorderStyle.None;
+            timelineGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            timelineGrid.Columns.AddRange(new DataGridViewColumn[] { timelineTypeColumn, timelineStartedAtColumn, timelineEndedAtColumn, timelineDurationColumn, timelineDisplayNameColumn });
+            timelineGrid.Dock = DockStyle.Fill;
+            timelineGrid.Location = new Point(3, 3);
+            timelineGrid.MultiSelect = false;
+            timelineGrid.Name = "timelineGrid";
+            timelineGrid.ReadOnly = true;
+            timelineGrid.RowHeadersVisible = false;
+            timelineGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            timelineGrid.Size = new Size(706, 414);
+            timelineGrid.TabIndex = 0;
+            // 
+            // timelineTypeColumn
+            // 
+            timelineTypeColumn.DataPropertyName = "ActivityType";
+            timelineTypeColumn.HeaderText = "유형";
+            timelineTypeColumn.Name = "timelineTypeColumn";
+            timelineTypeColumn.ReadOnly = true;
+            // 
+            // timelineStartedAtColumn
+            // 
+            timelineStartedAtColumn.DataPropertyName = "StartedAtText";
+            timelineStartedAtColumn.HeaderText = "시작";
+            timelineStartedAtColumn.Name = "timelineStartedAtColumn";
+            timelineStartedAtColumn.ReadOnly = true;
+            // 
+            // timelineEndedAtColumn
+            // 
+            timelineEndedAtColumn.DataPropertyName = "EndedAtText";
+            timelineEndedAtColumn.HeaderText = "종료";
+            timelineEndedAtColumn.Name = "timelineEndedAtColumn";
+            timelineEndedAtColumn.ReadOnly = true;
+            // 
+            // timelineDurationColumn
+            // 
+            timelineDurationColumn.DataPropertyName = "DurationText";
+            timelineDurationColumn.HeaderText = "시간";
+            timelineDurationColumn.Name = "timelineDurationColumn";
+            timelineDurationColumn.ReadOnly = true;
+            // 
+            // timelineDisplayNameColumn
+            // 
+            timelineDisplayNameColumn.DataPropertyName = "DisplayName";
+            timelineDisplayNameColumn.HeaderText = "앱";
+            timelineDisplayNameColumn.Name = "timelineDisplayNameColumn";
+            timelineDisplayNameColumn.ReadOnly = true;
+            // 
             // Form1
             // 
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(720, 480);
-            Controls.Add(usageGrid);
+            Controls.Add(mainTabs);
             Controls.Add(statusLabel);
             Name = "Form1";
             Text = "TimePilot";
+            mainTabs.ResumeLayout(false);
+            summaryTab.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)usageGrid).EndInit();
+            timelineTab.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)timelineGrid).EndInit();
             ResumeLayout(false);
         }
 
         private Label statusLabel;
+        private TabControl mainTabs;
+        private TabPage summaryTab;
         private DataGridView usageGrid;
         private DataGridViewTextBoxColumn appNameColumn;
         private DataGridViewTextBoxColumn firstStartedAtColumn;
         private DataGridViewTextBoxColumn lastObservedAtColumn;
         private DataGridViewTextBoxColumn activeUsageTimeColumn;
         private DataGridViewTextBoxColumn usageRatioColumn;
+        private TabPage timelineTab;
+        private DataGridView timelineGrid;
+        private DataGridViewTextBoxColumn timelineTypeColumn;
+        private DataGridViewTextBoxColumn timelineStartedAtColumn;
+        private DataGridViewTextBoxColumn timelineEndedAtColumn;
+        private DataGridViewTextBoxColumn timelineDurationColumn;
+        private DataGridViewTextBoxColumn timelineDisplayNameColumn;
 
         #endregion
     }
