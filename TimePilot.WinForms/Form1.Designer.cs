@@ -20,6 +20,8 @@
             statusLabel = new Label();
             usageGrid = new DataGridView();
             appNameColumn = new DataGridViewTextBoxColumn();
+            firstStartedAtColumn = new DataGridViewTextBoxColumn();
+            lastObservedAtColumn = new DataGridViewTextBoxColumn();
             activeUsageTimeColumn = new DataGridViewTextBoxColumn();
             usageRatioColumn = new DataGridViewTextBoxColumn();
             ((System.ComponentModel.ISupportInitialize)usageGrid).BeginInit();
@@ -45,7 +47,7 @@
             usageGrid.BackgroundColor = SystemColors.Window;
             usageGrid.BorderStyle = BorderStyle.None;
             usageGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            usageGrid.Columns.AddRange(new DataGridViewColumn[] { appNameColumn, activeUsageTimeColumn, usageRatioColumn });
+            usageGrid.Columns.AddRange(new DataGridViewColumn[] { appNameColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, usageRatioColumn });
             usageGrid.Dock = DockStyle.Fill;
             usageGrid.Location = new Point(0, 32);
             usageGrid.MultiSelect = false;
@@ -62,6 +64,20 @@
             appNameColumn.HeaderText = "앱";
             appNameColumn.Name = "appNameColumn";
             appNameColumn.ReadOnly = true;
+            // 
+            // firstStartedAtColumn
+            // 
+            firstStartedAtColumn.DataPropertyName = "FirstStartedAtText";
+            firstStartedAtColumn.HeaderText = "첫 시작";
+            firstStartedAtColumn.Name = "firstStartedAtColumn";
+            firstStartedAtColumn.ReadOnly = true;
+            // 
+            // lastObservedAtColumn
+            // 
+            lastObservedAtColumn.DataPropertyName = "LastObservedAtText";
+            lastObservedAtColumn.HeaderText = "마지막 감지";
+            lastObservedAtColumn.Name = "lastObservedAtColumn";
+            lastObservedAtColumn.ReadOnly = true;
             // 
             // activeUsageTimeColumn
             // 
@@ -92,6 +108,8 @@
         private Label statusLabel;
         private DataGridView usageGrid;
         private DataGridViewTextBoxColumn appNameColumn;
+        private DataGridViewTextBoxColumn firstStartedAtColumn;
+        private DataGridViewTextBoxColumn lastObservedAtColumn;
         private DataGridViewTextBoxColumn activeUsageTimeColumn;
         private DataGridViewTextBoxColumn usageRatioColumn;
 

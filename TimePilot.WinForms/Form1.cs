@@ -7,7 +7,6 @@ namespace TimePilot.WinForms
         private const int SampleIntervalMs = 1000;
         private const int IdleThresholdMs = 120000;
 
-        private readonly UsageAccumulator accumulator = new();
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private TimePilotStorage? storage;
         private ForegroundSessionTracker? foregroundSessionTracker;
@@ -43,14 +42,12 @@ namespace TimePilot.WinForms
 
             storage?.UpdateRuntimeHeartbeat(observedAt);
             foregroundSessionTracker?.Track(processName, isIdle, observedAt);
-            accumulator.AddSample(processName, SampleIntervalMs, isIdle);
 
             var idleText = isIdle ? "유휴" : "활성";
             statusLabel.Text = string.IsNullOrEmpty(processName)
                 ? $"전경: (없음) · {idleText}"
                 : $"전경: {processName} · {idleText}";
-            var snapshot = accumulator.SnapshotTotalsMs();
-            usageGrid.DataSource = UsageSummaryRowBuilder.FromTotals(snapshot);
+            RefreshUsageGrid(observedAt);
         }
 
         private void OnFormClosed(object? sender, FormClosedEventArgs e)
@@ -68,10 +65,19 @@ namespace TimePilot.WinForms
             statusLabel.Text = "전경: Visual Studio · 활성";
             usageGrid.DataSource = new List<UsageSummaryRow>
             {
-                new("devenv", 3_900_000, 0.54),
-                new("chrome", 1_680_000, 0.23),
-                new("explorer", 900_000, 0.13)
+                new("devenv", 3_900_000, 0.54, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now),
+                new("chrome", 1_680_000, 0.23, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-12)),
+                new("explorer", 900_000, 0.13, DateTimeOffset.Now.AddMinutes(-45), DateTimeOffset.Now.AddMinutes(-5))
             };
+        }
+
+        private void RefreshUsageGrid(DateTimeOffset observedAt)
+        {
+            if (storage is null)
+                return;
+
+            usageGrid.DataSource = UsageSummaryRowBuilder.FromForegroundUsage(
+                storage.GetForegroundUsageForDay(observedAt));
         }
 
         private static bool IsRunningInDesigner()
