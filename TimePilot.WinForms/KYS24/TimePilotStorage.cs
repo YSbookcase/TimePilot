@@ -72,6 +72,18 @@ namespace TimePilot.WinForms.KYS24
                     FOREIGN KEY (foreground_app_id) REFERENCES apps(id)
                 );
 
+                CREATE TABLE IF NOT EXISTS process_runtime_sessions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_id INTEGER NOT NULL,
+                    process_id INTEGER NOT NULL,
+                    started_at TEXT NOT NULL,
+                    ended_at TEXT NULL,
+                    duration_ms INTEGER NULL,
+                    first_observed_at TEXT NOT NULL,
+                    last_observed_at TEXT NOT NULL,
+                    FOREIGN KEY (app_id) REFERENCES apps(id)
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_foreground_sessions_started_at
                     ON foreground_sessions(started_at);
 
@@ -80,11 +92,18 @@ namespace TimePilot.WinForms.KYS24
 
                 CREATE INDEX IF NOT EXISTS idx_app_runtime_sessions_started_at
                     ON app_runtime_sessions(started_at);
+
+                CREATE INDEX IF NOT EXISTS idx_process_runtime_sessions_started_at
+                    ON process_runtime_sessions(started_at);
+
+                CREATE INDEX IF NOT EXISTS idx_process_runtime_sessions_process_id
+                    ON process_runtime_sessions(process_id);
                 """;
             command.ExecuteNonQuery();
 
             EnsureAppsColumns(connection);
             MarkUnexpectedRuntimeSessions(now);
+            MarkUnexpectedProcessRuntimeSessions(now);
         }
 
         public void BeginRuntimeSession(DateTimeOffset startedAt, string? appVersion)
@@ -243,6 +262,53 @@ namespace TimePilot.WinForms.KYS24
             updateCommand.ExecuteNonQuery();
         }
 
+        public long StartProcessRuntimeSession(AppMetadata app, int processId, DateTimeOffset observedAt)
+        {
+            using var connection = OpenConnection();
+            var appId = GetOrCreateAppId(connection, app, observedAt);
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO process_runtime_sessions (
+                    app_id,
+                    process_id,
+                    started_at,
+                    first_observed_at,
+                    last_observed_at
+                )
+                VALUES ($appId, $processId, $startedAt, $firstObservedAt, $lastObservedAt);
+                SELECT last_insert_rowid();
+                """;
+            command.Parameters.AddWithValue("$appId", appId);
+            command.Parameters.AddWithValue("$processId", processId);
+            command.Parameters.AddWithValue("$startedAt", FormatTimestamp(observedAt));
+            command.Parameters.AddWithValue("$firstObservedAt", FormatTimestamp(observedAt));
+            command.Parameters.AddWithValue("$lastObservedAt", FormatTimestamp(observedAt));
+            return (long)command.ExecuteScalar()!;
+        }
+
+        public void UpdateProcessRuntimeSession(long sessionId, AppMetadata app, DateTimeOffset observedAt)
+        {
+            using var connection = OpenConnection();
+            _ = GetOrCreateAppId(connection, app, observedAt);
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE process_runtime_sessions
+                SET last_observed_at = $lastObservedAt
+                WHERE id = $id AND ended_at IS NULL;
+                """;
+            command.Parameters.AddWithValue("$lastObservedAt", FormatTimestamp(observedAt));
+            command.Parameters.AddWithValue("$id", sessionId);
+            command.ExecuteNonQuery();
+        }
+
+        public void EndProcessRuntimeSession(long sessionId, DateTimeOffset endedAt)
+        {
+            using var connection = OpenConnection();
+            EndProcessRuntimeSession(connection, sessionId, endedAt);
+        }
+
         public IReadOnlyList<ForegroundUsageSummary> GetForegroundUsageForDay(DateTimeOffset now)
         {
             var localDayStart = now.ToLocalTime().Date;
@@ -383,6 +449,34 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
+        private void MarkUnexpectedProcessRuntimeSessions(DateTimeOffset now)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT id, last_observed_at
+                FROM process_runtime_sessions
+                WHERE ended_at IS NULL;
+                """;
+
+            var openSessions = new List<(long Id, DateTimeOffset EndedAt)>();
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    var endedAt = reader.IsDBNull(1)
+                        ? now
+                        : ParseTimestamp(reader.GetString(1));
+                    openSessions.Add((reader.GetInt64(0), endedAt));
+                }
+            }
+
+            foreach (var session in openSessions)
+            {
+                EndProcessRuntimeSession(connection, session.Id, session.EndedAt);
+            }
+        }
+
         private void EndRuntimeSession(SqliteConnection connection, long sessionId, DateTimeOffset endedAt, string shutdownReason)
         {
             using var selectCommand = connection.CreateCommand();
@@ -411,6 +505,36 @@ namespace TimePilot.WinForms.KYS24
             updateCommand.Parameters.AddWithValue("$endedAt", FormatTimestamp(endedAt));
             updateCommand.Parameters.AddWithValue("$durationMs", durationMs);
             updateCommand.Parameters.AddWithValue("$shutdownReason", shutdownReason);
+            updateCommand.Parameters.AddWithValue("$id", sessionId);
+            updateCommand.ExecuteNonQuery();
+        }
+
+        private void EndProcessRuntimeSession(SqliteConnection connection, long sessionId, DateTimeOffset endedAt)
+        {
+            using var selectCommand = connection.CreateCommand();
+            selectCommand.CommandText = """
+                SELECT started_at
+                FROM process_runtime_sessions
+                WHERE id = $id AND ended_at IS NULL;
+                """;
+            selectCommand.Parameters.AddWithValue("$id", sessionId);
+            var startedAtValue = selectCommand.ExecuteScalar();
+            if (startedAtValue is not string startedAtText)
+                return;
+
+            var startedAt = ParseTimestamp(startedAtText);
+            var durationMs = Math.Max(0, (long)(endedAt - startedAt).TotalMilliseconds);
+
+            using var updateCommand = connection.CreateCommand();
+            updateCommand.CommandText = """
+                UPDATE process_runtime_sessions
+                SET ended_at = $endedAt,
+                    duration_ms = $durationMs,
+                    last_observed_at = $endedAt
+                WHERE id = $id AND ended_at IS NULL;
+                """;
+            updateCommand.Parameters.AddWithValue("$endedAt", FormatTimestamp(endedAt));
+            updateCommand.Parameters.AddWithValue("$durationMs", durationMs);
             updateCommand.Parameters.AddWithValue("$id", sessionId);
             updateCommand.ExecuteNonQuery();
         }

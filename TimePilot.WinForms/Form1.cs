@@ -5,6 +5,7 @@ namespace TimePilot.WinForms
     public partial class Form1 : Form
     {
         private const int SampleIntervalMs = 1000;
+        private const int ProcessRuntimeSampleIntervalMs = 60_000;
 
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private readonly AppIconCache appIconCache = new();
@@ -12,6 +13,8 @@ namespace TimePilot.WinForms
         private TimePilotStorage? storage;
         private ForegroundSessionTracker? foregroundSessionTracker;
         private IdleSessionTracker? idleSessionTracker;
+        private ProcessRuntimeSessionTracker? processRuntimeSessionTracker;
+        private DateTimeOffset? lastProcessRuntimeSampleAt;
 
         public Form1()
         {
@@ -26,6 +29,7 @@ namespace TimePilot.WinForms
             storage = TimePilotStorage.CreateDefault();
             foregroundSessionTracker = new ForegroundSessionTracker(storage);
             idleSessionTracker = new IdleSessionTracker(storage);
+            processRuntimeSessionTracker = new ProcessRuntimeSessionTracker(storage);
 
             var startedAt = DateTimeOffset.UtcNow;
             storage.Initialize(startedAt);
@@ -47,6 +51,7 @@ namespace TimePilot.WinForms
             storage?.UpdateRuntimeHeartbeat(observedAt);
             idleSessionTracker?.Track(isIdle, foregroundApp, idleThresholdMs, observedAt);
             foregroundSessionTracker?.Track(foregroundApp, isIdle, observedAt);
+            TrackProcessRuntimeSessions(observedAt);
 
             var idleText = isIdle ? "유휴" : "활성";
             statusLabel.Text = foregroundApp is null
@@ -61,6 +66,7 @@ namespace TimePilot.WinForms
             sampleTimer.Stop();
             idleSessionTracker?.EndCurrentSession(endedAt);
             foregroundSessionTracker?.EndCurrentSession(endedAt);
+            processRuntimeSessionTracker?.EndCurrentSessions(endedAt);
             storage?.EndRuntimeSession(endedAt, "normal");
             storage?.Dispose();
             appIconCache.Dispose();
@@ -96,6 +102,19 @@ namespace TimePilot.WinForms
             SetGridDataSourcePreservingView(
                 timelineGrid,
                 AddIcons(storage.GetActivityTimelineForDay(observedAt)));
+        }
+
+        private void TrackProcessRuntimeSessions(DateTimeOffset observedAt)
+        {
+            if (processRuntimeSessionTracker is null)
+                return;
+
+            if (lastProcessRuntimeSampleAt is { } lastSample
+                && (observedAt - lastSample).TotalMilliseconds < ProcessRuntimeSampleIntervalMs)
+                return;
+
+            lastProcessRuntimeSampleAt = observedAt;
+            processRuntimeSessionTracker.Track(RunningProcessReader.GetWindowedApps(), observedAt);
         }
 
         private IReadOnlyList<UsageSummaryRow> AddIcons(IReadOnlyList<UsageSummaryRow> rows)
