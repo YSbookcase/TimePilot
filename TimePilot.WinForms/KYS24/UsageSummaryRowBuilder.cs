@@ -14,7 +14,8 @@ namespace TimePilot.WinForms.KYS24
                     x.Key,
                     null,
                     x.Value,
-                    (double)x.Value / totalMs))
+                    (double)x.Value / totalMs,
+                    0))
                 .ToList();
         }
 
@@ -31,6 +32,7 @@ namespace TimePilot.WinForms.KYS24
                     x.ExecutablePath,
                     x.ActiveUsageMs,
                     (double)x.ActiveUsageMs / totalMs,
+                    x.SwitchCount,
                     null,
                     x.FirstStartedAt,
                     x.LastObservedAt))

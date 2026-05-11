@@ -7,6 +7,7 @@ namespace TimePilot.WinForms.KYS24
         string? ExecutablePath,
         long ActiveUsageMs,
         double UsageRatio,
+        int SwitchCount,
         Image? AppIcon = null,
         DateTimeOffset? FirstStartedAt = null,
         DateTimeOffset? LastObservedAt = null)
@@ -14,6 +15,8 @@ namespace TimePilot.WinForms.KYS24
         public string ActiveUsageTimeText => FormatDuration(ActiveUsageMs);
 
         public string UsageRatioText => UsageRatio.ToString("P1", CultureInfo.CurrentCulture);
+
+        public string SwitchCountText => SwitchCount.ToString("N0", CultureInfo.CurrentCulture);
 
         public string FirstStartedAtText => FormatTime(FirstStartedAt);
 

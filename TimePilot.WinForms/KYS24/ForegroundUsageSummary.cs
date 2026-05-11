@@ -4,6 +4,7 @@ namespace TimePilot.WinForms.KYS24
         string AppName,
         string? ExecutablePath,
         long ActiveUsageMs,
+        int SwitchCount,
         DateTimeOffset FirstStartedAt,
         DateTimeOffset LastObservedAt);
 }

@@ -288,6 +288,7 @@ namespace TimePilot.WinForms.KYS24
 
                 aggregation.ExecutablePath ??= executablePath;
                 aggregation.ActiveUsageMs += durationMs;
+                aggregation.SwitchCount++;
                 aggregation.FirstStartedAt = Min(aggregation.FirstStartedAt, effectiveStart);
                 aggregation.LastObservedAt = Max(aggregation.LastObservedAt, effectiveEnd);
             }
@@ -297,6 +298,7 @@ namespace TimePilot.WinForms.KYS24
                     x.Key,
                     x.Value.ExecutablePath,
                     x.Value.ActiveUsageMs,
+                    x.Value.SwitchCount,
                     x.Value.FirstStartedAt,
                     x.Value.LastObservedAt))
                 .OrderByDescending(x => x.ActiveUsageMs)
@@ -580,6 +582,8 @@ namespace TimePilot.WinForms.KYS24
             public long ActiveUsageMs { get; set; }
 
             public string? ExecutablePath { get; set; }
+
+            public int SwitchCount { get; set; }
 
             public DateTimeOffset FirstStartedAt { get; set; }
 

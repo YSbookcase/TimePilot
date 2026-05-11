@@ -71,9 +71,9 @@ namespace TimePilot.WinForms
             statusLabel.Text = "전경: Visual Studio · 활성";
             usageGrid.DataSource = AddIcons(new List<UsageSummaryRow>
             {
-                new("Microsoft Visual Studio", null, 3_900_000, 0.54, null, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now),
-                new("Google Chrome", null, 1_680_000, 0.23, null, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-12)),
-                new("File Explorer", null, 900_000, 0.13, null, DateTimeOffset.Now.AddMinutes(-45), DateTimeOffset.Now.AddMinutes(-5))
+                new("Microsoft Visual Studio", null, 3_900_000, 0.54, 8, null, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now),
+                new("Google Chrome", null, 1_680_000, 0.23, 15, null, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-12)),
+                new("File Explorer", null, 900_000, 0.13, 4, null, DateTimeOffset.Now.AddMinutes(-45), DateTimeOffset.Now.AddMinutes(-5))
             });
             timelineGrid.DataSource = AddIcons(new List<ActivityTimelineRow>
             {
