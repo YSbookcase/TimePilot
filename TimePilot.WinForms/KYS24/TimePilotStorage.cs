@@ -170,6 +170,62 @@ namespace TimePilot.WinForms.KYS24
             updateCommand.ExecuteNonQuery();
         }
 
+        public IReadOnlyList<ForegroundUsageSummary> GetForegroundUsageForDay(DateTimeOffset now)
+        {
+            var localDayStart = now.ToLocalTime().Date;
+            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
+            var dayEnd = dayStart.AddDays(1);
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    a.display_name,
+                    fs.started_at,
+                    fs.ended_at
+                FROM foreground_sessions fs
+                INNER JOIN apps a ON a.id = fs.app_id
+                WHERE fs.started_at < $dayEnd
+                  AND COALESCE(fs.ended_at, $now) > $dayStart;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            var totals = new Dictionary<string, UsageAggregation>(StringComparer.OrdinalIgnoreCase);
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var appName = reader.GetString(0);
+                var startedAt = ParseTimestamp(reader.GetString(1));
+                var endedAt = reader.IsDBNull(2) ? now : ParseTimestamp(reader.GetString(2));
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(endedAt, dayEnd);
+                var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+                if (durationMs <= 0)
+                    continue;
+
+                if (!totals.TryGetValue(appName, out var aggregation))
+                {
+                    aggregation = new UsageAggregation(effectiveStart, effectiveEnd);
+                    totals[appName] = aggregation;
+                }
+
+                aggregation.ActiveUsageMs += durationMs;
+                aggregation.FirstStartedAt = Min(aggregation.FirstStartedAt, effectiveStart);
+                aggregation.LastObservedAt = Max(aggregation.LastObservedAt, effectiveEnd);
+            }
+
+            return totals
+                .Select(x => new ForegroundUsageSummary(
+                    x.Key,
+                    x.Value.ActiveUsageMs,
+                    x.Value.FirstStartedAt,
+                    x.Value.LastObservedAt))
+                .OrderByDescending(x => x.ActiveUsageMs)
+                .ToList();
+        }
+
         public void Dispose()
         {
             if (disposed)
@@ -279,6 +335,36 @@ namespace TimePilot.WinForms.KYS24
         private static string FormatTimestamp(DateTimeOffset timestamp)
         {
             return timestamp.ToUniversalTime().ToString("O");
+        }
+
+        private static DateTimeOffset ParseTimestamp(string timestamp)
+        {
+            return DateTimeOffset.Parse(timestamp, null, System.Globalization.DateTimeStyles.RoundtripKind);
+        }
+
+        private static DateTimeOffset Min(DateTimeOffset left, DateTimeOffset right)
+        {
+            return left <= right ? left : right;
+        }
+
+        private static DateTimeOffset Max(DateTimeOffset left, DateTimeOffset right)
+        {
+            return left >= right ? left : right;
+        }
+
+        private sealed class UsageAggregation
+        {
+            public UsageAggregation(DateTimeOffset firstStartedAt, DateTimeOffset lastObservedAt)
+            {
+                FirstStartedAt = firstStartedAt;
+                LastObservedAt = lastObservedAt;
+            }
+
+            public long ActiveUsageMs { get; set; }
+
+            public DateTimeOffset FirstStartedAt { get; set; }
+
+            public DateTimeOffset LastObservedAt { get; set; }
         }
     }
 }
