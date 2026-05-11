@@ -27,6 +27,7 @@
             lastObservedAtColumn = new DataGridViewTextBoxColumn();
             activeUsageTimeColumn = new DataGridViewTextBoxColumn();
             usageRatioColumn = new DataGridViewTextBoxColumn();
+            switchCountColumn = new DataGridViewTextBoxColumn();
             timelineTab = new TabPage();
             timelineGrid = new DataGridView();
             timelineTypeColumn = new DataGridViewTextBoxColumn();
@@ -84,7 +85,7 @@
             usageGrid.BackgroundColor = SystemColors.Window;
             usageGrid.BorderStyle = BorderStyle.None;
             usageGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            usageGrid.Columns.AddRange(new DataGridViewColumn[] { appIconColumn, appNameColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, usageRatioColumn });
+            usageGrid.Columns.AddRange(new DataGridViewColumn[] { appIconColumn, appNameColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, usageRatioColumn, switchCountColumn });
             usageGrid.Dock = DockStyle.Fill;
             usageGrid.Location = new Point(3, 3);
             usageGrid.MultiSelect = false;
@@ -139,6 +140,13 @@
             usageRatioColumn.HeaderText = "비율";
             usageRatioColumn.Name = "usageRatioColumn";
             usageRatioColumn.ReadOnly = true;
+            // 
+            // switchCountColumn
+            // 
+            switchCountColumn.DataPropertyName = "SwitchCountText";
+            switchCountColumn.HeaderText = "전환 횟수";
+            switchCountColumn.Name = "switchCountColumn";
+            switchCountColumn.ReadOnly = true;
             // 
             // timelineTab
             // 
@@ -243,6 +251,7 @@
         private DataGridViewTextBoxColumn lastObservedAtColumn;
         private DataGridViewTextBoxColumn activeUsageTimeColumn;
         private DataGridViewTextBoxColumn usageRatioColumn;
+        private DataGridViewTextBoxColumn switchCountColumn;
         private TabPage timelineTab;
         private DataGridView timelineGrid;
         private DataGridViewTextBoxColumn timelineTypeColumn;
