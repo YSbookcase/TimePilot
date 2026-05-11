@@ -119,6 +119,8 @@ threshold_ms
 foreground_app_id
 ```
 
+`foreground_app_id` records the foreground app observed when the idle period started. This keeps idle time separate from active foreground time while still preserving useful context.
+
 ### 3.5 process_runtime_sessions
 
 Time-only process runtime sessions.
