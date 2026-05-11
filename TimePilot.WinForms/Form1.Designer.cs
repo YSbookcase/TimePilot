@@ -17,6 +17,13 @@
 
         private void InitializeComponent()
         {
+            mainMenuStrip = new MenuStrip();
+            fileMenuItem = new ToolStripMenuItem();
+            exitMenuItem = new ToolStripMenuItem();
+            settingsMenuItem = new ToolStripMenuItem();
+            preferencesMenuItem = new ToolStripMenuItem();
+            helpMenuItem = new ToolStripMenuItem();
+            aboutMenuItem = new ToolStripMenuItem();
             statusLabel = new Label();
             mainTabs = new TabControl();
             summaryTab = new TabPage();
@@ -36,6 +43,7 @@
             timelineDurationColumn = new DataGridViewTextBoxColumn();
             timelineAppIconColumn = new DataGridViewImageColumn();
             timelineDisplayNameColumn = new DataGridViewTextBoxColumn();
+            mainMenuStrip.SuspendLayout();
             mainTabs.SuspendLayout();
             summaryTab.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)usageGrid).BeginInit();
@@ -43,14 +51,64 @@
             ((System.ComponentModel.ISupportInitialize)timelineGrid).BeginInit();
             SuspendLayout();
             // 
+            // mainMenuStrip
+            // 
+            mainMenuStrip.Items.AddRange(new ToolStripItem[] { fileMenuItem, settingsMenuItem, helpMenuItem });
+            mainMenuStrip.Location = new Point(0, 0);
+            mainMenuStrip.Name = "mainMenuStrip";
+            mainMenuStrip.Size = new Size(720, 24);
+            mainMenuStrip.TabIndex = 0;
+            // 
+            // fileMenuItem
+            // 
+            fileMenuItem.DropDownItems.AddRange(new ToolStripItem[] { exitMenuItem });
+            fileMenuItem.Name = "fileMenuItem";
+            fileMenuItem.Size = new Size(43, 20);
+            fileMenuItem.Text = "파일";
+            // 
+            // exitMenuItem
+            // 
+            exitMenuItem.Name = "exitMenuItem";
+            exitMenuItem.Size = new Size(98, 22);
+            exitMenuItem.Text = "종료";
+            exitMenuItem.Click += OnExitMenuItemClick;
+            // 
+            // settingsMenuItem
+            // 
+            settingsMenuItem.DropDownItems.AddRange(new ToolStripItem[] { preferencesMenuItem });
+            settingsMenuItem.Name = "settingsMenuItem";
+            settingsMenuItem.Size = new Size(43, 20);
+            settingsMenuItem.Text = "설정";
+            // 
+            // preferencesMenuItem
+            // 
+            preferencesMenuItem.Name = "preferencesMenuItem";
+            preferencesMenuItem.Size = new Size(146, 22);
+            preferencesMenuItem.Text = "환경 설정...";
+            preferencesMenuItem.Click += OnPreferencesMenuItemClick;
+            // 
+            // helpMenuItem
+            // 
+            helpMenuItem.DropDownItems.AddRange(new ToolStripItem[] { aboutMenuItem });
+            helpMenuItem.Name = "helpMenuItem";
+            helpMenuItem.Size = new Size(55, 20);
+            helpMenuItem.Text = "도움말";
+            // 
+            // aboutMenuItem
+            // 
+            aboutMenuItem.Name = "aboutMenuItem";
+            aboutMenuItem.Size = new Size(98, 22);
+            aboutMenuItem.Text = "정보";
+            aboutMenuItem.Click += OnAboutMenuItemClick;
+            // 
             // statusLabel
             // 
             statusLabel.Dock = DockStyle.Top;
-            statusLabel.Location = new Point(0, 0);
+            statusLabel.Location = new Point(0, 24);
             statusLabel.Name = "statusLabel";
             statusLabel.Padding = new Padding(10, 0, 0, 0);
             statusLabel.Size = new Size(720, 32);
-            statusLabel.TabIndex = 0;
+            statusLabel.TabIndex = 1;
             statusLabel.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // mainTabs
@@ -58,11 +116,11 @@
             mainTabs.Controls.Add(summaryTab);
             mainTabs.Controls.Add(timelineTab);
             mainTabs.Dock = DockStyle.Fill;
-            mainTabs.Location = new Point(0, 32);
+            mainTabs.Location = new Point(0, 56);
             mainTabs.Name = "mainTabs";
             mainTabs.SelectedIndex = 0;
-            mainTabs.Size = new Size(720, 448);
-            mainTabs.TabIndex = 1;
+            mainTabs.Size = new Size(720, 424);
+            mainTabs.TabIndex = 2;
             // 
             // summaryTab
             // 
@@ -231,16 +289,28 @@
             ClientSize = new Size(720, 480);
             Controls.Add(mainTabs);
             Controls.Add(statusLabel);
+            Controls.Add(mainMenuStrip);
+            MainMenuStrip = mainMenuStrip;
             Name = "Form1";
             Text = "TimePilot";
+            mainMenuStrip.ResumeLayout(false);
+            mainMenuStrip.PerformLayout();
             mainTabs.ResumeLayout(false);
             summaryTab.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)usageGrid).EndInit();
             timelineTab.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)timelineGrid).EndInit();
             ResumeLayout(false);
+            PerformLayout();
         }
 
+        private MenuStrip mainMenuStrip;
+        private ToolStripMenuItem fileMenuItem;
+        private ToolStripMenuItem exitMenuItem;
+        private ToolStripMenuItem settingsMenuItem;
+        private ToolStripMenuItem preferencesMenuItem;
+        private ToolStripMenuItem helpMenuItem;
+        private ToolStripMenuItem aboutMenuItem;
         private Label statusLabel;
         private TabControl mainTabs;
         private TabPage summaryTab;

@@ -5,10 +5,10 @@ namespace TimePilot.WinForms
     public partial class Form1 : Form
     {
         private const int SampleIntervalMs = 1000;
-        private const int IdleThresholdMs = 120000;
 
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private readonly AppIconCache appIconCache = new();
+        private AppSettings settings = AppSettings.LoadDefault();
         private TimePilotStorage? storage;
         private ForegroundSessionTracker? foregroundSessionTracker;
         private IdleSessionTracker? idleSessionTracker;
@@ -40,11 +40,12 @@ namespace TimePilot.WinForms
         private void OnSampleTick(object? sender, EventArgs e)
         {
             var observedAt = DateTimeOffset.UtcNow;
-            var isIdle = UserIdleChecker.IsIdle(IdleThresholdMs);
+            var idleThresholdMs = settings.IdleThresholdMs;
+            var isIdle = UserIdleChecker.IsIdle(idleThresholdMs);
             var foregroundApp = ForegroundWindowReader.TryGetForegroundApp();
 
             storage?.UpdateRuntimeHeartbeat(observedAt);
-            idleSessionTracker?.Track(isIdle, foregroundApp, IdleThresholdMs, observedAt);
+            idleSessionTracker?.Track(isIdle, foregroundApp, idleThresholdMs, observedAt);
             foregroundSessionTracker?.Track(foregroundApp, isIdle, observedAt);
 
             var idleText = isIdle ? "유휴" : "활성";
@@ -160,6 +161,30 @@ namespace TimePilot.WinForms
         private static bool IsRunningInDesigner()
         {
             return System.ComponentModel.LicenseManager.UsageMode == System.ComponentModel.LicenseUsageMode.Designtime;
+        }
+
+        private void OnPreferencesMenuItemClick(object? sender, EventArgs e)
+        {
+            using var form = new PreferencesForm(settings.IdleThresholdMinutes);
+            if (form.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            settings.SetIdleThresholdMinutes(form.IdleThresholdMinutes);
+        }
+
+        private void OnExitMenuItemClick(object? sender, EventArgs e)
+        {
+            Close();
+        }
+
+        private void OnAboutMenuItemClick(object? sender, EventArgs e)
+        {
+            MessageBox.Show(
+                this,
+                $"TimePilot {Application.ProductVersion}",
+                "TimePilot 정보",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
         }
     }
 }
