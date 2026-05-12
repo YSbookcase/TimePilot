@@ -131,6 +131,7 @@ namespace TimePilot.WinForms
                 timelineGrid,
                 AddIcons(SortTimelineRows(storage.GetActivityTimelineForDay(observedAt))));
             var appIdToRestore = selectedRuntimeAppId ?? GetSelectedRuntimeAppId();
+            var runtimeHorizontalOffset = GetHorizontalScrollingOffset(runtimeGrid);
             isRefreshingRuntimeGrid = true;
             try
             {
@@ -138,7 +139,10 @@ namespace TimePilot.WinForms
                     runtimeGrid,
                     AddIcons(SortRuntimeSummaryRows(FilterRuntimeSummaryRows(
                         storage.GetProcessRuntimeUsageForDay(observedAt)))));
-                RestoreRuntimeSelection(appIdToRestore, GetFirstDisplayedColumnIndex(runtimeGrid));
+                RestoreRuntimeSelection(
+                    appIdToRestore,
+                    GetFirstDisplayedColumnIndex(runtimeGrid),
+                    runtimeHorizontalOffset);
             }
             finally
             {
@@ -602,7 +606,7 @@ namespace TimePilot.WinForms
             return (runtimeGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSummaryRow)?.AppId;
         }
 
-        private void RestoreRuntimeSelection(long? appId, int firstDisplayedColumnIndex)
+        private void RestoreRuntimeSelection(long? appId, int firstDisplayedColumnIndex, int horizontalScrollingOffset)
         {
             if (appId is null)
                 return;
@@ -619,6 +623,7 @@ namespace TimePilot.WinForms
                     runtimeGrid.Columns.Count - 1);
                 runtimeGrid.CurrentCell = row.Cells[currentCellIndex];
                 TrySetFirstDisplayedColumnIndex(runtimeGrid, firstDisplayedColumnIndex);
+                TrySetHorizontalScrollingOffset(runtimeGrid, horizontalScrollingOffset);
                 return;
             }
         }
@@ -634,6 +639,7 @@ namespace TimePilot.WinForms
         {
             var firstDisplayedRowIndex = GetFirstDisplayedRowIndex(grid);
             var firstDisplayedColumnIndex = GetFirstDisplayedColumnIndex(grid);
+            var horizontalScrollingOffset = GetHorizontalScrollingOffset(grid);
             var selectedIndex = grid.CurrentRow?.Index ?? -1;
 
             grid.DataSource = rows;
@@ -645,6 +651,7 @@ namespace TimePilot.WinForms
             var restoredFirstColumnIndex = Math.Min(firstDisplayedColumnIndex, grid.Columns.Count - 1);
             TrySetFirstDisplayedRowIndex(grid, restoredFirstRowIndex);
             TrySetFirstDisplayedColumnIndex(grid, restoredFirstColumnIndex);
+            TrySetHorizontalScrollingOffset(grid, horizontalScrollingOffset);
 
             if (selectedIndex < 0)
                 return;
@@ -656,6 +663,7 @@ namespace TimePilot.WinForms
             grid.CurrentCell = grid.Rows[restoredSelectedIndex].Cells[restoredSelectedColumnIndex];
             TrySetFirstDisplayedRowIndex(grid, restoredFirstRowIndex);
             TrySetFirstDisplayedColumnIndex(grid, restoredFirstColumnIndex);
+            TrySetHorizontalScrollingOffset(grid, horizontalScrollingOffset);
         }
 
         private static int GetFirstDisplayedRowIndex(DataGridView grid)
@@ -682,6 +690,18 @@ namespace TimePilot.WinForms
             }
         }
 
+        private static int GetHorizontalScrollingOffset(DataGridView grid)
+        {
+            try
+            {
+                return Math.Max(grid.HorizontalScrollingOffset, 0);
+            }
+            catch (InvalidOperationException)
+            {
+                return 0;
+            }
+        }
+
         private static void TrySetFirstDisplayedRowIndex(DataGridView grid, int rowIndex)
         {
             try
@@ -699,6 +719,21 @@ namespace TimePilot.WinForms
             {
                 if (columnIndex >= 0 && grid.Columns.Count > 0)
                     grid.FirstDisplayedScrollingColumnIndex = columnIndex;
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        private static void TrySetHorizontalScrollingOffset(DataGridView grid, int offset)
+        {
+            try
+            {
+                if (offset >= 0)
+                    grid.HorizontalScrollingOffset = offset;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
             }
             catch (InvalidOperationException)
             {
