@@ -7,6 +7,12 @@ namespace TimePilot.WinForms.KYS24
         public const int DefaultIdleThresholdMinutes = 2;
         public const int MinIdleThresholdMinutes = 1;
         public const int MaxIdleThresholdMinutes = 60;
+        public const bool DefaultProcessRuntimeTrackingEnabled = true;
+        public const ProcessRuntimeTrackingScope DefaultProcessRuntimeTrackingScope = ProcessRuntimeTrackingScope.WindowedApps;
+        public const int DefaultProcessRuntimeSampleIntervalSeconds = 60;
+        public const int MinProcessRuntimeSampleIntervalSeconds = 1;
+        public const int MaxProcessRuntimeSampleIntervalSeconds = 3600;
+        public const int WarningProcessRuntimeSampleIntervalSeconds = 10;
 
         private readonly string settingsPath;
 
@@ -18,6 +24,14 @@ namespace TimePilot.WinForms.KYS24
         public int IdleThresholdMinutes { get; set; } = DefaultIdleThresholdMinutes;
 
         public int IdleThresholdMs => IdleThresholdMinutes * 60 * 1000;
+
+        public bool ProcessRuntimeTrackingEnabled { get; set; } = DefaultProcessRuntimeTrackingEnabled;
+
+        public ProcessRuntimeTrackingScope ProcessRuntimeTrackingScope { get; set; } = DefaultProcessRuntimeTrackingScope;
+
+        public int ProcessRuntimeSampleIntervalSeconds { get; set; } = DefaultProcessRuntimeSampleIntervalSeconds;
+
+        public int ProcessRuntimeSampleIntervalMs => ProcessRuntimeSampleIntervalSeconds * 1000;
 
         public static AppSettings LoadDefault()
         {
@@ -33,10 +47,19 @@ namespace TimePilot.WinForms.KYS24
             {
                 var persisted = JsonSerializer.Deserialize<PersistedSettings>(File.ReadAllText(settingsPath));
                 settings.IdleThresholdMinutes = NormalizeIdleThresholdMinutes(persisted?.IdleThresholdMinutes);
+                settings.ProcessRuntimeTrackingEnabled = persisted?.ProcessRuntimeTrackingEnabled
+                    ?? DefaultProcessRuntimeTrackingEnabled;
+                settings.ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(
+                    persisted?.ProcessRuntimeTrackingScope);
+                settings.ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
+                    persisted?.ProcessRuntimeSampleIntervalSeconds);
             }
             catch
             {
                 settings.IdleThresholdMinutes = DefaultIdleThresholdMinutes;
+                settings.ProcessRuntimeTrackingEnabled = DefaultProcessRuntimeTrackingEnabled;
+                settings.ProcessRuntimeTrackingScope = DefaultProcessRuntimeTrackingScope;
+                settings.ProcessRuntimeSampleIntervalSeconds = DefaultProcessRuntimeSampleIntervalSeconds;
             }
 
             return settings;
@@ -47,9 +70,16 @@ namespace TimePilot.WinForms.KYS24
             Directory.CreateDirectory(Path.GetDirectoryName(settingsPath)!);
             var persisted = new PersistedSettings
             {
-                IdleThresholdMinutes = NormalizeIdleThresholdMinutes(IdleThresholdMinutes)
+                IdleThresholdMinutes = NormalizeIdleThresholdMinutes(IdleThresholdMinutes),
+                ProcessRuntimeTrackingEnabled = ProcessRuntimeTrackingEnabled,
+                ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(ProcessRuntimeTrackingScope),
+                ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
+                    ProcessRuntimeSampleIntervalSeconds)
             };
             IdleThresholdMinutes = persisted.IdleThresholdMinutes;
+            ProcessRuntimeTrackingEnabled = persisted.ProcessRuntimeTrackingEnabled;
+            ProcessRuntimeTrackingScope = persisted.ProcessRuntimeTrackingScope;
+            ProcessRuntimeSampleIntervalSeconds = persisted.ProcessRuntimeSampleIntervalSeconds;
 
             File.WriteAllText(
                 settingsPath,
@@ -62,6 +92,17 @@ namespace TimePilot.WinForms.KYS24
             Save();
         }
 
+        public void SetProcessRuntimeTracking(
+            bool isEnabled,
+            ProcessRuntimeTrackingScope scope,
+            int sampleIntervalSeconds)
+        {
+            ProcessRuntimeTrackingEnabled = isEnabled;
+            ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(scope);
+            ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(sampleIntervalSeconds);
+            Save();
+        }
+
         private static int NormalizeIdleThresholdMinutes(int? minutes)
         {
             return Math.Clamp(
@@ -70,9 +111,33 @@ namespace TimePilot.WinForms.KYS24
                 MaxIdleThresholdMinutes);
         }
 
+        private static ProcessRuntimeTrackingScope NormalizeProcessRuntimeTrackingScope(
+            ProcessRuntimeTrackingScope? scope)
+        {
+            return Enum.IsDefined(scope ?? DefaultProcessRuntimeTrackingScope)
+                ? scope ?? DefaultProcessRuntimeTrackingScope
+                : DefaultProcessRuntimeTrackingScope;
+        }
+
+        private static int NormalizeProcessRuntimeSampleIntervalSeconds(int? seconds)
+        {
+            return Math.Clamp(
+                seconds ?? DefaultProcessRuntimeSampleIntervalSeconds,
+                MinProcessRuntimeSampleIntervalSeconds,
+                MaxProcessRuntimeSampleIntervalSeconds);
+        }
+
         private sealed class PersistedSettings
         {
             public int IdleThresholdMinutes { get; set; } = DefaultIdleThresholdMinutes;
+
+            public bool ProcessRuntimeTrackingEnabled { get; set; } = DefaultProcessRuntimeTrackingEnabled;
+
+            public ProcessRuntimeTrackingScope ProcessRuntimeTrackingScope { get; set; } =
+                DefaultProcessRuntimeTrackingScope;
+
+            public int ProcessRuntimeSampleIntervalSeconds { get; set; } =
+                DefaultProcessRuntimeSampleIntervalSeconds;
         }
     }
 }

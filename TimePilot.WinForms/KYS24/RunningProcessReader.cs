@@ -6,17 +6,23 @@ namespace TimePilot.WinForms.KYS24
     {
         public static IReadOnlyList<RunningProcessSnapshot> GetWindowedApps()
         {
+            return GetProcesses(ProcessRuntimeTrackingScope.WindowedApps);
+        }
+
+        public static IReadOnlyList<RunningProcessSnapshot> GetProcesses(ProcessRuntimeTrackingScope scope)
+        {
             var apps = new List<RunningProcessSnapshot>();
+            var currentSessionId = Process.GetCurrentProcess().SessionId;
 
             foreach (var process in Process.GetProcesses())
             {
                 using (process)
                 {
-                    if (process.MainWindowHandle == IntPtr.Zero)
-                        continue;
-
                     try
                     {
+                        if (!ShouldTrack(process, scope, currentSessionId))
+                            continue;
+
                         var executablePath = TryGetExecutablePath(process);
                         var processName = process.ProcessName;
                         apps.Add(new RunningProcessSnapshot(
@@ -33,6 +39,28 @@ namespace TimePilot.WinForms.KYS24
             }
 
             return apps;
+        }
+
+        private static bool ShouldTrack(Process process, ProcessRuntimeTrackingScope scope, int currentSessionId)
+        {
+            return scope switch
+            {
+                ProcessRuntimeTrackingScope.AllProcesses => true,
+                ProcessRuntimeTrackingScope.UserProcesses => IsCurrentSessionProcess(process, currentSessionId),
+                _ => process.MainWindowHandle != IntPtr.Zero
+            };
+        }
+
+        private static bool IsCurrentSessionProcess(Process process, int currentSessionId)
+        {
+            try
+            {
+                return process.SessionId == currentSessionId;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static string? TryGetExecutablePath(Process process)

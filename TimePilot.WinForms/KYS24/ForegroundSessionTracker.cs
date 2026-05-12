@@ -23,9 +23,13 @@ namespace TimePilot.WinForms.KYS24
 
             if (string.Equals(currentProcessName, app.ProcessName, StringComparison.OrdinalIgnoreCase))
             {
+                if (currentSessionId is { } sessionId)
+                {
+                    storage.UpdateForegroundSessionObservation(sessionId, app, observedAt);
+                }
+
                 if (HasMetadataChanged(app))
                 {
-                    storage.UpdateAppMetadata(app, observedAt);
                     currentDisplayName = app.DisplayName;
                     currentExecutablePath = app.ExecutablePath;
                 }
