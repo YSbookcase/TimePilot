@@ -16,6 +16,9 @@ namespace TimePilot.WinForms.KYS24
             DateTimeOffset observedAt)
         {
             var observedProcessIds = new HashSet<int>();
+            var starts = new List<ProcessRuntimeSessionStart>();
+            var updates = new List<ProcessRuntimeSessionUpdate>();
+            var endedSessionIds = new List<long>();
 
             foreach (var process in processes)
             {
@@ -27,29 +30,26 @@ namespace TimePilot.WinForms.KYS24
                 if (currentSessions.TryGetValue(process.ProcessId, out var session)
                     && string.Equals(session.ProcessName, process.App.ProcessName, StringComparison.OrdinalIgnoreCase))
                 {
-                    storage.UpdateProcessRuntimeSession(
+                    updates.Add(new ProcessRuntimeSessionUpdate(
                         session.SessionId,
                         process.App,
                         trackingScope,
                         process.HasMainWindow,
-                        process.IsCurrentSessionProcess,
-                        observedAt);
+                        process.IsCurrentSessionProcess));
                     continue;
                 }
 
                 if (session is not null)
                 {
-                    storage.EndProcessRuntimeSession(session.SessionId, observedAt);
+                    endedSessionIds.Add(session.SessionId);
                 }
 
-                var sessionId = storage.StartProcessRuntimeSession(
-                    process.App,
+                starts.Add(new ProcessRuntimeSessionStart(
                     process.ProcessId,
+                    process.App,
                     trackingScope,
                     process.HasMainWindow,
-                    process.IsCurrentSessionProcess,
-                    observedAt);
-                currentSessions[process.ProcessId] = new TrackedProcessSession(sessionId, process.App.ProcessName);
+                    process.IsCurrentSessionProcess));
             }
 
             var endedProcessIds = currentSessions.Keys
@@ -58,8 +58,25 @@ namespace TimePilot.WinForms.KYS24
 
             foreach (var processId in endedProcessIds)
             {
-                storage.EndProcessRuntimeSession(currentSessions[processId].SessionId, observedAt);
+                endedSessionIds.Add(currentSessions[processId].SessionId);
+            }
+
+            var startResults = storage.ApplyProcessRuntimeSessionChanges(
+                starts,
+                updates,
+                endedSessionIds,
+                observedAt);
+
+            foreach (var processId in endedProcessIds)
+            {
                 currentSessions.Remove(processId);
+            }
+
+            foreach (var startResult in startResults)
+            {
+                currentSessions[startResult.ProcessId] = new TrackedProcessSession(
+                    startResult.SessionId,
+                    startResult.ProcessName);
             }
         }
 

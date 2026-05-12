@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using TimePilot.WinForms.KYS24;
 
 namespace TimePilot.WinForms
@@ -5,6 +6,9 @@ namespace TimePilot.WinForms
     public partial class Form1 : Form
     {
         private const int SampleIntervalMs = 1000;
+        private const int SampleIntervalToleranceMs = 200;
+        private const long SlowOperationThresholdMs = 250;
+        private static readonly TimeSpan PerformanceStatusDuration = TimeSpan.FromSeconds(5);
 
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private readonly AppIconCache appIconCache = new();
@@ -22,9 +26,13 @@ namespace TimePilot.WinForms
         private bool showCurrentTrackingScopeOnly = true;
         private bool showRunningRuntimeOnly;
         private bool isRefreshingRuntimeGrid;
+        private volatile bool isViewRefreshRunning;
         private long? selectedRuntimeAppId;
         private volatile bool isClosing;
         private volatile bool isProcessRuntimeSampleRunning;
+        private string statusText = string.Empty;
+        private string? performanceStatusText;
+        private DateTimeOffset? performanceStatusExpiresAt;
         private DataGridView? hoveredHeaderGrid;
         private int hoveredHeaderColumnIndex = -1;
         private TimePilotStorage? storage;
@@ -32,6 +40,7 @@ namespace TimePilot.WinForms
         private IdleSessionTracker? idleSessionTracker;
         private ProcessRuntimeSessionTracker? processRuntimeSessionTracker;
         private DateTimeOffset? lastProcessRuntimeSampleAt;
+        private DateTimeOffset? lastSampleTickAt;
 
         public Form1()
         {
@@ -57,6 +66,7 @@ namespace TimePilot.WinForms
             usageGrid.CellMouseLeave += OnGridCellMouseLeave;
             runtimeGrid.CellMouseEnter += OnGridCellMouseEnter;
             runtimeGrid.CellMouseLeave += OnGridCellMouseLeave;
+            mainTabs.SelectedIndexChanged += OnMainTabsSelectedIndexChanged;
             sampleTimer.Interval = SampleIntervalMs;
             sampleTimer.Tick += OnSampleTick;
             sampleTimer.Start();
@@ -66,6 +76,14 @@ namespace TimePilot.WinForms
         private void OnSampleTick(object? sender, EventArgs e)
         {
             var observedAt = DateTimeOffset.UtcNow;
+            if (lastSampleTickAt is { } lastTickAt)
+            {
+                var tickGapMs = (long)(observedAt - lastTickAt).TotalMilliseconds;
+                if (tickGapMs >= SampleIntervalMs + 500)
+                    ReportPerformanceEvents($"tick-gap {tickGapMs}ms");
+            }
+
+            lastSampleTickAt = observedAt;
             var idleThresholdMs = settings.IdleThresholdMs;
             var isIdle = UserIdleChecker.IsIdle(idleThresholdMs);
             var foregroundApp = ForegroundWindowReader.TryGetForegroundApp();
@@ -79,6 +97,7 @@ namespace TimePilot.WinForms
             statusLabel.Text = foregroundApp is null
                 ? $"전경: (없음) · {idleText}"
                 : $"전경: {foregroundApp.DisplayName} · {idleText}";
+            SetStatusText(statusLabel.Text);
             RefreshViews(observedAt);
         }
 
@@ -120,39 +139,121 @@ namespace TimePilot.WinForms
 
         private void RefreshViews(DateTimeOffset observedAt)
         {
+            _ = RefreshViewsAsync(observedAt);
+        }
+
+        private async Task RefreshViewsAsync(DateTimeOffset observedAt)
+        {
             if (storage is null)
                 return;
 
-            SetGridDataSourcePreservingView(
-                usageGrid,
-                AddIcons(SortUsageSummaryRows(UsageSummaryRowBuilder.FromForegroundUsage(
-                    storage.GetForegroundUsageForDay(observedAt)))));
-            SetGridDataSourcePreservingView(
-                timelineGrid,
-                AddIcons(SortTimelineRows(storage.GetActivityTimelineForDay(observedAt))));
+            if (isViewRefreshRunning)
+            {
+                ReportPerformanceEvents("view-skip");
+                return;
+            }
+
+            var totalStopwatch = Stopwatch.StartNew();
             var appIdToRestore = selectedRuntimeAppId ?? GetSelectedRuntimeAppId();
             var runtimeHorizontalOffset = GetHorizontalScrollingOffset(runtimeGrid);
-            isRefreshingRuntimeGrid = true;
+            var selectedTab = mainTabs.SelectedTab;
+            isViewRefreshRunning = true;
+            ViewRefreshSnapshot snapshot;
             try
             {
-                SetGridDataSourcePreservingView(
-                    runtimeGrid,
-                    AddIcons(SortRuntimeSummaryRows(FilterRuntimeSummaryRows(
-                        storage.GetProcessRuntimeUsageForDay(observedAt)))));
-                RestoreRuntimeSelection(
-                    appIdToRestore,
-                    GetFirstDisplayedColumnIndex(runtimeGrid),
-                    runtimeHorizontalOffset);
+                snapshot = await Task.Run(() =>
+                {
+                    var readStopwatch = Stopwatch.StartNew();
+                    var foregroundUsage = selectedTab == summaryTab
+                        ? storage.GetForegroundUsageForDay(observedAt)
+                        : null;
+                    var timelineRows = selectedTab == timelineTab
+                        ? storage.GetActivityTimelineForDay(observedAt)
+                        : null;
+                    var runtimeRows = selectedTab == detailTab
+                        ? storage.GetProcessRuntimeUsageForDay(observedAt)
+                        : null;
+                    var runtimeSegmentRows = selectedTab == detailTab && appIdToRestore is { } appId
+                        ? storage.GetProcessRuntimeSegmentsForDay(appId, observedAt)
+                        : null;
+                    readStopwatch.Stop();
+
+                    return new ViewRefreshSnapshot(
+                        foregroundUsage,
+                        timelineRows,
+                        runtimeRows,
+                        runtimeSegmentRows,
+                        readStopwatch.ElapsedMilliseconds);
+                });
+            }
+            catch
+            {
+                return;
             }
             finally
             {
-                isRefreshingRuntimeGrid = false;
+                isViewRefreshRunning = false;
             }
 
-            selectedRuntimeAppId = GetSelectedRuntimeAppId();
-            RefreshRuntimeSegments(observedAt);
+            if (isClosing)
+                return;
+
+            var applyStopwatch = Stopwatch.StartNew();
+            if (snapshot.ForegroundUsage is not null)
+            {
+                SetGridDataSourcePreservingView(
+                    usageGrid,
+                    AddIcons(SortUsageSummaryRows(UsageSummaryRowBuilder.FromForegroundUsage(
+                        snapshot.ForegroundUsage))));
+            }
+
+            if (snapshot.TimelineRows is not null)
+            {
+                SetGridDataSourcePreservingView(
+                    timelineGrid,
+                    AddIcons(SortTimelineRows(snapshot.TimelineRows)));
+            }
+
+            if (snapshot.RuntimeRows is not null)
+            {
+                isRefreshingRuntimeGrid = true;
+                try
+                {
+                    SetGridDataSourcePreservingView(
+                        runtimeGrid,
+                        AddIcons(SortRuntimeSummaryRows(FilterRuntimeSummaryRows(
+                            snapshot.RuntimeRows))));
+                    RestoreRuntimeSelection(
+                        appIdToRestore,
+                        GetFirstDisplayedColumnIndex(runtimeGrid),
+                        runtimeHorizontalOffset);
+                }
+                finally
+                {
+                    isRefreshingRuntimeGrid = false;
+                }
+
+                selectedRuntimeAppId = GetSelectedRuntimeAppId();
+                if (selectedRuntimeAppId == appIdToRestore && snapshot.RuntimeSegmentRows is not null)
+                {
+                    SetGridDataSourcePreservingView(
+                        runtimeSegmentsGrid,
+                        SortRuntimeSegmentRows(snapshot.RuntimeSegmentRows));
+                }
+                else
+                {
+                    RefreshRuntimeSegments(observedAt);
+                }
+            }
+
             UpdateSortGlyphs();
             RepositionHeaderToolTip();
+            applyStopwatch.Stop();
+            totalStopwatch.Stop();
+            ReportPerformanceTimings(
+                ("view-read", snapshot.ReadElapsedMs),
+                ("view-apply", applyStopwatch.ElapsedMilliseconds),
+                ("view-total", totalStopwatch.ElapsedMilliseconds));
         }
 
         private void RefreshRuntimeSegments(DateTimeOffset observedAt)
@@ -189,11 +290,15 @@ namespace TimePilot.WinForms
             }
 
             if (lastProcessRuntimeSampleAt is { } lastSample
-                && (observedAt - lastSample).TotalMilliseconds < settings.ProcessRuntimeSampleIntervalMs)
+                && (observedAt - lastSample).TotalMilliseconds + SampleIntervalToleranceMs
+                    < settings.ProcessRuntimeSampleIntervalMs)
                 return;
 
             if (isProcessRuntimeSampleRunning)
+            {
+                ReportPerformanceEvents("process-skip");
                 return;
+            }
 
             var scope = settings.ProcessRuntimeTrackingScope;
             lastProcessRuntimeSampleAt = observedAt;
@@ -201,18 +306,29 @@ namespace TimePilot.WinForms
 
             try
             {
+                long scanElapsedMs = 0;
+                long writeElapsedMs = 0;
                 await Task.Run(() =>
                 {
+                    var scanStopwatch = Stopwatch.StartNew();
                     var processes = RunningProcessReader.GetProcesses(scope);
+                    scanStopwatch.Stop();
+                    scanElapsedMs = scanStopwatch.ElapsedMilliseconds;
                     if (isClosing)
                         return;
 
+                    var writeStopwatch = Stopwatch.StartNew();
                     lock (processRuntimeTrackingLock)
                     {
                         if (!isClosing)
                             processRuntimeSessionTracker.Track(processes, scope, observedAt);
                     }
+                    writeStopwatch.Stop();
+                    writeElapsedMs = writeStopwatch.ElapsedMilliseconds;
                 });
+                ReportPerformanceTimings(
+                    ("process-scan", scanElapsedMs),
+                    ("process-write", writeElapsedMs));
             }
             catch
             {
@@ -221,6 +337,50 @@ namespace TimePilot.WinForms
             {
                 isProcessRuntimeSampleRunning = false;
             }
+        }
+
+        private void SetStatusText(string text)
+        {
+            statusText = text;
+            RefreshStatusLabel();
+        }
+
+        private void ReportPerformanceTimings(params (string Name, long ElapsedMs)[] timings)
+        {
+            var slowTimings = timings
+                .Where(x => x.ElapsedMs >= SlowOperationThresholdMs)
+                .Select(x => $"{x.Name} {x.ElapsedMs}ms")
+                .ToList();
+
+            if (slowTimings.Count == 0)
+                return;
+
+            performanceStatusText = "성능: " + string.Join(", ", slowTimings);
+            performanceStatusExpiresAt = DateTimeOffset.UtcNow.Add(PerformanceStatusDuration);
+            RefreshStatusLabel();
+        }
+
+        private void ReportPerformanceEvents(params string[] events)
+        {
+            if (events.Length == 0)
+                return;
+
+            performanceStatusText = "성능: " + string.Join(", ", events);
+            performanceStatusExpiresAt = DateTimeOffset.UtcNow.Add(PerformanceStatusDuration);
+            RefreshStatusLabel();
+        }
+
+        private void RefreshStatusLabel()
+        {
+            if (performanceStatusExpiresAt <= DateTimeOffset.UtcNow)
+            {
+                performanceStatusText = null;
+                performanceStatusExpiresAt = null;
+            }
+
+            statusLabel.Text = string.IsNullOrWhiteSpace(performanceStatusText)
+                ? statusText
+                : $"{statusText} | {performanceStatusText}";
         }
 
         private IReadOnlyList<UsageSummaryRow> AddIcons(IReadOnlyList<UsageSummaryRow> rows)
@@ -393,6 +553,11 @@ namespace TimePilot.WinForms
                 return;
 
             showRecentTimelineFirst = !showRecentTimelineFirst;
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void OnMainTabsSelectedIndexChanged(object? sender, EventArgs e)
+        {
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
@@ -773,5 +938,12 @@ namespace TimePilot.WinForms
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }
+
+        private sealed record ViewRefreshSnapshot(
+            IReadOnlyList<ForegroundUsageSummary>? ForegroundUsage,
+            IReadOnlyList<ActivityTimelineRow>? TimelineRows,
+            IReadOnlyList<ProcessRuntimeSummaryRow>? RuntimeRows,
+            IReadOnlyList<ProcessRuntimeSegmentRow>? RuntimeSegmentRows,
+            long ReadElapsedMs);
     }
 }
