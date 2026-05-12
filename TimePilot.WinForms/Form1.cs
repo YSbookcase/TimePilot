@@ -5,14 +5,16 @@ namespace TimePilot.WinForms
     public partial class Form1 : Form
     {
         private const int SampleIntervalMs = 1000;
-        private const int ProcessRuntimeSampleIntervalMs = 60_000;
 
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private readonly AppIconCache appIconCache = new();
+        private readonly object processRuntimeTrackingLock = new();
         private AppSettings settings = AppSettings.LoadDefault();
         private string usageSortProperty = nameof(UsageSummaryRow.ActiveUsageMs);
         private SortOrder usageSortOrder = SortOrder.Descending;
         private bool showRecentTimelineFirst;
+        private volatile bool isClosing;
+        private volatile bool isProcessRuntimeSampleRunning;
         private TimePilotStorage? storage;
         private ForegroundSessionTracker? foregroundSessionTracker;
         private IdleSessionTracker? idleSessionTracker;
@@ -54,7 +56,7 @@ namespace TimePilot.WinForms
             storage?.UpdateRuntimeHeartbeat(observedAt);
             idleSessionTracker?.Track(isIdle, foregroundApp, idleThresholdMs, observedAt);
             foregroundSessionTracker?.Track(foregroundApp, isIdle, observedAt);
-            TrackProcessRuntimeSessions(observedAt);
+            _ = TrackProcessRuntimeSessionsAsync(observedAt);
 
             var idleText = isIdle ? "유휴" : "활성";
             statusLabel.Text = foregroundApp is null
@@ -66,10 +68,15 @@ namespace TimePilot.WinForms
         private void OnFormClosed(object? sender, FormClosedEventArgs e)
         {
             var endedAt = DateTimeOffset.UtcNow;
+            isClosing = true;
             sampleTimer.Stop();
             idleSessionTracker?.EndCurrentSession(endedAt);
             foregroundSessionTracker?.EndCurrentSession(endedAt);
-            processRuntimeSessionTracker?.EndCurrentSessions(endedAt);
+            lock (processRuntimeTrackingLock)
+            {
+                processRuntimeSessionTracker?.EndCurrentSessions(endedAt);
+            }
+
             storage?.EndRuntimeSession(endedAt, "normal");
             storage?.Dispose();
             appIconCache.Dispose();
@@ -108,17 +115,55 @@ namespace TimePilot.WinForms
             UpdateSortGlyphs();
         }
 
-        private void TrackProcessRuntimeSessions(DateTimeOffset observedAt)
+        private async Task TrackProcessRuntimeSessionsAsync(DateTimeOffset observedAt)
         {
-            if (processRuntimeSessionTracker is null)
+            if (processRuntimeSessionTracker is null || isClosing)
                 return;
+
+            if (!settings.ProcessRuntimeTrackingEnabled)
+            {
+                lock (processRuntimeTrackingLock)
+                {
+                    processRuntimeSessionTracker.EndCurrentSessions(observedAt);
+                }
+
+                lastProcessRuntimeSampleAt = null;
+                return;
+            }
 
             if (lastProcessRuntimeSampleAt is { } lastSample
-                && (observedAt - lastSample).TotalMilliseconds < ProcessRuntimeSampleIntervalMs)
+                && (observedAt - lastSample).TotalMilliseconds < settings.ProcessRuntimeSampleIntervalMs)
                 return;
 
+            if (isProcessRuntimeSampleRunning)
+                return;
+
+            var scope = settings.ProcessRuntimeTrackingScope;
             lastProcessRuntimeSampleAt = observedAt;
-            processRuntimeSessionTracker.Track(RunningProcessReader.GetWindowedApps(), observedAt);
+            isProcessRuntimeSampleRunning = true;
+
+            try
+            {
+                await Task.Run(() =>
+                {
+                    var processes = RunningProcessReader.GetProcesses(scope);
+                    if (isClosing)
+                        return;
+
+                    lock (processRuntimeTrackingLock)
+                    {
+                        if (!isClosing)
+                            processRuntimeSessionTracker.Track(processes, observedAt);
+                    }
+                });
+            }
+            catch
+            {
+            }
+            finally
+            {
+                isProcessRuntimeSampleRunning = false;
+            }
         }
 
         private IReadOnlyList<UsageSummaryRow> AddIcons(IReadOnlyList<UsageSummaryRow> rows)
@@ -315,11 +360,16 @@ namespace TimePilot.WinForms
 
         private void OnPreferencesMenuItemClick(object? sender, EventArgs e)
         {
-            using var form = new PreferencesForm(settings.IdleThresholdMinutes);
+            using var form = new PreferencesForm(settings);
             if (form.ShowDialog(this) != DialogResult.OK)
                 return;
 
             settings.SetIdleThresholdMinutes(form.IdleThresholdMinutes);
+            settings.SetProcessRuntimeTracking(
+                form.ProcessRuntimeTrackingEnabled,
+                form.ProcessRuntimeTrackingScope,
+                form.ProcessRuntimeSampleIntervalSeconds);
+            lastProcessRuntimeSampleAt = null;
         }
 
         private void OnExitMenuItemClick(object? sender, EventArgs e)

@@ -59,6 +59,7 @@ namespace TimePilot.WinForms.KYS24
                     started_at TEXT NOT NULL,
                     ended_at TEXT NULL,
                     duration_ms INTEGER NULL,
+                    last_observed_at TEXT NULL,
                     FOREIGN KEY (app_id) REFERENCES apps(id)
                 );
 
@@ -102,6 +103,7 @@ namespace TimePilot.WinForms.KYS24
             command.ExecuteNonQuery();
 
             EnsureAppsColumns(connection);
+            EnsureForegroundSessionColumns(connection);
             MarkUnexpectedRuntimeSessions(now);
             MarkUnexpectedProcessRuntimeSessions(now);
         }
@@ -163,13 +165,15 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 INSERT INTO foreground_sessions (
                     app_id,
-                    started_at
+                    started_at,
+                    last_observed_at
                 )
-                VALUES ($appId, $startedAt);
+                VALUES ($appId, $startedAt, $lastObservedAt);
                 SELECT last_insert_rowid();
                 """;
             command.Parameters.AddWithValue("$appId", appId);
             command.Parameters.AddWithValue("$startedAt", FormatTimestamp(startedAt));
+            command.Parameters.AddWithValue("$lastObservedAt", FormatTimestamp(startedAt));
             return (long)command.ExecuteScalar()!;
         }
 
@@ -179,22 +183,47 @@ namespace TimePilot.WinForms.KYS24
             _ = GetOrCreateAppId(connection, app, observedAt);
         }
 
+        public void UpdateForegroundSessionObservation(long sessionId, AppMetadata app, DateTimeOffset observedAt)
+        {
+            using var connection = OpenConnection();
+            _ = GetOrCreateAppId(connection, app, observedAt);
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE foreground_sessions
+                SET last_observed_at = $lastObservedAt
+                WHERE id = $id AND ended_at IS NULL;
+                """;
+            command.Parameters.AddWithValue("$lastObservedAt", FormatTimestamp(observedAt));
+            command.Parameters.AddWithValue("$id", sessionId);
+            command.ExecuteNonQuery();
+        }
+
         public void EndForegroundSession(long sessionId, DateTimeOffset endedAt)
         {
             using var connection = OpenConnection();
             using var selectCommand = connection.CreateCommand();
             selectCommand.CommandText = """
-                SELECT started_at
+                SELECT started_at, last_observed_at
                 FROM foreground_sessions
                 WHERE id = $id AND ended_at IS NULL;
                 """;
             selectCommand.Parameters.AddWithValue("$id", sessionId);
-            var startedAtValue = selectCommand.ExecuteScalar();
-            if (startedAtValue is not string startedAtText)
-                return;
+            DateTimeOffset startedAt;
+            DateTimeOffset lastObservedAt;
+            using (var reader = selectCommand.ExecuteReader())
+            {
+                if (!reader.Read())
+                    return;
 
-            var startedAt = DateTimeOffset.Parse(startedAtText, null, System.Globalization.DateTimeStyles.RoundtripKind);
-            var durationMs = Math.Max(0, (long)(endedAt - startedAt).TotalMilliseconds);
+                startedAt = ParseTimestamp(reader.GetString(0));
+                lastObservedAt = reader.IsDBNull(1)
+                    ? startedAt
+                    : ParseTimestamp(reader.GetString(1));
+            }
+
+            var effectiveEnd = lastObservedAt <= endedAt ? lastObservedAt : endedAt;
+            var durationMs = Math.Max(0, (long)(effectiveEnd - startedAt).TotalMilliseconds);
 
             using var updateCommand = connection.CreateCommand();
             updateCommand.CommandText = """
@@ -203,7 +232,7 @@ namespace TimePilot.WinForms.KYS24
                     duration_ms = $durationMs
                 WHERE id = $id AND ended_at IS NULL;
                 """;
-            updateCommand.Parameters.AddWithValue("$endedAt", FormatTimestamp(endedAt));
+            updateCommand.Parameters.AddWithValue("$endedAt", FormatTimestamp(effectiveEnd));
             updateCommand.Parameters.AddWithValue("$durationMs", durationMs);
             updateCommand.Parameters.AddWithValue("$id", sessionId);
             updateCommand.ExecuteNonQuery();
@@ -322,15 +351,15 @@ namespace TimePilot.WinForms.KYS24
                     a.display_name,
                     a.executable_path,
                     fs.started_at,
-                    fs.ended_at
+                    fs.ended_at,
+                    fs.last_observed_at
                 FROM foreground_sessions fs
                 INNER JOIN apps a ON a.id = fs.app_id
                 WHERE fs.started_at < $dayEnd
-                  AND COALESCE(fs.ended_at, $now) > $dayStart;
+                  AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $dayStart;
                 """;
             command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
             command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
-            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
 
             var totals = new Dictionary<string, UsageAggregation>(StringComparer.OrdinalIgnoreCase);
             using var reader = command.ExecuteReader();
@@ -339,7 +368,9 @@ namespace TimePilot.WinForms.KYS24
                 var appName = reader.GetString(0);
                 var executablePath = reader.IsDBNull(1) ? null : reader.GetString(1);
                 var startedAt = ParseTimestamp(reader.GetString(2));
-                var endedAt = reader.IsDBNull(3) ? now : ParseTimestamp(reader.GetString(3));
+                var endedAt = reader.IsDBNull(3)
+                    ? reader.IsDBNull(4) ? startedAt : ParseTimestamp(reader.GetString(4))
+                    : ParseTimestamp(reader.GetString(3));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(endedAt, dayEnd);
                 var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
@@ -401,6 +432,16 @@ namespace TimePilot.WinForms.KYS24
             {
                 using var command = connection.CreateCommand();
                 command.CommandText = "ALTER TABLE apps ADD COLUMN executable_path TEXT NULL;";
+                command.ExecuteNonQuery();
+            }
+        }
+
+        private static void EnsureForegroundSessionColumns(SqliteConnection connection)
+        {
+            if (!ColumnExists(connection, "foreground_sessions", "last_observed_at"))
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = "ALTER TABLE foreground_sessions ADD COLUMN last_observed_at TEXT NULL;";
                 command.ExecuteNonQuery();
             }
         }
@@ -592,15 +633,15 @@ namespace TimePilot.WinForms.KYS24
                     a.display_name,
                     a.executable_path,
                     fs.started_at,
-                    fs.ended_at
+                    fs.ended_at,
+                    fs.last_observed_at
                 FROM foreground_sessions fs
                 INNER JOIN apps a ON a.id = fs.app_id
                 WHERE fs.started_at < $dayEnd
-                  AND COALESCE(fs.ended_at, $now) > $dayStart;
+                  AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $dayStart;
                 """;
             command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
             command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
-            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
 
             using var reader = command.ExecuteReader();
             while (reader.Read())
@@ -609,8 +650,10 @@ namespace TimePilot.WinForms.KYS24
                 var executablePath = reader.IsDBNull(1) ? null : reader.GetString(1);
                 var startedAt = ParseTimestamp(reader.GetString(2));
                 DateTimeOffset? endedAt = reader.IsDBNull(3) ? null : ParseTimestamp(reader.GetString(3));
+                var observedEnd = endedAt
+                    ?? (reader.IsDBNull(4) ? startedAt : ParseTimestamp(reader.GetString(4)));
                 var effectiveStart = Max(startedAt, dayStart);
-                var effectiveEnd = Min(endedAt ?? now, dayEnd);
+                var effectiveEnd = Min(observedEnd, dayEnd);
                 AddTimelineRow(rows, "활성", effectiveStart, endedAt, effectiveEnd, appName, executablePath);
             }
         }
