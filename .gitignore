@@ -403,6 +403,8 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+artifacts/
+docs/BLOG_POST_DRAFT.ko.md
 
 # JetBrains Rider
 *.sln.iml
