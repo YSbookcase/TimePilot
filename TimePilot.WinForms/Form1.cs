@@ -9,12 +9,15 @@ namespace TimePilot.WinForms
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private readonly AppIconCache appIconCache = new();
         private readonly object processRuntimeTrackingLock = new();
+        private readonly Form headerToolTipForm = new();
+        private readonly Label headerToolTipLabel = new();
         private AppSettings settings = AppSettings.LoadDefault();
         private string usageSortProperty = nameof(UsageSummaryRow.ActiveUsageMs);
         private SortOrder usageSortOrder = SortOrder.Descending;
         private bool showRecentTimelineFirst;
         private volatile bool isClosing;
         private volatile bool isProcessRuntimeSampleRunning;
+        private int hoveredUsageHeaderColumnIndex = -1;
         private TimePilotStorage? storage;
         private ForegroundSessionTracker? foregroundSessionTracker;
         private IdleSessionTracker? idleSessionTracker;
@@ -40,6 +43,9 @@ namespace TimePilot.WinForms
             storage.Initialize(startedAt);
             storage.BeginRuntimeSession(startedAt, Application.ProductVersion);
 
+            ConfigureHeaderToolTip();
+            usageGrid.CellMouseEnter += OnUsageGridCellMouseEnter;
+            usageGrid.CellMouseLeave += OnUsageGridCellMouseLeave;
             sampleTimer.Interval = SampleIntervalMs;
             sampleTimer.Tick += OnSampleTick;
             sampleTimer.Start();
@@ -80,6 +86,7 @@ namespace TimePilot.WinForms
             storage?.EndRuntimeSession(endedAt, "normal");
             storage?.Dispose();
             appIconCache.Dispose();
+            headerToolTipForm.Dispose();
             sampleTimer.Dispose();
         }
 
@@ -113,6 +120,7 @@ namespace TimePilot.WinForms
                 timelineGrid,
                 AddIcons(SortTimelineRows(storage.GetActivityTimelineForDay(observedAt))));
             UpdateSortGlyphs();
+            RepositionHeaderToolTip();
         }
 
         private async Task TrackProcessRuntimeSessionsAsync(DateTimeOffset observedAt)
@@ -229,6 +237,24 @@ namespace TimePilot.WinForms
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
+        private void OnUsageGridCellMouseEnter(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex != -1)
+                return;
+
+            hoveredUsageHeaderColumnIndex = e.ColumnIndex;
+            ShowHeaderToolTip(e.ColumnIndex);
+        }
+
+        private void OnUsageGridCellMouseLeave(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex != -1 || e.ColumnIndex != hoveredUsageHeaderColumnIndex)
+                return;
+
+            hoveredUsageHeaderColumnIndex = -1;
+            headerToolTipForm.Hide();
+        }
+
         private void OnTimelineGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
         {
             if (e.ColumnIndex < 0 || timelineGrid.Columns[e.ColumnIndex] != timelineStartedAtColumn)
@@ -269,6 +295,54 @@ namespace TimePilot.WinForms
             timelineStartedAtColumn.HeaderCell.SortGlyphDirection = showRecentTimelineFirst
                 ? SortOrder.Descending
                 : SortOrder.Ascending;
+        }
+
+        private void ConfigureHeaderToolTip()
+        {
+            headerToolTipLabel.AutoSize = false;
+            headerToolTipLabel.BackColor = SystemColors.Info;
+            headerToolTipLabel.BorderStyle = BorderStyle.FixedSingle;
+            headerToolTipLabel.ForeColor = SystemColors.InfoText;
+            headerToolTipLabel.Location = new Point(0, 0);
+            headerToolTipLabel.Padding = new Padding(8, 5, 8, 5);
+            headerToolTipLabel.Size = new Size(274, 42);
+            headerToolTipLabel.Text = "오늘 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
+
+            headerToolTipForm.BackColor = SystemColors.Info;
+            headerToolTipForm.ClientSize = headerToolTipLabel.Size;
+            headerToolTipForm.Controls.Add(headerToolTipLabel);
+            headerToolTipForm.FormBorderStyle = FormBorderStyle.None;
+            headerToolTipForm.ShowInTaskbar = false;
+            headerToolTipForm.StartPosition = FormStartPosition.Manual;
+            headerToolTipForm.TopMost = true;
+        }
+
+        private void RepositionHeaderToolTip()
+        {
+            if (headerToolTipForm.Visible && hoveredUsageHeaderColumnIndex >= 0)
+                PositionHeaderToolTip(hoveredUsageHeaderColumnIndex);
+        }
+
+        private void ShowHeaderToolTip(int columnIndex)
+        {
+            if (columnIndex < 0
+                || columnIndex >= usageGrid.Columns.Count
+                || usageGrid.Columns[columnIndex] != usageRatioColumn)
+            {
+                headerToolTipForm.Hide();
+                return;
+            }
+
+            PositionHeaderToolTip(columnIndex);
+            if (!headerToolTipForm.Visible)
+                headerToolTipForm.Show(this);
+        }
+
+        private void PositionHeaderToolTip(int columnIndex)
+        {
+            var headerRectangle = usageGrid.GetCellDisplayRectangle(columnIndex, -1, true);
+            var location = usageGrid.PointToScreen(new Point(headerRectangle.Left, headerRectangle.Bottom + 4));
+            headerToolTipForm.Location = location;
         }
 
         private static SortOrder ToggleSortOrder(SortOrder sortOrder)
