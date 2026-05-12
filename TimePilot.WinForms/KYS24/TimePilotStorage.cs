@@ -366,6 +366,57 @@ namespace TimePilot.WinForms.KYS24
             EndProcessRuntimeSession(connection, sessionId, endedAt);
         }
 
+        public IReadOnlyList<ProcessRuntimeSessionStartResult> ApplyProcessRuntimeSessionChanges(
+            IReadOnlyList<ProcessRuntimeSessionStart> starts,
+            IReadOnlyList<ProcessRuntimeSessionUpdate> updates,
+            IReadOnlyList<long> endedSessionIds,
+            DateTimeOffset observedAt)
+        {
+            using var connection = OpenConnection();
+            using var transaction = connection.BeginTransaction();
+            var startResults = new List<ProcessRuntimeSessionStartResult>();
+
+            foreach (var update in updates)
+            {
+                _ = GetOrCreateAppId(connection, update.App, observedAt, transaction);
+                UpdateProcessRuntimeSession(
+                    connection,
+                    transaction,
+                    update.SessionId,
+                    update.TrackingScope,
+                    update.HasMainWindow,
+                    update.IsCurrentSessionProcess,
+                    observedAt);
+            }
+
+            foreach (var sessionId in endedSessionIds.Distinct())
+            {
+                EndProcessRuntimeSession(connection, sessionId, observedAt, transaction);
+            }
+
+            foreach (var start in starts)
+            {
+                var appId = GetOrCreateAppId(connection, start.App, observedAt, transaction);
+                var sessionId = StartProcessRuntimeSession(
+                    connection,
+                    transaction,
+                    appId,
+                    start.ProcessId,
+                    start.TrackingScope,
+                    start.HasMainWindow,
+                    start.IsCurrentSessionProcess,
+                    observedAt);
+
+                startResults.Add(new ProcessRuntimeSessionStartResult(
+                    start.ProcessId,
+                    sessionId,
+                    start.App.ProcessName));
+            }
+
+            transaction.Commit();
+            return startResults;
+        }
+
         public IReadOnlyList<ForegroundUsageSummary> GetForegroundUsageForDay(DateTimeOffset now)
         {
             var localDayStart = now.ToLocalTime().Date;
@@ -482,7 +533,7 @@ namespace TimePilot.WinForms.KYS24
                 var startedAt = ParseTimestamp(reader.GetString(3));
                 var hasRunningSession = reader.IsDBNull(4);
                 var observedEnd = hasRunningSession
-                    ? ParseTimestamp(reader.GetString(5))
+                    ? now
                     : ParseTimestamp(reader.GetString(4));
                 var hasMainWindow = !reader.IsDBNull(6) && reader.GetInt32(6) == 1;
                 var isCurrentSessionProcess = !reader.IsDBNull(7) && reader.GetInt32(7) == 1;
@@ -562,8 +613,7 @@ namespace TimePilot.WinForms.KYS24
                 var processId = reader.GetInt32(0);
                 var startedAt = ParseTimestamp(reader.GetString(1));
                 DateTimeOffset? endedAt = reader.IsDBNull(2) ? null : ParseTimestamp(reader.GetString(2));
-                var observedEnd = endedAt
-                    ?? (reader.IsDBNull(3) ? startedAt : ParseTimestamp(reader.GetString(3)));
+                var observedEnd = endedAt ?? now;
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(observedEnd, dayEnd);
                 var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
@@ -735,9 +785,14 @@ namespace TimePilot.WinForms.KYS24
             updateCommand.ExecuteNonQuery();
         }
 
-        private void EndProcessRuntimeSession(SqliteConnection connection, long sessionId, DateTimeOffset endedAt)
+        private void EndProcessRuntimeSession(
+            SqliteConnection connection,
+            long sessionId,
+            DateTimeOffset endedAt,
+            SqliteTransaction? transaction = null)
         {
             using var selectCommand = connection.CreateCommand();
+            selectCommand.Transaction = transaction;
             selectCommand.CommandText = """
                 SELECT started_at, last_observed_at
                 FROM process_runtime_sessions
@@ -759,6 +814,7 @@ namespace TimePilot.WinForms.KYS24
             var durationMs = Math.Max(0, (long)(effectiveEnd - startedAt).TotalMilliseconds);
 
             using var updateCommand = connection.CreateCommand();
+            updateCommand.Transaction = transaction;
             updateCommand.CommandText = """
                 UPDATE process_runtime_sessions
                 SET ended_at = $endedAt,
@@ -771,9 +827,78 @@ namespace TimePilot.WinForms.KYS24
             updateCommand.ExecuteNonQuery();
         }
 
-        private long GetOrCreateAppId(SqliteConnection connection, AppMetadata app, DateTimeOffset observedAt)
+        private long StartProcessRuntimeSession(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            long appId,
+            int processId,
+            ProcessRuntimeTrackingScope trackingScope,
+            bool hasMainWindow,
+            bool isCurrentSessionProcess,
+            DateTimeOffset observedAt)
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = """
+                INSERT INTO process_runtime_sessions (
+                    app_id,
+                    process_id,
+                    started_at,
+                    first_observed_at,
+                    last_observed_at,
+                    tracking_scope,
+                    has_main_window,
+                    is_current_session_process
+                )
+                VALUES ($appId, $processId, $startedAt, $firstObservedAt, $lastObservedAt, $trackingScope, $hasMainWindow, $isCurrentSessionProcess);
+                SELECT last_insert_rowid();
+                """;
+            command.Parameters.AddWithValue("$appId", appId);
+            command.Parameters.AddWithValue("$processId", processId);
+            command.Parameters.AddWithValue("$startedAt", FormatTimestamp(observedAt));
+            command.Parameters.AddWithValue("$firstObservedAt", FormatTimestamp(observedAt));
+            command.Parameters.AddWithValue("$lastObservedAt", FormatTimestamp(observedAt));
+            command.Parameters.AddWithValue("$trackingScope", (int)trackingScope);
+            command.Parameters.AddWithValue("$hasMainWindow", hasMainWindow ? 1 : 0);
+            command.Parameters.AddWithValue("$isCurrentSessionProcess", isCurrentSessionProcess ? 1 : 0);
+            return (long)command.ExecuteScalar()!;
+        }
+
+        private void UpdateProcessRuntimeSession(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            long sessionId,
+            ProcessRuntimeTrackingScope trackingScope,
+            bool hasMainWindow,
+            bool isCurrentSessionProcess,
+            DateTimeOffset observedAt)
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText = """
+                UPDATE process_runtime_sessions
+                SET last_observed_at = $lastObservedAt,
+                    tracking_scope = $trackingScope,
+                    has_main_window = CASE WHEN $hasMainWindow = 1 THEN 1 ELSE has_main_window END,
+                    is_current_session_process = CASE WHEN $isCurrentSessionProcess = 1 THEN 1 ELSE is_current_session_process END
+                WHERE id = $id AND ended_at IS NULL;
+                """;
+            command.Parameters.AddWithValue("$lastObservedAt", FormatTimestamp(observedAt));
+            command.Parameters.AddWithValue("$trackingScope", (int)trackingScope);
+            command.Parameters.AddWithValue("$hasMainWindow", hasMainWindow ? 1 : 0);
+            command.Parameters.AddWithValue("$isCurrentSessionProcess", isCurrentSessionProcess ? 1 : 0);
+            command.Parameters.AddWithValue("$id", sessionId);
+            command.ExecuteNonQuery();
+        }
+
+        private long GetOrCreateAppId(
+            SqliteConnection connection,
+            AppMetadata app,
+            DateTimeOffset observedAt,
+            SqliteTransaction? transaction = null)
         {
             using var insertCommand = connection.CreateCommand();
+            insertCommand.Transaction = transaction;
             insertCommand.CommandText = """
                 INSERT INTO apps (
                     process_name,
@@ -796,6 +921,7 @@ namespace TimePilot.WinForms.KYS24
             insertCommand.ExecuteNonQuery();
 
             using var selectCommand = connection.CreateCommand();
+            selectCommand.Transaction = transaction;
             selectCommand.CommandText = """
                 SELECT id
                 FROM apps

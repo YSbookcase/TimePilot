@@ -104,33 +104,37 @@ For small documentation changes, working directly on the current branch is accep
 
 Use issues for non-trivial work.
 
-Use the same type names as commit messages.
+Use bracketed type names in issue titles.
 
 Recommended title format:
 
 ```text
-<type>: <short task description>
+[<Type>] <short task description>
 ```
 
 Examples:
 
 ```text
-feat: add foreground app display name
-docs: define SQLite schema
-refactor: move tracking logic to Core project
-fix: correct Korean UI labels
+[Feature] Add foreground app display name
+[Docs] Define SQLite schema
+[Refactor] Move tracking logic to Core project
+[Fix] Correct Korean UI labels
 ```
 
 Recommended issue body:
 
 ```md
-## Goal
+### Overview
 
-## Tasks
+### Background
 
-## Notes
+### Tasks
 
-## Done Criteria
+### Done Criteria
+
+### Related Files or Systems
+
+### Notes
 ```
 
 ---
