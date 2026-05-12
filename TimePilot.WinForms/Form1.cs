@@ -13,11 +13,16 @@ namespace TimePilot.WinForms
         private readonly Label headerToolTipLabel = new();
         private AppSettings settings = AppSettings.LoadDefault();
         private string usageSortProperty = nameof(UsageSummaryRow.ActiveUsageMs);
+        private string runtimeSortProperty = nameof(ProcessRuntimeSummaryRow.RuntimeMs);
         private SortOrder usageSortOrder = SortOrder.Descending;
+        private SortOrder runtimeSortOrder = SortOrder.Descending;
         private bool showRecentTimelineFirst;
+        private bool showCurrentTrackingScopeOnly = true;
+        private bool showRunningRuntimeOnly;
         private volatile bool isClosing;
         private volatile bool isProcessRuntimeSampleRunning;
-        private int hoveredUsageHeaderColumnIndex = -1;
+        private DataGridView? hoveredHeaderGrid;
+        private int hoveredHeaderColumnIndex = -1;
         private TimePilotStorage? storage;
         private ForegroundSessionTracker? foregroundSessionTracker;
         private IdleSessionTracker? idleSessionTracker;
@@ -44,8 +49,10 @@ namespace TimePilot.WinForms
             storage.BeginRuntimeSession(startedAt, Application.ProductVersion);
 
             ConfigureHeaderToolTip();
-            usageGrid.CellMouseEnter += OnUsageGridCellMouseEnter;
-            usageGrid.CellMouseLeave += OnUsageGridCellMouseLeave;
+            usageGrid.CellMouseEnter += OnGridCellMouseEnter;
+            usageGrid.CellMouseLeave += OnGridCellMouseLeave;
+            runtimeGrid.CellMouseEnter += OnGridCellMouseEnter;
+            runtimeGrid.CellMouseLeave += OnGridCellMouseLeave;
             sampleTimer.Interval = SampleIntervalMs;
             sampleTimer.Tick += OnSampleTick;
             sampleTimer.Start();
@@ -119,6 +126,10 @@ namespace TimePilot.WinForms
             SetGridDataSourcePreservingView(
                 timelineGrid,
                 AddIcons(SortTimelineRows(storage.GetActivityTimelineForDay(observedAt))));
+            SetGridDataSourcePreservingView(
+                runtimeGrid,
+                AddIcons(SortRuntimeSummaryRows(FilterRuntimeSummaryRows(
+                    storage.GetProcessRuntimeUsageForDay(observedAt)))));
             UpdateSortGlyphs();
             RepositionHeaderToolTip();
         }
@@ -161,7 +172,7 @@ namespace TimePilot.WinForms
                     lock (processRuntimeTrackingLock)
                     {
                         if (!isClosing)
-                            processRuntimeSessionTracker.Track(processes, observedAt);
+                            processRuntimeSessionTracker.Track(processes, scope, observedAt);
                     }
                 });
             }
@@ -182,6 +193,13 @@ namespace TimePilot.WinForms
         }
 
         private IReadOnlyList<ActivityTimelineRow> AddIcons(IReadOnlyList<ActivityTimelineRow> rows)
+        {
+            return rows
+                .Select(row => row with { AppIcon = appIconCache.GetIcon(row.ExecutablePath) })
+                .ToList();
+        }
+
+        private IReadOnlyList<ProcessRuntimeSummaryRow> AddIcons(IReadOnlyList<ProcessRuntimeSummaryRow> rows)
         {
             return rows
                 .Select(row => row with { AppIcon = appIconCache.GetIcon(row.ExecutablePath) })
@@ -212,11 +230,59 @@ namespace TimePilot.WinForms
                 : rows.OrderBy(x => x.StartedAt).ToList();
         }
 
+        private IReadOnlyList<ProcessRuntimeSummaryRow> FilterRuntimeSummaryRows(IReadOnlyList<ProcessRuntimeSummaryRow> rows)
+        {
+            IEnumerable<ProcessRuntimeSummaryRow> filteredRows = rows;
+
+            if (showCurrentTrackingScopeOnly)
+            {
+                filteredRows = settings.ProcessRuntimeTrackingScope switch
+                {
+                    ProcessRuntimeTrackingScope.WindowedApps => filteredRows.Where(x => x.HasMainWindow),
+                    ProcessRuntimeTrackingScope.UserProcesses => filteredRows.Where(x => x.IsCurrentSessionProcess),
+                    _ => filteredRows
+                };
+            }
+
+            if (showRunningRuntimeOnly)
+                filteredRows = filteredRows.Where(x => x.HasRunningSession);
+
+            return filteredRows.ToList();
+        }
+
+        private IReadOnlyList<ProcessRuntimeSummaryRow> SortRuntimeSummaryRows(IReadOnlyList<ProcessRuntimeSummaryRow> rows)
+        {
+            IOrderedEnumerable<ProcessRuntimeSummaryRow> sortedRows = runtimeSortProperty switch
+            {
+                nameof(ProcessRuntimeSummaryRow.AppName) => OrderRuntimeRows(rows, x => x.AppName),
+                nameof(ProcessRuntimeSummaryRow.FirstObservedAt) => OrderRuntimeRows(rows, x => x.FirstObservedAt),
+                nameof(ProcessRuntimeSummaryRow.LastObservedAt) => OrderRuntimeRows(rows, x => x.LastObservedAt),
+                nameof(ProcessRuntimeSummaryRow.ActiveUsageMs) => OrderRuntimeRows(rows, x => x.ActiveUsageMs),
+                nameof(ProcessRuntimeSummaryRow.ActualUsageRatio) => OrderRuntimeRows(rows, x => x.ActualUsageRatio ?? -1),
+                nameof(ProcessRuntimeSummaryRow.RuntimeSegmentCount) => OrderRuntimeRows(rows, x => x.RuntimeSegmentCount),
+                nameof(ProcessRuntimeSummaryRow.HasRunningSession) => OrderRuntimeRows(rows, x => x.HasRunningSession),
+                _ => OrderRuntimeRows(rows, x => x.RuntimeMs)
+            };
+
+            return sortedRows
+                .ThenBy(x => x.AppName)
+                .ToList();
+        }
+
         private IOrderedEnumerable<UsageSummaryRow> OrderUsageRows<TKey>(
             IReadOnlyList<UsageSummaryRow> rows,
             Func<UsageSummaryRow, TKey> keySelector)
         {
             return usageSortOrder == SortOrder.Ascending
+                ? rows.OrderBy(keySelector)
+                : rows.OrderByDescending(keySelector);
+        }
+
+        private IOrderedEnumerable<ProcessRuntimeSummaryRow> OrderRuntimeRows<TKey>(
+            IReadOnlyList<ProcessRuntimeSummaryRow> rows,
+            Func<ProcessRuntimeSummaryRow, TKey> keySelector)
+        {
+            return runtimeSortOrder == SortOrder.Ascending
                 ? rows.OrderBy(keySelector)
                 : rows.OrderByDescending(keySelector);
         }
@@ -237,21 +303,23 @@ namespace TimePilot.WinForms
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
-        private void OnUsageGridCellMouseEnter(object? sender, DataGridViewCellEventArgs e)
+        private void OnGridCellMouseEnter(object? sender, DataGridViewCellEventArgs e)
         {
-            if (e.RowIndex != -1)
+            if (e.RowIndex != -1 || sender is not DataGridView grid)
                 return;
 
-            hoveredUsageHeaderColumnIndex = e.ColumnIndex;
-            ShowHeaderToolTip(e.ColumnIndex);
+            hoveredHeaderGrid = grid;
+            hoveredHeaderColumnIndex = e.ColumnIndex;
+            ShowHeaderToolTip(grid, e.ColumnIndex);
         }
 
-        private void OnUsageGridCellMouseLeave(object? sender, DataGridViewCellEventArgs e)
+        private void OnGridCellMouseLeave(object? sender, DataGridViewCellEventArgs e)
         {
-            if (e.RowIndex != -1 || e.ColumnIndex != hoveredUsageHeaderColumnIndex)
+            if (e.RowIndex != -1 || sender is not DataGridView grid || grid != hoveredHeaderGrid || e.ColumnIndex != hoveredHeaderColumnIndex)
                 return;
 
-            hoveredUsageHeaderColumnIndex = -1;
+            hoveredHeaderGrid = null;
+            hoveredHeaderColumnIndex = -1;
             headerToolTipForm.Hide();
         }
 
@@ -261,6 +329,34 @@ namespace TimePilot.WinForms
                 return;
 
             showRecentTimelineFirst = !showRecentTimelineFirst;
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void OnRuntimeGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.ColumnIndex < 0)
+                return;
+
+            var propertyName = GetRuntimeSortPropertyName(runtimeGrid.Columns[e.ColumnIndex]);
+            if (propertyName is null)
+                return;
+
+            runtimeSortOrder = string.Equals(runtimeSortProperty, propertyName, StringComparison.Ordinal)
+                ? ToggleSortOrder(runtimeSortOrder)
+                : SortOrder.Descending;
+            runtimeSortProperty = propertyName;
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void OnRunningRuntimeOnlyCheckBoxCheckedChanged(object? sender, EventArgs e)
+        {
+            showRunningRuntimeOnly = runningRuntimeOnlyCheckBox.Checked;
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void OnCurrentTrackingScopeOnlyCheckBoxCheckedChanged(object? sender, EventArgs e)
+        {
+            showCurrentTrackingScopeOnly = currentTrackingScopeOnlyCheckBox.Checked;
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
@@ -274,6 +370,22 @@ namespace TimePilot.WinForms
                 nameof(activeUsageTimeColumn) => nameof(UsageSummaryRow.ActiveUsageMs),
                 nameof(usageRatioColumn) => nameof(UsageSummaryRow.UsageRatio),
                 nameof(switchCountColumn) => nameof(UsageSummaryRow.SwitchCount),
+                _ => null
+            };
+        }
+
+        private string? GetRuntimeSortPropertyName(DataGridViewColumn column)
+        {
+            return column.Name switch
+            {
+                nameof(runtimeAppNameColumn) => nameof(ProcessRuntimeSummaryRow.AppName),
+                nameof(runtimeFirstObservedAtColumn) => nameof(ProcessRuntimeSummaryRow.FirstObservedAt),
+                nameof(runtimeLastObservedAtColumn) => nameof(ProcessRuntimeSummaryRow.LastObservedAt),
+                nameof(runtimeDurationColumn) => nameof(ProcessRuntimeSummaryRow.RuntimeMs),
+                nameof(runtimeActiveUsageColumn) => nameof(ProcessRuntimeSummaryRow.ActiveUsageMs),
+                nameof(runtimeActualUsageRatioColumn) => nameof(ProcessRuntimeSummaryRow.ActualUsageRatio),
+                nameof(runtimeSessionCountColumn) => nameof(ProcessRuntimeSummaryRow.RuntimeSegmentCount),
+                nameof(runtimeStatusColumn) => nameof(ProcessRuntimeSummaryRow.HasRunningSession),
                 _ => null
             };
         }
@@ -295,6 +407,13 @@ namespace TimePilot.WinForms
             timelineStartedAtColumn.HeaderCell.SortGlyphDirection = showRecentTimelineFirst
                 ? SortOrder.Descending
                 : SortOrder.Ascending;
+
+            foreach (DataGridViewColumn column in runtimeGrid.Columns)
+            {
+                column.HeaderCell.SortGlyphDirection = GetRuntimeSortPropertyName(column) == runtimeSortProperty
+                    ? runtimeSortOrder
+                    : SortOrder.None;
+            }
         }
 
         private void ConfigureHeaderToolTip()
@@ -319,29 +438,55 @@ namespace TimePilot.WinForms
 
         private void RepositionHeaderToolTip()
         {
-            if (headerToolTipForm.Visible && hoveredUsageHeaderColumnIndex >= 0)
-                PositionHeaderToolTip(hoveredUsageHeaderColumnIndex);
+            if (headerToolTipForm.Visible && hoveredHeaderGrid is not null && hoveredHeaderColumnIndex >= 0)
+                PositionHeaderToolTip(hoveredHeaderGrid, hoveredHeaderColumnIndex);
         }
 
-        private void ShowHeaderToolTip(int columnIndex)
+        private void ShowHeaderToolTip(DataGridView grid, int columnIndex)
         {
-            if (columnIndex < 0
-                || columnIndex >= usageGrid.Columns.Count
-                || usageGrid.Columns[columnIndex] != usageRatioColumn)
+            if (columnIndex < 0 || columnIndex >= grid.Columns.Count)
             {
                 headerToolTipForm.Hide();
                 return;
             }
 
-            PositionHeaderToolTip(columnIndex);
+            var text = GetHeaderToolTipText(grid, grid.Columns[columnIndex]);
+            if (text is null)
+            {
+                headerToolTipForm.Hide();
+                return;
+            }
+
+            headerToolTipLabel.Text = text;
+            var textSize = TextRenderer.MeasureText(text, headerToolTipLabel.Font, new Size(360, 0), TextFormatFlags.WordBreak);
+            headerToolTipLabel.Size = new Size(Math.Min(360, Math.Max(240, textSize.Width + 18)), textSize.Height + 14);
+            headerToolTipForm.ClientSize = headerToolTipLabel.Size;
+            PositionHeaderToolTip(grid, columnIndex);
             if (!headerToolTipForm.Visible)
                 headerToolTipForm.Show(this);
         }
 
-        private void PositionHeaderToolTip(int columnIndex)
+        private string? GetHeaderToolTipText(DataGridView grid, DataGridViewColumn column)
         {
-            var headerRectangle = usageGrid.GetCellDisplayRectangle(columnIndex, -1, true);
-            var location = usageGrid.PointToScreen(new Point(headerRectangle.Left, headerRectangle.Bottom + 4));
+            if (grid == usageGrid && column == usageRatioColumn)
+                return "오늘 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
+
+            if (grid == runtimeGrid && column == runtimeDurationColumn)
+                return "설정한 백그라운드 앱 추적 주기로 관측한 실행 시간입니다.";
+
+            if (grid == runtimeGrid && column == runtimeActualUsageRatioColumn)
+                return "실행 시간 중 실제 foreground 활성 사용 시간이 차지한 비율입니다.";
+
+            if (grid == runtimeGrid && column == runtimeSessionCountColumn)
+                return "앱이 이어서 실행된 것으로 관측된 구간 수입니다.";
+
+            return null;
+        }
+
+        private void PositionHeaderToolTip(DataGridView grid, int columnIndex)
+        {
+            var headerRectangle = grid.GetCellDisplayRectangle(columnIndex, -1, true);
+            var location = grid.PointToScreen(new Point(headerRectangle.Left, headerRectangle.Bottom + 4));
             headerToolTipForm.Location = location;
         }
 

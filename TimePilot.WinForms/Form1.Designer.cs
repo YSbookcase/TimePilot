@@ -35,6 +35,20 @@
             activeUsageTimeColumn = new DataGridViewTextBoxColumn();
             usageRatioColumn = new DataGridViewTextBoxColumn();
             switchCountColumn = new DataGridViewTextBoxColumn();
+            detailTab = new TabPage();
+            detailFilterPanel = new Panel();
+            currentTrackingScopeOnlyCheckBox = new CheckBox();
+            runningRuntimeOnlyCheckBox = new CheckBox();
+            runtimeGrid = new BufferedDataGridView();
+            runtimeAppIconColumn = new DataGridViewImageColumn();
+            runtimeAppNameColumn = new DataGridViewTextBoxColumn();
+            runtimeFirstObservedAtColumn = new DataGridViewTextBoxColumn();
+            runtimeLastObservedAtColumn = new DataGridViewTextBoxColumn();
+            runtimeDurationColumn = new DataGridViewTextBoxColumn();
+            runtimeActiveUsageColumn = new DataGridViewTextBoxColumn();
+            runtimeActualUsageRatioColumn = new DataGridViewTextBoxColumn();
+            runtimeSessionCountColumn = new DataGridViewTextBoxColumn();
+            runtimeStatusColumn = new DataGridViewTextBoxColumn();
             timelineTab = new TabPage();
             timelineGrid = new BufferedDataGridView();
             timelineTypeColumn = new DataGridViewTextBoxColumn();
@@ -47,6 +61,9 @@
             mainTabs.SuspendLayout();
             summaryTab.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)usageGrid).BeginInit();
+            detailTab.SuspendLayout();
+            detailFilterPanel.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)runtimeGrid).BeginInit();
             timelineTab.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)timelineGrid).BeginInit();
             SuspendLayout();
@@ -114,6 +131,7 @@
             // mainTabs
             // 
             mainTabs.Controls.Add(summaryTab);
+            mainTabs.Controls.Add(detailTab);
             mainTabs.Controls.Add(timelineTab);
             mainTabs.Dock = DockStyle.Fill;
             mainTabs.Location = new Point(0, 56);
@@ -228,6 +246,170 @@
             switchCountColumn.ReadOnly = true;
             switchCountColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             switchCountColumn.Width = 100;
+            //
+            // detailTab
+            //
+            detailTab.Controls.Add(runtimeGrid);
+            detailTab.Controls.Add(detailFilterPanel);
+            detailTab.Location = new Point(4, 24);
+            detailTab.Name = "detailTab";
+            detailTab.Padding = new Padding(3);
+            detailTab.Size = new Size(712, 420);
+            detailTab.TabIndex = 1;
+            detailTab.Text = "상세";
+            detailTab.UseVisualStyleBackColor = true;
+            //
+            // detailFilterPanel
+            //
+            detailFilterPanel.Controls.Add(currentTrackingScopeOnlyCheckBox);
+            detailFilterPanel.Controls.Add(runningRuntimeOnlyCheckBox);
+            detailFilterPanel.Dock = DockStyle.Top;
+            detailFilterPanel.Location = new Point(3, 3);
+            detailFilterPanel.Name = "detailFilterPanel";
+            detailFilterPanel.Size = new Size(706, 32);
+            detailFilterPanel.TabIndex = 1;
+            //
+            // currentTrackingScopeOnlyCheckBox
+            //
+            currentTrackingScopeOnlyCheckBox.AutoSize = true;
+            currentTrackingScopeOnlyCheckBox.Checked = true;
+            currentTrackingScopeOnlyCheckBox.CheckState = CheckState.Checked;
+            currentTrackingScopeOnlyCheckBox.Location = new Point(8, 7);
+            currentTrackingScopeOnlyCheckBox.Name = "currentTrackingScopeOnlyCheckBox";
+            currentTrackingScopeOnlyCheckBox.Size = new Size(134, 19);
+            currentTrackingScopeOnlyCheckBox.TabIndex = 0;
+            currentTrackingScopeOnlyCheckBox.Text = "현재 추적 범위만";
+            currentTrackingScopeOnlyCheckBox.UseVisualStyleBackColor = true;
+            currentTrackingScopeOnlyCheckBox.CheckedChanged += OnCurrentTrackingScopeOnlyCheckBoxCheckedChanged;
+            //
+            // runningRuntimeOnlyCheckBox
+            //
+            runningRuntimeOnlyCheckBox.AutoSize = true;
+            runningRuntimeOnlyCheckBox.Location = new Point(154, 7);
+            runningRuntimeOnlyCheckBox.Name = "runningRuntimeOnlyCheckBox";
+            runningRuntimeOnlyCheckBox.Size = new Size(82, 19);
+            runningRuntimeOnlyCheckBox.TabIndex = 1;
+            runningRuntimeOnlyCheckBox.Text = "실행 중만";
+            runningRuntimeOnlyCheckBox.UseVisualStyleBackColor = true;
+            runningRuntimeOnlyCheckBox.CheckedChanged += OnRunningRuntimeOnlyCheckBoxCheckedChanged;
+            //
+            // runtimeGrid
+            //
+            runtimeGrid.AllowUserToAddRows = false;
+            runtimeGrid.AllowUserToDeleteRows = false;
+            runtimeGrid.AllowUserToOrderColumns = true;
+            runtimeGrid.AllowUserToResizeRows = false;
+            runtimeGrid.AutoGenerateColumns = false;
+            runtimeGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+            runtimeGrid.BackgroundColor = SystemColors.Window;
+            runtimeGrid.BorderStyle = BorderStyle.None;
+            runtimeGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            runtimeGrid.Columns.AddRange(new DataGridViewColumn[] { runtimeAppIconColumn, runtimeAppNameColumn, runtimeFirstObservedAtColumn, runtimeLastObservedAtColumn, runtimeDurationColumn, runtimeActiveUsageColumn, runtimeActualUsageRatioColumn, runtimeSessionCountColumn, runtimeStatusColumn });
+            runtimeGrid.Dock = DockStyle.Fill;
+            runtimeGrid.Location = new Point(3, 35);
+            runtimeGrid.MultiSelect = false;
+            runtimeGrid.Name = "runtimeGrid";
+            runtimeGrid.ReadOnly = true;
+            runtimeGrid.RowHeadersVisible = false;
+            runtimeGrid.ScrollBars = ScrollBars.Both;
+            runtimeGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            runtimeGrid.Size = new Size(706, 382);
+            runtimeGrid.TabIndex = 0;
+            runtimeGrid.ColumnHeaderMouseClick += OnRuntimeGridColumnHeaderMouseClick;
+            //
+            // runtimeAppIconColumn
+            //
+            runtimeAppIconColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.None;
+            runtimeAppIconColumn.DataPropertyName = "AppIcon";
+            runtimeAppIconColumn.HeaderText = "";
+            runtimeAppIconColumn.ImageLayout = DataGridViewImageCellLayout.Zoom;
+            runtimeAppIconColumn.MinimumWidth = 36;
+            runtimeAppIconColumn.Name = "runtimeAppIconColumn";
+            runtimeAppIconColumn.ReadOnly = true;
+            runtimeAppIconColumn.Width = 36;
+            //
+            // runtimeAppNameColumn
+            //
+            runtimeAppNameColumn.DataPropertyName = "AppName";
+            runtimeAppNameColumn.HeaderText = "앱";
+            runtimeAppNameColumn.MinimumWidth = 180;
+            runtimeAppNameColumn.Name = "runtimeAppNameColumn";
+            runtimeAppNameColumn.ReadOnly = true;
+            runtimeAppNameColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeAppNameColumn.Width = 220;
+            //
+            // runtimeFirstObservedAtColumn
+            //
+            runtimeFirstObservedAtColumn.DataPropertyName = "FirstObservedAtText";
+            runtimeFirstObservedAtColumn.HeaderText = "첫 감지";
+            runtimeFirstObservedAtColumn.MinimumWidth = 90;
+            runtimeFirstObservedAtColumn.Name = "runtimeFirstObservedAtColumn";
+            runtimeFirstObservedAtColumn.ReadOnly = true;
+            runtimeFirstObservedAtColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeFirstObservedAtColumn.Width = 100;
+            //
+            // runtimeLastObservedAtColumn
+            //
+            runtimeLastObservedAtColumn.DataPropertyName = "LastObservedAtText";
+            runtimeLastObservedAtColumn.HeaderText = "마지막 감지";
+            runtimeLastObservedAtColumn.MinimumWidth = 100;
+            runtimeLastObservedAtColumn.Name = "runtimeLastObservedAtColumn";
+            runtimeLastObservedAtColumn.ReadOnly = true;
+            runtimeLastObservedAtColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeLastObservedAtColumn.Width = 110;
+            //
+            // runtimeDurationColumn
+            //
+            runtimeDurationColumn.DataPropertyName = "RuntimeText";
+            runtimeDurationColumn.HeaderText = "실행 시간";
+            runtimeDurationColumn.MinimumWidth = 110;
+            runtimeDurationColumn.Name = "runtimeDurationColumn";
+            runtimeDurationColumn.ReadOnly = true;
+            runtimeDurationColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeDurationColumn.ToolTipText = "설정한 백그라운드 앱 추적 주기로 관측한 실행 시간입니다.";
+            runtimeDurationColumn.Width = 120;
+            //
+            // runtimeActiveUsageColumn
+            //
+            runtimeActiveUsageColumn.DataPropertyName = "ActiveUsageTimeText";
+            runtimeActiveUsageColumn.HeaderText = "활성 사용 시간";
+            runtimeActiveUsageColumn.MinimumWidth = 120;
+            runtimeActiveUsageColumn.Name = "runtimeActiveUsageColumn";
+            runtimeActiveUsageColumn.ReadOnly = true;
+            runtimeActiveUsageColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeActiveUsageColumn.Width = 130;
+            //
+            // runtimeActualUsageRatioColumn
+            //
+            runtimeActualUsageRatioColumn.DataPropertyName = "ActualUsageRatioText";
+            runtimeActualUsageRatioColumn.HeaderText = "실사용 비율";
+            runtimeActualUsageRatioColumn.MinimumWidth = 100;
+            runtimeActualUsageRatioColumn.Name = "runtimeActualUsageRatioColumn";
+            runtimeActualUsageRatioColumn.ReadOnly = true;
+            runtimeActualUsageRatioColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeActualUsageRatioColumn.ToolTipText = "실행 시간 중 실제 foreground 활성 사용 시간이 차지한 비율입니다.";
+            runtimeActualUsageRatioColumn.Width = 110;
+            //
+            // runtimeSessionCountColumn
+            //
+            runtimeSessionCountColumn.DataPropertyName = "RuntimeSegmentCountText";
+            runtimeSessionCountColumn.HeaderText = "실행 구간";
+            runtimeSessionCountColumn.MinimumWidth = 80;
+            runtimeSessionCountColumn.Name = "runtimeSessionCountColumn";
+            runtimeSessionCountColumn.ReadOnly = true;
+            runtimeSessionCountColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeSessionCountColumn.ToolTipText = "앱이 이어서 실행된 것으로 관측된 구간 수입니다.";
+            runtimeSessionCountColumn.Width = 90;
+            //
+            // runtimeStatusColumn
+            //
+            runtimeStatusColumn.DataPropertyName = "StatusText";
+            runtimeStatusColumn.HeaderText = "상태";
+            runtimeStatusColumn.MinimumWidth = 80;
+            runtimeStatusColumn.Name = "runtimeStatusColumn";
+            runtimeStatusColumn.ReadOnly = true;
+            runtimeStatusColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeStatusColumn.Width = 90;
             // 
             // timelineTab
             // 
@@ -236,7 +418,7 @@
             timelineTab.Name = "timelineTab";
             timelineTab.Padding = new Padding(3);
             timelineTab.Size = new Size(712, 420);
-            timelineTab.TabIndex = 1;
+            timelineTab.TabIndex = 2;
             timelineTab.Text = "타임라인";
             timelineTab.UseVisualStyleBackColor = true;
             // 
@@ -339,6 +521,10 @@
             mainTabs.ResumeLayout(false);
             summaryTab.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)usageGrid).EndInit();
+            detailTab.ResumeLayout(false);
+            detailFilterPanel.ResumeLayout(false);
+            detailFilterPanel.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)runtimeGrid).EndInit();
             timelineTab.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)timelineGrid).EndInit();
             ResumeLayout(false);
@@ -363,6 +549,20 @@
         private DataGridViewTextBoxColumn activeUsageTimeColumn;
         private DataGridViewTextBoxColumn usageRatioColumn;
         private DataGridViewTextBoxColumn switchCountColumn;
+        private TabPage detailTab;
+        private Panel detailFilterPanel;
+        private CheckBox currentTrackingScopeOnlyCheckBox;
+        private CheckBox runningRuntimeOnlyCheckBox;
+        private DataGridView runtimeGrid;
+        private DataGridViewImageColumn runtimeAppIconColumn;
+        private DataGridViewTextBoxColumn runtimeAppNameColumn;
+        private DataGridViewTextBoxColumn runtimeFirstObservedAtColumn;
+        private DataGridViewTextBoxColumn runtimeLastObservedAtColumn;
+        private DataGridViewTextBoxColumn runtimeDurationColumn;
+        private DataGridViewTextBoxColumn runtimeActiveUsageColumn;
+        private DataGridViewTextBoxColumn runtimeActualUsageRatioColumn;
+        private DataGridViewTextBoxColumn runtimeSessionCountColumn;
+        private DataGridViewTextBoxColumn runtimeStatusColumn;
         private TabPage timelineTab;
         private DataGridView timelineGrid;
         private DataGridViewTextBoxColumn timelineTypeColumn;
