@@ -15,6 +15,8 @@ namespace TimePilot.WinForms
         private readonly object processRuntimeTrackingLock = new();
         private readonly Form headerToolTipForm = new();
         private readonly Label headerToolTipLabel = new();
+        private readonly NotifyIcon trayIcon = new();
+        private readonly ContextMenuStrip trayMenu = new();
         private AppSettings settings = AppSettings.LoadDefault();
         private string usageSortProperty = nameof(UsageSummaryRow.ActiveUsageMs);
         private string runtimeSortProperty = nameof(ProcessRuntimeSummaryRow.RuntimeMs);
@@ -26,6 +28,7 @@ namespace TimePilot.WinForms
         private bool showCurrentTrackingScopeOnly = true;
         private bool showRunningRuntimeOnly;
         private bool isRefreshingRuntimeGrid;
+        private bool isExplicitExitRequested;
         private volatile bool isViewRefreshRunning;
         private long? selectedRuntimeAppId;
         private volatile bool isClosing;
@@ -61,7 +64,9 @@ namespace TimePilot.WinForms
             storage.Initialize(startedAt);
             storage.BeginRuntimeSession(startedAt, Application.ProductVersion);
 
+            Icon = LoadAppIcon();
             ConfigureHeaderToolTip();
+            ConfigureTrayIcon();
             usageGrid.CellMouseEnter += OnGridCellMouseEnter;
             usageGrid.CellMouseLeave += OnGridCellMouseLeave;
             runtimeGrid.CellMouseEnter += OnGridCellMouseEnter;
@@ -70,6 +75,7 @@ namespace TimePilot.WinForms
             sampleTimer.Interval = SampleIntervalMs;
             sampleTimer.Tick += OnSampleTick;
             sampleTimer.Start();
+            FormClosing += OnFormClosing;
             FormClosed += OnFormClosed;
         }
 
@@ -117,7 +123,19 @@ namespace TimePilot.WinForms
             storage?.Dispose();
             appIconCache.Dispose();
             headerToolTipForm.Dispose();
+            trayIcon.Visible = false;
+            trayIcon.Dispose();
+            trayMenu.Dispose();
             sampleTimer.Dispose();
+        }
+
+        private void OnFormClosing(object? sender, FormClosingEventArgs e)
+        {
+            if (isExplicitExitRequested || e.CloseReason != CloseReason.UserClosing)
+                return;
+
+            e.Cancel = true;
+            HideToTray();
         }
 
         private void ConfigureDesignPreview()
@@ -135,6 +153,59 @@ namespace TimePilot.WinForms
                 new("유휴", DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-45), 900_000, "devenv"),
                 new("활성", DateTimeOffset.Now.AddMinutes(-45), null, 2_700_000, "chrome")
             });
+        }
+
+        private void ConfigureTrayIcon()
+        {
+            var openMenuItem = new ToolStripMenuItem("창 열기");
+            openMenuItem.Click += (_, _) => ShowMainWindow();
+
+            var exitTrayMenuItem = new ToolStripMenuItem("종료");
+            exitTrayMenuItem.Click += (_, _) => ExitApplication();
+
+            trayMenu.Items.AddRange(new ToolStripItem[]
+            {
+                openMenuItem,
+                new ToolStripSeparator(),
+                exitTrayMenuItem
+            });
+
+            trayIcon.ContextMenuStrip = trayMenu;
+            trayIcon.Icon = LoadAppIcon();
+            trayIcon.Text = "TimePilot";
+            trayIcon.Visible = true;
+            trayIcon.DoubleClick += (_, _) => ShowMainWindow();
+        }
+
+        private static Icon LoadAppIcon()
+        {
+            var assetIconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "TimePilot.ico");
+            if (File.Exists(assetIconPath))
+                return new Icon(assetIconPath);
+
+            return Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application;
+        }
+
+        private void HideToTray()
+        {
+            Hide();
+            ShowInTaskbar = false;
+        }
+
+        private void ShowMainWindow()
+        {
+            Show();
+            ShowInTaskbar = true;
+            if (WindowState == FormWindowState.Minimized)
+                WindowState = FormWindowState.Normal;
+
+            Activate();
+        }
+
+        private void ExitApplication()
+        {
+            isExplicitExitRequested = true;
+            Close();
         }
 
         private void RefreshViews(DateTimeOffset observedAt)
@@ -926,7 +997,7 @@ namespace TimePilot.WinForms
 
         private void OnExitMenuItemClick(object? sender, EventArgs e)
         {
-            Close();
+            ExitApplication();
         }
 
         private void OnAboutMenuItemClick(object? sender, EventArgs e)
