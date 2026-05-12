@@ -39,6 +39,7 @@
             detailFilterPanel = new Panel();
             currentTrackingScopeOnlyCheckBox = new CheckBox();
             runningRuntimeOnlyCheckBox = new CheckBox();
+            detailSplitContainer = new SplitContainer();
             runtimeGrid = new BufferedDataGridView();
             runtimeAppIconColumn = new DataGridViewImageColumn();
             runtimeAppNameColumn = new DataGridViewTextBoxColumn();
@@ -49,6 +50,13 @@
             runtimeActualUsageRatioColumn = new DataGridViewTextBoxColumn();
             runtimeSessionCountColumn = new DataGridViewTextBoxColumn();
             runtimeStatusColumn = new DataGridViewTextBoxColumn();
+            runtimeSegmentsGrid = new BufferedDataGridView();
+            runtimeSegmentStartedAtColumn = new DataGridViewTextBoxColumn();
+            runtimeSegmentEndedAtColumn = new DataGridViewTextBoxColumn();
+            runtimeSegmentDurationColumn = new DataGridViewTextBoxColumn();
+            runtimeSegmentStatusColumn = new DataGridViewTextBoxColumn();
+            runtimeSegmentObservationTypeColumn = new DataGridViewTextBoxColumn();
+            runtimeSegmentProcessIdColumn = new DataGridViewTextBoxColumn();
             timelineTab = new TabPage();
             timelineGrid = new BufferedDataGridView();
             timelineTypeColumn = new DataGridViewTextBoxColumn();
@@ -63,7 +71,12 @@
             ((System.ComponentModel.ISupportInitialize)usageGrid).BeginInit();
             detailTab.SuspendLayout();
             detailFilterPanel.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)detailSplitContainer).BeginInit();
+            detailSplitContainer.Panel1.SuspendLayout();
+            detailSplitContainer.Panel2.SuspendLayout();
+            detailSplitContainer.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)runtimeGrid).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)runtimeSegmentsGrid).BeginInit();
             timelineTab.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)timelineGrid).BeginInit();
             SuspendLayout();
@@ -249,7 +262,7 @@
             //
             // detailTab
             //
-            detailTab.Controls.Add(runtimeGrid);
+            detailTab.Controls.Add(detailSplitContainer);
             detailTab.Controls.Add(detailFilterPanel);
             detailTab.Location = new Point(4, 24);
             detailTab.Name = "detailTab";
@@ -293,6 +306,24 @@
             runningRuntimeOnlyCheckBox.UseVisualStyleBackColor = true;
             runningRuntimeOnlyCheckBox.CheckedChanged += OnRunningRuntimeOnlyCheckBoxCheckedChanged;
             //
+            // detailSplitContainer
+            //
+            detailSplitContainer.Dock = DockStyle.Fill;
+            detailSplitContainer.Location = new Point(3, 35);
+            detailSplitContainer.Name = "detailSplitContainer";
+            detailSplitContainer.Orientation = Orientation.Horizontal;
+            //
+            // detailSplitContainer.Panel1
+            //
+            detailSplitContainer.Panel1.Controls.Add(runtimeGrid);
+            //
+            // detailSplitContainer.Panel2
+            //
+            detailSplitContainer.Panel2.Controls.Add(runtimeSegmentsGrid);
+            detailSplitContainer.Size = new Size(706, 382);
+            detailSplitContainer.SplitterDistance = 245;
+            detailSplitContainer.TabIndex = 0;
+            //
             // runtimeGrid
             //
             runtimeGrid.AllowUserToAddRows = false;
@@ -306,16 +337,17 @@
             runtimeGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             runtimeGrid.Columns.AddRange(new DataGridViewColumn[] { runtimeAppIconColumn, runtimeAppNameColumn, runtimeFirstObservedAtColumn, runtimeLastObservedAtColumn, runtimeDurationColumn, runtimeActiveUsageColumn, runtimeActualUsageRatioColumn, runtimeSessionCountColumn, runtimeStatusColumn });
             runtimeGrid.Dock = DockStyle.Fill;
-            runtimeGrid.Location = new Point(3, 35);
+            runtimeGrid.Location = new Point(0, 0);
             runtimeGrid.MultiSelect = false;
             runtimeGrid.Name = "runtimeGrid";
             runtimeGrid.ReadOnly = true;
             runtimeGrid.RowHeadersVisible = false;
             runtimeGrid.ScrollBars = ScrollBars.Both;
             runtimeGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            runtimeGrid.Size = new Size(706, 382);
+            runtimeGrid.Size = new Size(706, 245);
             runtimeGrid.TabIndex = 0;
             runtimeGrid.ColumnHeaderMouseClick += OnRuntimeGridColumnHeaderMouseClick;
+            runtimeGrid.SelectionChanged += OnRuntimeGridSelectionChanged;
             //
             // runtimeAppIconColumn
             //
@@ -410,6 +442,89 @@
             runtimeStatusColumn.ReadOnly = true;
             runtimeStatusColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             runtimeStatusColumn.Width = 90;
+            //
+            // runtimeSegmentsGrid
+            //
+            runtimeSegmentsGrid.AllowUserToAddRows = false;
+            runtimeSegmentsGrid.AllowUserToDeleteRows = false;
+            runtimeSegmentsGrid.AllowUserToResizeRows = false;
+            runtimeSegmentsGrid.AutoGenerateColumns = false;
+            runtimeSegmentsGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+            runtimeSegmentsGrid.BackgroundColor = SystemColors.Window;
+            runtimeSegmentsGrid.BorderStyle = BorderStyle.None;
+            runtimeSegmentsGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            runtimeSegmentsGrid.Columns.AddRange(new DataGridViewColumn[] { runtimeSegmentStartedAtColumn, runtimeSegmentEndedAtColumn, runtimeSegmentDurationColumn, runtimeSegmentStatusColumn, runtimeSegmentObservationTypeColumn, runtimeSegmentProcessIdColumn });
+            runtimeSegmentsGrid.Dock = DockStyle.Fill;
+            runtimeSegmentsGrid.Location = new Point(0, 0);
+            runtimeSegmentsGrid.MultiSelect = false;
+            runtimeSegmentsGrid.Name = "runtimeSegmentsGrid";
+            runtimeSegmentsGrid.ReadOnly = true;
+            runtimeSegmentsGrid.RowHeadersVisible = false;
+            runtimeSegmentsGrid.ScrollBars = ScrollBars.Both;
+            runtimeSegmentsGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            runtimeSegmentsGrid.Size = new Size(706, 133);
+            runtimeSegmentsGrid.TabIndex = 0;
+            runtimeSegmentsGrid.ColumnHeaderMouseClick += OnRuntimeSegmentsGridColumnHeaderMouseClick;
+            //
+            // runtimeSegmentStartedAtColumn
+            //
+            runtimeSegmentStartedAtColumn.DataPropertyName = "StartedAtText";
+            runtimeSegmentStartedAtColumn.HeaderText = "시작";
+            runtimeSegmentStartedAtColumn.MinimumWidth = 90;
+            runtimeSegmentStartedAtColumn.Name = "runtimeSegmentStartedAtColumn";
+            runtimeSegmentStartedAtColumn.ReadOnly = true;
+            runtimeSegmentStartedAtColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeSegmentStartedAtColumn.Width = 100;
+            //
+            // runtimeSegmentEndedAtColumn
+            //
+            runtimeSegmentEndedAtColumn.DataPropertyName = "EndedAtText";
+            runtimeSegmentEndedAtColumn.HeaderText = "종료";
+            runtimeSegmentEndedAtColumn.MinimumWidth = 90;
+            runtimeSegmentEndedAtColumn.Name = "runtimeSegmentEndedAtColumn";
+            runtimeSegmentEndedAtColumn.ReadOnly = true;
+            runtimeSegmentEndedAtColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeSegmentEndedAtColumn.Width = 100;
+            //
+            // runtimeSegmentDurationColumn
+            //
+            runtimeSegmentDurationColumn.DataPropertyName = "DurationText";
+            runtimeSegmentDurationColumn.HeaderText = "시간";
+            runtimeSegmentDurationColumn.MinimumWidth = 100;
+            runtimeSegmentDurationColumn.Name = "runtimeSegmentDurationColumn";
+            runtimeSegmentDurationColumn.ReadOnly = true;
+            runtimeSegmentDurationColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeSegmentDurationColumn.Width = 110;
+            //
+            // runtimeSegmentStatusColumn
+            //
+            runtimeSegmentStatusColumn.DataPropertyName = "StatusText";
+            runtimeSegmentStatusColumn.HeaderText = "상태";
+            runtimeSegmentStatusColumn.MinimumWidth = 80;
+            runtimeSegmentStatusColumn.Name = "runtimeSegmentStatusColumn";
+            runtimeSegmentStatusColumn.ReadOnly = true;
+            runtimeSegmentStatusColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeSegmentStatusColumn.Width = 90;
+            //
+            // runtimeSegmentObservationTypeColumn
+            //
+            runtimeSegmentObservationTypeColumn.DataPropertyName = "ObservationTypeText";
+            runtimeSegmentObservationTypeColumn.HeaderText = "관측 기준";
+            runtimeSegmentObservationTypeColumn.MinimumWidth = 110;
+            runtimeSegmentObservationTypeColumn.Name = "runtimeSegmentObservationTypeColumn";
+            runtimeSegmentObservationTypeColumn.ReadOnly = true;
+            runtimeSegmentObservationTypeColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeSegmentObservationTypeColumn.Width = 130;
+            //
+            // runtimeSegmentProcessIdColumn
+            //
+            runtimeSegmentProcessIdColumn.DataPropertyName = "ProcessId";
+            runtimeSegmentProcessIdColumn.HeaderText = "PID";
+            runtimeSegmentProcessIdColumn.MinimumWidth = 70;
+            runtimeSegmentProcessIdColumn.Name = "runtimeSegmentProcessIdColumn";
+            runtimeSegmentProcessIdColumn.ReadOnly = true;
+            runtimeSegmentProcessIdColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeSegmentProcessIdColumn.Width = 80;
             // 
             // timelineTab
             // 
@@ -524,7 +639,12 @@
             detailTab.ResumeLayout(false);
             detailFilterPanel.ResumeLayout(false);
             detailFilterPanel.PerformLayout();
+            detailSplitContainer.Panel1.ResumeLayout(false);
+            detailSplitContainer.Panel2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)detailSplitContainer).EndInit();
+            detailSplitContainer.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)runtimeGrid).EndInit();
+            ((System.ComponentModel.ISupportInitialize)runtimeSegmentsGrid).EndInit();
             timelineTab.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)timelineGrid).EndInit();
             ResumeLayout(false);
@@ -553,6 +673,7 @@
         private Panel detailFilterPanel;
         private CheckBox currentTrackingScopeOnlyCheckBox;
         private CheckBox runningRuntimeOnlyCheckBox;
+        private SplitContainer detailSplitContainer;
         private DataGridView runtimeGrid;
         private DataGridViewImageColumn runtimeAppIconColumn;
         private DataGridViewTextBoxColumn runtimeAppNameColumn;
@@ -563,6 +684,13 @@
         private DataGridViewTextBoxColumn runtimeActualUsageRatioColumn;
         private DataGridViewTextBoxColumn runtimeSessionCountColumn;
         private DataGridViewTextBoxColumn runtimeStatusColumn;
+        private DataGridView runtimeSegmentsGrid;
+        private DataGridViewTextBoxColumn runtimeSegmentStartedAtColumn;
+        private DataGridViewTextBoxColumn runtimeSegmentEndedAtColumn;
+        private DataGridViewTextBoxColumn runtimeSegmentDurationColumn;
+        private DataGridViewTextBoxColumn runtimeSegmentStatusColumn;
+        private DataGridViewTextBoxColumn runtimeSegmentObservationTypeColumn;
+        private DataGridViewTextBoxColumn runtimeSegmentProcessIdColumn;
         private TabPage timelineTab;
         private DataGridView timelineGrid;
         private DataGridViewTextBoxColumn timelineTypeColumn;

@@ -510,6 +510,7 @@ namespace TimePilot.WinForms.KYS24
 
             return totals
                 .Select(x => new ProcessRuntimeSummaryRow(
+                    x.Key,
                     x.Value.AppName,
                     x.Value.ExecutablePath,
                     x.Value.GetMergedRuntimeMs(),
@@ -526,6 +527,59 @@ namespace TimePilot.WinForms.KYS24
                     x.Value.LastObservedAt))
                 .OrderByDescending(x => x.RuntimeMs)
                 .ToList();
+        }
+
+        public IReadOnlyList<ProcessRuntimeSegmentRow> GetProcessRuntimeSegmentsForDay(long appId, DateTimeOffset now)
+        {
+            var localDayStart = now.ToLocalTime().Date;
+            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
+            var dayEnd = dayStart.AddDays(1);
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    process_id,
+                    started_at,
+                    ended_at,
+                    last_observed_at,
+                    has_main_window,
+                    is_current_session_process
+                FROM process_runtime_sessions
+                WHERE app_id = $appId
+                  AND started_at < $dayEnd
+                  AND COALESCE(ended_at, last_observed_at, started_at) > $dayStart
+                ORDER BY started_at DESC;
+                """;
+            command.Parameters.AddWithValue("$appId", appId);
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            var rows = new List<ProcessRuntimeSegmentRow>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var processId = reader.GetInt32(0);
+                var startedAt = ParseTimestamp(reader.GetString(1));
+                DateTimeOffset? endedAt = reader.IsDBNull(2) ? null : ParseTimestamp(reader.GetString(2));
+                var observedEnd = endedAt
+                    ?? (reader.IsDBNull(3) ? startedAt : ParseTimestamp(reader.GetString(3)));
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(observedEnd, dayEnd);
+                var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+                if (durationMs <= 0 && endedAt is not null)
+                    continue;
+
+                rows.Add(new ProcessRuntimeSegmentRow(
+                    effectiveStart,
+                    endedAt,
+                    durationMs,
+                    processId,
+                    !reader.IsDBNull(4) && reader.GetInt32(4) == 1,
+                    !reader.IsDBNull(5) && reader.GetInt32(5) == 1));
+            }
+
+            return rows;
         }
 
         public void Dispose()

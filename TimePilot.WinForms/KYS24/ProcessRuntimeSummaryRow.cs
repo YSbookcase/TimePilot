@@ -3,6 +3,7 @@ using System.Globalization;
 namespace TimePilot.WinForms.KYS24
 {
     internal sealed record ProcessRuntimeSummaryRow(
+        long AppId,
         string AppName,
         string? ExecutablePath,
         long RuntimeMs,

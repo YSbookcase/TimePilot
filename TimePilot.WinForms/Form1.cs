@@ -14,11 +14,15 @@ namespace TimePilot.WinForms
         private AppSettings settings = AppSettings.LoadDefault();
         private string usageSortProperty = nameof(UsageSummaryRow.ActiveUsageMs);
         private string runtimeSortProperty = nameof(ProcessRuntimeSummaryRow.RuntimeMs);
+        private string runtimeSegmentSortProperty = nameof(ProcessRuntimeSegmentRow.StartedAt);
         private SortOrder usageSortOrder = SortOrder.Descending;
         private SortOrder runtimeSortOrder = SortOrder.Descending;
+        private SortOrder runtimeSegmentSortOrder = SortOrder.Descending;
         private bool showRecentTimelineFirst;
         private bool showCurrentTrackingScopeOnly = true;
         private bool showRunningRuntimeOnly;
+        private bool isRefreshingRuntimeGrid;
+        private long? selectedRuntimeAppId;
         private volatile bool isClosing;
         private volatile bool isProcessRuntimeSampleRunning;
         private DataGridView? hoveredHeaderGrid;
@@ -126,12 +130,46 @@ namespace TimePilot.WinForms
             SetGridDataSourcePreservingView(
                 timelineGrid,
                 AddIcons(SortTimelineRows(storage.GetActivityTimelineForDay(observedAt))));
-            SetGridDataSourcePreservingView(
-                runtimeGrid,
-                AddIcons(SortRuntimeSummaryRows(FilterRuntimeSummaryRows(
-                    storage.GetProcessRuntimeUsageForDay(observedAt)))));
+            var appIdToRestore = selectedRuntimeAppId ?? GetSelectedRuntimeAppId();
+            var runtimeHorizontalOffset = GetHorizontalScrollingOffset(runtimeGrid);
+            isRefreshingRuntimeGrid = true;
+            try
+            {
+                SetGridDataSourcePreservingView(
+                    runtimeGrid,
+                    AddIcons(SortRuntimeSummaryRows(FilterRuntimeSummaryRows(
+                        storage.GetProcessRuntimeUsageForDay(observedAt)))));
+                RestoreRuntimeSelection(
+                    appIdToRestore,
+                    GetFirstDisplayedColumnIndex(runtimeGrid),
+                    runtimeHorizontalOffset);
+            }
+            finally
+            {
+                isRefreshingRuntimeGrid = false;
+            }
+
+            selectedRuntimeAppId = GetSelectedRuntimeAppId();
+            RefreshRuntimeSegments(observedAt);
             UpdateSortGlyphs();
             RepositionHeaderToolTip();
+        }
+
+        private void RefreshRuntimeSegments(DateTimeOffset observedAt)
+        {
+            if (storage is null)
+                return;
+
+            var selectedRow = runtimeGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSummaryRow;
+            if (selectedRow is null)
+            {
+                SetGridDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
+                return;
+            }
+
+            SetGridDataSourcePreservingView(
+                runtimeSegmentsGrid,
+                SortRuntimeSegmentRows(storage.GetProcessRuntimeSegmentsForDay(selectedRow.AppId, observedAt)));
         }
 
         private async Task TrackProcessRuntimeSessionsAsync(DateTimeOffset observedAt)
@@ -269,6 +307,23 @@ namespace TimePilot.WinForms
                 .ToList();
         }
 
+        private IReadOnlyList<ProcessRuntimeSegmentRow> SortRuntimeSegmentRows(IReadOnlyList<ProcessRuntimeSegmentRow> rows)
+        {
+            IOrderedEnumerable<ProcessRuntimeSegmentRow> sortedRows = runtimeSegmentSortProperty switch
+            {
+                nameof(ProcessRuntimeSegmentRow.EndedAt) => OrderRuntimeSegmentRows(rows, x => x.EndedAt),
+                nameof(ProcessRuntimeSegmentRow.DurationMs) => OrderRuntimeSegmentRows(rows, x => x.DurationMs),
+                nameof(ProcessRuntimeSegmentRow.IsRunning) => OrderRuntimeSegmentRows(rows, x => x.IsRunning),
+                nameof(ProcessRuntimeSegmentRow.ObservationTypeText) => OrderRuntimeSegmentRows(rows, x => x.ObservationTypeText),
+                nameof(ProcessRuntimeSegmentRow.ProcessId) => OrderRuntimeSegmentRows(rows, x => x.ProcessId),
+                _ => OrderRuntimeSegmentRows(rows, x => x.StartedAt)
+            };
+
+            return sortedRows
+                .ThenByDescending(x => x.StartedAt)
+                .ToList();
+        }
+
         private IOrderedEnumerable<UsageSummaryRow> OrderUsageRows<TKey>(
             IReadOnlyList<UsageSummaryRow> rows,
             Func<UsageSummaryRow, TKey> keySelector)
@@ -283,6 +338,15 @@ namespace TimePilot.WinForms
             Func<ProcessRuntimeSummaryRow, TKey> keySelector)
         {
             return runtimeSortOrder == SortOrder.Ascending
+                ? rows.OrderBy(keySelector)
+                : rows.OrderByDescending(keySelector);
+        }
+
+        private IOrderedEnumerable<ProcessRuntimeSegmentRow> OrderRuntimeSegmentRows<TKey>(
+            IReadOnlyList<ProcessRuntimeSegmentRow> rows,
+            Func<ProcessRuntimeSegmentRow, TKey> keySelector)
+        {
+            return runtimeSegmentSortOrder == SortOrder.Ascending
                 ? rows.OrderBy(keySelector)
                 : rows.OrderByDescending(keySelector);
         }
@@ -348,6 +412,32 @@ namespace TimePilot.WinForms
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
+        private void OnRuntimeGridSelectionChanged(object? sender, EventArgs e)
+        {
+            if (isRefreshingRuntimeGrid)
+                return;
+
+            selectedRuntimeAppId = GetSelectedRuntimeAppId();
+            RefreshRuntimeSegments(DateTimeOffset.UtcNow);
+        }
+
+        private void OnRuntimeSegmentsGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.ColumnIndex < 0)
+                return;
+
+            var propertyName = GetRuntimeSegmentSortPropertyName(runtimeSegmentsGrid.Columns[e.ColumnIndex]);
+            if (propertyName is null)
+                return;
+
+            runtimeSegmentSortOrder = string.Equals(runtimeSegmentSortProperty, propertyName, StringComparison.Ordinal)
+                ? ToggleSortOrder(runtimeSegmentSortOrder)
+                : SortOrder.Descending;
+            runtimeSegmentSortProperty = propertyName;
+            RefreshRuntimeSegments(DateTimeOffset.UtcNow);
+            UpdateSortGlyphs();
+        }
+
         private void OnRunningRuntimeOnlyCheckBoxCheckedChanged(object? sender, EventArgs e)
         {
             showRunningRuntimeOnly = runningRuntimeOnlyCheckBox.Checked;
@@ -390,6 +480,20 @@ namespace TimePilot.WinForms
             };
         }
 
+        private string? GetRuntimeSegmentSortPropertyName(DataGridViewColumn column)
+        {
+            return column.Name switch
+            {
+                nameof(runtimeSegmentStartedAtColumn) => nameof(ProcessRuntimeSegmentRow.StartedAt),
+                nameof(runtimeSegmentEndedAtColumn) => nameof(ProcessRuntimeSegmentRow.EndedAt),
+                nameof(runtimeSegmentDurationColumn) => nameof(ProcessRuntimeSegmentRow.DurationMs),
+                nameof(runtimeSegmentStatusColumn) => nameof(ProcessRuntimeSegmentRow.IsRunning),
+                nameof(runtimeSegmentObservationTypeColumn) => nameof(ProcessRuntimeSegmentRow.ObservationTypeText),
+                nameof(runtimeSegmentProcessIdColumn) => nameof(ProcessRuntimeSegmentRow.ProcessId),
+                _ => null
+            };
+        }
+
         private void UpdateSortGlyphs()
         {
             foreach (DataGridViewColumn column in usageGrid.Columns)
@@ -412,6 +516,13 @@ namespace TimePilot.WinForms
             {
                 column.HeaderCell.SortGlyphDirection = GetRuntimeSortPropertyName(column) == runtimeSortProperty
                     ? runtimeSortOrder
+                    : SortOrder.None;
+            }
+
+            foreach (DataGridViewColumn column in runtimeSegmentsGrid.Columns)
+            {
+                column.HeaderCell.SortGlyphDirection = GetRuntimeSegmentSortPropertyName(column) == runtimeSegmentSortProperty
+                    ? runtimeSegmentSortOrder
                     : SortOrder.None;
             }
         }
@@ -490,6 +601,33 @@ namespace TimePilot.WinForms
             headerToolTipForm.Location = location;
         }
 
+        private long? GetSelectedRuntimeAppId()
+        {
+            return (runtimeGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSummaryRow)?.AppId;
+        }
+
+        private void RestoreRuntimeSelection(long? appId, int firstDisplayedColumnIndex, int horizontalScrollingOffset)
+        {
+            if (appId is null)
+                return;
+
+            foreach (DataGridViewRow row in runtimeGrid.Rows)
+            {
+                if (row.DataBoundItem is not ProcessRuntimeSummaryRow runtimeRow || runtimeRow.AppId != appId.Value)
+                    continue;
+
+                runtimeGrid.ClearSelection();
+                row.Selected = true;
+                var currentCellIndex = Math.Min(
+                    Math.Max(firstDisplayedColumnIndex, 0),
+                    runtimeGrid.Columns.Count - 1);
+                runtimeGrid.CurrentCell = row.Cells[currentCellIndex];
+                TrySetFirstDisplayedColumnIndex(runtimeGrid, firstDisplayedColumnIndex);
+                TrySetHorizontalScrollingOffset(runtimeGrid, horizontalScrollingOffset);
+                return;
+            }
+        }
+
         private static SortOrder ToggleSortOrder(SortOrder sortOrder)
         {
             return sortOrder == SortOrder.Descending
@@ -501,6 +639,7 @@ namespace TimePilot.WinForms
         {
             var firstDisplayedRowIndex = GetFirstDisplayedRowIndex(grid);
             var firstDisplayedColumnIndex = GetFirstDisplayedColumnIndex(grid);
+            var horizontalScrollingOffset = GetHorizontalScrollingOffset(grid);
             var selectedIndex = grid.CurrentRow?.Index ?? -1;
 
             grid.DataSource = rows;
@@ -512,6 +651,7 @@ namespace TimePilot.WinForms
             var restoredFirstColumnIndex = Math.Min(firstDisplayedColumnIndex, grid.Columns.Count - 1);
             TrySetFirstDisplayedRowIndex(grid, restoredFirstRowIndex);
             TrySetFirstDisplayedColumnIndex(grid, restoredFirstColumnIndex);
+            TrySetHorizontalScrollingOffset(grid, horizontalScrollingOffset);
 
             if (selectedIndex < 0)
                 return;
@@ -523,6 +663,7 @@ namespace TimePilot.WinForms
             grid.CurrentCell = grid.Rows[restoredSelectedIndex].Cells[restoredSelectedColumnIndex];
             TrySetFirstDisplayedRowIndex(grid, restoredFirstRowIndex);
             TrySetFirstDisplayedColumnIndex(grid, restoredFirstColumnIndex);
+            TrySetHorizontalScrollingOffset(grid, horizontalScrollingOffset);
         }
 
         private static int GetFirstDisplayedRowIndex(DataGridView grid)
@@ -549,6 +690,18 @@ namespace TimePilot.WinForms
             }
         }
 
+        private static int GetHorizontalScrollingOffset(DataGridView grid)
+        {
+            try
+            {
+                return Math.Max(grid.HorizontalScrollingOffset, 0);
+            }
+            catch (InvalidOperationException)
+            {
+                return 0;
+            }
+        }
+
         private static void TrySetFirstDisplayedRowIndex(DataGridView grid, int rowIndex)
         {
             try
@@ -566,6 +719,21 @@ namespace TimePilot.WinForms
             {
                 if (columnIndex >= 0 && grid.Columns.Count > 0)
                     grid.FirstDisplayedScrollingColumnIndex = columnIndex;
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        private static void TrySetHorizontalScrollingOffset(DataGridView grid, int offset)
+        {
+            try
+            {
+                if (offset >= 0)
+                    grid.HorizontalScrollingOffset = offset;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
             }
             catch (InvalidOperationException)
             {
