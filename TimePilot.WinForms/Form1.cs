@@ -17,6 +17,7 @@ namespace TimePilot.WinForms
         private readonly Label headerToolTipLabel = new();
         private readonly NotifyIcon trayIcon = new();
         private readonly ContextMenuStrip trayMenu = new();
+        private readonly bool startMinimizedToTray;
         private AppSettings settings = AppSettings.LoadDefault();
         private string usageSortProperty = nameof(UsageSummaryRow.ActiveUsageMs);
         private string runtimeSortProperty = nameof(ProcessRuntimeSummaryRow.RuntimeMs);
@@ -45,8 +46,10 @@ namespace TimePilot.WinForms
         private DateTimeOffset? lastProcessRuntimeSampleAt;
         private DateTimeOffset? lastSampleTickAt;
 
-        public Form1()
+        public Form1(bool startMinimizedToTray = false)
         {
+            this.startMinimizedToTray = startMinimizedToTray;
+
             InitializeComponent();
 
             if (IsRunningInDesigner())
@@ -77,6 +80,7 @@ namespace TimePilot.WinForms
             sampleTimer.Start();
             FormClosing += OnFormClosing;
             FormClosed += OnFormClosed;
+            Shown += OnShown;
         }
 
         private void OnSampleTick(object? sender, EventArgs e)
@@ -136,6 +140,12 @@ namespace TimePilot.WinForms
 
             e.Cancel = true;
             HideToTray();
+        }
+
+        private void OnShown(object? sender, EventArgs e)
+        {
+            if (startMinimizedToTray)
+                BeginInvoke(HideToTray);
         }
 
         private void ConfigureDesignPreview()
@@ -988,6 +998,7 @@ namespace TimePilot.WinForms
                 return;
 
             settings.SetIdleThresholdMinutes(form.IdleThresholdMinutes);
+            settings.SetStartWithWindows(form.StartWithWindows);
             settings.SetProcessRuntimeTracking(
                 form.ProcessRuntimeTrackingEnabled,
                 form.ProcessRuntimeTrackingScope,

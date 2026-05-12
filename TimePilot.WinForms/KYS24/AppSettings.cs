@@ -8,6 +8,7 @@ namespace TimePilot.WinForms.KYS24
         public const int MinIdleThresholdMinutes = 1;
         public const int MaxIdleThresholdMinutes = 60;
         public const bool DefaultProcessRuntimeTrackingEnabled = true;
+        public const bool DefaultStartWithWindows = false;
         public const ProcessRuntimeTrackingScope DefaultProcessRuntimeTrackingScope = ProcessRuntimeTrackingScope.WindowedApps;
         public const int DefaultProcessRuntimeSampleIntervalSeconds = 60;
         public const int MinProcessRuntimeSampleIntervalSeconds = 1;
@@ -26,6 +27,8 @@ namespace TimePilot.WinForms.KYS24
         public int IdleThresholdMs => IdleThresholdMinutes * 60 * 1000;
 
         public bool ProcessRuntimeTrackingEnabled { get; set; } = DefaultProcessRuntimeTrackingEnabled;
+
+        public bool StartWithWindows { get; set; } = DefaultStartWithWindows;
 
         public ProcessRuntimeTrackingScope ProcessRuntimeTrackingScope { get; set; } = DefaultProcessRuntimeTrackingScope;
 
@@ -49,6 +52,7 @@ namespace TimePilot.WinForms.KYS24
                 settings.IdleThresholdMinutes = NormalizeIdleThresholdMinutes(persisted?.IdleThresholdMinutes);
                 settings.ProcessRuntimeTrackingEnabled = persisted?.ProcessRuntimeTrackingEnabled
                     ?? DefaultProcessRuntimeTrackingEnabled;
+                settings.StartWithWindows = persisted?.StartWithWindows ?? DefaultStartWithWindows;
                 settings.ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(
                     persisted?.ProcessRuntimeTrackingScope);
                 settings.ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
@@ -58,6 +62,7 @@ namespace TimePilot.WinForms.KYS24
             {
                 settings.IdleThresholdMinutes = DefaultIdleThresholdMinutes;
                 settings.ProcessRuntimeTrackingEnabled = DefaultProcessRuntimeTrackingEnabled;
+                settings.StartWithWindows = DefaultStartWithWindows;
                 settings.ProcessRuntimeTrackingScope = DefaultProcessRuntimeTrackingScope;
                 settings.ProcessRuntimeSampleIntervalSeconds = DefaultProcessRuntimeSampleIntervalSeconds;
             }
@@ -71,12 +76,14 @@ namespace TimePilot.WinForms.KYS24
             var persisted = new PersistedSettings
             {
                 IdleThresholdMinutes = NormalizeIdleThresholdMinutes(IdleThresholdMinutes),
+                StartWithWindows = StartWithWindows,
                 ProcessRuntimeTrackingEnabled = ProcessRuntimeTrackingEnabled,
                 ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(ProcessRuntimeTrackingScope),
                 ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
                     ProcessRuntimeSampleIntervalSeconds)
             };
             IdleThresholdMinutes = persisted.IdleThresholdMinutes;
+            StartWithWindows = persisted.StartWithWindows;
             ProcessRuntimeTrackingEnabled = persisted.ProcessRuntimeTrackingEnabled;
             ProcessRuntimeTrackingScope = persisted.ProcessRuntimeTrackingScope;
             ProcessRuntimeSampleIntervalSeconds = persisted.ProcessRuntimeSampleIntervalSeconds;
@@ -100,6 +107,13 @@ namespace TimePilot.WinForms.KYS24
             ProcessRuntimeTrackingEnabled = isEnabled;
             ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(scope);
             ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(sampleIntervalSeconds);
+            Save();
+        }
+
+        public void SetStartWithWindows(bool isEnabled)
+        {
+            WindowsStartupRegistration.SetEnabled(isEnabled);
+            StartWithWindows = isEnabled;
             Save();
         }
 
@@ -130,6 +144,8 @@ namespace TimePilot.WinForms.KYS24
         private sealed class PersistedSettings
         {
             public int IdleThresholdMinutes { get; set; } = DefaultIdleThresholdMinutes;
+
+            public bool StartWithWindows { get; set; } = DefaultStartWithWindows;
 
             public bool ProcessRuntimeTrackingEnabled { get; set; } = DefaultProcessRuntimeTrackingEnabled;
 
