@@ -10,7 +10,10 @@ namespace TimePilot.WinForms.KYS24
             this.storage = storage;
         }
 
-        public void Track(IReadOnlyList<RunningProcessSnapshot> processes, DateTimeOffset observedAt)
+        public void Track(
+            IReadOnlyList<RunningProcessSnapshot> processes,
+            ProcessRuntimeTrackingScope trackingScope,
+            DateTimeOffset observedAt)
         {
             var observedProcessIds = new HashSet<int>();
 
@@ -24,7 +27,13 @@ namespace TimePilot.WinForms.KYS24
                 if (currentSessions.TryGetValue(process.ProcessId, out var session)
                     && string.Equals(session.ProcessName, process.App.ProcessName, StringComparison.OrdinalIgnoreCase))
                 {
-                    storage.UpdateProcessRuntimeSession(session.SessionId, process.App, observedAt);
+                    storage.UpdateProcessRuntimeSession(
+                        session.SessionId,
+                        process.App,
+                        trackingScope,
+                        process.HasMainWindow,
+                        process.IsCurrentSessionProcess,
+                        observedAt);
                     continue;
                 }
 
@@ -33,7 +42,13 @@ namespace TimePilot.WinForms.KYS24
                     storage.EndProcessRuntimeSession(session.SessionId, observedAt);
                 }
 
-                var sessionId = storage.StartProcessRuntimeSession(process.App, process.ProcessId, observedAt);
+                var sessionId = storage.StartProcessRuntimeSession(
+                    process.App,
+                    process.ProcessId,
+                    trackingScope,
+                    process.HasMainWindow,
+                    process.IsCurrentSessionProcess,
+                    observedAt);
                 currentSessions[process.ProcessId] = new TrackedProcessSession(sessionId, process.App.ProcessName);
             }
 

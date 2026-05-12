@@ -20,7 +20,9 @@ namespace TimePilot.WinForms.KYS24
                 {
                     try
                     {
-                        if (!ShouldTrack(process, scope, currentSessionId))
+                        var hasMainWindow = process.MainWindowHandle != IntPtr.Zero;
+                        var isCurrentSessionProcess = IsCurrentSessionProcess(process, currentSessionId);
+                        if (!ShouldTrack(scope, hasMainWindow, isCurrentSessionProcess))
                             continue;
 
                         var executablePath = TryGetExecutablePath(process);
@@ -30,7 +32,9 @@ namespace TimePilot.WinForms.KYS24
                             new AppMetadata(
                                 processName,
                                 GetDisplayName(processName, executablePath),
-                                executablePath)));
+                                executablePath),
+                            hasMainWindow,
+                            isCurrentSessionProcess));
                     }
                     catch
                     {
@@ -41,13 +45,13 @@ namespace TimePilot.WinForms.KYS24
             return apps;
         }
 
-        private static bool ShouldTrack(Process process, ProcessRuntimeTrackingScope scope, int currentSessionId)
+        private static bool ShouldTrack(ProcessRuntimeTrackingScope scope, bool hasMainWindow, bool isCurrentSessionProcess)
         {
             return scope switch
             {
                 ProcessRuntimeTrackingScope.AllProcesses => true,
-                ProcessRuntimeTrackingScope.UserProcesses => IsCurrentSessionProcess(process, currentSessionId),
-                _ => process.MainWindowHandle != IntPtr.Zero
+                ProcessRuntimeTrackingScope.UserProcesses => isCurrentSessionProcess,
+                _ => hasMainWindow
             };
         }
 

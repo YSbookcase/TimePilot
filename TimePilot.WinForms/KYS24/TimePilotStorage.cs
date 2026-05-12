@@ -82,6 +82,9 @@ namespace TimePilot.WinForms.KYS24
                     duration_ms INTEGER NULL,
                     first_observed_at TEXT NOT NULL,
                     last_observed_at TEXT NOT NULL,
+                    tracking_scope INTEGER NULL,
+                    has_main_window INTEGER NULL,
+                    is_current_session_process INTEGER NULL,
                     FOREIGN KEY (app_id) REFERENCES apps(id)
                 );
 
@@ -104,6 +107,7 @@ namespace TimePilot.WinForms.KYS24
 
             EnsureAppsColumns(connection);
             EnsureForegroundSessionColumns(connection);
+            EnsureProcessRuntimeSessionColumns(connection);
             MarkUnexpectedRuntimeSessions(now);
             MarkUnexpectedProcessRuntimeSessions(now);
         }
@@ -291,7 +295,13 @@ namespace TimePilot.WinForms.KYS24
             updateCommand.ExecuteNonQuery();
         }
 
-        public long StartProcessRuntimeSession(AppMetadata app, int processId, DateTimeOffset observedAt)
+        public long StartProcessRuntimeSession(
+            AppMetadata app,
+            int processId,
+            ProcessRuntimeTrackingScope trackingScope,
+            bool hasMainWindow,
+            bool isCurrentSessionProcess,
+            DateTimeOffset observedAt)
         {
             using var connection = OpenConnection();
             var appId = GetOrCreateAppId(connection, app, observedAt);
@@ -303,9 +313,12 @@ namespace TimePilot.WinForms.KYS24
                     process_id,
                     started_at,
                     first_observed_at,
-                    last_observed_at
+                    last_observed_at,
+                    tracking_scope,
+                    has_main_window,
+                    is_current_session_process
                 )
-                VALUES ($appId, $processId, $startedAt, $firstObservedAt, $lastObservedAt);
+                VALUES ($appId, $processId, $startedAt, $firstObservedAt, $lastObservedAt, $trackingScope, $hasMainWindow, $isCurrentSessionProcess);
                 SELECT last_insert_rowid();
                 """;
             command.Parameters.AddWithValue("$appId", appId);
@@ -313,10 +326,19 @@ namespace TimePilot.WinForms.KYS24
             command.Parameters.AddWithValue("$startedAt", FormatTimestamp(observedAt));
             command.Parameters.AddWithValue("$firstObservedAt", FormatTimestamp(observedAt));
             command.Parameters.AddWithValue("$lastObservedAt", FormatTimestamp(observedAt));
+            command.Parameters.AddWithValue("$trackingScope", (int)trackingScope);
+            command.Parameters.AddWithValue("$hasMainWindow", hasMainWindow ? 1 : 0);
+            command.Parameters.AddWithValue("$isCurrentSessionProcess", isCurrentSessionProcess ? 1 : 0);
             return (long)command.ExecuteScalar()!;
         }
 
-        public void UpdateProcessRuntimeSession(long sessionId, AppMetadata app, DateTimeOffset observedAt)
+        public void UpdateProcessRuntimeSession(
+            long sessionId,
+            AppMetadata app,
+            ProcessRuntimeTrackingScope trackingScope,
+            bool hasMainWindow,
+            bool isCurrentSessionProcess,
+            DateTimeOffset observedAt)
         {
             using var connection = OpenConnection();
             _ = GetOrCreateAppId(connection, app, observedAt);
@@ -324,10 +346,16 @@ namespace TimePilot.WinForms.KYS24
             using var command = connection.CreateCommand();
             command.CommandText = """
                 UPDATE process_runtime_sessions
-                SET last_observed_at = $lastObservedAt
+                SET last_observed_at = $lastObservedAt,
+                    tracking_scope = $trackingScope,
+                    has_main_window = CASE WHEN $hasMainWindow = 1 THEN 1 ELSE has_main_window END,
+                    is_current_session_process = CASE WHEN $isCurrentSessionProcess = 1 THEN 1 ELSE is_current_session_process END
                 WHERE id = $id AND ended_at IS NULL;
                 """;
             command.Parameters.AddWithValue("$lastObservedAt", FormatTimestamp(observedAt));
+            command.Parameters.AddWithValue("$trackingScope", (int)trackingScope);
+            command.Parameters.AddWithValue("$hasMainWindow", hasMainWindow ? 1 : 0);
+            command.Parameters.AddWithValue("$isCurrentSessionProcess", isCurrentSessionProcess ? 1 : 0);
             command.Parameters.AddWithValue("$id", sessionId);
             command.ExecuteNonQuery();
         }
@@ -418,6 +446,88 @@ namespace TimePilot.WinForms.KYS24
                 .ToList();
         }
 
+        public IReadOnlyList<ProcessRuntimeSummaryRow> GetProcessRuntimeUsageForDay(DateTimeOffset now)
+        {
+            var localDayStart = now.ToLocalTime().Date;
+            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
+            var dayEnd = dayStart.AddDays(1);
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    a.id,
+                    a.display_name,
+                    a.executable_path,
+                    prs.started_at,
+                    prs.ended_at,
+                    prs.last_observed_at,
+                    prs.has_main_window,
+                    prs.is_current_session_process
+                FROM process_runtime_sessions prs
+                INNER JOIN apps a ON a.id = prs.app_id
+                WHERE prs.started_at < $dayEnd
+                  AND COALESCE(prs.ended_at, prs.last_observed_at, prs.started_at) > $dayStart;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            var totals = new Dictionary<long, ProcessRuntimeAggregation>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var appId = reader.GetInt64(0);
+                var appName = reader.GetString(1);
+                var executablePath = reader.IsDBNull(2) ? null : reader.GetString(2);
+                var startedAt = ParseTimestamp(reader.GetString(3));
+                var hasRunningSession = reader.IsDBNull(4);
+                var observedEnd = hasRunningSession
+                    ? ParseTimestamp(reader.GetString(5))
+                    : ParseTimestamp(reader.GetString(4));
+                var hasMainWindow = !reader.IsDBNull(6) && reader.GetInt32(6) == 1;
+                var isCurrentSessionProcess = !reader.IsDBNull(7) && reader.GetInt32(7) == 1;
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(observedEnd, dayEnd);
+                if (effectiveEnd <= effectiveStart && !hasRunningSession)
+                    continue;
+
+                if (!totals.TryGetValue(appId, out var aggregation))
+                {
+                    aggregation = new ProcessRuntimeAggregation(appName, effectiveStart, effectiveEnd, executablePath);
+                    totals[appId] = aggregation;
+                }
+
+                aggregation.ExecutablePath ??= executablePath;
+                aggregation.AddRuntimeInterval(effectiveStart, effectiveEnd);
+                aggregation.HasRunningSession |= hasRunningSession;
+                aggregation.HasMainWindow |= hasMainWindow;
+                aggregation.IsCurrentSessionProcess |= isCurrentSessionProcess;
+                aggregation.FirstObservedAt = Min(aggregation.FirstObservedAt, effectiveStart);
+                aggregation.LastObservedAt = Max(aggregation.LastObservedAt, effectiveEnd);
+            }
+
+            AddActiveUsageToRuntimeAggregations(connection, totals, dayStart, dayEnd);
+
+            return totals
+                .Select(x => new ProcessRuntimeSummaryRow(
+                    x.Value.AppName,
+                    x.Value.ExecutablePath,
+                    x.Value.GetMergedRuntimeMs(),
+                    x.Value.ActiveUsageMs,
+                    x.Value.GetMergedRuntimeMs() > 0
+                        ? Math.Min(1, (double)x.Value.ActiveUsageMs / x.Value.GetMergedRuntimeMs())
+                        : null,
+                    x.Value.GetMergedRuntimeSegmentCount(),
+                    x.Value.HasRunningSession,
+                    x.Value.HasMainWindow,
+                    x.Value.IsCurrentSessionProcess,
+                    null,
+                    x.Value.FirstObservedAt,
+                    x.Value.LastObservedAt))
+                .OrderByDescending(x => x.RuntimeMs)
+                .ToList();
+        }
+
         public void Dispose()
         {
             if (disposed)
@@ -444,6 +554,27 @@ namespace TimePilot.WinForms.KYS24
                 command.CommandText = "ALTER TABLE foreground_sessions ADD COLUMN last_observed_at TEXT NULL;";
                 command.ExecuteNonQuery();
             }
+        }
+
+        private static void EnsureProcessRuntimeSessionColumns(SqliteConnection connection)
+        {
+            AddColumnIfMissing(connection, "process_runtime_sessions", "tracking_scope", "INTEGER NULL");
+            AddColumnIfMissing(connection, "process_runtime_sessions", "has_main_window", "INTEGER NULL");
+            AddColumnIfMissing(connection, "process_runtime_sessions", "is_current_session_process", "INTEGER NULL");
+        }
+
+        private static void AddColumnIfMissing(
+            SqliteConnection connection,
+            string tableName,
+            string columnName,
+            string columnDefinition)
+        {
+            if (ColumnExists(connection, tableName, columnName))
+                return;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};";
+            command.ExecuteNonQuery();
         }
 
         private static bool ColumnExists(SqliteConnection connection, string tableName, string columnName)
@@ -716,6 +847,47 @@ namespace TimePilot.WinForms.KYS24
                 executablePath));
         }
 
+        private static void AddActiveUsageToRuntimeAggregations(
+            SqliteConnection connection,
+            Dictionary<long, ProcessRuntimeAggregation> totals,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd)
+        {
+            if (totals.Count == 0)
+                return;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    fs.app_id,
+                    fs.started_at,
+                    fs.ended_at,
+                    fs.last_observed_at
+                FROM foreground_sessions fs
+                WHERE fs.started_at < $dayEnd
+                  AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $dayStart;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var appId = reader.GetInt64(0);
+                if (!totals.TryGetValue(appId, out var aggregation))
+                    continue;
+
+                var startedAt = ParseTimestamp(reader.GetString(1));
+                var observedEnd = reader.IsDBNull(2)
+                    ? reader.IsDBNull(3) ? startedAt : ParseTimestamp(reader.GetString(3))
+                    : ParseTimestamp(reader.GetString(2));
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(observedEnd, dayEnd);
+                var activeUsageMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+                aggregation.ActiveUsageMs += activeUsageMs;
+            }
+        }
+
         private SqliteConnection OpenConnection()
         {
             var connection = new SqliteConnection(connectionString);
@@ -761,6 +933,78 @@ namespace TimePilot.WinForms.KYS24
             public DateTimeOffset FirstStartedAt { get; set; }
 
             public DateTimeOffset LastObservedAt { get; set; }
+        }
+
+        private sealed class ProcessRuntimeAggregation
+        {
+            private readonly List<(DateTimeOffset Start, DateTimeOffset End)> runtimeIntervals = new();
+
+            public ProcessRuntimeAggregation(string appName, DateTimeOffset firstObservedAt, DateTimeOffset lastObservedAt, string? executablePath)
+            {
+                AppName = appName;
+                FirstObservedAt = firstObservedAt;
+                LastObservedAt = lastObservedAt;
+                ExecutablePath = executablePath;
+            }
+
+            public string AppName { get; }
+
+            public long ActiveUsageMs { get; set; }
+
+            public string? ExecutablePath { get; set; }
+
+            public bool HasRunningSession { get; set; }
+
+            public bool HasMainWindow { get; set; }
+
+            public bool IsCurrentSessionProcess { get; set; }
+
+            public DateTimeOffset FirstObservedAt { get; set; }
+
+            public DateTimeOffset LastObservedAt { get; set; }
+
+            public void AddRuntimeInterval(DateTimeOffset start, DateTimeOffset end)
+            {
+                runtimeIntervals.Add((start, end));
+            }
+
+            public long GetMergedRuntimeMs()
+            {
+                return GetMergedRuntimeIntervals()
+                    .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
+            }
+
+            public int GetMergedRuntimeSegmentCount()
+            {
+                return GetMergedRuntimeIntervals().Count;
+            }
+
+            private IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> GetMergedRuntimeIntervals()
+            {
+                if (runtimeIntervals.Count == 0)
+                    return Array.Empty<(DateTimeOffset Start, DateTimeOffset End)>();
+
+                var merged = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+                foreach (var interval in runtimeIntervals.OrderBy(x => x.Start))
+                {
+                    if (merged.Count == 0)
+                    {
+                        merged.Add(interval);
+                        continue;
+                    }
+
+                    var last = merged[^1];
+                    if (interval.Start <= last.End)
+                    {
+                        merged[^1] = (last.Start, Max(last.End, interval.End));
+                        continue;
+                    }
+
+                    merged.Add(interval);
+                }
+
+                return merged;
+            }
         }
     }
 }
