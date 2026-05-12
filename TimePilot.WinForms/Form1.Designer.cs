@@ -211,11 +211,12 @@
             // usageRatioColumn
             // 
             usageRatioColumn.DataPropertyName = "UsageRatioText";
-            usageRatioColumn.HeaderText = "비율";
+            usageRatioColumn.HeaderText = "활성 비중";
             usageRatioColumn.MinimumWidth = 80;
             usageRatioColumn.Name = "usageRatioColumn";
             usageRatioColumn.ReadOnly = true;
             usageRatioColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            usageRatioColumn.ToolTipText = "오늘 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
             usageRatioColumn.Width = 90;
             // 
             // switchCountColumn
