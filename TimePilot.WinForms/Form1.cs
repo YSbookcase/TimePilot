@@ -1024,6 +1024,52 @@ namespace TimePilot.WinForms
                 form.ProcessRuntimeTrackingScope,
                 form.ProcessRuntimeSampleIntervalSeconds);
             lastProcessRuntimeSampleAt = null;
+
+            if (form.ClearUsageDataRequested)
+                ClearUsageData();
+        }
+
+        private void ClearUsageData()
+        {
+            if (storage is null)
+                return;
+
+            var now = DateTimeOffset.UtcNow;
+            sampleTimer.Stop();
+
+            try
+            {
+                idleSessionTracker?.EndCurrentSession(now);
+                foregroundSessionTracker?.EndCurrentSession(now);
+                lock (processRuntimeTrackingLock)
+                {
+                    processRuntimeSessionTracker?.EndCurrentSessions(now);
+                }
+
+                storage.EndRuntimeSession(now, "clear-data");
+                storage.ClearUsageData();
+                storage.BeginRuntimeSession(now, Application.ProductVersion);
+
+                foregroundSessionTracker = new ForegroundSessionTracker(storage);
+                idleSessionTracker = new IdleSessionTracker(storage);
+                processRuntimeSessionTracker = new ProcessRuntimeSessionTracker(storage);
+                lastProcessRuntimeSampleAt = null;
+                lastSampleTickAt = null;
+                selectedRuntimeAppId = null;
+                performanceStatusText = null;
+                performanceStatusExpiresAt = null;
+
+                SetGridDataSourcePreservingView(usageGrid, Array.Empty<UsageSummaryRow>());
+                SetGridDataSourcePreservingView(timelineGrid, Array.Empty<ActivityTimelineRow>());
+                SetGridDataSourcePreservingView(runtimeGrid, Array.Empty<ProcessRuntimeSummaryRow>());
+                SetGridDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
+                SetStatusText("사용 기록을 삭제했습니다.");
+            }
+            finally
+            {
+                if (!isClosing)
+                    sampleTimer.Start();
+            }
         }
 
         private void OnExitMenuItemClick(object? sender, EventArgs e)

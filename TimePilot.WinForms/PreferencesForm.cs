@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using TimePilot.WinForms.KYS24;
 
 namespace TimePilot.WinForms
@@ -33,6 +34,8 @@ namespace TimePilot.WinForms
         private readonly NumericUpDown customProcessRuntimeIntervalNumeric = new();
         private readonly Label customProcessRuntimeIntervalUnitLabel = new();
         private readonly Label processRuntimeWarningLabel = new();
+        private readonly Button openDataFolderButton = new();
+        private readonly Button clearUsageDataButton = new();
         private readonly Button okButton = new();
         private readonly Button cancelButton = new();
 
@@ -60,15 +63,20 @@ namespace TimePilot.WinForms
 
         public int ProcessRuntimeSampleIntervalSeconds { get; private set; }
 
+        public bool ClearUsageDataRequested { get; private set; }
+
         private void InitializeComponent()
         {
             var idleThresholdLabel = new Label();
             var processRuntimeGroupBox = new GroupBox();
             var processRuntimeScopeLabel = new Label();
             var processRuntimeIntervalLabel = new Label();
+            var dataManagementGroupBox = new GroupBox();
+            var dataManagementLabel = new Label();
 
             SuspendLayout();
             processRuntimeGroupBox.SuspendLayout();
+            dataManagementGroupBox.SuspendLayout();
 
             idleThresholdLabel.AutoSize = true;
             idleThresholdLabel.Location = new Point(20, 22);
@@ -168,9 +176,37 @@ namespace TimePilot.WinForms
             processRuntimeWarningLabel.Size = new Size(396, 42);
             processRuntimeWarningLabel.Text = "짧은 확인 주기는 CPU 사용량, 배터리 소모, 저장 데이터 증가를 유발할 수 있습니다.";
 
+            dataManagementGroupBox.Controls.Add(dataManagementLabel);
+            dataManagementGroupBox.Controls.Add(openDataFolderButton);
+            dataManagementGroupBox.Controls.Add(clearUsageDataButton);
+            dataManagementGroupBox.Location = new Point(20, 322);
+            dataManagementGroupBox.Name = "dataManagementGroupBox";
+            dataManagementGroupBox.Size = new Size(430, 72);
+            dataManagementGroupBox.TabIndex = 5;
+            dataManagementGroupBox.TabStop = false;
+            dataManagementGroupBox.Text = "데이터 관리";
+
+            dataManagementLabel.AutoSize = false;
+            dataManagementLabel.Location = new Point(16, 32);
+            dataManagementLabel.Name = "dataManagementLabel";
+            dataManagementLabel.Size = new Size(170, 30);
+            dataManagementLabel.Text = "기록과 설정 저장 위치를 관리합니다.";
+
+            openDataFolderButton.Location = new Point(206, 27);
+            openDataFolderButton.Name = "openDataFolderButton";
+            openDataFolderButton.Size = new Size(92, 27);
+            openDataFolderButton.Text = "폴더 열기";
+            openDataFolderButton.Click += OnOpenDataFolderButtonClick;
+
+            clearUsageDataButton.Location = new Point(304, 27);
+            clearUsageDataButton.Name = "clearUsageDataButton";
+            clearUsageDataButton.Size = new Size(108, 27);
+            clearUsageDataButton.Text = "기록 삭제";
+            clearUsageDataButton.Click += OnClearUsageDataButtonClick;
+
             okButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             okButton.DialogResult = DialogResult.OK;
-            okButton.Location = new Point(294, 336);
+            okButton.Location = new Point(294, 418);
             okButton.Name = "okButton";
             okButton.Size = new Size(75, 27);
             okButton.Text = "저장";
@@ -178,7 +214,7 @@ namespace TimePilot.WinForms
 
             cancelButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             cancelButton.DialogResult = DialogResult.Cancel;
-            cancelButton.Location = new Point(375, 336);
+            cancelButton.Location = new Point(375, 418);
             cancelButton.Name = "cancelButton";
             cancelButton.Size = new Size(75, 27);
             cancelButton.Text = "취소";
@@ -186,13 +222,14 @@ namespace TimePilot.WinForms
             AcceptButton = okButton;
             CancelButton = cancelButton;
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(470, 383);
+            ClientSize = new Size(470, 465);
             Controls.Add(idleThresholdLabel);
             Controls.Add(idleThresholdComboBox);
             Controls.Add(customIdleThresholdNumeric);
             Controls.Add(customIdleThresholdUnitLabel);
             Controls.Add(startWithWindowsCheckBox);
             Controls.Add(processRuntimeGroupBox);
+            Controls.Add(dataManagementGroupBox);
             Controls.Add(okButton);
             Controls.Add(cancelButton);
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -206,6 +243,8 @@ namespace TimePilot.WinForms
 
             processRuntimeGroupBox.ResumeLayout(false);
             processRuntimeGroupBox.PerformLayout();
+            dataManagementGroupBox.ResumeLayout(false);
+            dataManagementGroupBox.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -267,6 +306,44 @@ namespace TimePilot.WinForms
         private void OnProcessRuntimeSettingsChanged(object? sender, EventArgs e)
         {
             UpdateProcessRuntimeControls();
+        }
+
+        private void OnOpenDataFolderButtonClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                Directory.CreateDirectory(AppDataPaths.DataDirectory);
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = AppDataPaths.DataDirectory,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                CenteredMessageDialog.Show(
+                    this,
+                    $"데이터 폴더를 열 수 없습니다.\n\n{ex.Message}",
+                    "데이터 폴더 열기",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+
+        private void OnClearUsageDataButtonClick(object? sender, EventArgs e)
+        {
+            var result = CenteredMessageDialog.Show(
+                this,
+                "저장을 누르면 앱 사용 기록과 타임라인 기록이 삭제됩니다.\n\n환경 설정과 Windows 시작 시 자동 실행 설정은 유지됩니다.",
+                "사용 기록 삭제",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+
+            if (result != DialogResult.Yes)
+                return;
+
+            ClearUsageDataRequested = true;
+            clearUsageDataButton.Text = "삭제 예정";
         }
 
         private void OnOkButtonClick(object? sender, EventArgs e)
