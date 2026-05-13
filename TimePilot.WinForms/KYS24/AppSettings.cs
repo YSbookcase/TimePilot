@@ -41,17 +41,14 @@ namespace TimePilot.WinForms.KYS24
 
         public static AppSettings LoadDefault()
         {
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var dataDirectory = Path.Combine(appDataPath, "TimePilot");
-            var settingsPath = Path.Combine(dataDirectory, "settings.json");
-            var settings = new AppSettings(settingsPath);
+            var settings = new AppSettings(AppDataPaths.SettingsPath);
 
-            if (!File.Exists(settingsPath))
+            if (!File.Exists(AppDataPaths.SettingsPath))
                 return settings;
 
             try
             {
-                var persisted = JsonSerializer.Deserialize<PersistedSettings>(File.ReadAllText(settingsPath));
+                var persisted = JsonSerializer.Deserialize<PersistedSettings>(File.ReadAllText(AppDataPaths.SettingsPath));
                 settings.IdleThresholdMinutes = NormalizeIdleThresholdMinutes(persisted?.IdleThresholdMinutes);
                 settings.ProcessRuntimeTrackingEnabled = persisted?.ProcessRuntimeTrackingEnabled
                     ?? DefaultProcessRuntimeTrackingEnabled;

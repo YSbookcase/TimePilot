@@ -20,9 +20,7 @@ namespace TimePilot.WinForms.KYS24
 
         public static TimePilotStorage CreateDefault()
         {
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var dataDirectory = Path.Combine(appDataPath, "TimePilot");
-            return new TimePilotStorage(Path.Combine(dataDirectory, "timepilot.db"));
+            return new TimePilotStorage(AppDataPaths.DatabasePath);
         }
 
         public void Initialize(DateTimeOffset now)
@@ -364,6 +362,43 @@ namespace TimePilot.WinForms.KYS24
         {
             using var connection = OpenConnection();
             EndProcessRuntimeSession(connection, sessionId, endedAt);
+        }
+
+        public void ClearUsageData()
+        {
+            using var connection = OpenConnection();
+            using var transaction = connection.BeginTransaction();
+
+            foreach (var tableName in new[]
+            {
+                "process_runtime_sessions",
+                "foreground_sessions",
+                "idle_sessions",
+                "app_runtime_sessions",
+                "apps"
+            })
+            {
+                using var deleteCommand = connection.CreateCommand();
+                deleteCommand.Transaction = transaction;
+                deleteCommand.CommandText = $"DELETE FROM {tableName};";
+                deleteCommand.ExecuteNonQuery();
+            }
+
+            using var sequenceCommand = connection.CreateCommand();
+            sequenceCommand.Transaction = transaction;
+            sequenceCommand.CommandText = """
+                DELETE FROM sqlite_sequence
+                WHERE name IN (
+                    'process_runtime_sessions',
+                    'foreground_sessions',
+                    'idle_sessions',
+                    'app_runtime_sessions',
+                    'apps'
+                );
+                """;
+            sequenceCommand.ExecuteNonQuery();
+
+            transaction.Commit();
         }
 
         public IReadOnlyList<ProcessRuntimeSessionStartResult> ApplyProcessRuntimeSessionChanges(
