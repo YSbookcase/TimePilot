@@ -145,7 +145,27 @@ namespace TimePilot.WinForms
         private void OnShown(object? sender, EventArgs e)
         {
             if (startMinimizedToTray)
+            {
                 BeginInvoke(HideToTray);
+                return;
+            }
+
+            BeginInvoke(ShowStartupPromptIfNeeded);
+        }
+
+        private void ShowStartupPromptIfNeeded()
+        {
+            if (settings.StartupPromptShown || startMinimizedToTray || isClosing)
+                return;
+
+            var result = CenteredMessageDialog.Show(
+                this,
+                "Windows 시작 시 TimePilot을 자동으로 실행할까요?\n\n나중에 환경 설정에서 언제든 변경할 수 있습니다.",
+                "TimePilot 자동 시작",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            settings.SetStartupPromptResult(result == DialogResult.Yes);
         }
 
         private void ConfigureDesignPreview()
@@ -1013,7 +1033,7 @@ namespace TimePilot.WinForms
 
         private void OnAboutMenuItemClick(object? sender, EventArgs e)
         {
-            MessageBox.Show(
+            CenteredMessageDialog.Show(
                 this,
                 $"TimePilot {Application.ProductVersion}",
                 "TimePilot 정보",
