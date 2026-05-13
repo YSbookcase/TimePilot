@@ -463,6 +463,7 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 SELECT
                     a.display_name,
+                    a.process_name,
                     a.executable_path,
                     fs.started_at,
                     fs.ended_at,
@@ -480,11 +481,12 @@ namespace TimePilot.WinForms.KYS24
             while (reader.Read())
             {
                 var appName = reader.GetString(0);
-                var executablePath = reader.IsDBNull(1) ? null : reader.GetString(1);
-                var startedAt = ParseTimestamp(reader.GetString(2));
-                var endedAt = reader.IsDBNull(3)
-                    ? reader.IsDBNull(4) ? startedAt : ParseTimestamp(reader.GetString(4))
-                    : ParseTimestamp(reader.GetString(3));
+                var processName = reader.GetString(1);
+                var executablePath = reader.IsDBNull(2) ? null : reader.GetString(2);
+                var startedAt = ParseTimestamp(reader.GetString(3));
+                var endedAt = reader.IsDBNull(4)
+                    ? reader.IsDBNull(5) ? startedAt : ParseTimestamp(reader.GetString(5))
+                    : ParseTimestamp(reader.GetString(4));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(endedAt, dayEnd);
                 var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
@@ -493,7 +495,7 @@ namespace TimePilot.WinForms.KYS24
 
                 if (!totals.TryGetValue(appName, out var aggregation))
                 {
-                    aggregation = new UsageAggregation(effectiveStart, effectiveEnd, executablePath);
+                    aggregation = new UsageAggregation(processName, effectiveStart, effectiveEnd, executablePath);
                     totals[appName] = aggregation;
                 }
 
@@ -507,6 +509,7 @@ namespace TimePilot.WinForms.KYS24
             return totals
                 .Select(x => new ForegroundUsageSummary(
                     x.Key,
+                    x.Value.ProcessName,
                     x.Value.ExecutablePath,
                     x.Value.ActiveUsageMs,
                     x.Value.SwitchCount,
@@ -544,6 +547,7 @@ namespace TimePilot.WinForms.KYS24
                 SELECT
                     a.id,
                     a.display_name,
+                    a.process_name,
                     a.executable_path,
                     prs.started_at,
                     prs.ended_at,
@@ -564,14 +568,15 @@ namespace TimePilot.WinForms.KYS24
             {
                 var appId = reader.GetInt64(0);
                 var appName = reader.GetString(1);
-                var executablePath = reader.IsDBNull(2) ? null : reader.GetString(2);
-                var startedAt = ParseTimestamp(reader.GetString(3));
-                var hasRunningSession = reader.IsDBNull(4);
+                var processName = reader.GetString(2);
+                var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
+                var startedAt = ParseTimestamp(reader.GetString(4));
+                var hasRunningSession = reader.IsDBNull(5);
                 var observedEnd = hasRunningSession
                     ? now
-                    : ParseTimestamp(reader.GetString(4));
-                var hasMainWindow = !reader.IsDBNull(6) && reader.GetInt32(6) == 1;
-                var isCurrentSessionProcess = !reader.IsDBNull(7) && reader.GetInt32(7) == 1;
+                    : ParseTimestamp(reader.GetString(5));
+                var hasMainWindow = !reader.IsDBNull(7) && reader.GetInt32(7) == 1;
+                var isCurrentSessionProcess = !reader.IsDBNull(8) && reader.GetInt32(8) == 1;
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(observedEnd, dayEnd);
                 if (effectiveEnd <= effectiveStart && !hasRunningSession)
@@ -579,7 +584,7 @@ namespace TimePilot.WinForms.KYS24
 
                 if (!totals.TryGetValue(appId, out var aggregation))
                 {
-                    aggregation = new ProcessRuntimeAggregation(appName, effectiveStart, effectiveEnd, executablePath);
+                    aggregation = new ProcessRuntimeAggregation(appName, processName, effectiveStart, effectiveEnd, executablePath);
                     totals[appId] = aggregation;
                 }
 
@@ -598,6 +603,7 @@ namespace TimePilot.WinForms.KYS24
                 .Select(x => new ProcessRuntimeSummaryRow(
                     x.Key,
                     x.Value.AppName,
+                    x.Value.ProcessName,
                     x.Value.ExecutablePath,
                     x.Value.GetMergedRuntimeMs(),
                     x.Value.ActiveUsageMs,
@@ -662,6 +668,60 @@ namespace TimePilot.WinForms.KYS24
                     processId,
                     !reader.IsDBNull(4) && reader.GetInt32(4) == 1,
                     !reader.IsDBNull(5) && reader.GetInt32(5) == 1));
+            }
+
+            return rows;
+        }
+
+        public IReadOnlyList<ProcessRuntimeSegmentExportRow> GetProcessRuntimeSegmentExportsForDay(DateTimeOffset now)
+        {
+            var localDayStart = now.ToLocalTime().Date;
+            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
+            var dayEnd = dayStart.AddDays(1);
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    a.display_name,
+                    a.process_name,
+                    prs.started_at,
+                    prs.ended_at,
+                    prs.last_observed_at,
+                    prs.has_main_window,
+                    prs.is_current_session_process
+                FROM process_runtime_sessions prs
+                INNER JOIN apps a ON a.id = prs.app_id
+                WHERE prs.started_at < $dayEnd
+                  AND COALESCE(prs.ended_at, prs.last_observed_at, prs.started_at) > $dayStart
+                ORDER BY prs.started_at DESC;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            var rows = new List<ProcessRuntimeSegmentExportRow>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var appName = reader.GetString(0);
+                var processName = reader.GetString(1);
+                var startedAt = ParseTimestamp(reader.GetString(2));
+                DateTimeOffset? endedAt = reader.IsDBNull(3) ? null : ParseTimestamp(reader.GetString(3));
+                var observedEnd = endedAt ?? now;
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(observedEnd, dayEnd);
+                var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+                if (durationMs <= 0 && endedAt is not null)
+                    continue;
+
+                rows.Add(new ProcessRuntimeSegmentExportRow(
+                    appName,
+                    processName,
+                    effectiveStart,
+                    endedAt,
+                    durationMs,
+                    !reader.IsDBNull(5) && reader.GetInt32(5) == 1,
+                    !reader.IsDBNull(6) && reader.GetInt32(6) == 1));
             }
 
             return rows;
@@ -1132,12 +1192,15 @@ namespace TimePilot.WinForms.KYS24
 
         private sealed class UsageAggregation
         {
-            public UsageAggregation(DateTimeOffset firstStartedAt, DateTimeOffset lastObservedAt, string? executablePath)
+            public UsageAggregation(string processName, DateTimeOffset firstStartedAt, DateTimeOffset lastObservedAt, string? executablePath)
             {
+                ProcessName = processName;
                 FirstStartedAt = firstStartedAt;
                 LastObservedAt = lastObservedAt;
                 ExecutablePath = executablePath;
             }
+
+            public string ProcessName { get; }
 
             public long ActiveUsageMs { get; set; }
 
@@ -1154,15 +1217,18 @@ namespace TimePilot.WinForms.KYS24
         {
             private readonly List<(DateTimeOffset Start, DateTimeOffset End)> runtimeIntervals = new();
 
-            public ProcessRuntimeAggregation(string appName, DateTimeOffset firstObservedAt, DateTimeOffset lastObservedAt, string? executablePath)
+            public ProcessRuntimeAggregation(string appName, string processName, DateTimeOffset firstObservedAt, DateTimeOffset lastObservedAt, string? executablePath)
             {
                 AppName = appName;
+                ProcessName = processName;
                 FirstObservedAt = firstObservedAt;
                 LastObservedAt = lastObservedAt;
                 ExecutablePath = executablePath;
             }
 
             public string AppName { get; }
+
+            public string ProcessName { get; }
 
             public long ActiveUsageMs { get; set; }
 

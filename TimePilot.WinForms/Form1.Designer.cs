@@ -19,6 +19,7 @@
         {
             mainMenuStrip = new MenuStrip();
             fileMenuItem = new ToolStripMenuItem();
+            exportCsvMenuItem = new ToolStripMenuItem();
             exitMenuItem = new ToolStripMenuItem();
             settingsMenuItem = new ToolStripMenuItem();
             preferencesMenuItem = new ToolStripMenuItem();
@@ -91,15 +92,22 @@
             // 
             // fileMenuItem
             // 
-            fileMenuItem.DropDownItems.AddRange(new ToolStripItem[] { exitMenuItem });
+            fileMenuItem.DropDownItems.AddRange(new ToolStripItem[] { exportCsvMenuItem, exitMenuItem });
             fileMenuItem.Name = "fileMenuItem";
             fileMenuItem.Size = new Size(43, 20);
             fileMenuItem.Text = "파일";
             // 
+            // exportCsvMenuItem
+            // 
+            exportCsvMenuItem.Name = "exportCsvMenuItem";
+            exportCsvMenuItem.Size = new Size(180, 22);
+            exportCsvMenuItem.Text = "CSV 내보내기...";
+            exportCsvMenuItem.Click += OnExportCsvMenuItemClick;
+            // 
             // exitMenuItem
             // 
             exitMenuItem.Name = "exitMenuItem";
-            exitMenuItem.Size = new Size(98, 22);
+            exitMenuItem.Size = new Size(180, 22);
             exitMenuItem.Text = "종료";
             exitMenuItem.Click += OnExitMenuItemClick;
             // 
@@ -653,6 +661,7 @@
 
         private MenuStrip mainMenuStrip;
         private ToolStripMenuItem fileMenuItem;
+        private ToolStripMenuItem exportCsvMenuItem;
         private ToolStripMenuItem exitMenuItem;
         private ToolStripMenuItem settingsMenuItem;
         private ToolStripMenuItem preferencesMenuItem;

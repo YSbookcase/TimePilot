@@ -5,6 +5,7 @@ namespace TimePilot.WinForms.KYS24
     internal sealed record ProcessRuntimeSummaryRow(
         long AppId,
         string AppName,
+        string ProcessName,
         string? ExecutablePath,
         long RuntimeMs,
         long ActiveUsageMs,

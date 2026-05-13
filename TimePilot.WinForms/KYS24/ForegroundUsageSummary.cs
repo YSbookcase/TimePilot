@@ -2,6 +2,7 @@ namespace TimePilot.WinForms.KYS24
 {
     internal sealed record ForegroundUsageSummary(
         string AppName,
+        string ProcessName,
         string? ExecutablePath,
         long ActiveUsageMs,
         int SwitchCount,
