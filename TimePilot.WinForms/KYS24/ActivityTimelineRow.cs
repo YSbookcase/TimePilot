@@ -9,7 +9,8 @@ namespace TimePilot.WinForms.KYS24
         long DurationMs,
         string DisplayName,
         string? ExecutablePath = null,
-        Image? AppIcon = null)
+        Image? AppIcon = null,
+        string ProcessName = "")
     {
         public string StartedAtText => StartedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture);
 

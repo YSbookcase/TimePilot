@@ -25,7 +25,7 @@ namespace TimePilot.WinForms
         private SortOrder usageSortOrder = SortOrder.Descending;
         private SortOrder runtimeSortOrder = SortOrder.Descending;
         private SortOrder runtimeSegmentSortOrder = SortOrder.Descending;
-        private bool showRecentTimelineFirst;
+        private bool showRecentTimelineFirst = true;
         private bool showCurrentTrackingScopeOnly = true;
         private bool showRunningRuntimeOnly;
         private bool isRefreshingRuntimeGrid;
@@ -173,9 +173,9 @@ namespace TimePilot.WinForms
             statusLabel.Text = "전경: Visual Studio · 활성";
             usageGrid.DataSource = AddIcons(new List<UsageSummaryRow>
             {
-                new("Microsoft Visual Studio", null, 3_900_000, 0.54, 8, null, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now),
-                new("Google Chrome", null, 1_680_000, 0.23, 15, null, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-12)),
-                new("File Explorer", null, 900_000, 0.13, 4, null, DateTimeOffset.Now.AddMinutes(-45), DateTimeOffset.Now.AddMinutes(-5))
+                new("Microsoft Visual Studio", "devenv", null, 3_900_000, 0.54, 8, null, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now),
+                new("Google Chrome", "chrome", null, 1_680_000, 0.23, 15, null, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-12)),
+                new("File Explorer", "explorer", null, 900_000, 0.13, 4, null, DateTimeOffset.Now.AddMinutes(-45), DateTimeOffset.Now.AddMinutes(-5))
             });
             timelineGrid.DataSource = AddIcons(new List<ActivityTimelineRow>
             {
@@ -1069,6 +1069,47 @@ namespace TimePilot.WinForms
             {
                 if (!isClosing)
                     sampleTimer.Start();
+            }
+        }
+
+        private void OnExportCsvMenuItemClick(object? sender, EventArgs e)
+        {
+            if (storage is null)
+                return;
+
+            var now = DateTimeOffset.UtcNow;
+            using var dialog = new SaveFileDialog
+            {
+                AddExtension = true,
+                DefaultExt = "csv",
+                FileName = $"TimePilot-usage-{now.ToLocalTime():yyyy-MM-dd}.csv",
+                Filter = "CSV 파일 (*.csv)|*.csv",
+                OverwritePrompt = false,
+                Title = "CSV 내보내기"
+            };
+
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            try
+            {
+                var exporter = new UsageCsvExporter(storage);
+                var exportedFiles = exporter.ExportToday(dialog.FileName, now);
+                CenteredMessageDialog.Show(
+                    this,
+                    $"CSV 파일 {exportedFiles.Count}개를 내보냈습니다.\n\n{Path.GetDirectoryName(dialog.FileName)}",
+                    "CSV 내보내기",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                CenteredMessageDialog.Show(
+                    this,
+                    $"CSV 내보내기에 실패했습니다.\n\n{ex.Message}",
+                    "CSV 내보내기",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
             }
         }
 
