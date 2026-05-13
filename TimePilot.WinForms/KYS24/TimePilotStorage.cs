@@ -527,12 +527,64 @@ namespace TimePilot.WinForms.KYS24
             var rows = new List<ActivityTimelineRow>();
 
             using var connection = OpenConnection();
+            AddUntrackedTimelineRows(connection, rows, dayStart, dayEnd, now);
             AddForegroundTimelineRows(connection, rows, dayStart, dayEnd, now);
             AddIdleTimelineRows(connection, rows, dayStart, dayEnd, now);
 
             return rows
                 .OrderBy(x => x.StartedAt)
                 .ToList();
+        }
+
+        private void AddUntrackedTimelineRows(
+            SqliteConnection connection,
+            List<ActivityTimelineRow> rows,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd,
+            DateTimeOffset now)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT started_at, ended_at, last_heartbeat_at
+                FROM app_runtime_sessions
+                WHERE started_at < $dayEnd
+                  AND COALESCE(ended_at, last_heartbeat_at, $now) > $dayStart
+                ORDER BY started_at;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            var trackedIntervals = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    var startedAt = ParseTimestamp(reader.GetString(0));
+                    var endedAt = reader.IsDBNull(1)
+                        ? reader.IsDBNull(2) ? now : ParseTimestamp(reader.GetString(2))
+                        : ParseTimestamp(reader.GetString(1));
+                    var effectiveStart = Max(startedAt, dayStart);
+                    var effectiveEnd = Min(endedAt, dayEnd);
+
+                    if (effectiveEnd > effectiveStart)
+                        trackedIntervals.Add((effectiveStart, effectiveEnd));
+                }
+            }
+
+            var cursor = dayStart;
+            foreach (var interval in MergeIntervals(trackedIntervals))
+            {
+                if (interval.Start > cursor)
+                    AddTimelineRow(rows, "미실행", cursor, interval.Start, interval.Start, "TimePilot 미실행", null);
+
+                if (interval.End > cursor)
+                    cursor = interval.End;
+            }
+
+            var gapEnd = Min(now, dayEnd);
+            if (gapEnd > cursor)
+                AddTimelineRow(rows, "미실행", cursor, gapEnd, gapEnd, "TimePilot 미실행", null);
         }
 
         public IReadOnlyList<ProcessRuntimeSummaryRow> GetProcessRuntimeUsageForDay(DateTimeOffset now)
@@ -1188,6 +1240,32 @@ namespace TimePilot.WinForms.KYS24
         private static DateTimeOffset Max(DateTimeOffset left, DateTimeOffset right)
         {
             return left >= right ? left : right;
+        }
+
+        private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> MergeIntervals(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> intervals)
+        {
+            if (intervals.Count == 0)
+                return [];
+
+            var ordered = intervals
+                .OrderBy(interval => interval.Start)
+                .ToList();
+            var merged = new List<(DateTimeOffset Start, DateTimeOffset End)> { ordered[0] };
+
+            foreach (var interval in ordered.Skip(1))
+            {
+                var last = merged[^1];
+                if (interval.Start <= last.End)
+                {
+                    merged[^1] = (last.Start, Max(last.End, interval.End));
+                    continue;
+                }
+
+                merged.Add(interval);
+            }
+
+            return merged;
         }
 
         private sealed class UsageAggregation
