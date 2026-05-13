@@ -269,6 +269,13 @@ ServiceFabricBackup/
 *.ldf
 *.ndf
 
+# SQLite (local DB, WAL)
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
 # Business Intelligence projects
 *.rdl.data
 *.bim.layout
@@ -396,6 +403,8 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+artifacts/
+docs/BLOG_POST_DRAFT.ko.md
 
 # JetBrains Rider
 *.sln.iml
