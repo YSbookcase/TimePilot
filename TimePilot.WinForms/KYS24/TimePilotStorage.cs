@@ -23,7 +23,9 @@ namespace TimePilot.WinForms.KYS24
             return new TimePilotStorage(AppDataPaths.DatabasePath);
         }
 
-        public void Initialize(DateTimeOffset now)
+        private static readonly TimeSpan SystemBootTimeTolerance = TimeSpan.FromSeconds(60);
+
+        public void Initialize(DateTimeOffset now, DateTimeOffset systemBootedAt)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(databasePath)!);
 
@@ -48,6 +50,7 @@ namespace TimePilot.WinForms.KYS24
                     duration_ms INTEGER NULL,
                     last_heartbeat_at TEXT NULL,
                     shutdown_reason TEXT NULL,
+                    system_booted_at TEXT NULL,
                     app_version TEXT NULL
                 );
 
@@ -104,13 +107,14 @@ namespace TimePilot.WinForms.KYS24
             command.ExecuteNonQuery();
 
             EnsureAppsColumns(connection);
+            EnsureRuntimeSessionColumns(connection);
             EnsureForegroundSessionColumns(connection);
             EnsureProcessRuntimeSessionColumns(connection);
-            MarkUnexpectedRuntimeSessions(now);
+            MarkUnexpectedRuntimeSessions(now, systemBootedAt);
             MarkUnexpectedProcessRuntimeSessions(now);
         }
 
-        public void BeginRuntimeSession(DateTimeOffset startedAt, string? appVersion)
+        public void BeginRuntimeSession(DateTimeOffset startedAt, DateTimeOffset systemBootedAt, string? appVersion)
         {
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
@@ -119,14 +123,16 @@ namespace TimePilot.WinForms.KYS24
                     started_at,
                     last_heartbeat_at,
                     shutdown_reason,
+                    system_booted_at,
                     app_version
                 )
-                VALUES ($startedAt, $lastHeartbeatAt, $shutdownReason, $appVersion);
+                VALUES ($startedAt, $lastHeartbeatAt, $shutdownReason, $systemBootedAt, $appVersion);
                 SELECT last_insert_rowid();
                 """;
             command.Parameters.AddWithValue("$startedAt", FormatTimestamp(startedAt));
             command.Parameters.AddWithValue("$lastHeartbeatAt", FormatTimestamp(startedAt));
             command.Parameters.AddWithValue("$shutdownReason", "running");
+            command.Parameters.AddWithValue("$systemBootedAt", FormatTimestamp(systemBootedAt));
             command.Parameters.AddWithValue("$appVersion", (object?)appVersion ?? DBNull.Value);
             runtimeSessionId = (long)command.ExecuteScalar()!;
         }
@@ -399,6 +405,45 @@ namespace TimePilot.WinForms.KYS24
             sequenceCommand.ExecuteNonQuery();
 
             transaction.Commit();
+        }
+
+        public bool HasRecentRepeatedShortUnexpectedRuntimeSessions(int requiredCount, TimeSpan maxDuration)
+        {
+            if (requiredCount <= 0)
+                return false;
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT started_at, ended_at, duration_ms, shutdown_reason
+                FROM app_runtime_sessions
+                WHERE ended_at IS NOT NULL
+                ORDER BY started_at DESC
+                LIMIT $requiredCount;
+                """;
+            command.Parameters.AddWithValue("$requiredCount", requiredCount);
+
+            var matchedCount = 0;
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var shutdownReason = reader.IsDBNull(3) ? null : reader.GetString(3);
+                if (!string.Equals(shutdownReason, "unexpected", StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                var startedAt = ParseTimestamp(reader.GetString(0));
+                var endedAt = reader.IsDBNull(1) ? startedAt : ParseTimestamp(reader.GetString(1));
+                var durationMs = reader.IsDBNull(2)
+                    ? Math.Max(0, (long)(endedAt - startedAt).TotalMilliseconds)
+                    : reader.GetInt64(2);
+
+                if (durationMs > maxDuration.TotalMilliseconds)
+                    return false;
+
+                matchedCount++;
+            }
+
+            return matchedCount >= requiredCount;
         }
 
         public IReadOnlyList<ProcessRuntimeSessionStartResult> ApplyProcessRuntimeSessionChanges(
@@ -797,6 +842,11 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
+        private static void EnsureRuntimeSessionColumns(SqliteConnection connection)
+        {
+            AddColumnIfMissing(connection, "app_runtime_sessions", "system_booted_at", "TEXT NULL");
+        }
+
         private static void EnsureForegroundSessionColumns(SqliteConnection connection)
         {
             if (!ColumnExists(connection, "foreground_sessions", "last_observed_at"))
@@ -843,33 +893,54 @@ namespace TimePilot.WinForms.KYS24
             return false;
         }
 
-        private void MarkUnexpectedRuntimeSessions(DateTimeOffset now)
+        private void MarkUnexpectedRuntimeSessions(DateTimeOffset now, DateTimeOffset currentSystemBootedAt)
         {
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText = """
-                SELECT id, started_at, last_heartbeat_at
+                SELECT id, started_at, last_heartbeat_at, system_booted_at
                 FROM app_runtime_sessions
                 WHERE ended_at IS NULL;
                 """;
 
-            var openSessions = new List<(long Id, DateTimeOffset StartedAt, DateTimeOffset EndedAt)>();
+            var openSessions = new List<(
+                long Id,
+                DateTimeOffset StartedAt,
+                DateTimeOffset EndedAt,
+                DateTimeOffset? SystemBootedAt)>();
             using (var reader = command.ExecuteReader())
             {
                 while (reader.Read())
                 {
-                    var startedAt = DateTimeOffset.Parse(reader.GetString(1), null, System.Globalization.DateTimeStyles.RoundtripKind);
+                    var startedAt = ParseTimestamp(reader.GetString(1));
                     var endedAt = reader.IsDBNull(2)
                         ? now
-                        : DateTimeOffset.Parse(reader.GetString(2), null, System.Globalization.DateTimeStyles.RoundtripKind);
-                    openSessions.Add((reader.GetInt64(0), startedAt, endedAt));
+                        : ParseTimestamp(reader.GetString(2));
+                    var systemBootedAt = reader.IsDBNull(3)
+                        ? (DateTimeOffset?)null
+                        : ParseTimestamp(reader.GetString(3));
+                    openSessions.Add((reader.GetInt64(0), startedAt, endedAt, systemBootedAt));
                 }
             }
 
             foreach (var session in openSessions)
             {
-                EndRuntimeSession(connection, session.Id, session.EndedAt, "unexpected");
+                var shutdownReason = IsSameSystemBootSession(session.SystemBootedAt, currentSystemBootedAt)
+                    ? "unexpected"
+                    : "system-shutdown";
+                EndRuntimeSession(connection, session.Id, session.EndedAt, shutdownReason);
             }
+        }
+
+        private static bool IsSameSystemBootSession(
+            DateTimeOffset? previousSystemBootedAt,
+            DateTimeOffset currentSystemBootedAt)
+        {
+            if (previousSystemBootedAt is null)
+                return true;
+
+            var difference = (previousSystemBootedAt.Value - currentSystemBootedAt).Duration();
+            return difference <= SystemBootTimeTolerance;
         }
 
         private void MarkUnexpectedProcessRuntimeSessions(DateTimeOffset now)

@@ -7,8 +7,10 @@ namespace TimePilot.WinForms
     {
         private const int SampleIntervalMs = 1000;
         private const int SampleIntervalToleranceMs = 200;
+        private const int SafeModeUnexpectedExitCount = 2;
         private const long SlowOperationThresholdMs = 250;
         private static readonly TimeSpan PerformanceStatusDuration = TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan SafeModeShortRuntimeThreshold = TimeSpan.FromMinutes(2);
 
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private readonly AppIconCache appIconCache = new();
@@ -45,6 +47,7 @@ namespace TimePilot.WinForms
         private ProcessRuntimeSessionTracker? processRuntimeSessionTracker;
         private DateTimeOffset? lastProcessRuntimeSampleAt;
         private DateTimeOffset? lastSampleTickAt;
+        private bool processRuntimeSafeModeActivated;
 
         public Form1(bool startMinimizedToTray = false)
         {
@@ -64,8 +67,10 @@ namespace TimePilot.WinForms
             processRuntimeSessionTracker = new ProcessRuntimeSessionTracker(storage);
 
             var startedAt = DateTimeOffset.UtcNow;
-            storage.Initialize(startedAt);
-            storage.BeginRuntimeSession(startedAt, Application.ProductVersion);
+            var systemBootedAt = GetCurrentSystemBootedAt(startedAt);
+            storage.Initialize(startedAt, systemBootedAt);
+            ApplyProcessRuntimeSafeModeIfNeeded();
+            storage.BeginRuntimeSession(startedAt, systemBootedAt, Application.ProductVersion);
 
             Icon = LoadAppIcon();
             ConfigureHeaderToolTip();
@@ -146,11 +151,45 @@ namespace TimePilot.WinForms
         {
             if (startMinimizedToTray)
             {
-                BeginInvoke(HideToTray);
+                BeginInvoke(() =>
+                {
+                    HideToTray();
+                    ShowProcessRuntimeSafeModeNoticeIfNeeded();
+                });
                 return;
             }
 
-            BeginInvoke(ShowStartupPromptIfNeeded);
+            BeginInvoke(ShowStartupNotices);
+        }
+
+        private void ShowStartupNotices()
+        {
+            ShowProcessRuntimeSafeModeNoticeIfNeeded();
+            ShowStartupPromptIfNeeded();
+        }
+
+        private void ShowProcessRuntimeSafeModeNoticeIfNeeded()
+        {
+            if (!processRuntimeSafeModeActivated)
+                return;
+
+            const string message = "이전 실행에서 위험한 백그라운드 앱 추적 설정으로 짧은 시간 안에 비정상 종료가 반복된 것으로 보입니다.\n\n안전모드로 백그라운드 앱 추적만 자동으로 껐습니다. 현재 사용 중인 앱 기록과 유휴 감지는 계속 동작합니다.\n\n다시 사용하려면 설정 > 환경 설정에서 백그라운드 앱 추적을 켜주세요.";
+            if (startMinimizedToTray)
+            {
+                trayIcon.ShowBalloonTip(
+                    8000,
+                    "TimePilot 안전모드",
+                    "반복 비정상 종료를 피하기 위해 백그라운드 앱 추적을 자동으로 껐습니다.",
+                    ToolTipIcon.Warning);
+                return;
+            }
+
+            CenteredMessageDialog.Show(
+                this,
+                message,
+                "TimePilot 안전모드",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
         }
 
         private void ShowStartupPromptIfNeeded()
@@ -166,6 +205,29 @@ namespace TimePilot.WinForms
                 MessageBoxIcon.Question);
 
             settings.SetStartupPromptResult(result == DialogResult.Yes);
+        }
+
+        private void ApplyProcessRuntimeSafeModeIfNeeded()
+        {
+            if (storage is null
+                || !AppSettings.IsDangerousProcessRuntimeTracking(
+                    settings.ProcessRuntimeTrackingEnabled,
+                    settings.ProcessRuntimeTrackingScope,
+                    settings.ProcessRuntimeSampleIntervalSeconds))
+                return;
+
+            if (!storage.HasRecentRepeatedShortUnexpectedRuntimeSessions(
+                    SafeModeUnexpectedExitCount,
+                    SafeModeShortRuntimeThreshold))
+                return;
+
+            settings.DisableProcessRuntimeTrackingForSafeMode();
+            processRuntimeSafeModeActivated = true;
+        }
+
+        private static DateTimeOffset GetCurrentSystemBootedAt(DateTimeOffset now)
+        {
+            return now - TimeSpan.FromMilliseconds(Environment.TickCount64);
         }
 
         private void ConfigureDesignPreview()
@@ -1036,7 +1098,8 @@ namespace TimePilot.WinForms
             settings.SetProcessRuntimeTracking(
                 form.ProcessRuntimeTrackingEnabled,
                 form.ProcessRuntimeTrackingScope,
-                form.ProcessRuntimeSampleIntervalSeconds);
+                form.ProcessRuntimeSampleIntervalSeconds,
+                form.ProcessRuntimeRiskAccepted);
             lastProcessRuntimeSampleAt = null;
 
             if (form.ClearUsageDataRequested)
@@ -1062,7 +1125,7 @@ namespace TimePilot.WinForms
 
                 storage.EndRuntimeSession(now, "clear-data");
                 storage.ClearUsageData();
-                storage.BeginRuntimeSession(now, Application.ProductVersion);
+                storage.BeginRuntimeSession(now, GetCurrentSystemBootedAt(now), Application.ProductVersion);
 
                 foregroundSessionTracker = new ForegroundSessionTracker(storage);
                 idleSessionTracker = new IdleSessionTracker(storage);
