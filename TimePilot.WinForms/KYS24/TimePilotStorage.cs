@@ -669,19 +669,27 @@ namespace TimePilot.WinForms.KYS24
                 var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
                 var startedAt = ParseTimestamp(reader.GetString(4));
                 var hasRunningSession = reader.IsDBNull(5);
-                var observedEnd = hasRunningSession
-                    ? now
-                    : ParseTimestamp(reader.GetString(5));
+                var endedAt = hasRunningSession ? (DateTimeOffset?)null : ParseTimestamp(reader.GetString(5));
+                var lastObservedAt = reader.IsDBNull(6)
+                    ? endedAt ?? startedAt
+                    : ParseTimestamp(reader.GetString(6));
+                var runtimeEnd = endedAt ?? now;
                 var hasMainWindow = !reader.IsDBNull(7) && reader.GetInt32(7) == 1;
                 var isCurrentSessionProcess = !reader.IsDBNull(8) && reader.GetInt32(8) == 1;
                 var effectiveStart = Max(startedAt, dayStart);
-                var effectiveEnd = Min(observedEnd, dayEnd);
+                var effectiveEnd = Min(runtimeEnd, dayEnd);
+                var effectiveLastObservedAt = Min(Max(lastObservedAt, dayStart), dayEnd);
                 if (effectiveEnd <= effectiveStart && !hasRunningSession)
                     continue;
 
                 if (!totals.TryGetValue(appId, out var aggregation))
                 {
-                    aggregation = new ProcessRuntimeAggregation(appName, processName, effectiveStart, effectiveEnd, executablePath);
+                    aggregation = new ProcessRuntimeAggregation(
+                        appName,
+                        processName,
+                        effectiveStart,
+                        effectiveLastObservedAt,
+                        executablePath);
                     totals[appId] = aggregation;
                 }
 
@@ -691,7 +699,7 @@ namespace TimePilot.WinForms.KYS24
                 aggregation.HasMainWindow |= hasMainWindow;
                 aggregation.IsCurrentSessionProcess |= isCurrentSessionProcess;
                 aggregation.FirstObservedAt = Min(aggregation.FirstObservedAt, effectiveStart);
-                aggregation.LastObservedAt = Max(aggregation.LastObservedAt, effectiveEnd);
+                aggregation.LastObservedAt = Max(aggregation.LastObservedAt, effectiveLastObservedAt);
             }
 
             AddActiveUsageToRuntimeAggregations(connection, totals, dayStart, dayEnd);

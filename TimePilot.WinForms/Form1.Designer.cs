@@ -396,6 +396,7 @@
             runtimeLastObservedAtColumn.Name = "runtimeLastObservedAtColumn";
             runtimeLastObservedAtColumn.ReadOnly = true;
             runtimeLastObservedAtColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeLastObservedAtColumn.ToolTipText = "백그라운드 앱 추적이 실제로 마지막 관측한 시각입니다.";
             runtimeLastObservedAtColumn.Width = 110;
             //
             // runtimeDurationColumn
@@ -406,7 +407,7 @@
             runtimeDurationColumn.Name = "runtimeDurationColumn";
             runtimeDurationColumn.ReadOnly = true;
             runtimeDurationColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
-            runtimeDurationColumn.ToolTipText = "설정한 백그라운드 앱 추적 주기로 관측한 실행 시간입니다.";
+            runtimeDurationColumn.ToolTipText = "실행 중인 앱은 현재 시각 기준으로 계속 증가하고, 종료된 앱은 마지막 관측 시각까지 계산합니다.";
             runtimeDurationColumn.Width = 120;
             //
             // runtimeActiveUsageColumn

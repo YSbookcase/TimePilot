@@ -916,8 +916,11 @@ namespace TimePilot.WinForms
             if (grid == usageGrid && column == usageRatioColumn)
                 return "오늘 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
 
+            if (grid == runtimeGrid && column == runtimeLastObservedAtColumn)
+                return "백그라운드 앱 추적이 실제로 마지막 관측한 시각입니다.";
+
             if (grid == runtimeGrid && column == runtimeDurationColumn)
-                return "설정한 백그라운드 앱 추적 주기로 관측한 실행 시간입니다.";
+                return "실행 중인 앱은 현재 시각 기준으로 계속 증가하고, 종료된 앱은 마지막 관측 시각까지 계산합니다.";
 
             if (grid == runtimeGrid && column == runtimeActualUsageRatioColumn)
                 return "실행 시간 중 실제 foreground 활성 사용 시간이 차지한 비율입니다.";
