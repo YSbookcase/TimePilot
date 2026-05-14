@@ -10,6 +10,7 @@ namespace TimePilot.WinForms.KYS24
         public const bool DefaultProcessRuntimeTrackingEnabled = true;
         public const bool DefaultStartWithWindows = false;
         public const bool DefaultStartupPromptShown = false;
+        public const bool DefaultPerformanceDiagnosticsEnabled = false;
         public const ProcessRuntimeTrackingScope DefaultProcessRuntimeTrackingScope = ProcessRuntimeTrackingScope.WindowedApps;
         public const int DefaultProcessRuntimeSampleIntervalSeconds = 60;
         public const int MinProcessRuntimeSampleIntervalSeconds = 1;
@@ -33,6 +34,8 @@ namespace TimePilot.WinForms.KYS24
 
         public bool StartupPromptShown { get; set; } = DefaultStartupPromptShown;
 
+        public bool PerformanceDiagnosticsEnabled { get; set; } = DefaultPerformanceDiagnosticsEnabled;
+
         public ProcessRuntimeTrackingScope ProcessRuntimeTrackingScope { get; set; } = DefaultProcessRuntimeTrackingScope;
 
         public int ProcessRuntimeSampleIntervalSeconds { get; set; } = DefaultProcessRuntimeSampleIntervalSeconds;
@@ -54,6 +57,8 @@ namespace TimePilot.WinForms.KYS24
                     ?? DefaultProcessRuntimeTrackingEnabled;
                 settings.StartWithWindows = persisted?.StartWithWindows ?? DefaultStartWithWindows;
                 settings.StartupPromptShown = persisted?.StartupPromptShown ?? DefaultStartupPromptShown;
+                settings.PerformanceDiagnosticsEnabled = persisted?.PerformanceDiagnosticsEnabled
+                    ?? DefaultPerformanceDiagnosticsEnabled;
                 settings.ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(
                     persisted?.ProcessRuntimeTrackingScope);
                 settings.ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
@@ -65,6 +70,7 @@ namespace TimePilot.WinForms.KYS24
                 settings.ProcessRuntimeTrackingEnabled = DefaultProcessRuntimeTrackingEnabled;
                 settings.StartWithWindows = DefaultStartWithWindows;
                 settings.StartupPromptShown = DefaultStartupPromptShown;
+                settings.PerformanceDiagnosticsEnabled = DefaultPerformanceDiagnosticsEnabled;
                 settings.ProcessRuntimeTrackingScope = DefaultProcessRuntimeTrackingScope;
                 settings.ProcessRuntimeSampleIntervalSeconds = DefaultProcessRuntimeSampleIntervalSeconds;
             }
@@ -80,6 +86,7 @@ namespace TimePilot.WinForms.KYS24
                 IdleThresholdMinutes = NormalizeIdleThresholdMinutes(IdleThresholdMinutes),
                 StartWithWindows = StartWithWindows,
                 StartupPromptShown = StartupPromptShown,
+                PerformanceDiagnosticsEnabled = PerformanceDiagnosticsEnabled,
                 ProcessRuntimeTrackingEnabled = ProcessRuntimeTrackingEnabled,
                 ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(ProcessRuntimeTrackingScope),
                 ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
@@ -88,6 +95,7 @@ namespace TimePilot.WinForms.KYS24
             IdleThresholdMinutes = persisted.IdleThresholdMinutes;
             StartWithWindows = persisted.StartWithWindows;
             StartupPromptShown = persisted.StartupPromptShown;
+            PerformanceDiagnosticsEnabled = persisted.PerformanceDiagnosticsEnabled;
             ProcessRuntimeTrackingEnabled = persisted.ProcessRuntimeTrackingEnabled;
             ProcessRuntimeTrackingScope = persisted.ProcessRuntimeTrackingScope;
             ProcessRuntimeSampleIntervalSeconds = persisted.ProcessRuntimeSampleIntervalSeconds;
@@ -129,6 +137,12 @@ namespace TimePilot.WinForms.KYS24
             Save();
         }
 
+        public void SetPerformanceDiagnosticsEnabled(bool isEnabled)
+        {
+            PerformanceDiagnosticsEnabled = isEnabled;
+            Save();
+        }
+
         private static int NormalizeIdleThresholdMinutes(int? minutes)
         {
             return Math.Clamp(
@@ -160,6 +174,8 @@ namespace TimePilot.WinForms.KYS24
             public bool StartWithWindows { get; set; } = DefaultStartWithWindows;
 
             public bool StartupPromptShown { get; set; } = DefaultStartupPromptShown;
+
+            public bool PerformanceDiagnosticsEnabled { get; set; } = DefaultPerformanceDiagnosticsEnabled;
 
             public bool ProcessRuntimeTrackingEnabled { get; set; } = DefaultProcessRuntimeTrackingEnabled;
 

@@ -28,6 +28,7 @@ namespace TimePilot.WinForms
         private readonly NumericUpDown customIdleThresholdNumeric = new();
         private readonly Label customIdleThresholdUnitLabel = new();
         private readonly CheckBox startWithWindowsCheckBox = new();
+        private readonly CheckBox performanceDiagnosticsCheckBox = new();
         private readonly CheckBox processRuntimeTrackingCheckBox = new();
         private readonly ComboBox processRuntimeScopeComboBox = new();
         private readonly ComboBox processRuntimeIntervalComboBox = new();
@@ -43,6 +44,7 @@ namespace TimePilot.WinForms
         {
             IdleThresholdMinutes = settings.IdleThresholdMinutes;
             StartWithWindows = settings.StartWithWindows;
+            PerformanceDiagnosticsEnabled = settings.PerformanceDiagnosticsEnabled;
             ProcessRuntimeTrackingEnabled = settings.ProcessRuntimeTrackingEnabled;
             ProcessRuntimeTrackingScope = settings.ProcessRuntimeTrackingScope;
             ProcessRuntimeSampleIntervalSeconds = settings.ProcessRuntimeSampleIntervalSeconds;
@@ -56,6 +58,8 @@ namespace TimePilot.WinForms
         public int IdleThresholdMinutes { get; private set; }
 
         public bool StartWithWindows { get; private set; }
+
+        public bool PerformanceDiagnosticsEnabled { get; private set; }
 
         public bool ProcessRuntimeTrackingEnabled { get; private set; }
 
@@ -109,6 +113,12 @@ namespace TimePilot.WinForms
             startWithWindowsCheckBox.Size = new Size(178, 19);
             startWithWindowsCheckBox.Text = "Windows 시작 시 자동 실행";
 
+            performanceDiagnosticsCheckBox.AutoSize = true;
+            performanceDiagnosticsCheckBox.Location = new Point(20, 116);
+            performanceDiagnosticsCheckBox.Name = "performanceDiagnosticsCheckBox";
+            performanceDiagnosticsCheckBox.Size = new Size(112, 19);
+            performanceDiagnosticsCheckBox.Text = "성능 진단 표시";
+
             processRuntimeGroupBox.Controls.Add(processRuntimeTrackingCheckBox);
             processRuntimeGroupBox.Controls.Add(processRuntimeScopeLabel);
             processRuntimeGroupBox.Controls.Add(processRuntimeScopeComboBox);
@@ -117,7 +127,7 @@ namespace TimePilot.WinForms
             processRuntimeGroupBox.Controls.Add(customProcessRuntimeIntervalNumeric);
             processRuntimeGroupBox.Controls.Add(customProcessRuntimeIntervalUnitLabel);
             processRuntimeGroupBox.Controls.Add(processRuntimeWarningLabel);
-            processRuntimeGroupBox.Location = new Point(20, 122);
+            processRuntimeGroupBox.Location = new Point(20, 150);
             processRuntimeGroupBox.Name = "processRuntimeGroupBox";
             processRuntimeGroupBox.Size = new Size(430, 190);
             processRuntimeGroupBox.TabIndex = 4;
@@ -179,7 +189,7 @@ namespace TimePilot.WinForms
             dataManagementGroupBox.Controls.Add(dataManagementLabel);
             dataManagementGroupBox.Controls.Add(openDataFolderButton);
             dataManagementGroupBox.Controls.Add(clearUsageDataButton);
-            dataManagementGroupBox.Location = new Point(20, 322);
+            dataManagementGroupBox.Location = new Point(20, 350);
             dataManagementGroupBox.Name = "dataManagementGroupBox";
             dataManagementGroupBox.Size = new Size(430, 72);
             dataManagementGroupBox.TabIndex = 5;
@@ -206,7 +216,7 @@ namespace TimePilot.WinForms
 
             okButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             okButton.DialogResult = DialogResult.OK;
-            okButton.Location = new Point(294, 418);
+            okButton.Location = new Point(294, 446);
             okButton.Name = "okButton";
             okButton.Size = new Size(75, 27);
             okButton.Text = "저장";
@@ -214,7 +224,7 @@ namespace TimePilot.WinForms
 
             cancelButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             cancelButton.DialogResult = DialogResult.Cancel;
-            cancelButton.Location = new Point(375, 418);
+            cancelButton.Location = new Point(375, 446);
             cancelButton.Name = "cancelButton";
             cancelButton.Size = new Size(75, 27);
             cancelButton.Text = "취소";
@@ -222,12 +232,13 @@ namespace TimePilot.WinForms
             AcceptButton = okButton;
             CancelButton = cancelButton;
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(470, 465);
+            ClientSize = new Size(470, 493);
             Controls.Add(idleThresholdLabel);
             Controls.Add(idleThresholdComboBox);
             Controls.Add(customIdleThresholdNumeric);
             Controls.Add(customIdleThresholdUnitLabel);
             Controls.Add(startWithWindowsCheckBox);
+            Controls.Add(performanceDiagnosticsCheckBox);
             Controls.Add(processRuntimeGroupBox);
             Controls.Add(dataManagementGroupBox);
             Controls.Add(okButton);
@@ -296,6 +307,7 @@ namespace TimePilot.WinForms
         private void ConfigureStartupControls()
         {
             startWithWindowsCheckBox.Checked = StartWithWindows;
+            performanceDiagnosticsCheckBox.Checked = PerformanceDiagnosticsEnabled;
         }
 
         private void OnIdleThresholdSelectionChanged(object? sender, EventArgs e)
@@ -358,6 +370,7 @@ namespace TimePilot.WinForms
             }
 
             StartWithWindows = startWithWindowsCheckBox.Checked;
+            PerformanceDiagnosticsEnabled = performanceDiagnosticsCheckBox.Checked;
             ProcessRuntimeTrackingEnabled = processRuntimeTrackingCheckBox.Checked;
             ProcessRuntimeTrackingScope = processRuntimeScopeComboBox.SelectedItem is ProcessRuntimeScopeOption scopeOption
                 ? scopeOption.Scope
