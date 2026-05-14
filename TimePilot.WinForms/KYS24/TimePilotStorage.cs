@@ -581,6 +581,33 @@ namespace TimePilot.WinForms.KYS24
                 .ToList();
         }
 
+        public RuntimeCoverageSummary GetRuntimeCoverageForDay(DateTimeOffset now)
+        {
+            var localDayStart = now.ToLocalTime().Date;
+            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
+            var dayEnd = Min(dayStart.AddDays(1), now);
+
+            if (dayEnd <= dayStart)
+                return new RuntimeCoverageSummary(0, 0, 0, 0, null);
+
+            using var connection = OpenConnection();
+            var runtimeIntervals = GetRuntimeIntervalsForDay(connection, dayStart, dayEnd, now);
+            var mergedIntervals = MergeIntervals(runtimeIntervals);
+            var totalWindowMs = Math.Max(0, (long)(dayEnd - dayStart).TotalMilliseconds);
+            var trackedRuntimeMs = mergedIntervals
+                .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
+            var missingRuntimeMs = Math.Max(0, totalWindowMs - trackedRuntimeMs);
+            var longestMissingRuntimeMs = GetLongestGapMs(mergedIntervals, dayStart, dayEnd);
+            var bootBeforeTimePilotMs = GetBootBeforeTimePilotMs(connection, dayStart, dayEnd);
+
+            return new RuntimeCoverageSummary(
+                totalWindowMs,
+                trackedRuntimeMs,
+                missingRuntimeMs,
+                longestMissingRuntimeMs,
+                bootBeforeTimePilotMs);
+        }
+
         private void AddUntrackedTimelineRows(
             SqliteConnection connection,
             List<ActivityTimelineRow> rows,
@@ -588,34 +615,7 @@ namespace TimePilot.WinForms.KYS24
             DateTimeOffset dayEnd,
             DateTimeOffset now)
         {
-            using var command = connection.CreateCommand();
-            command.CommandText = """
-                SELECT started_at, ended_at, last_heartbeat_at
-                FROM app_runtime_sessions
-                WHERE started_at < $dayEnd
-                  AND COALESCE(ended_at, last_heartbeat_at, $now) > $dayStart
-                ORDER BY started_at;
-                """;
-            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
-            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
-            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
-
-            var trackedIntervals = new List<(DateTimeOffset Start, DateTimeOffset End)>();
-            using (var reader = command.ExecuteReader())
-            {
-                while (reader.Read())
-                {
-                    var startedAt = ParseTimestamp(reader.GetString(0));
-                    var endedAt = reader.IsDBNull(1)
-                        ? reader.IsDBNull(2) ? now : ParseTimestamp(reader.GetString(2))
-                        : ParseTimestamp(reader.GetString(1));
-                    var effectiveStart = Max(startedAt, dayStart);
-                    var effectiveEnd = Min(endedAt, dayEnd);
-
-                    if (effectiveEnd > effectiveStart)
-                        trackedIntervals.Add((effectiveStart, effectiveEnd));
-                }
-            }
+            var trackedIntervals = GetRuntimeIntervalsForDay(connection, dayStart, dayEnd, now);
 
             var cursor = dayStart;
             foreach (var interval in MergeIntervals(trackedIntervals))
@@ -630,6 +630,96 @@ namespace TimePilot.WinForms.KYS24
             var gapEnd = Min(now, dayEnd);
             if (gapEnd > cursor)
                 AddTimelineRow(rows, "미실행", cursor, gapEnd, gapEnd, "TimePilot 미실행", null);
+        }
+
+        private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> GetRuntimeIntervalsForDay(
+            SqliteConnection connection,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd,
+            DateTimeOffset now)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT started_at, ended_at
+                FROM app_runtime_sessions
+                WHERE started_at < $dayEnd
+                  AND COALESCE(ended_at, $now) > $dayStart
+                ORDER BY started_at;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            var intervals = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = ParseTimestamp(reader.GetString(0));
+                var endedAt = reader.IsDBNull(1) ? now : ParseTimestamp(reader.GetString(1));
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(endedAt, dayEnd);
+
+                if (effectiveEnd > effectiveStart)
+                    intervals.Add((effectiveStart, effectiveEnd));
+            }
+
+            return intervals;
+        }
+
+        private static long GetLongestGapMs(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> intervals,
+            DateTimeOffset windowStart,
+            DateTimeOffset windowEnd)
+        {
+            var longestGapMs = 0L;
+            var cursor = windowStart;
+
+            foreach (var interval in intervals)
+            {
+                if (interval.Start > cursor)
+                    longestGapMs = Math.Max(longestGapMs, (long)(interval.Start - cursor).TotalMilliseconds);
+
+                if (interval.End > cursor)
+                    cursor = interval.End;
+            }
+
+            if (windowEnd > cursor)
+                longestGapMs = Math.Max(longestGapMs, (long)(windowEnd - cursor).TotalMilliseconds);
+
+            return longestGapMs;
+        }
+
+        private static long? GetBootBeforeTimePilotMs(
+            SqliteConnection connection,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT system_booted_at, started_at
+                FROM app_runtime_sessions
+                WHERE system_booted_at IS NOT NULL
+                  AND started_at >= $dayStart
+                  AND started_at < $dayEnd
+                ORDER BY started_at
+                LIMIT 1;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            using var reader = command.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            var systemBootedAt = ParseTimestamp(reader.GetString(0));
+            var startedAt = ParseTimestamp(reader.GetString(1));
+            var effectiveBootedAt = Max(systemBootedAt, dayStart);
+            var effectiveStartedAt = Min(startedAt, dayEnd);
+
+            if (effectiveStartedAt <= effectiveBootedAt)
+                return null;
+
+            return (long)(effectiveStartedAt - effectiveBootedAt).TotalMilliseconds;
         }
 
         public IReadOnlyList<ProcessRuntimeSummaryRow> GetProcessRuntimeUsageForDay(DateTimeOffset now)
