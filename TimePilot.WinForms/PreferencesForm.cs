@@ -67,6 +67,8 @@ namespace TimePilot.WinForms
 
         public int ProcessRuntimeSampleIntervalSeconds { get; private set; }
 
+        public bool ProcessRuntimeRiskAccepted { get; private set; }
+
         public bool ClearUsageDataRequested { get; private set; }
 
         private void InitializeComponent()
@@ -380,6 +382,7 @@ namespace TimePilot.WinForms
             if (!ConfirmAdvancedProcessRuntimeSettings())
             {
                 DialogResult = DialogResult.None;
+                ProcessRuntimeRiskAccepted = false;
             }
         }
 
@@ -396,14 +399,23 @@ namespace TimePilot.WinForms
             var isCustomInterval =
                 processRuntimeIntervalComboBox.SelectedItem is ProcessRuntimeIntervalOption { Seconds: null };
             var intervalSeconds = GetSelectedProcessRuntimeIntervalSeconds();
-            var isVeryShortInterval = intervalSeconds < AppSettings.WarningProcessRuntimeSampleIntervalSeconds;
+            var isDangerousSetting = AppSettings.IsDangerousProcessRuntimeTracking(
+                isEnabled,
+                processRuntimeScopeComboBox.SelectedItem is ProcessRuntimeScopeOption scopeOption
+                    ? scopeOption.Scope
+                    : AppSettings.DefaultProcessRuntimeTrackingScope,
+                intervalSeconds);
 
             processRuntimeScopeComboBox.Enabled = isEnabled;
             processRuntimeIntervalComboBox.Enabled = isEnabled;
             customProcessRuntimeIntervalNumeric.Enabled = isEnabled;
             customProcessRuntimeIntervalNumeric.Visible = isCustomInterval;
             customProcessRuntimeIntervalUnitLabel.Visible = isCustomInterval;
-            processRuntimeWarningLabel.Visible = isEnabled && isVeryShortInterval;
+            processRuntimeWarningLabel.Text = isDangerousSetting
+                ? "위험 설정입니다. 반복 비정상 종료가 감지되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼질 수 있습니다."
+                : "짧은 확인 주기는 CPU 사용량, 배터리 소모, 저장 데이터 증가를 유발할 수 있습니다.";
+            processRuntimeWarningLabel.Visible = isEnabled
+                && (isDangerousSetting || intervalSeconds < AppSettings.WarningProcessRuntimeSampleIntervalSeconds);
         }
 
         private int GetSelectedProcessRuntimeIntervalSeconds()
@@ -416,15 +428,25 @@ namespace TimePilot.WinForms
 
         private bool ConfirmAdvancedProcessRuntimeSettings()
         {
-            if (!ProcessRuntimeTrackingEnabled
-                || ProcessRuntimeSampleIntervalSeconds >= AppSettings.WarningProcessRuntimeSampleIntervalSeconds)
+            ProcessRuntimeRiskAccepted = false;
+            if (!AppSettings.IsDangerousProcessRuntimeTracking(
+                    ProcessRuntimeTrackingEnabled,
+                    ProcessRuntimeTrackingScope,
+                    ProcessRuntimeSampleIntervalSeconds))
                 return true;
 
-            var message = ProcessRuntimeTrackingScope == ProcessRuntimeTrackingScope.AllProcesses
-                ? "모든 프로세스를 10초 미만 주기로 추적하면 시스템 부하와 데이터 저장량이 크게 증가할 수 있습니다. 계속하시겠습니까?"
-                : "10초 미만의 확인 주기는 CPU 사용량, 배터리 소모, 저장 데이터 증가를 유발할 수 있습니다. 계속하시겠습니까?";
+            var message = ProcessRuntimeTrackingScope switch
+            {
+                ProcessRuntimeTrackingScope.AllProcesses =>
+                    "모든 프로세스를 10초 이하 주기로 추적하면 환경에 따라 TimePilot이 멈추거나 비정상 종료될 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
+                ProcessRuntimeTrackingScope.UserProcesses =>
+                    "모든 사용자 프로세스를 5초 이하 주기로 추적하면 CPU 사용량과 저장 데이터가 크게 증가할 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
+                _ =>
+                    "3초 이하 확인 주기는 추적 범위와 관계없이 시스템 부하와 저장 데이터 증가를 유발할 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?"
+            };
 
-            return ShowCenteredWarning(message) == DialogResult.Yes;
+            ProcessRuntimeRiskAccepted = ShowCenteredWarning(message) == DialogResult.Yes;
+            return ProcessRuntimeRiskAccepted;
         }
 
         private DialogResult ShowCenteredWarning(string message)
@@ -438,19 +460,19 @@ namespace TimePilot.WinForms
 
             messageLabel.Location = new Point(18, 18);
             messageLabel.Name = "messageLabel";
-            messageLabel.Size = new Size(344, 72);
+            messageLabel.Size = new Size(424, 128);
             messageLabel.Text = message;
 
             yesButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             yesButton.DialogResult = DialogResult.Yes;
-            yesButton.Location = new Point(206, 104);
+            yesButton.Location = new Point(286, 160);
             yesButton.Name = "yesButton";
             yesButton.Size = new Size(75, 27);
-            yesButton.Text = "계속";
+            yesButton.Text = "저장";
 
             noButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             noButton.DialogResult = DialogResult.No;
-            noButton.Location = new Point(287, 104);
+            noButton.Location = new Point(367, 160);
             noButton.Name = "noButton";
             noButton.Size = new Size(75, 27);
             noButton.Text = "취소";
@@ -458,7 +480,7 @@ namespace TimePilot.WinForms
             dialog.AcceptButton = yesButton;
             dialog.CancelButton = noButton;
             dialog.AutoScaleMode = AutoScaleMode.Font;
-            dialog.ClientSize = new Size(380, 149);
+            dialog.ClientSize = new Size(460, 205);
             dialog.Controls.Add(messageLabel);
             dialog.Controls.Add(yesButton);
             dialog.Controls.Add(noButton);

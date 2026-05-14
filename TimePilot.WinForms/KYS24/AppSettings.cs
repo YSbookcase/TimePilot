@@ -16,6 +16,9 @@ namespace TimePilot.WinForms.KYS24
         public const int MinProcessRuntimeSampleIntervalSeconds = 1;
         public const int MaxProcessRuntimeSampleIntervalSeconds = 3600;
         public const int WarningProcessRuntimeSampleIntervalSeconds = 10;
+        public const int DangerousAllProcessesSampleIntervalSeconds = 10;
+        public const int DangerousUserProcessesSampleIntervalSeconds = 5;
+        public const int DangerousAnyScopeSampleIntervalSeconds = 3;
 
         private readonly string settingsPath;
 
@@ -42,6 +45,21 @@ namespace TimePilot.WinForms.KYS24
 
         public int ProcessRuntimeSampleIntervalMs => ProcessRuntimeSampleIntervalSeconds * 1000;
 
+        public ProcessRuntimeTrackingScope? ApprovedRiskyProcessRuntimeTrackingScope { get; set; }
+
+        public int? ApprovedRiskyProcessRuntimeSampleIntervalSeconds { get; set; }
+
+        public DateTimeOffset? ProcessRuntimeRiskAcceptedAt { get; set; }
+
+        public bool IsCurrentProcessRuntimeRiskAccepted =>
+            !IsDangerousProcessRuntimeTracking(
+                ProcessRuntimeTrackingEnabled,
+                ProcessRuntimeTrackingScope,
+                ProcessRuntimeSampleIntervalSeconds)
+            || (ProcessRuntimeRiskAcceptedAt is not null
+                && ApprovedRiskyProcessRuntimeTrackingScope == ProcessRuntimeTrackingScope
+                && ApprovedRiskyProcessRuntimeSampleIntervalSeconds == ProcessRuntimeSampleIntervalSeconds);
+
         public static AppSettings LoadDefault()
         {
             var settings = new AppSettings(AppDataPaths.SettingsPath);
@@ -63,6 +81,12 @@ namespace TimePilot.WinForms.KYS24
                     persisted?.ProcessRuntimeTrackingScope);
                 settings.ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
                     persisted?.ProcessRuntimeSampleIntervalSeconds);
+                settings.ApprovedRiskyProcessRuntimeTrackingScope = NormalizeNullableProcessRuntimeTrackingScope(
+                    persisted?.ApprovedRiskyProcessRuntimeTrackingScope);
+                settings.ApprovedRiskyProcessRuntimeSampleIntervalSeconds =
+                    NormalizeNullableProcessRuntimeSampleIntervalSeconds(
+                        persisted?.ApprovedRiskyProcessRuntimeSampleIntervalSeconds);
+                settings.ProcessRuntimeRiskAcceptedAt = persisted?.ProcessRuntimeRiskAcceptedAt;
             }
             catch
             {
@@ -73,6 +97,9 @@ namespace TimePilot.WinForms.KYS24
                 settings.PerformanceDiagnosticsEnabled = DefaultPerformanceDiagnosticsEnabled;
                 settings.ProcessRuntimeTrackingScope = DefaultProcessRuntimeTrackingScope;
                 settings.ProcessRuntimeSampleIntervalSeconds = DefaultProcessRuntimeSampleIntervalSeconds;
+                settings.ApprovedRiskyProcessRuntimeTrackingScope = null;
+                settings.ApprovedRiskyProcessRuntimeSampleIntervalSeconds = null;
+                settings.ProcessRuntimeRiskAcceptedAt = null;
             }
 
             return settings;
@@ -90,7 +117,13 @@ namespace TimePilot.WinForms.KYS24
                 ProcessRuntimeTrackingEnabled = ProcessRuntimeTrackingEnabled,
                 ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(ProcessRuntimeTrackingScope),
                 ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
-                    ProcessRuntimeSampleIntervalSeconds)
+                    ProcessRuntimeSampleIntervalSeconds),
+                ApprovedRiskyProcessRuntimeTrackingScope = NormalizeNullableProcessRuntimeTrackingScope(
+                    ApprovedRiskyProcessRuntimeTrackingScope),
+                ApprovedRiskyProcessRuntimeSampleIntervalSeconds =
+                    NormalizeNullableProcessRuntimeSampleIntervalSeconds(
+                        ApprovedRiskyProcessRuntimeSampleIntervalSeconds),
+                ProcessRuntimeRiskAcceptedAt = ProcessRuntimeRiskAcceptedAt
             };
             IdleThresholdMinutes = persisted.IdleThresholdMinutes;
             StartWithWindows = persisted.StartWithWindows;
@@ -99,6 +132,10 @@ namespace TimePilot.WinForms.KYS24
             ProcessRuntimeTrackingEnabled = persisted.ProcessRuntimeTrackingEnabled;
             ProcessRuntimeTrackingScope = persisted.ProcessRuntimeTrackingScope;
             ProcessRuntimeSampleIntervalSeconds = persisted.ProcessRuntimeSampleIntervalSeconds;
+            ApprovedRiskyProcessRuntimeTrackingScope = persisted.ApprovedRiskyProcessRuntimeTrackingScope;
+            ApprovedRiskyProcessRuntimeSampleIntervalSeconds =
+                persisted.ApprovedRiskyProcessRuntimeSampleIntervalSeconds;
+            ProcessRuntimeRiskAcceptedAt = persisted.ProcessRuntimeRiskAcceptedAt;
 
             File.WriteAllText(
                 settingsPath,
@@ -114,11 +151,34 @@ namespace TimePilot.WinForms.KYS24
         public void SetProcessRuntimeTracking(
             bool isEnabled,
             ProcessRuntimeTrackingScope scope,
-            int sampleIntervalSeconds)
+            int sampleIntervalSeconds,
+            bool riskAccepted = false)
         {
             ProcessRuntimeTrackingEnabled = isEnabled;
             ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(scope);
             ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(sampleIntervalSeconds);
+            if (IsDangerousProcessRuntimeTracking(
+                    ProcessRuntimeTrackingEnabled,
+                    ProcessRuntimeTrackingScope,
+                    ProcessRuntimeSampleIntervalSeconds)
+                && riskAccepted)
+            {
+                ApprovedRiskyProcessRuntimeTrackingScope = ProcessRuntimeTrackingScope;
+                ApprovedRiskyProcessRuntimeSampleIntervalSeconds = ProcessRuntimeSampleIntervalSeconds;
+                ProcessRuntimeRiskAcceptedAt = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                ClearProcessRuntimeRiskAcceptance();
+            }
+
+            Save();
+        }
+
+        public void DisableProcessRuntimeTrackingForSafeMode()
+        {
+            ProcessRuntimeTrackingEnabled = false;
+            ClearProcessRuntimeRiskAcceptance();
             Save();
         }
 
@@ -159,12 +219,54 @@ namespace TimePilot.WinForms.KYS24
                 : DefaultProcessRuntimeTrackingScope;
         }
 
+        private static ProcessRuntimeTrackingScope? NormalizeNullableProcessRuntimeTrackingScope(
+            ProcessRuntimeTrackingScope? scope)
+        {
+            return Enum.IsDefined(scope ?? DefaultProcessRuntimeTrackingScope) ? scope : null;
+        }
+
         private static int NormalizeProcessRuntimeSampleIntervalSeconds(int? seconds)
         {
             return Math.Clamp(
                 seconds ?? DefaultProcessRuntimeSampleIntervalSeconds,
                 MinProcessRuntimeSampleIntervalSeconds,
                 MaxProcessRuntimeSampleIntervalSeconds);
+        }
+
+        private static int? NormalizeNullableProcessRuntimeSampleIntervalSeconds(int? seconds)
+        {
+            return seconds is null
+                ? null
+                : NormalizeProcessRuntimeSampleIntervalSeconds(seconds);
+        }
+
+        public static bool IsDangerousProcessRuntimeTracking(
+            bool isEnabled,
+            ProcessRuntimeTrackingScope scope,
+            int sampleIntervalSeconds)
+        {
+            if (!isEnabled)
+                return false;
+
+            var normalizedSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(sampleIntervalSeconds);
+            if (normalizedSeconds <= DangerousAnyScopeSampleIntervalSeconds)
+                return true;
+
+            return scope switch
+            {
+                ProcessRuntimeTrackingScope.AllProcesses =>
+                    normalizedSeconds <= DangerousAllProcessesSampleIntervalSeconds,
+                ProcessRuntimeTrackingScope.UserProcesses =>
+                    normalizedSeconds <= DangerousUserProcessesSampleIntervalSeconds,
+                _ => false
+            };
+        }
+
+        private void ClearProcessRuntimeRiskAcceptance()
+        {
+            ApprovedRiskyProcessRuntimeTrackingScope = null;
+            ApprovedRiskyProcessRuntimeSampleIntervalSeconds = null;
+            ProcessRuntimeRiskAcceptedAt = null;
         }
 
         private sealed class PersistedSettings
@@ -184,6 +286,12 @@ namespace TimePilot.WinForms.KYS24
 
             public int ProcessRuntimeSampleIntervalSeconds { get; set; } =
                 DefaultProcessRuntimeSampleIntervalSeconds;
+
+            public ProcessRuntimeTrackingScope? ApprovedRiskyProcessRuntimeTrackingScope { get; set; }
+
+            public int? ApprovedRiskyProcessRuntimeSampleIntervalSeconds { get; set; }
+
+            public DateTimeOffset? ProcessRuntimeRiskAcceptedAt { get; set; }
         }
     }
 }
