@@ -16,7 +16,8 @@ namespace TimePilot.WinForms.KYS24
         bool IsCurrentSessionProcess,
         Image? AppIcon = null,
         DateTimeOffset? FirstObservedAt = null,
-        DateTimeOffset? LastObservedAt = null)
+        DateTimeOffset? LastObservedAt = null,
+        bool IsInCurrentTrackingScope = true)
     {
         public string RuntimeText => FormatDuration(RuntimeMs);
 
@@ -28,7 +29,16 @@ namespace TimePilot.WinForms.KYS24
 
         public string RuntimeSegmentCountText => RuntimeSegmentCount.ToString("N0", CultureInfo.CurrentCulture);
 
-        public string StatusText => HasRunningSession ? "실행 중" : "종료";
+        public string StatusText
+        {
+            get
+            {
+                if (!IsInCurrentTrackingScope)
+                    return "추적 범위 밖";
+
+                return HasRunningSession ? "실행 중" : "종료";
+            }
+        }
 
         public string FirstObservedAtText => FormatTime(FirstObservedAt);
 

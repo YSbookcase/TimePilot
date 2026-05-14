@@ -382,10 +382,11 @@ namespace TimePilot.WinForms
                 isRefreshingRuntimeGrid = true;
                 try
                 {
+                    var runtimeRows = ApplyCurrentTrackingScope(snapshot.RuntimeRows);
                     SetGridDataSourcePreservingView(
                         runtimeGrid,
                         AddIcons(SortRuntimeSummaryRows(FilterRuntimeSummaryRows(
-                            snapshot.RuntimeRows))));
+                            runtimeRows))));
                     RestoreRuntimeSelection(
                         appIdToRestore,
                         GetFirstDisplayedColumnIndex(runtimeGrid),
@@ -573,6 +574,14 @@ namespace TimePilot.WinForms
                 .ToList();
         }
 
+        private IReadOnlyList<ProcessRuntimeSummaryRow> ApplyCurrentTrackingScope(
+            IReadOnlyList<ProcessRuntimeSummaryRow> rows)
+        {
+            return rows
+                .Select(row => row with { IsInCurrentTrackingScope = IsInCurrentTrackingScope(row) })
+                .ToList();
+        }
+
         private IReadOnlyList<UsageSummaryRow> SortUsageSummaryRows(IReadOnlyList<UsageSummaryRow> rows)
         {
             IOrderedEnumerable<UsageSummaryRow> sortedRows = usageSortProperty switch
@@ -602,14 +611,7 @@ namespace TimePilot.WinForms
             IEnumerable<ProcessRuntimeSummaryRow> filteredRows = rows;
 
             if (showCurrentTrackingScopeOnly)
-            {
-                filteredRows = settings.ProcessRuntimeTrackingScope switch
-                {
-                    ProcessRuntimeTrackingScope.WindowedApps => filteredRows.Where(x => x.HasMainWindow),
-                    ProcessRuntimeTrackingScope.UserProcesses => filteredRows.Where(x => x.IsCurrentSessionProcess),
-                    _ => filteredRows
-                };
-            }
+                filteredRows = filteredRows.Where(x => x.IsInCurrentTrackingScope);
 
             if (showRunningRuntimeOnly)
                 filteredRows = filteredRows.Where(x => x.HasRunningSession);
@@ -627,7 +629,7 @@ namespace TimePilot.WinForms
                 nameof(ProcessRuntimeSummaryRow.ActiveUsageMs) => OrderRuntimeRows(rows, x => x.ActiveUsageMs),
                 nameof(ProcessRuntimeSummaryRow.ActualUsageRatio) => OrderRuntimeRows(rows, x => x.ActualUsageRatio ?? -1),
                 nameof(ProcessRuntimeSummaryRow.RuntimeSegmentCount) => OrderRuntimeRows(rows, x => x.RuntimeSegmentCount),
-                nameof(ProcessRuntimeSummaryRow.HasRunningSession) => OrderRuntimeRows(rows, x => x.HasRunningSession),
+                nameof(ProcessRuntimeSummaryRow.StatusText) => OrderRuntimeRows(rows, x => x.StatusText),
                 _ => OrderRuntimeRows(rows, x => x.RuntimeMs)
             };
 
@@ -809,8 +811,18 @@ namespace TimePilot.WinForms
                 nameof(runtimeActiveUsageColumn) => nameof(ProcessRuntimeSummaryRow.ActiveUsageMs),
                 nameof(runtimeActualUsageRatioColumn) => nameof(ProcessRuntimeSummaryRow.ActualUsageRatio),
                 nameof(runtimeSessionCountColumn) => nameof(ProcessRuntimeSummaryRow.RuntimeSegmentCount),
-                nameof(runtimeStatusColumn) => nameof(ProcessRuntimeSummaryRow.HasRunningSession),
+                nameof(runtimeStatusColumn) => nameof(ProcessRuntimeSummaryRow.StatusText),
                 _ => null
+            };
+        }
+
+        private bool IsInCurrentTrackingScope(ProcessRuntimeSummaryRow row)
+        {
+            return settings.ProcessRuntimeTrackingScope switch
+            {
+                ProcessRuntimeTrackingScope.WindowedApps => row.HasMainWindow,
+                ProcessRuntimeTrackingScope.UserProcesses => row.IsCurrentSessionProcess,
+                _ => true
             };
         }
 
@@ -927,6 +939,9 @@ namespace TimePilot.WinForms
 
             if (grid == runtimeGrid && column == runtimeSessionCountColumn)
                 return "앱이 이어서 실행된 것으로 관측된 구간 수입니다.";
+
+            if (grid == runtimeGrid && column == runtimeStatusColumn)
+                return "현재 설정 기준으로 실행 중, 종료, 추적 범위 밖 상태를 표시합니다.";
 
             return null;
         }

@@ -450,6 +450,7 @@
             runtimeStatusColumn.Name = "runtimeStatusColumn";
             runtimeStatusColumn.ReadOnly = true;
             runtimeStatusColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeStatusColumn.ToolTipText = "현재 설정 기준으로 실행 중, 종료, 추적 범위 밖 상태를 표시합니다.";
             runtimeStatusColumn.Width = 90;
             //
             // runtimeSegmentsGrid
