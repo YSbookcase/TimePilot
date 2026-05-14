@@ -86,10 +86,25 @@ ended_at
 duration_ms
 last_heartbeat_at
 shutdown_reason
+system_booted_at
 app_version
 ```
 
-이전 실행 세션에 `ended_at`이 없다면 다음 앱 시작 시 비정상 종료로 간주하고, 가능한 경우 마지막 heartbeat 시간을 종료 시간으로 사용한다.
+`system_booted_at`은 현재 Windows 부팅 세션의 시스템 시작 시각 추정값이다. 현재 UTC 시간과 시스템 부팅 후 경과 시간을 기준으로 계산한다. 이 값은 Windows 로그인 시각이나 바탕화면이 표시된 시각이 아니다.
+
+이전 실행 세션에 `ended_at`이 없다면 다음 앱 시작 시 가능한 경우 마지막 heartbeat 시간을 종료 시간으로 사용해 세션을 닫는다.
+
+현재 `shutdown_reason` 값은 다음과 같다.
+
+```text
+running
+normal
+unexpected
+system-shutdown
+clear-data
+```
+
+`system-shutdown`은 이전 실행 세션이 현재와 다른 Windows 부팅 세션에 속할 때 사용한다. 이를 통해 Windows 다시 시작, 종료, PC 전원 버튼 재시작을 앱 비정상 종료로 오해하지 않도록 한다.
 
 ### 3.2 apps
 
@@ -120,6 +135,7 @@ app_id
 started_at
 ended_at
 duration_ms
+last_observed_at
 ```
 
 `window_title`은 문서명, 웹페이지 제목, 대화명 등을 포함할 수 있으므로 기본 저장 대상에서 제외한다.
@@ -156,11 +172,16 @@ ended_at
 duration_ms
 first_observed_at
 last_observed_at
+tracking_scope
+has_main_window
+is_current_session_process
 ```
 
 프로세스 목록을 일정 주기로 스캔하고, 이전 스냅샷과 비교해서 시작/종료를 추정한다.
 
 초기 스캔 주기는 30초 또는 60초 정도로 시작한다.
+
+`tracking_scope`, `has_main_window`, `is_current_session_process`는 프로세스가 어떤 기준으로 관측되었는지 설명하기 위한 맥락 정보다. 향후 현재 추적 범위 밖 상태와 실제 종료 상태를 구분할 때도 활용할 수 있다.
 
 ---
 
@@ -186,6 +207,56 @@ Visual Studio 실제 활동 시간: 2시간 20분
 process_runtime_sessions에는 존재
 foreground_sessions에는 거의 없음
 ```
+
+### 4.1 기록 커버리지와 미기록 시간
+
+TimePilot 실행 세션은 앱이 활동을 관측할 수 있었던 시간을 판단하는 기준이다. 실행 세션 사이의 빈 구간은 미기록 또는 미실행 시간으로 표시할 수 있다.
+
+현재 타임라인 동작은 다음과 같다.
+
+- TimePilot 실행 세션 사이의 빈 구간은 타임라인에 표시용 행으로 나타낸다.
+- 이 행은 별도 DB 레코드로 저장하지 않는다.
+- 미기록 시간은 원인을 단정하지 않는다. TimePilot 종료, Windows 절전, PC 종료, 앱 중단 등 여러 이유일 수 있다.
+
+향후 기록 커버리지 통계에서는 다음 값을 활용할 수 있다.
+
+- 선택한 날짜의 TimePilot 총 실행 시간
+- 총 미기록 시간
+- 가장 긴 미기록 구간
+- 기록 커버리지 비율
+- `system_booted_at`과 첫 TimePilot `started_at` 사이의 차이를 활용한 "부팅 후 TimePilot 미실행" 구간
+
+### 4.2 프로세스 실행 시간 표시 기준
+
+상세 탭은 프로세스 실행 시간과 마지막 감지 시각을 분리해서 표시한다.
+
+- 실행 중인 세션의 실행 시간은 화면 표시 시 현재 시각까지 계산한다.
+- 종료된 세션의 실행 시간은 저장된 종료 시각까지 계산한다.
+- `LastObservedAt`은 실제 `process_runtime_sessions.last_observed_at` 값을 기준으로 한다.
+- `LastObservedAt`은 프로세스 스캔이 다시 관측하지 않는 한 1초마다 증가하지 않아야 한다.
+
+이를 통해 프로세스 스캔 주기와 1초 UI 갱신 주기를 구분한다.
+
+### 4.3 백그라운드 추적 안전모드
+
+위험한 백그라운드 프로세스 추적 설정은 일부 환경에서 과도한 스캔이나 반복 실패를 유발할 수 있다. TimePilot은 위험 설정 저장 시 사용자 승인을 기록하고, 짧은 비정상 종료가 반복될 때만 안전모드를 적용한다.
+
+위험 설정 기준은 다음과 같다.
+
+```text
+모든 프로세스 + 10초 이하
+모든 사용자 프로세스 + 5초 이하
+어떤 범위든 3초 이하
+```
+
+안전모드 판단 기준은 다음과 같다.
+
+- 현재 설정이 위험 설정이다.
+- 최근 실행 세션이 `unexpected`로 종료되었다.
+- 해당 `unexpected` 세션이 짧은 실행 시간 후 종료되었다.
+- `system-shutdown`으로 분류된 종료는 제외한다.
+
+안전모드는 백그라운드 프로세스 실행 시간 추적만 비활성화한다. 활성 창 추적, 유휴 추적, 요약, 타임라인은 계속 동작해야 한다.
 
 ---
 
@@ -223,6 +294,7 @@ foreground_sessions에는 거의 없음
 - 주기적으로 실행 중인 프로세스 목록을 스캔한다.
 - 이전 스냅샷과 비교해서 `process_runtime_sessions`를 만든다.
 - CPU/메모리 같은 리소스 값은 저장하지 않는다.
+- 기록 커버리지와 미기록 시간 설명을 추가한다.
 
 ---
 

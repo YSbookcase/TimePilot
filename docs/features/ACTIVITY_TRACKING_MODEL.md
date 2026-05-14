@@ -72,10 +72,25 @@ ended_at
 duration_ms
 last_heartbeat_at
 shutdown_reason
+system_booted_at
 app_version
 ```
 
-If the previous runtime session has no `ended_at`, the next app start should mark it as unexpected using the last heartbeat time when available.
+`system_booted_at` stores an estimated Windows system start time for the current boot session. It is calculated from the current UTC time and the system uptime. This is not the Windows login time or the time when the desktop appeared.
+
+If the previous runtime session has no `ended_at`, the next app start should close it using the last heartbeat time when available.
+
+The current shutdown reason values are:
+
+```text
+running
+normal
+unexpected
+system-shutdown
+clear-data
+```
+
+`system-shutdown` is used when the previous runtime session belongs to a different Windows boot session. This prevents Windows restart, shutdown, or power-button restart from being treated as an app crash.
 
 ### 3.2 apps
 
@@ -102,6 +117,7 @@ app_id
 started_at
 ended_at
 duration_ms
+last_observed_at
 ```
 
 Window titles are privacy-sensitive and should not be stored by default.
@@ -134,9 +150,14 @@ ended_at
 duration_ms
 first_observed_at
 last_observed_at
+tracking_scope
+has_main_window
+is_current_session_process
 ```
 
 The process list can be sampled every 30 or 60 seconds at first. Resource metrics are intentionally excluded.
+
+`tracking_scope`, `has_main_window`, and `is_current_session_process` preserve enough context to explain how the process was observed. They can also help distinguish current tracking-scope visibility from actual process termination.
 
 ---
 
@@ -155,6 +176,56 @@ exists in process_runtime_sessions
 rarely or never appears in foreground_sessions
 ```
 
+### 4.1 Runtime Coverage And Missing Time
+
+TimePilot runtime sessions are used to identify when the app could observe activity. Gaps between runtime sessions can be shown as missing or untracked time.
+
+Current timeline behavior:
+
+- Missing TimePilot runtime gaps are displayed in the timeline as display-only rows.
+- These rows are not stored as separate DB records.
+- Missing time does not imply a specific cause. It can mean TimePilot was closed, Windows was asleep, the PC was off, or the app was interrupted.
+
+Future coverage statistics can use:
+
+- Total TimePilot runtime for the selected day
+- Total missing time
+- Longest missing interval
+- Coverage ratio
+- The gap between `system_booted_at` and the first TimePilot `started_at` as a possible "TimePilot not running after boot" interval
+
+### 4.2 Process Runtime Display Rules
+
+The detail tab separates process runtime duration from the last observed time.
+
+- Running session runtime duration is calculated up to the current time for display.
+- Ended session runtime duration is calculated up to the stored end time.
+- `LastObservedAt` is based on the actual `process_runtime_sessions.last_observed_at` value.
+- `LastObservedAt` should not advance every second unless a process scan actually observed the process again.
+
+This keeps the process scan interval distinct from the 1-second UI refresh interval.
+
+### 4.3 Background Tracking Safe Mode
+
+Risky background process tracking settings can cause heavy scanning or repeated failures on some machines. TimePilot records user approval for risky settings and applies a safe mode only when a repeated short unexpected-exit pattern is detected.
+
+Risky setting thresholds:
+
+```text
+All processes + 10 seconds or less
+User processes + 5 seconds or less
+Any scope + 3 seconds or less
+```
+
+Safe mode criteria:
+
+- The current setting is risky.
+- The most recent runtime sessions ended as `unexpected`.
+- The unexpected sessions were short.
+- Shutdowns classified as `system-shutdown` are excluded.
+
+Safe mode only disables background process runtime tracking. Foreground tracking, idle tracking, summaries, and timelines should continue to work.
+
 ---
 
 ## 5. Implementation Order
@@ -164,7 +235,8 @@ rarely or never appears in foreground_sessions
 3. Add idle sessions.
 4. Store `apps`, `app_runtime_sessions`, `foreground_sessions`, and `idle_sessions` in SQLite.
 5. Add time-only `process_runtime_sessions`.
-6. Defer resource tracking until the time model is stable.
+6. Add runtime coverage and missing-time explanations.
+7. Defer resource tracking until the time model is stable.
 
 ---
 
