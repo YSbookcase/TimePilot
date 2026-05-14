@@ -268,3 +268,94 @@ process runtime time
 ```
 
 Resource metrics such as CPU, memory, disk, and network usage are deferred until the time model is stable.
+
+---
+
+## 8. Time And Storage Convention
+
+Persist timestamps in UTC using round-trip date/time strings. UI code should convert timestamps to local time for display.
+
+Current storage path:
+
+```text
+%LocalAppData%\TimePilot
+```
+
+Main local files:
+
+```text
+timepilot.db
+settings.json
+```
+
+The app may keep user data and settings after uninstall. A complete manual cleanup requires deleting the local TimePilot data directory.
+
+Runtime shutdown reasons should be explicit enough to avoid confusing app crashes with system lifecycle events.
+
+Known `app_runtime_sessions.shutdown_reason` values:
+
+```text
+running
+normal
+unexpected
+system-shutdown
+clear-data
+```
+
+`system_booted_at` is an estimated Windows system start time derived from system uptime. It is not a login time and should be described carefully in UI, documentation, and issue discussions.
+
+---
+
+## 9. Build And Release Verification
+
+For normal verification builds, use the alternate output path so local app binaries do not interfere with installed or running copies:
+
+```powershell
+dotnet build TimePilot.sln --no-restore /p:OutputPath=E:\Program_Study\TimePilot\TimePilot.WinForms\bin\CodexVerify\
+```
+
+For release or installer test artifacts, use:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File scripts\build-release.ps1 -Version <version>
+```
+
+This creates artifacts under:
+
+```text
+artifacts/release
+```
+
+Expected outputs:
+
+```text
+TimePilot-<version>-Setup.exe
+TimePilot-<version>-win-x64-portable.zip
+```
+
+Installer builds require Inno Setup. Test installer versions should not be confused with public GitHub Releases.
+
+Before release, verify at least:
+
+- Build succeeds with no errors.
+- The installer installs and launches TimePilot.
+- Single-instance behavior works.
+- Windows startup preference works.
+- Uninstall removes installed binaries while preserving local data and settings.
+- Risky background tracking safe mode does not trigger on normal Windows restart or power-button restart.
+
+---
+
+## 10. Documentation Maintenance
+
+When behavior changes affect tracking semantics, storage schema, safety behavior, or release workflow, update the relevant docs in the same PR or a nearby documentation PR.
+
+High-priority docs:
+
+```text
+docs/features/ACTIVITY_TRACKING_MODEL.md
+docs/PROJECT_PLAN.md
+docs/DEVELOPMENT_GUIDE.md
+```
+
+Keep issue and PR descriptions aligned with the current labels and the bracketed issue title style used in the repository.

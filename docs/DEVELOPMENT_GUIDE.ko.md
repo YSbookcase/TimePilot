@@ -268,3 +268,97 @@ display_name
 ```
 
 CPU, 메모리, 디스크, 네트워크 같은 리소스 지표는 시간 모델이 안정화된 뒤 향후 확장으로 다룬다.
+
+---
+
+## 8. 시간 및 저장 규칙
+
+시간 값은 UTC 기준 round-trip 문자열로 저장한다. UI에서는 로컬 시간으로 변환해서 표시한다.
+
+현재 저장 위치:
+
+```text
+%LocalAppData%\TimePilot
+```
+
+주요 로컬 파일:
+
+```text
+timepilot.db
+settings.json
+```
+
+앱을 제거해도 사용자 기록과 설정은 유지될 수 있다. 완전히 삭제하려면 로컬 TimePilot 데이터 폴더를 직접 삭제해야 한다.
+
+앱 실행 세션의 종료 사유는 앱 크래시와 시스템 생명주기 이벤트를 혼동하지 않도록 명확하게 기록한다.
+
+알려진 `app_runtime_sessions.shutdown_reason` 값:
+
+```text
+running
+normal
+unexpected
+system-shutdown
+clear-data
+```
+
+`system_booted_at`은 시스템 부팅 후 경과 시간을 기준으로 추정한 Windows 시스템 시작 시각이다. Windows 로그인 시각이 아니므로 UI, 문서, 이슈 논의에서 설명할 때 주의한다.
+
+---
+
+## 9. 빌드 및 릴리즈 검증
+
+일반 검증 빌드는 설치본 또는 실행 중인 앱과 충돌하지 않도록 별도 출력 경로를 사용한다.
+
+```powershell
+dotnet build TimePilot.sln --no-restore /p:OutputPath=E:\Program_Study\TimePilot\TimePilot.WinForms\bin\CodexVerify\
+```
+
+릴리즈 또는 설치 파일 테스트 산출물은 다음 명령으로 만든다.
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File scripts\build-release.ps1 -Version <version>
+```
+
+산출물 위치:
+
+```text
+artifacts/release
+```
+
+예상 산출물:
+
+```text
+TimePilot-<version>-Setup.exe
+TimePilot-<version>-win-x64-portable.zip
+```
+
+설치 파일 빌드에는 Inno Setup이 필요하다. 테스트용 설치 파일 버전은 공개 GitHub Release와 혼동하지 않도록 주의한다.
+
+릴리즈 전에는 최소한 다음을 확인한다.
+
+- 빌드가 오류 없이 성공한다.
+- 설치 파일로 설치 후 TimePilot이 실행된다.
+- 중복 실행 방지가 동작한다.
+- Windows 시작 시 자동 실행 설정이 동작한다.
+- 제거 시 설치된 바이너리는 제거되고 로컬 데이터와 설정은 유지된다.
+- 위험한 백그라운드 추적 안전모드가 일반 Windows 다시 시작 또는 PC 전원 버튼 재시작에서 오탐하지 않는다.
+
+---
+
+## 10. 문서 유지보수
+
+추적 의미, 저장 스키마, 안전 동작, 릴리즈 절차가 바뀌는 작업은 같은 PR 또는 가까운 문서 PR에서 관련 문서를 업데이트한다.
+
+우선순위가 높은 문서:
+
+```text
+docs/features/ACTIVITY_TRACKING_MODEL.md
+docs/features/ACTIVITY_TRACKING_MODEL.ko.md
+docs/PROJECT_PLAN.md
+docs/PROJECT_PLAN.ko.md
+docs/DEVELOPMENT_GUIDE.md
+docs/DEVELOPMENT_GUIDE.ko.md
+```
+
+이슈와 PR 설명은 저장소에서 사용 중인 라벨과 대괄호 이슈 제목 형식에 맞춘다.
