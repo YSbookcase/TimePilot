@@ -25,6 +25,7 @@ namespace TimePilot.WinForms
         private string usageSortProperty = nameof(UsageSummaryRow.ActiveUsageMs);
         private string runtimeSortProperty = nameof(ProcessRuntimeSummaryRow.RuntimeMs);
         private string runtimeSegmentSortProperty = nameof(ProcessRuntimeSegmentRow.StartedAt);
+        private SummaryPeriod selectedSummaryPeriod = SummaryPeriod.Today;
         private SortOrder usageSortOrder = SortOrder.Descending;
         private SortOrder runtimeSortOrder = SortOrder.Descending;
         private SortOrder runtimeSegmentSortOrder = SortOrder.Descending;
@@ -49,12 +50,14 @@ namespace TimePilot.WinForms
         private DateTimeOffset? lastProcessRuntimeSampleAt;
         private DateTimeOffset? lastSampleTickAt;
         private bool processRuntimeSafeModeActivated;
+        private bool isInitializingSummaryPeriodSelector;
 
         public Form1(bool startMinimizedToTray = false)
         {
             this.startMinimizedToTray = startMinimizedToTray;
 
             InitializeComponent();
+            InitializeSummaryPeriodSelector();
 
             if (IsRunningInDesigner())
             {
@@ -231,6 +234,50 @@ namespace TimePilot.WinForms
             return now - TimeSpan.FromMilliseconds(Environment.TickCount64);
         }
 
+        private void InitializeSummaryPeriodSelector()
+        {
+            isInitializingSummaryPeriodSelector = true;
+            try
+            {
+                summaryPeriodComboBox.Items.Clear();
+                summaryPeriodComboBox.Items.AddRange(SummaryPeriodOption.All.Cast<object>().ToArray());
+                summaryPeriodComboBox.SelectedIndex = 0;
+            }
+            finally
+            {
+                isInitializingSummaryPeriodSelector = false;
+            }
+        }
+
+        private static SummaryPeriodRange GetSummaryPeriodRange(DateTimeOffset observedAt, SummaryPeriod period)
+        {
+            var localNow = observedAt.ToLocalTime();
+            var localDate = localNow.Date;
+            var periodStart = period switch
+            {
+                SummaryPeriod.ThisWeek => localDate.AddDays(-GetDaysSinceMonday(localDate.DayOfWeek)),
+                SummaryPeriod.ThisMonth => new DateTime(localDate.Year, localDate.Month, 1),
+                SummaryPeriod.ThisYear => new DateTime(localDate.Year, 1, 1),
+                _ => localDate
+            };
+            var periodEnd = period switch
+            {
+                SummaryPeriod.ThisWeek => periodStart.AddDays(7),
+                SummaryPeriod.ThisMonth => periodStart.AddMonths(1),
+                SummaryPeriod.ThisYear => periodStart.AddYears(1),
+                _ => periodStart.AddDays(1)
+            };
+
+            var start = new DateTimeOffset(periodStart, TimeZoneInfo.Local.GetUtcOffset(periodStart));
+            var end = new DateTimeOffset(periodEnd, TimeZoneInfo.Local.GetUtcOffset(periodEnd));
+            return new SummaryPeriodRange(start, end, period != SummaryPeriod.Today);
+        }
+
+        private static int GetDaysSinceMonday(DayOfWeek dayOfWeek)
+        {
+            return ((int)dayOfWeek + 6) % 7;
+        }
+
         private void ConfigureDesignPreview()
         {
             statusLabel.Text = "전경: Visual Studio · 활성";
@@ -385,6 +432,7 @@ namespace TimePilot.WinForms
             var appIdToRestore = selectedRuntimeAppId ?? GetSelectedRuntimeAppId();
             var runtimeHorizontalOffset = GetHorizontalScrollingOffset(runtimeGrid);
             var selectedTab = mainTabs.SelectedTab;
+            var summaryPeriodRange = GetSummaryPeriodRange(observedAt, selectedSummaryPeriod);
             isViewRefreshRunning = true;
             ViewRefreshSnapshot snapshot;
             try
@@ -393,7 +441,7 @@ namespace TimePilot.WinForms
                 {
                     var readStopwatch = Stopwatch.StartNew();
                     var foregroundUsage = selectedTab == summaryTab
-                        ? storage.GetForegroundUsageForDay(observedAt)
+                        ? storage.GetForegroundUsageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
                         : null;
                     var runtimeCoverage = selectedTab == summaryTab
                         ? storage.GetRuntimeCoverageForDay(observedAt)
@@ -412,6 +460,7 @@ namespace TimePilot.WinForms
                     return new ViewRefreshSnapshot(
                         foregroundUsage,
                         runtimeCoverage,
+                        summaryPeriodRange.ShowDateInTimestamps,
                         timelineRows,
                         runtimeRows,
                         runtimeSegmentRows,
@@ -437,7 +486,8 @@ namespace TimePilot.WinForms
                 SetGridDataSourcePreservingView(
                     usageGrid,
                     AddIcons(SortUsageSummaryRows(UsageSummaryRowBuilder.FromForegroundUsage(
-                        snapshot.ForegroundUsage))));
+                        snapshot.ForegroundUsage,
+                        snapshot.ShowDateInUsageTimestamps))));
             }
 
             if (snapshot.TimelineRows is not null)
@@ -802,6 +852,18 @@ namespace TimePilot.WinForms
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
+        private void OnSummaryPeriodComboBoxSelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (isInitializingSummaryPeriodSelector)
+                return;
+
+            if (summaryPeriodComboBox.SelectedItem is not SummaryPeriodOption option)
+                return;
+
+            selectedSummaryPeriod = option.Period;
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
         private void OnRuntimeGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
         {
             if (e.ColumnIndex < 0)
@@ -952,7 +1014,7 @@ namespace TimePilot.WinForms
             headerToolTipLabel.Location = new Point(0, 0);
             headerToolTipLabel.Padding = new Padding(8, 5, 8, 5);
             headerToolTipLabel.Size = new Size(274, 42);
-            headerToolTipLabel.Text = "오늘 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
+            headerToolTipLabel.Text = "선택 기간 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
 
             headerToolTipForm.BackColor = SystemColors.Info;
             headerToolTipForm.ClientSize = headerToolTipLabel.Size;
@@ -996,7 +1058,7 @@ namespace TimePilot.WinForms
         private string? GetHeaderToolTipText(DataGridView grid, DataGridViewColumn column)
         {
             if (grid == usageGrid && column == usageRatioColumn)
-                return "오늘 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
+                return "선택 기간 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
 
             if (grid == runtimeGrid && column == runtimeLastObservedAtColumn)
                 return "백그라운드 앱 추적이 실제로 마지막 관측한 시각입니다.";
@@ -1297,9 +1359,39 @@ namespace TimePilot.WinForms
         private sealed record ViewRefreshSnapshot(
             IReadOnlyList<ForegroundUsageSummary>? ForegroundUsage,
             RuntimeCoverageSummary? RuntimeCoverage,
+            bool ShowDateInUsageTimestamps,
             IReadOnlyList<ActivityTimelineRow>? TimelineRows,
             IReadOnlyList<ProcessRuntimeSummaryRow>? RuntimeRows,
             IReadOnlyList<ProcessRuntimeSegmentRow>? RuntimeSegmentRows,
             long ReadElapsedMs);
+
+        private enum SummaryPeriod
+        {
+            Today,
+            ThisWeek,
+            ThisMonth,
+            ThisYear
+        }
+
+        private sealed record SummaryPeriodRange(
+            DateTimeOffset Start,
+            DateTimeOffset End,
+            bool ShowDateInTimestamps);
+
+        private sealed record SummaryPeriodOption(SummaryPeriod Period, string DisplayName)
+        {
+            public static IReadOnlyList<SummaryPeriodOption> All { get; } =
+            [
+                new(SummaryPeriod.Today, "오늘"),
+                new(SummaryPeriod.ThisWeek, "이번 주"),
+                new(SummaryPeriod.ThisMonth, "이번 달"),
+                new(SummaryPeriod.ThisYear, "올해")
+            ];
+
+            public override string ToString()
+            {
+                return DisplayName;
+            }
+        }
     }
 }

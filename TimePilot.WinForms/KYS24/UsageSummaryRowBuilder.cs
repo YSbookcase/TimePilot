@@ -20,7 +20,9 @@ namespace TimePilot.WinForms.KYS24
                 .ToList();
         }
 
-        public static IReadOnlyList<UsageSummaryRow> FromForegroundUsage(IReadOnlyList<ForegroundUsageSummary> summaries)
+        public static IReadOnlyList<UsageSummaryRow> FromForegroundUsage(
+            IReadOnlyList<ForegroundUsageSummary> summaries,
+            bool showDateInTimestamps = false)
         {
             var totalMs = summaries.Sum(x => x.ActiveUsageMs);
             if (totalMs <= 0)
@@ -37,7 +39,8 @@ namespace TimePilot.WinForms.KYS24
                     x.SwitchCount,
                     null,
                     x.FirstStartedAt,
-                    x.LastObservedAt))
+                    x.LastObservedAt,
+                    showDateInTimestamps))
                 .ToList();
         }
     }

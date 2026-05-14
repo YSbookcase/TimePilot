@@ -10,6 +10,24 @@
         [STAThread]
         static void Main(string[] args)
         {
+            if (args.Contains("--seed-sample-data"))
+            {
+                KYS24.SampleDataSeeder.SeedDefault();
+                return;
+            }
+
+            if (args.Contains("--clear-sample-data"))
+            {
+                KYS24.SampleDataSeeder.Clear();
+                return;
+            }
+
+            if (args.Contains("--check-sample-data"))
+            {
+                Console.WriteLine(KYS24.SampleDataSeeder.GetStatusText());
+                return;
+            }
+
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();

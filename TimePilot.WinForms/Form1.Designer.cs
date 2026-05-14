@@ -29,6 +29,9 @@
             statusLabel = new Label();
             mainTabs = new TabControl();
             summaryTab = new TabPage();
+            summaryPeriodPanel = new FlowLayoutPanel();
+            summaryPeriodLabel = new Label();
+            summaryPeriodComboBox = new ComboBox();
             runtimeCoverageSummaryPanel = new FlowLayoutPanel();
             runtimeCoverageSummaryToolTip = new ToolTip(components);
             usageGrid = new BufferedDataGridView();
@@ -168,6 +171,7 @@
             // 
             summaryTab.Controls.Add(usageGrid);
             summaryTab.Controls.Add(runtimeCoverageSummaryPanel);
+            summaryTab.Controls.Add(summaryPeriodPanel);
             summaryTab.Location = new Point(4, 24);
             summaryTab.Name = "summaryTab";
             summaryTab.Padding = new Padding(3);
@@ -176,10 +180,42 @@
             summaryTab.Text = "요약";
             summaryTab.UseVisualStyleBackColor = true;
             // 
+            // summaryPeriodPanel
+            // 
+            summaryPeriodPanel.Controls.Add(summaryPeriodLabel);
+            summaryPeriodPanel.Controls.Add(summaryPeriodComboBox);
+            summaryPeriodPanel.Dock = DockStyle.Top;
+            summaryPeriodPanel.Location = new Point(3, 3);
+            summaryPeriodPanel.Name = "summaryPeriodPanel";
+            summaryPeriodPanel.Padding = new Padding(8, 4, 8, 2);
+            summaryPeriodPanel.Size = new Size(706, 36);
+            summaryPeriodPanel.TabIndex = 3;
+            summaryPeriodPanel.WrapContents = false;
+            // 
+            // summaryPeriodLabel
+            // 
+            summaryPeriodLabel.AutoSize = true;
+            summaryPeriodLabel.Location = new Point(11, 10);
+            summaryPeriodLabel.Margin = new Padding(0, 6, 8, 0);
+            summaryPeriodLabel.Name = "summaryPeriodLabel";
+            summaryPeriodLabel.Size = new Size(31, 15);
+            summaryPeriodLabel.TabIndex = 0;
+            summaryPeriodLabel.Text = "기간";
+            // 
+            // summaryPeriodComboBox
+            // 
+            summaryPeriodComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            summaryPeriodComboBox.FormattingEnabled = true;
+            summaryPeriodComboBox.Location = new Point(50, 7);
+            summaryPeriodComboBox.Name = "summaryPeriodComboBox";
+            summaryPeriodComboBox.Size = new Size(120, 23);
+            summaryPeriodComboBox.TabIndex = 1;
+            summaryPeriodComboBox.SelectedIndexChanged += OnSummaryPeriodComboBoxSelectedIndexChanged;
+            // 
             // runtimeCoverageSummaryPanel
             // 
             runtimeCoverageSummaryPanel.Dock = DockStyle.Top;
-            runtimeCoverageSummaryPanel.Location = new Point(3, 3);
+            runtimeCoverageSummaryPanel.Location = new Point(3, 39);
             runtimeCoverageSummaryPanel.Name = "runtimeCoverageSummaryPanel";
             runtimeCoverageSummaryPanel.Padding = new Padding(8, 4, 8, 4);
             runtimeCoverageSummaryPanel.Size = new Size(706, 48);
@@ -200,14 +236,14 @@
             usageGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             usageGrid.Columns.AddRange(new DataGridViewColumn[] { appIconColumn, appNameColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, usageRatioColumn, switchCountColumn });
             usageGrid.Dock = DockStyle.Fill;
-            usageGrid.Location = new Point(3, 51);
+            usageGrid.Location = new Point(3, 87);
             usageGrid.MultiSelect = false;
             usageGrid.Name = "usageGrid";
             usageGrid.ReadOnly = true;
             usageGrid.RowHeadersVisible = false;
             usageGrid.ScrollBars = ScrollBars.Both;
             usageGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            usageGrid.Size = new Size(706, 366);
+            usageGrid.Size = new Size(706, 330);
             usageGrid.TabIndex = 1;
             usageGrid.ColumnHeaderMouseClick += OnUsageGridColumnHeaderMouseClick;
             // 
@@ -236,21 +272,21 @@
             // 
             firstStartedAtColumn.DataPropertyName = "FirstStartedAtText";
             firstStartedAtColumn.HeaderText = "첫 시작";
-            firstStartedAtColumn.MinimumWidth = 90;
+            firstStartedAtColumn.MinimumWidth = 120;
             firstStartedAtColumn.Name = "firstStartedAtColumn";
             firstStartedAtColumn.ReadOnly = true;
             firstStartedAtColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
-            firstStartedAtColumn.Width = 100;
+            firstStartedAtColumn.Width = 145;
             // 
             // lastObservedAtColumn
             // 
             lastObservedAtColumn.DataPropertyName = "LastObservedAtText";
             lastObservedAtColumn.HeaderText = "마지막 감지";
-            lastObservedAtColumn.MinimumWidth = 100;
+            lastObservedAtColumn.MinimumWidth = 120;
             lastObservedAtColumn.Name = "lastObservedAtColumn";
             lastObservedAtColumn.ReadOnly = true;
             lastObservedAtColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
-            lastObservedAtColumn.Width = 110;
+            lastObservedAtColumn.Width = 145;
             // 
             // activeUsageTimeColumn
             // 
@@ -270,7 +306,7 @@
             usageRatioColumn.Name = "usageRatioColumn";
             usageRatioColumn.ReadOnly = true;
             usageRatioColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
-            usageRatioColumn.ToolTipText = "오늘 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
+            usageRatioColumn.ToolTipText = "선택 기간 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
             usageRatioColumn.Width = 90;
             // 
             // switchCountColumn
@@ -687,6 +723,9 @@
         private Label statusLabel;
         private TabControl mainTabs;
         private TabPage summaryTab;
+        private FlowLayoutPanel summaryPeriodPanel;
+        private Label summaryPeriodLabel;
+        private ComboBox summaryPeriodComboBox;
         private FlowLayoutPanel runtimeCoverageSummaryPanel;
         private ToolTip runtimeCoverageSummaryToolTip;
         private DataGridView usageGrid;
