@@ -17,6 +17,7 @@ namespace TimePilot.WinForms
         private readonly object processRuntimeTrackingLock = new();
         private readonly Form headerToolTipForm = new();
         private readonly Label headerToolTipLabel = new();
+        private readonly List<Label> runtimeCoverageSummaryLabels = new();
         private readonly NotifyIcon trayIcon = new();
         private readonly ContextMenuStrip trayMenu = new();
         private readonly bool startMinimizedToTray;
@@ -233,6 +234,11 @@ namespace TimePilot.WinForms
         private void ConfigureDesignPreview()
         {
             statusLabel.Text = "전경: Visual Studio · 활성";
+            SetRuntimeCoverageSummaryParts(
+                "오늘 0시~현재 기록 커버리지 98.1%",
+                "기록 07:48:12",
+                "미기록 00:09:00",
+                "최장 미기록 00:04:12");
             usageGrid.DataSource = AddIcons(new List<UsageSummaryRow>
             {
                 new("Microsoft Visual Studio", "devenv", null, 3_900_000, 0.54, 8, null, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now),
@@ -245,6 +251,65 @@ namespace TimePilot.WinForms
                 new("유휴", DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-45), 900_000, "devenv"),
                 new("활성", DateTimeOffset.Now.AddMinutes(-45), null, 2_700_000, "chrome")
             });
+        }
+
+        private void SetRuntimeCoverageSummary(RuntimeCoverageSummary? summary)
+        {
+            if (summary is null)
+            {
+                SetRuntimeCoverageSummaryParts("기록 커버리지 -");
+                return;
+            }
+
+            SetRuntimeCoverageSummaryParts(summary.SummaryParts);
+        }
+
+        private void SetRuntimeCoverageSummaryParts(params string[] parts)
+        {
+            SetRuntimeCoverageSummaryParts((IEnumerable<string>)parts);
+        }
+
+        private void SetRuntimeCoverageSummaryParts(IEnumerable<string> parts)
+        {
+            var partList = parts.ToList();
+            var toolTipText = runtimeCoverageSummaryToolTip.GetToolTip(runtimeCoverageSummaryPanel);
+
+            runtimeCoverageSummaryPanel.SuspendLayout();
+            try
+            {
+                while (runtimeCoverageSummaryLabels.Count < partList.Count)
+                {
+                    var label = new Label
+                    {
+                        AutoSize = true,
+                        Margin = new Padding(0, 4, 14, 0),
+                        TextAlign = ContentAlignment.MiddleLeft
+                    };
+
+                    runtimeCoverageSummaryToolTip.SetToolTip(label, toolTipText);
+                    runtimeCoverageSummaryLabels.Add(label);
+                    runtimeCoverageSummaryPanel.Controls.Add(label);
+                }
+
+                for (var i = 0; i < partList.Count; i++)
+                {
+                    if (runtimeCoverageSummaryLabels[i].Text != partList[i])
+                        runtimeCoverageSummaryLabels[i].Text = partList[i];
+                }
+
+                while (runtimeCoverageSummaryLabels.Count > partList.Count)
+                {
+                    var lastIndex = runtimeCoverageSummaryLabels.Count - 1;
+                    var label = runtimeCoverageSummaryLabels[lastIndex];
+                    runtimeCoverageSummaryLabels.RemoveAt(lastIndex);
+                    runtimeCoverageSummaryPanel.Controls.Remove(label);
+                    label.Dispose();
+                }
+            }
+            finally
+            {
+                runtimeCoverageSummaryPanel.ResumeLayout();
+            }
         }
 
         private void ConfigureTrayIcon()
@@ -330,6 +395,9 @@ namespace TimePilot.WinForms
                     var foregroundUsage = selectedTab == summaryTab
                         ? storage.GetForegroundUsageForDay(observedAt)
                         : null;
+                    var runtimeCoverage = selectedTab == summaryTab
+                        ? storage.GetRuntimeCoverageForDay(observedAt)
+                        : null;
                     var timelineRows = selectedTab == timelineTab
                         ? storage.GetActivityTimelineForDay(observedAt)
                         : null;
@@ -343,6 +411,7 @@ namespace TimePilot.WinForms
 
                     return new ViewRefreshSnapshot(
                         foregroundUsage,
+                        runtimeCoverage,
                         timelineRows,
                         runtimeRows,
                         runtimeSegmentRows,
@@ -364,6 +433,7 @@ namespace TimePilot.WinForms
             var applyStopwatch = Stopwatch.StartNew();
             if (snapshot.ForegroundUsage is not null)
             {
+                SetRuntimeCoverageSummary(snapshot.RuntimeCoverage);
                 SetGridDataSourcePreservingView(
                     usageGrid,
                     AddIcons(SortUsageSummaryRows(UsageSummaryRowBuilder.FromForegroundUsage(
@@ -1155,6 +1225,7 @@ namespace TimePilot.WinForms
                 performanceStatusExpiresAt = null;
 
                 SetGridDataSourcePreservingView(usageGrid, Array.Empty<UsageSummaryRow>());
+                SetRuntimeCoverageSummary(null);
                 SetGridDataSourcePreservingView(timelineGrid, Array.Empty<ActivityTimelineRow>());
                 SetGridDataSourcePreservingView(runtimeGrid, Array.Empty<ProcessRuntimeSummaryRow>());
                 SetGridDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
@@ -1225,6 +1296,7 @@ namespace TimePilot.WinForms
 
         private sealed record ViewRefreshSnapshot(
             IReadOnlyList<ForegroundUsageSummary>? ForegroundUsage,
+            RuntimeCoverageSummary? RuntimeCoverage,
             IReadOnlyList<ActivityTimelineRow>? TimelineRows,
             IReadOnlyList<ProcessRuntimeSummaryRow>? RuntimeRows,
             IReadOnlyList<ProcessRuntimeSegmentRow>? RuntimeSegmentRows,

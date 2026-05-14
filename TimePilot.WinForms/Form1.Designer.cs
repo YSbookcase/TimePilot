@@ -17,6 +17,7 @@
 
         private void InitializeComponent()
         {
+            components = new System.ComponentModel.Container();
             mainMenuStrip = new MenuStrip();
             fileMenuItem = new ToolStripMenuItem();
             exportCsvMenuItem = new ToolStripMenuItem();
@@ -28,6 +29,8 @@
             statusLabel = new Label();
             mainTabs = new TabControl();
             summaryTab = new TabPage();
+            runtimeCoverageSummaryPanel = new FlowLayoutPanel();
+            runtimeCoverageSummaryToolTip = new ToolTip(components);
             usageGrid = new BufferedDataGridView();
             appIconColumn = new DataGridViewImageColumn();
             appNameColumn = new DataGridViewTextBoxColumn();
@@ -164,6 +167,7 @@
             // summaryTab
             // 
             summaryTab.Controls.Add(usageGrid);
+            summaryTab.Controls.Add(runtimeCoverageSummaryPanel);
             summaryTab.Location = new Point(4, 24);
             summaryTab.Name = "summaryTab";
             summaryTab.Padding = new Padding(3);
@@ -171,6 +175,17 @@
             summaryTab.TabIndex = 0;
             summaryTab.Text = "요약";
             summaryTab.UseVisualStyleBackColor = true;
+            // 
+            // runtimeCoverageSummaryPanel
+            // 
+            runtimeCoverageSummaryPanel.Dock = DockStyle.Top;
+            runtimeCoverageSummaryPanel.Location = new Point(3, 3);
+            runtimeCoverageSummaryPanel.Name = "runtimeCoverageSummaryPanel";
+            runtimeCoverageSummaryPanel.Padding = new Padding(8, 4, 8, 4);
+            runtimeCoverageSummaryPanel.Size = new Size(706, 48);
+            runtimeCoverageSummaryPanel.TabIndex = 2;
+            runtimeCoverageSummaryPanel.WrapContents = true;
+            runtimeCoverageSummaryToolTip.SetToolTip(runtimeCoverageSummaryPanel, "기록 커버리지는 오늘 0시부터 현재까지의 전체 시간 중 TimePilot이 실행되어 기록할 수 있었던 시간의 비율입니다. 컴퓨터를 실제로 사용한 시간 기준이 아닙니다.\r\n\r\n미기록 시간은 TimePilot이 실행되지 않았거나 기록할 수 없었던 구간입니다. PC 종료, Windows 절전, 앱 종료, 비정상 종료 등이 원인일 수 있으며 정확한 원인은 단정하지 않습니다.\r\n\r\n부팅 후 미실행은 Windows 시스템 시작 후 TimePilot이 처음 실행되기 전까지의 추정 시간입니다. Windows 로그인 시간이 아니라 시스템 시작 시각 기준입니다.");
             // 
             // usageGrid
             // 
@@ -185,14 +200,14 @@
             usageGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             usageGrid.Columns.AddRange(new DataGridViewColumn[] { appIconColumn, appNameColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, usageRatioColumn, switchCountColumn });
             usageGrid.Dock = DockStyle.Fill;
-            usageGrid.Location = new Point(3, 3);
+            usageGrid.Location = new Point(3, 51);
             usageGrid.MultiSelect = false;
             usageGrid.Name = "usageGrid";
             usageGrid.ReadOnly = true;
             usageGrid.RowHeadersVisible = false;
             usageGrid.ScrollBars = ScrollBars.Both;
             usageGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            usageGrid.Size = new Size(706, 414);
+            usageGrid.Size = new Size(706, 366);
             usageGrid.TabIndex = 1;
             usageGrid.ColumnHeaderMouseClick += OnUsageGridColumnHeaderMouseClick;
             // 
@@ -672,6 +687,8 @@
         private Label statusLabel;
         private TabControl mainTabs;
         private TabPage summaryTab;
+        private FlowLayoutPanel runtimeCoverageSummaryPanel;
+        private ToolTip runtimeCoverageSummaryToolTip;
         private DataGridView usageGrid;
         private DataGridViewImageColumn appIconColumn;
         private DataGridViewTextBoxColumn appNameColumn;
