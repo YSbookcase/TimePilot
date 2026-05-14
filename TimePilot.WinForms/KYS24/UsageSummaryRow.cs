@@ -11,7 +11,8 @@ namespace TimePilot.WinForms.KYS24
         int SwitchCount,
         Image? AppIcon = null,
         DateTimeOffset? FirstStartedAt = null,
-        DateTimeOffset? LastObservedAt = null)
+        DateTimeOffset? LastObservedAt = null,
+        bool ShowDateInTimestamps = false)
     {
         public string ActiveUsageTimeText => FormatDuration(ActiveUsageMs);
 
@@ -19,9 +20,9 @@ namespace TimePilot.WinForms.KYS24
 
         public string SwitchCountText => SwitchCount.ToString("N0", CultureInfo.CurrentCulture);
 
-        public string FirstStartedAtText => FormatTime(FirstStartedAt);
+        public string FirstStartedAtText => FormatTimestamp(FirstStartedAt, ShowDateInTimestamps);
 
-        public string LastObservedAtText => FormatTime(LastObservedAt);
+        public string LastObservedAtText => FormatTimestamp(LastObservedAt, ShowDateInTimestamps);
 
         private static string FormatDuration(long durationMs)
         {
@@ -34,9 +35,9 @@ namespace TimePilot.WinForms.KYS24
                 span.Seconds);
         }
 
-        private static string FormatTime(DateTimeOffset? timestamp)
+        private static string FormatTimestamp(DateTimeOffset? timestamp, bool showDate)
         {
-            return timestamp?.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture) ?? "";
+            return timestamp?.ToLocalTime().ToString(showDate ? "yyyy-MM-dd HH:mm:ss" : "HH:mm:ss", CultureInfo.CurrentCulture) ?? "";
         }
     }
 }

@@ -503,6 +503,13 @@ namespace TimePilot.WinForms.KYS24
             var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
             var dayEnd = dayStart.AddDays(1);
 
+            return GetForegroundUsageForPeriod(dayStart, dayEnd);
+        }
+
+        public IReadOnlyList<ForegroundUsageSummary> GetForegroundUsageForPeriod(
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd)
+        {
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText = """
@@ -515,11 +522,11 @@ namespace TimePilot.WinForms.KYS24
                     fs.last_observed_at
                 FROM foreground_sessions fs
                 INNER JOIN apps a ON a.id = fs.app_id
-                WHERE fs.started_at < $dayEnd
-                  AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $dayStart;
+                WHERE fs.started_at < $periodEnd
+                  AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $periodStart;
                 """;
-            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
-            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
 
             var totals = new Dictionary<string, UsageAggregation>(StringComparer.OrdinalIgnoreCase);
             using var reader = command.ExecuteReader();
@@ -532,8 +539,8 @@ namespace TimePilot.WinForms.KYS24
                 var endedAt = reader.IsDBNull(4)
                     ? reader.IsDBNull(5) ? startedAt : ParseTimestamp(reader.GetString(5))
                     : ParseTimestamp(reader.GetString(4));
-                var effectiveStart = Max(startedAt, dayStart);
-                var effectiveEnd = Min(endedAt, dayEnd);
+                var effectiveStart = Max(startedAt, periodStart);
+                var effectiveEnd = Min(endedAt, periodEnd);
                 var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
                 if (durationMs <= 0)
                     continue;
