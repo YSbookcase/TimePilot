@@ -448,6 +448,9 @@ namespace TimePilot.WinForms
 
         private void ReportPerformanceTimings(params (string Name, long ElapsedMs)[] timings)
         {
+            if (!settings.PerformanceDiagnosticsEnabled)
+                return;
+
             var slowTimings = timings
                 .Where(x => x.ElapsedMs >= SlowOperationThresholdMs)
                 .Select(x => $"{x.Name} {x.ElapsedMs}ms")
@@ -463,6 +466,9 @@ namespace TimePilot.WinForms
 
         private void ReportPerformanceEvents(params string[] events)
         {
+            if (!settings.PerformanceDiagnosticsEnabled)
+                return;
+
             if (events.Length == 0)
                 return;
 
@@ -1019,6 +1025,14 @@ namespace TimePilot.WinForms
 
             settings.SetIdleThresholdMinutes(form.IdleThresholdMinutes);
             settings.SetStartWithWindows(form.StartWithWindows);
+            settings.SetPerformanceDiagnosticsEnabled(form.PerformanceDiagnosticsEnabled);
+            if (!settings.PerformanceDiagnosticsEnabled)
+            {
+                performanceStatusText = null;
+                performanceStatusExpiresAt = null;
+                RefreshStatusLabel();
+            }
+
             settings.SetProcessRuntimeTracking(
                 form.ProcessRuntimeTrackingEnabled,
                 form.ProcessRuntimeTrackingScope,
