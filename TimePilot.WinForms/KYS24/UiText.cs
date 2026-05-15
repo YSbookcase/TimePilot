@@ -16,6 +16,11 @@ namespace TimePilot.WinForms.KYS24
         {
             CurrentLanguage = language;
             current = language == UiLanguage.English ? English : Korean;
+            var culture = CultureInfo.GetCultureInfo(language == UiLanguage.English ? "en-US" : "ko-KR");
+            CultureInfo.CurrentCulture = culture;
+            CultureInfo.CurrentUICulture = culture;
+            CultureInfo.DefaultThreadCurrentCulture = culture;
+            CultureInfo.DefaultThreadCurrentUICulture = culture;
         }
 
         public static class Common
@@ -76,7 +81,11 @@ namespace TimePilot.WinForms.KYS24
             public static string Ended => current.Main.Ended;
             public static string OutsideTrackingScope => current.Main.OutsideTrackingScope;
             public static string NoForegroundApp => current.Main.NoForegroundApp;
+            public static string ForegroundPrefix => current.Main.ForegroundPrefix;
             public static string PerformancePrefix => current.Main.PerformancePrefix;
+            public static string CsvFilter => current.Main.CsvFilter;
+            public static string CsvExportTitle => current.Main.CsvExportTitle;
+            public static string AboutTitle => current.Main.AboutTitle;
             public static string UsageRatioTooltip => current.Main.UsageRatioTooltip;
             public static string RuntimeLastObservedTooltip => current.Main.RuntimeLastObservedTooltip;
             public static string RuntimeDurationTooltip => current.Main.RuntimeDurationTooltip;
@@ -91,14 +100,20 @@ namespace TimePilot.WinForms.KYS24
             public static string SafeModeTitle => current.Main.SafeModeTitle;
             public static string SafeModeMessage => current.Main.SafeModeMessage;
             public static string SafeModeBalloonMessage => current.Main.SafeModeBalloonMessage;
+            public static string CsvExportCompleted(int count, string? directory) =>
+                current.Main.CsvExportCompleted(count, directory);
+            public static string CsvExportFailed(string message) => current.Main.CsvExportFailed(message);
         }
 
         public static class Preferences
         {
             public static string Title => current.Preferences.Title;
+            public static string LanguageLabel => current.Preferences.LanguageLabel;
             public static string IdleThresholdLabel => current.Preferences.IdleThresholdLabel;
             public static string MinuteUnit => current.Preferences.MinuteUnit;
             public static string SecondUnit => current.Preferences.SecondUnit;
+            public static string Minutes(int minutes) => current.Preferences.Minutes(minutes);
+            public static string Seconds(int seconds) => current.Preferences.Seconds(seconds);
             public static string StartWithWindows => current.Preferences.StartWithWindows;
             public static string PerformanceDiagnostics => current.Preferences.PerformanceDiagnostics;
             public static string ProcessRuntimeGroup => current.Preferences.ProcessRuntimeGroup;
@@ -228,7 +243,11 @@ namespace TimePilot.WinForms.KYS24
                         Ended: "종료",
                         OutsideTrackingScope: "추적 범위 밖",
                         NoForegroundApp: "(없음)",
+                        ForegroundPrefix: "전경: ",
                         PerformancePrefix: "성능: ",
+                        CsvFilter: "CSV 파일 (*.csv)|*.csv",
+                        CsvExportTitle: "CSV 내보내기",
+                        AboutTitle: "TimePilot 정보",
                         UsageRatioTooltip: "선택 기간 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.",
                         RuntimeLastObservedTooltip: "백그라운드 앱 추적이 실제로 마지막 관측한 시각입니다.",
                         RuntimeDurationTooltip: "실행 중인 앱은 현재 시각 기준으로 계속 증가하고, 종료된 앱은 마지막 관측 시각까지 계산합니다.",
@@ -242,12 +261,17 @@ namespace TimePilot.WinForms.KYS24
                         StartupPromptMessage: "Windows 시작 시 TimePilot을 자동으로 실행할까요?\n\n나중에 환경 설정에서 언제든 변경할 수 있습니다.",
                         SafeModeTitle: "TimePilot 안전모드",
                         SafeModeMessage: "이전 실행에서 위험한 백그라운드 앱 추적 설정으로 짧은 시간 안에 비정상 종료가 반복된 것으로 보입니다.\n\n안전모드로 백그라운드 앱 추적만 자동으로 껐습니다. 현재 사용 중인 앱 기록과 유휴 감지는 계속 동작합니다.\n\n다시 사용하려면 설정 > 환경 설정에서 백그라운드 앱 추적을 켜주세요.",
-                        SafeModeBalloonMessage: "반복 비정상 종료를 피하기 위해 백그라운드 앱 추적을 자동으로 껐습니다."),
+                        SafeModeBalloonMessage: "반복 비정상 종료를 피하기 위해 백그라운드 앱 추적을 자동으로 껐습니다.",
+                        CsvExportCompleted: (count, directory) => $"CSV 파일 {count}개를 내보냈습니다.\n\n{directory}",
+                        CsvExportFailed: message => $"CSV 내보내기에 실패했습니다.\n\n{message}"),
                     new PreferencesText(
                         Title: "환경 설정",
+                        LanguageLabel: "표시 언어",
                         IdleThresholdLabel: "유휴 판단 대기시간",
                         MinuteUnit: "분",
                         SecondUnit: "초",
+                        Minutes: minutes => $"{minutes}분",
+                        Seconds: seconds => $"{seconds}초",
                         StartWithWindows: "Windows 시작 시 자동 실행",
                         PerformanceDiagnostics: "성능 진단 표시",
                         ProcessRuntimeGroup: "백그라운드 앱 추적",
@@ -345,7 +369,11 @@ namespace TimePilot.WinForms.KYS24
                         Ended: "Ended",
                         OutsideTrackingScope: "Outside tracking scope",
                         NoForegroundApp: "(none)",
+                        ForegroundPrefix: "Foreground: ",
                         PerformancePrefix: "Performance: ",
+                        CsvFilter: "CSV files (*.csv)|*.csv",
+                        CsvExportTitle: "Export CSV",
+                        AboutTitle: "About TimePilot",
                         UsageRatioTooltip: "The share of this app within total active usage time for the selected period.",
                         RuntimeLastObservedTooltip: "The last time background app tracking actually observed this app.",
                         RuntimeDurationTooltip: "Running apps continue to increase from the current time; ended apps are calculated up to the last observed time.",
@@ -359,12 +387,17 @@ namespace TimePilot.WinForms.KYS24
                         StartupPromptMessage: "Run TimePilot automatically when Windows starts?\n\nYou can change this later in Preferences.",
                         SafeModeTitle: "TimePilot safe mode",
                         SafeModeMessage: "TimePilot appears to have closed unexpectedly multiple times in a short period while risky background app tracking settings were enabled.\n\nSafe mode automatically disabled only background app tracking. Current app usage tracking and idle detection will continue to work.\n\nTo enable it again, go to Settings > Preferences and turn on background app tracking.",
-                        SafeModeBalloonMessage: "Background app tracking was automatically disabled to avoid repeated unexpected exits."),
+                        SafeModeBalloonMessage: "Background app tracking was automatically disabled to avoid repeated unexpected exits.",
+                        CsvExportCompleted: (count, directory) => $"Exported {count} CSV files.\n\n{directory}",
+                        CsvExportFailed: message => $"CSV export failed.\n\n{message}"),
                     new PreferencesText(
                         Title: "Preferences",
+                        LanguageLabel: "Display language",
                         IdleThresholdLabel: "Idle threshold",
                         MinuteUnit: "min",
                         SecondUnit: "sec",
+                        Minutes: minutes => minutes == 1 ? "1 min" : $"{minutes} min",
+                        Seconds: seconds => seconds == 1 ? "1 sec" : $"{seconds} sec",
                         StartWithWindows: "Run when Windows starts",
                         PerformanceDiagnostics: "Show performance diagnostics",
                         ProcessRuntimeGroup: "Background app tracking",
@@ -461,7 +494,11 @@ namespace TimePilot.WinForms.KYS24
             string Ended,
             string OutsideTrackingScope,
             string NoForegroundApp,
+            string ForegroundPrefix,
             string PerformancePrefix,
+            string CsvFilter,
+            string CsvExportTitle,
+            string AboutTitle,
             string UsageRatioTooltip,
             string RuntimeLastObservedTooltip,
             string RuntimeDurationTooltip,
@@ -475,13 +512,18 @@ namespace TimePilot.WinForms.KYS24
             string StartupPromptMessage,
             string SafeModeTitle,
             string SafeModeMessage,
-            string SafeModeBalloonMessage);
+            string SafeModeBalloonMessage,
+            Func<int, string?, string> CsvExportCompleted,
+            Func<string, string> CsvExportFailed);
 
         private sealed record PreferencesText(
             string Title,
+            string LanguageLabel,
             string IdleThresholdLabel,
             string MinuteUnit,
             string SecondUnit,
+            Func<int, string> Minutes,
+            Func<int, string> Seconds,
             string StartWithWindows,
             string PerformanceDiagnostics,
             string ProcessRuntimeGroup,

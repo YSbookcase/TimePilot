@@ -12,6 +12,7 @@ namespace TimePilot.WinForms.KYS24
         public const bool DefaultStartWithWindows = false;
         public const bool DefaultStartupPromptShown = false;
         public const bool DefaultPerformanceDiagnosticsEnabled = false;
+        public const UiLanguage DefaultUiLanguage = UiLanguage.Korean;
         public const ProcessRuntimeTrackingScope DefaultProcessRuntimeTrackingScope = ProcessRuntimeTrackingScope.WindowedApps;
         public const int DefaultProcessRuntimeSampleIntervalSeconds = 60;
         public const int MinProcessRuntimeSampleIntervalSeconds = 1;
@@ -39,6 +40,8 @@ namespace TimePilot.WinForms.KYS24
         public bool StartupPromptShown { get; set; } = DefaultStartupPromptShown;
 
         public bool PerformanceDiagnosticsEnabled { get; set; } = DefaultPerformanceDiagnosticsEnabled;
+
+        public UiLanguage UiLanguage { get; set; } = DefaultUiLanguage;
 
         public ProcessRuntimeTrackingScope ProcessRuntimeTrackingScope { get; set; } = DefaultProcessRuntimeTrackingScope;
 
@@ -88,6 +91,7 @@ namespace TimePilot.WinForms.KYS24
                 settings.StartupPromptShown = persisted?.StartupPromptShown ?? DefaultStartupPromptShown;
                 settings.PerformanceDiagnosticsEnabled = persisted?.PerformanceDiagnosticsEnabled
                     ?? DefaultPerformanceDiagnosticsEnabled;
+                settings.UiLanguage = NormalizeUiLanguage(persisted?.UiLanguage);
                 settings.ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(
                     persisted?.ProcessRuntimeTrackingScope);
                 settings.ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
@@ -111,6 +115,7 @@ namespace TimePilot.WinForms.KYS24
                 settings.StartWithWindows = DefaultStartWithWindows;
                 settings.StartupPromptShown = DefaultStartupPromptShown;
                 settings.PerformanceDiagnosticsEnabled = DefaultPerformanceDiagnosticsEnabled;
+                settings.UiLanguage = DefaultUiLanguage;
                 settings.ProcessRuntimeTrackingScope = DefaultProcessRuntimeTrackingScope;
                 settings.ProcessRuntimeSampleIntervalSeconds = DefaultProcessRuntimeSampleIntervalSeconds;
                 settings.ApprovedRiskyProcessRuntimeTrackingScope = null;
@@ -135,6 +140,7 @@ namespace TimePilot.WinForms.KYS24
                 StartWithWindows = StartWithWindows,
                 StartupPromptShown = StartupPromptShown,
                 PerformanceDiagnosticsEnabled = PerformanceDiagnosticsEnabled,
+                UiLanguage = NormalizeUiLanguage(UiLanguage),
                 ProcessRuntimeTrackingEnabled = ProcessRuntimeTrackingEnabled,
                 ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(ProcessRuntimeTrackingScope),
                 ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
@@ -155,6 +161,7 @@ namespace TimePilot.WinForms.KYS24
             StartWithWindows = persisted.StartWithWindows;
             StartupPromptShown = persisted.StartupPromptShown;
             PerformanceDiagnosticsEnabled = persisted.PerformanceDiagnosticsEnabled;
+            UiLanguage = persisted.UiLanguage;
             ProcessRuntimeTrackingEnabled = persisted.ProcessRuntimeTrackingEnabled;
             ProcessRuntimeTrackingScope = persisted.ProcessRuntimeTrackingScope;
             ProcessRuntimeSampleIntervalSeconds = persisted.ProcessRuntimeSampleIntervalSeconds;
@@ -234,6 +241,12 @@ namespace TimePilot.WinForms.KYS24
             Save();
         }
 
+        public void SetUiLanguage(UiLanguage language)
+        {
+            UiLanguage = NormalizeUiLanguage(language);
+            Save();
+        }
+
         public void SetWindowPlacement(Rectangle normalBounds, bool isMaximized)
         {
             WindowLeft = normalBounds.Left;
@@ -258,6 +271,13 @@ namespace TimePilot.WinForms.KYS24
             return Enum.IsDefined(scope ?? DefaultProcessRuntimeTrackingScope)
                 ? scope ?? DefaultProcessRuntimeTrackingScope
                 : DefaultProcessRuntimeTrackingScope;
+        }
+
+        private static UiLanguage NormalizeUiLanguage(UiLanguage? language)
+        {
+            return Enum.IsDefined(language ?? DefaultUiLanguage)
+                ? language ?? DefaultUiLanguage
+                : DefaultUiLanguage;
         }
 
         private static ProcessRuntimeTrackingScope? NormalizeNullableProcessRuntimeTrackingScope(
@@ -329,6 +349,8 @@ namespace TimePilot.WinForms.KYS24
             public bool StartupPromptShown { get; set; } = DefaultStartupPromptShown;
 
             public bool PerformanceDiagnosticsEnabled { get; set; } = DefaultPerformanceDiagnosticsEnabled;
+
+            public UiLanguage UiLanguage { get; set; } = DefaultUiLanguage;
 
             public bool ProcessRuntimeTrackingEnabled { get; set; } = DefaultProcessRuntimeTrackingEnabled;
 

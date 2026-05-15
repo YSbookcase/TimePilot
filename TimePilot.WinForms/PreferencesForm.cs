@@ -5,6 +5,7 @@ namespace TimePilot.WinForms
 {
     internal sealed class PreferencesForm : Form
     {
+        private readonly ComboBox languageComboBox = new();
         private readonly ComboBox idleThresholdComboBox = new();
         private readonly NumericUpDown customIdleThresholdNumeric = new();
         private readonly Label customIdleThresholdUnitLabel = new();
@@ -24,6 +25,7 @@ namespace TimePilot.WinForms
         public PreferencesForm(AppSettings settings)
         {
             IdleThresholdMinutes = settings.IdleThresholdMinutes;
+            UiLanguage = settings.UiLanguage;
             StartWithWindows = settings.StartWithWindows;
             PerformanceDiagnosticsEnabled = settings.PerformanceDiagnosticsEnabled;
             ProcessRuntimeTrackingEnabled = settings.ProcessRuntimeTrackingEnabled;
@@ -31,12 +33,15 @@ namespace TimePilot.WinForms
             ProcessRuntimeSampleIntervalSeconds = settings.ProcessRuntimeSampleIntervalSeconds;
 
             InitializeComponent();
+            ConfigureLanguageControls();
             ConfigureIdleThresholdControls();
             ConfigureStartupControls();
             ConfigureProcessRuntimeControls();
         }
 
         public int IdleThresholdMinutes { get; private set; }
+
+        public UiLanguage UiLanguage { get; private set; }
 
         public bool StartWithWindows { get; private set; }
 
@@ -55,6 +60,7 @@ namespace TimePilot.WinForms
         private void InitializeComponent()
         {
             var idleThresholdLabel = new Label();
+            var languageLabel = new Label();
             var processRuntimeGroupBox = new GroupBox();
             var processRuntimeScopeLabel = new Label();
             var processRuntimeIntervalLabel = new Label();
@@ -65,39 +71,51 @@ namespace TimePilot.WinForms
             processRuntimeGroupBox.SuspendLayout();
             dataManagementGroupBox.SuspendLayout();
 
+            languageLabel.AutoSize = true;
+            languageLabel.Location = new Point(20, 22);
+            languageLabel.Name = "languageLabel";
+            languageLabel.Size = new Size(59, 15);
+            languageLabel.Text = UiText.Preferences.LanguageLabel;
+
+            languageComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            languageComboBox.FormattingEnabled = true;
+            languageComboBox.Location = new Point(120, 18);
+            languageComboBox.Name = "languageComboBox";
+            languageComboBox.Size = new Size(160, 23);
+
             idleThresholdLabel.AutoSize = true;
-            idleThresholdLabel.Location = new Point(20, 22);
+            idleThresholdLabel.Location = new Point(20, 58);
             idleThresholdLabel.Name = "idleThresholdLabel";
             idleThresholdLabel.Size = new Size(126, 15);
             idleThresholdLabel.Text = UiText.Preferences.IdleThresholdLabel;
 
             idleThresholdComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             idleThresholdComboBox.FormattingEnabled = true;
-            idleThresholdComboBox.Location = new Point(20, 48);
+            idleThresholdComboBox.Location = new Point(20, 84);
             idleThresholdComboBox.Name = "idleThresholdComboBox";
             idleThresholdComboBox.Size = new Size(160, 23);
             idleThresholdComboBox.SelectedIndexChanged += OnIdleThresholdSelectionChanged;
 
-            customIdleThresholdNumeric.Location = new Point(196, 48);
+            customIdleThresholdNumeric.Location = new Point(196, 84);
             customIdleThresholdNumeric.Maximum = AppSettings.MaxIdleThresholdMinutes;
             customIdleThresholdNumeric.Minimum = AppSettings.MinIdleThresholdMinutes;
             customIdleThresholdNumeric.Name = "customIdleThresholdNumeric";
             customIdleThresholdNumeric.Size = new Size(72, 23);
 
             customIdleThresholdUnitLabel.AutoSize = true;
-            customIdleThresholdUnitLabel.Location = new Point(274, 52);
+            customIdleThresholdUnitLabel.Location = new Point(274, 88);
             customIdleThresholdUnitLabel.Name = "customIdleThresholdUnitLabel";
             customIdleThresholdUnitLabel.Size = new Size(19, 15);
             customIdleThresholdUnitLabel.Text = UiText.Preferences.MinuteUnit;
 
             startWithWindowsCheckBox.AutoSize = true;
-            startWithWindowsCheckBox.Location = new Point(20, 88);
+            startWithWindowsCheckBox.Location = new Point(20, 124);
             startWithWindowsCheckBox.Name = "startWithWindowsCheckBox";
             startWithWindowsCheckBox.Size = new Size(178, 19);
             startWithWindowsCheckBox.Text = UiText.Preferences.StartWithWindows;
 
             performanceDiagnosticsCheckBox.AutoSize = true;
-            performanceDiagnosticsCheckBox.Location = new Point(20, 116);
+            performanceDiagnosticsCheckBox.Location = new Point(20, 152);
             performanceDiagnosticsCheckBox.Name = "performanceDiagnosticsCheckBox";
             performanceDiagnosticsCheckBox.Size = new Size(112, 19);
             performanceDiagnosticsCheckBox.Text = UiText.Preferences.PerformanceDiagnostics;
@@ -110,7 +128,7 @@ namespace TimePilot.WinForms
             processRuntimeGroupBox.Controls.Add(customProcessRuntimeIntervalNumeric);
             processRuntimeGroupBox.Controls.Add(customProcessRuntimeIntervalUnitLabel);
             processRuntimeGroupBox.Controls.Add(processRuntimeWarningLabel);
-            processRuntimeGroupBox.Location = new Point(20, 150);
+            processRuntimeGroupBox.Location = new Point(20, 186);
             processRuntimeGroupBox.Name = "processRuntimeGroupBox";
             processRuntimeGroupBox.Size = new Size(430, 190);
             processRuntimeGroupBox.TabIndex = 4;
@@ -172,7 +190,7 @@ namespace TimePilot.WinForms
             dataManagementGroupBox.Controls.Add(dataManagementLabel);
             dataManagementGroupBox.Controls.Add(openDataFolderButton);
             dataManagementGroupBox.Controls.Add(clearUsageDataButton);
-            dataManagementGroupBox.Location = new Point(20, 350);
+            dataManagementGroupBox.Location = new Point(20, 386);
             dataManagementGroupBox.Name = "dataManagementGroupBox";
             dataManagementGroupBox.Size = new Size(430, 72);
             dataManagementGroupBox.TabIndex = 5;
@@ -199,7 +217,7 @@ namespace TimePilot.WinForms
 
             okButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             okButton.DialogResult = DialogResult.OK;
-            okButton.Location = new Point(294, 446);
+            okButton.Location = new Point(294, 482);
             okButton.Name = "okButton";
             okButton.Size = new Size(75, 27);
             okButton.Text = UiText.Common.Save;
@@ -207,7 +225,7 @@ namespace TimePilot.WinForms
 
             cancelButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             cancelButton.DialogResult = DialogResult.Cancel;
-            cancelButton.Location = new Point(375, 446);
+            cancelButton.Location = new Point(375, 482);
             cancelButton.Name = "cancelButton";
             cancelButton.Size = new Size(75, 27);
             cancelButton.Text = UiText.Common.Cancel;
@@ -215,7 +233,9 @@ namespace TimePilot.WinForms
             AcceptButton = okButton;
             CancelButton = cancelButton;
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(470, 493);
+            ClientSize = new Size(470, 529);
+            Controls.Add(languageLabel);
+            Controls.Add(languageComboBox);
             Controls.Add(idleThresholdLabel);
             Controls.Add(idleThresholdComboBox);
             Controls.Add(customIdleThresholdNumeric);
@@ -257,6 +277,15 @@ namespace TimePilot.WinForms
             UpdateCustomIdleThresholdVisibility();
         }
 
+        private void ConfigureLanguageControls()
+        {
+            var options = GetLanguageOptions();
+            languageComboBox.DataSource = options.ToList();
+            languageComboBox.DisplayMember = nameof(LanguageOption.Label);
+            languageComboBox.ValueMember = nameof(LanguageOption.Language);
+            languageComboBox.SelectedItem = options.First(option => option.Language == UiLanguage);
+        }
+
         private void ConfigureProcessRuntimeControls()
         {
             processRuntimeTrackingCheckBox.Checked = ProcessRuntimeTrackingEnabled;
@@ -293,12 +322,21 @@ namespace TimePilot.WinForms
         {
             return
             [
-                new("1분", 1),
-                new("2분", 2),
-                new("5분", 5),
-                new("10분", 10),
-                new("15분", 15),
+                new(UiText.Preferences.Minutes(1), 1),
+                new(UiText.Preferences.Minutes(2), 2),
+                new(UiText.Preferences.Minutes(5), 5),
+                new(UiText.Preferences.Minutes(10), 10),
+                new(UiText.Preferences.Minutes(15), 15),
                 new(UiText.Preferences.Custom, null)
+            ];
+        }
+
+        private static IReadOnlyList<LanguageOption> GetLanguageOptions()
+        {
+            return
+            [
+                new("한국어", UiLanguage.Korean),
+                new("English", UiLanguage.English)
             ];
         }
 
@@ -306,10 +344,10 @@ namespace TimePilot.WinForms
         {
             return
             [
-                new("10초", 10),
-                new("30초", 30),
-                new("60초", 60),
-                new("5분", 300),
+                new(UiText.Preferences.Seconds(10), 10),
+                new(UiText.Preferences.Seconds(30), 30),
+                new(UiText.Preferences.Seconds(60), 60),
+                new(UiText.Preferences.Minutes(5), 300),
                 new(UiText.Preferences.Custom, null)
             ];
         }
@@ -379,6 +417,9 @@ namespace TimePilot.WinForms
                 IdleThresholdMinutes = (int)customIdleThresholdNumeric.Value;
             }
 
+            UiLanguage = languageComboBox.SelectedItem is LanguageOption languageOption
+                ? languageOption.Language
+                : AppSettings.DefaultUiLanguage;
             StartWithWindows = startWithWindowsCheckBox.Checked;
             PerformanceDiagnosticsEnabled = performanceDiagnosticsCheckBox.Checked;
             ProcessRuntimeTrackingEnabled = processRuntimeTrackingCheckBox.Checked;
@@ -507,6 +548,8 @@ namespace TimePilot.WinForms
         }
 
         private sealed record IdleThresholdOption(string Label, int? Minutes);
+
+        private sealed record LanguageOption(string Label, UiLanguage Language);
 
         private sealed record ProcessRuntimeScopeOption(string Label, ProcessRuntimeTrackingScope Scope);
 
