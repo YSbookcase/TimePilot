@@ -26,6 +26,8 @@ namespace TimePilot.WinForms
         private string runtimeSortProperty = nameof(ProcessRuntimeSummaryRow.RuntimeMs);
         private string runtimeSegmentSortProperty = nameof(ProcessRuntimeSegmentRow.StartedAt);
         private SummaryPeriod selectedSummaryPeriod = SummaryPeriod.Today;
+        private DateTime selectedDetailDate = DateTime.Today;
+        private DateTime selectedTimelineDate = DateTime.Today;
         private SortOrder usageSortOrder = SortOrder.Descending;
         private SortOrder runtimeSortOrder = SortOrder.Descending;
         private SortOrder runtimeSegmentSortOrder = SortOrder.Descending;
@@ -51,6 +53,7 @@ namespace TimePilot.WinForms
         private DateTimeOffset? lastSampleTickAt;
         private bool processRuntimeSafeModeActivated;
         private bool isInitializingSummaryPeriodSelector;
+        private bool isInitializingDateSelectors;
 
         public Form1(bool startMinimizedToTray = false)
         {
@@ -58,6 +61,7 @@ namespace TimePilot.WinForms
 
             InitializeComponent();
             InitializeSummaryPeriodSelector();
+            InitializeDateSelectors();
 
             if (IsRunningInDesigner())
             {
@@ -249,6 +253,27 @@ namespace TimePilot.WinForms
             }
         }
 
+        private void InitializeDateSelectors()
+        {
+            isInitializingDateSelectors = true;
+            try
+            {
+                var today = DateTime.Today;
+                selectedDetailDate = today;
+                selectedTimelineDate = today;
+                detailDatePicker.MaxDate = today;
+                timelineDatePicker.MaxDate = today;
+                detailDatePicker.Value = today;
+                timelineDatePicker.Value = today;
+            }
+            finally
+            {
+                isInitializingDateSelectors = false;
+            }
+
+            UpdateDateNavigationButtons();
+        }
+
         private static SummaryPeriodRange GetSummaryPeriodRange(DateTimeOffset observedAt, SummaryPeriod period)
         {
             var localNow = observedAt.ToLocalTime();
@@ -292,6 +317,11 @@ namespace TimePilot.WinForms
                 new("Google Chrome", "chrome", null, 1_680_000, 0.23, 15, null, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-12)),
                 new("File Explorer", "explorer", null, 900_000, 0.13, 4, null, DateTimeOffset.Now.AddMinutes(-45), DateTimeOffset.Now.AddMinutes(-5))
             });
+            dailyUsageTrendGrid.DataSource = new List<DailyUsageTrendRow>
+            {
+                new(DateTime.Today, 6_480_000, "Microsoft Visual Studio", 3_900_000),
+                new(DateTime.Today.AddDays(-1), 4_560_000, "Google Chrome", 2_400_000)
+            };
             timelineGrid.DataSource = AddIcons(new List<ActivityTimelineRow>
             {
                 new("활성", DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now.AddHours(-1), 3_600_000, "devenv"),
@@ -433,6 +463,8 @@ namespace TimePilot.WinForms
             var runtimeHorizontalOffset = GetHorizontalScrollingOffset(runtimeGrid);
             var selectedTab = mainTabs.SelectedTab;
             var summaryPeriodRange = GetSummaryPeriodRange(observedAt, selectedSummaryPeriod);
+            var detailDate = selectedDetailDate;
+            var timelineDate = selectedTimelineDate;
             isViewRefreshRunning = true;
             ViewRefreshSnapshot snapshot;
             try
@@ -443,24 +475,33 @@ namespace TimePilot.WinForms
                     var foregroundUsage = selectedTab == summaryTab
                         ? storage.GetForegroundUsageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
                         : null;
-                    var runtimeCoverage = selectedTab == summaryTab
-                        ? storage.GetRuntimeCoverageForDay(observedAt)
+                    var dailyUsageTrendRows = selectedTab == summaryTab
+                        ? storage.GetDailyUsageTrendForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
                         : null;
                     var timelineRows = selectedTab == timelineTab
-                        ? storage.GetActivityTimelineForDay(observedAt)
+                        ? storage.GetActivityTimelineForDate(timelineDate, observedAt)
                         : null;
+                    var timelineDateHasData = selectedTab == timelineTab
+                        ? storage.HasActivityDataForDate(timelineDate, observedAt)
+                        : (bool?)null;
                     var runtimeRows = selectedTab == detailTab
-                        ? storage.GetProcessRuntimeUsageForDay(observedAt)
+                        ? storage.GetProcessRuntimeUsageForDate(detailDate, observedAt)
                         : null;
+                    var detailDateHasData = selectedTab == detailTab
+                        ? storage.HasActivityDataForDate(detailDate, observedAt)
+                        : (bool?)null;
                     var runtimeSegmentRows = selectedTab == detailTab && appIdToRestore is { } appId
-                        ? storage.GetProcessRuntimeSegmentsForDay(appId, observedAt)
+                        ? storage.GetProcessRuntimeSegmentsForDate(appId, detailDate, observedAt)
                         : null;
                     readStopwatch.Stop();
 
                     return new ViewRefreshSnapshot(
                         foregroundUsage,
-                        runtimeCoverage,
+                        dailyUsageTrendRows,
+                        null,
                         summaryPeriodRange.ShowDateInTimestamps,
+                        detailDateHasData,
+                        timelineDateHasData,
                         timelineRows,
                         runtimeRows,
                         runtimeSegmentRows,
@@ -488,10 +529,14 @@ namespace TimePilot.WinForms
                     AddIcons(SortUsageSummaryRows(UsageSummaryRowBuilder.FromForegroundUsage(
                         snapshot.ForegroundUsage,
                         snapshot.ShowDateInUsageTimestamps))));
+                SetGridDataSourcePreservingView(
+                    dailyUsageTrendGrid,
+                    snapshot.DailyUsageTrendRows ?? Array.Empty<DailyUsageTrendRow>());
             }
 
             if (snapshot.TimelineRows is not null)
             {
+                SetDateStatus(timelineDateStatusLabel, snapshot.TimelineDateHasData);
                 SetGridDataSourcePreservingView(
                     timelineGrid,
                     AddIcons(SortTimelineRows(snapshot.TimelineRows)));
@@ -499,6 +544,7 @@ namespace TimePilot.WinForms
 
             if (snapshot.RuntimeRows is not null)
             {
+                SetDateStatus(detailDateStatusLabel, snapshot.DetailDateHasData);
                 isRefreshingRuntimeGrid = true;
                 try
                 {
@@ -554,7 +600,23 @@ namespace TimePilot.WinForms
 
             SetGridDataSourcePreservingView(
                 runtimeSegmentsGrid,
-                SortRuntimeSegmentRows(storage.GetProcessRuntimeSegmentsForDay(selectedRow.AppId, observedAt)));
+                SortRuntimeSegmentRows(storage.GetProcessRuntimeSegmentsForDate(selectedRow.AppId, selectedDetailDate, observedAt)));
+        }
+
+        private static void SetDateStatus(Label label, bool? hasData)
+        {
+            label.Text = hasData switch
+            {
+                true => "기록 있음",
+                false => "기록 없음",
+                _ => "확인 전"
+            };
+            label.ForeColor = hasData switch
+            {
+                true => Color.DarkGreen,
+                false => SystemColors.GrayText,
+                _ => SystemColors.GrayText
+            };
         }
 
         private async Task TrackProcessRuntimeSessionsAsync(DateTimeOffset observedAt)
@@ -850,6 +912,99 @@ namespace TimePilot.WinForms
         private void OnMainTabsSelectedIndexChanged(object? sender, EventArgs e)
         {
             RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void OnDetailDatePickerValueChanged(object? sender, EventArgs e)
+        {
+            if (isInitializingDateSelectors)
+                return;
+
+            ApplyDetailDate(detailDatePicker.Value.Date);
+        }
+
+        private void OnTimelineDatePickerValueChanged(object? sender, EventArgs e)
+        {
+            if (isInitializingDateSelectors)
+                return;
+
+            ApplyTimelineDate(timelineDatePicker.Value.Date);
+        }
+
+        private void OnDetailPreviousDateButtonClick(object? sender, EventArgs e)
+        {
+            ApplyDetailDate(selectedDetailDate.AddDays(-1));
+        }
+
+        private void OnDetailNextDateButtonClick(object? sender, EventArgs e)
+        {
+            ApplyDetailDate(selectedDetailDate.AddDays(1));
+        }
+
+        private void OnDetailTodayButtonClick(object? sender, EventArgs e)
+        {
+            ApplyDetailDate(DateTime.Today);
+        }
+
+        private void OnTimelinePreviousDateButtonClick(object? sender, EventArgs e)
+        {
+            ApplyTimelineDate(selectedTimelineDate.AddDays(-1));
+        }
+
+        private void OnTimelineNextDateButtonClick(object? sender, EventArgs e)
+        {
+            ApplyTimelineDate(selectedTimelineDate.AddDays(1));
+        }
+
+        private void OnTimelineTodayButtonClick(object? sender, EventArgs e)
+        {
+            ApplyTimelineDate(DateTime.Today);
+        }
+
+        private void ApplyDetailDate(DateTime date)
+        {
+            var normalizedDate = NormalizeSelectableDate(date);
+            selectedDetailDate = normalizedDate;
+            selectedRuntimeAppId = null;
+            SetDatePickerValue(detailDatePicker, normalizedDate);
+            UpdateDateNavigationButtons();
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void ApplyTimelineDate(DateTime date)
+        {
+            var normalizedDate = NormalizeSelectableDate(date);
+            selectedTimelineDate = normalizedDate;
+            SetDatePickerValue(timelineDatePicker, normalizedDate);
+            UpdateDateNavigationButtons();
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private static DateTime NormalizeSelectableDate(DateTime date)
+        {
+            var today = DateTime.Today;
+            return date.Date > today ? today : date.Date;
+        }
+
+        private void SetDatePickerValue(DateTimePicker picker, DateTime date)
+        {
+            isInitializingDateSelectors = true;
+            try
+            {
+                picker.Value = date;
+            }
+            finally
+            {
+                isInitializingDateSelectors = false;
+            }
+        }
+
+        private void UpdateDateNavigationButtons()
+        {
+            var today = DateTime.Today;
+            detailNextDateButton.Enabled = selectedDetailDate < today;
+            detailTodayButton.Enabled = selectedDetailDate < today;
+            timelineNextDateButton.Enabled = selectedTimelineDate < today;
+            timelineTodayButton.Enabled = selectedTimelineDate < today;
         }
 
         private void OnSummaryPeriodComboBoxSelectedIndexChanged(object? sender, EventArgs e)
@@ -1287,6 +1442,7 @@ namespace TimePilot.WinForms
                 performanceStatusExpiresAt = null;
 
                 SetGridDataSourcePreservingView(usageGrid, Array.Empty<UsageSummaryRow>());
+                SetGridDataSourcePreservingView(dailyUsageTrendGrid, Array.Empty<DailyUsageTrendRow>());
                 SetRuntimeCoverageSummary(null);
                 SetGridDataSourcePreservingView(timelineGrid, Array.Empty<ActivityTimelineRow>());
                 SetGridDataSourcePreservingView(runtimeGrid, Array.Empty<ProcessRuntimeSummaryRow>());
@@ -1358,8 +1514,11 @@ namespace TimePilot.WinForms
 
         private sealed record ViewRefreshSnapshot(
             IReadOnlyList<ForegroundUsageSummary>? ForegroundUsage,
+            IReadOnlyList<DailyUsageTrendRow>? DailyUsageTrendRows,
             RuntimeCoverageSummary? RuntimeCoverage,
             bool ShowDateInUsageTimestamps,
+            bool? DetailDateHasData,
+            bool? TimelineDateHasData,
             IReadOnlyList<ActivityTimelineRow>? TimelineRows,
             IReadOnlyList<ProcessRuntimeSummaryRow>? RuntimeRows,
             IReadOnlyList<ProcessRuntimeSegmentRow>? RuntimeSegmentRows,

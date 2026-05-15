@@ -33,6 +33,7 @@ namespace TimePilot.WinForms.KYS24
             var appIds = InsertSampleApps(connection, transaction, now);
             InsertSampleRuntimeSessions(connection, transaction, now);
             InsertSampleForegroundSessions(connection, transaction, appIds, now.ToLocalTime());
+            InsertSampleProcessRuntimeSessions(connection, transaction, appIds, now.ToLocalTime());
 
             transaction.Commit();
         }
@@ -75,10 +76,20 @@ namespace TimePilot.WinForms.KYS24
                 connection,
                 "SELECT COUNT(*) FROM app_runtime_sessions WHERE app_version = $sampleAppVersion;",
                 command => command.Parameters.AddWithValue("$sampleAppVersion", SampleAppVersion));
+            var processRuntimeSessionCount = CountRows(
+                connection,
+                """
+                SELECT COUNT(*)
+                FROM process_runtime_sessions
+                WHERE app_id IN (
+                    SELECT id FROM apps WHERE process_name LIKE $sampleProcessPrefix
+                );
+                """,
+                command => command.Parameters.AddWithValue("$sampleProcessPrefix", $"{SampleProcessPrefix}%"));
 
             return string.Create(
                 CultureInfo.InvariantCulture,
-                $"Sample data status: apps={appCount}, foreground_sessions={foregroundSessionCount}, app_runtime_sessions={runtimeSessionCount}");
+                $"Sample data status: apps={appCount}, foreground_sessions={foregroundSessionCount}, app_runtime_sessions={runtimeSessionCount}, process_runtime_sessions={processRuntimeSessionCount}");
         }
 
         private static SqliteConnection OpenConnection()
@@ -204,6 +215,34 @@ namespace TimePilot.WinForms.KYS24
             AddForegroundSession(connection, transaction, appIds[$"{SampleProcessPrefix}design"], LocalAt(yearDate, 15, 40), LocalAt(yearDate, 18, 25), localNow);
         }
 
+        private static void InsertSampleProcessRuntimeSessions(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            IReadOnlyDictionary<string, long> appIds,
+            DateTimeOffset localNow)
+        {
+            var today = localNow.Date;
+            var weekStart = today.AddDays(-GetDaysSinceMonday(today.DayOfWeek));
+            var monthStart = new DateTime(today.Year, today.Month, 1);
+            var yearStart = new DateTime(today.Year, 1, 1);
+
+            AddProcessRuntimeSession(connection, transaction, appIds[$"{SampleProcessPrefix}browser"], 9101, LocalAt(today, 8, 50), LocalAt(today, 18, 10), true, true, localNow);
+            AddProcessRuntimeSession(connection, transaction, appIds[$"{SampleProcessPrefix}editor"], 9102, LocalAt(today, 9, 20), LocalAt(today, 17, 40), true, true, localNow);
+            AddProcessRuntimeSession(connection, transaction, appIds[$"{SampleProcessPrefix}chat"], 9103, LocalAt(today, 10, 0), LocalAt(today, 18, 0), true, true, localNow);
+
+            var weekDate = PreviousDateInRange(today, weekStart, 1);
+            AddProcessRuntimeSession(connection, transaction, appIds[$"{SampleProcessPrefix}ide"], 9201, LocalAt(weekDate, 9, 5), LocalAt(weekDate, 17, 40), true, true, localNow);
+            AddProcessRuntimeSession(connection, transaction, appIds[$"{SampleProcessPrefix}editor"], 9202, LocalAt(weekDate, 13, 45), LocalAt(weekDate, 17, 30), true, true, localNow);
+
+            var monthDate = PreviousDateInRange(today, monthStart, 8);
+            AddProcessRuntimeSession(connection, transaction, appIds[$"{SampleProcessPrefix}design"], 9301, LocalAt(monthDate, 10, 0), LocalAt(monthDate, 16, 50), true, true, localNow);
+            AddProcessRuntimeSession(connection, transaction, appIds[$"{SampleProcessPrefix}browser"], 9302, LocalAt(monthDate, 14, 40), LocalAt(monthDate, 16, 30), true, true, localNow);
+
+            var yearDate = PreviousDateInRange(today, yearStart, 60);
+            AddProcessRuntimeSession(connection, transaction, appIds[$"{SampleProcessPrefix}ide"], 9401, LocalAt(yearDate, 12, 50), LocalAt(yearDate, 15, 45), true, true, localNow);
+            AddProcessRuntimeSession(connection, transaction, appIds[$"{SampleProcessPrefix}design"], 9402, LocalAt(yearDate, 15, 20), LocalAt(yearDate, 18, 40), true, true, localNow);
+        }
+
         private static void AddRuntimeSession(
             SqliteConnection connection,
             SqliteTransaction transaction,
@@ -288,6 +327,65 @@ namespace TimePilot.WinForms.KYS24
                     command.Parameters.AddWithValue("$endedAt", FormatTimestamp(effectiveEnd));
                     command.Parameters.AddWithValue("$durationMs", (long)(effectiveEnd - start).TotalMilliseconds);
                     command.Parameters.AddWithValue("$lastObservedAt", FormatTimestamp(effectiveEnd));
+                });
+        }
+
+        private static void AddProcessRuntimeSession(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            long appId,
+            int processId,
+            DateTimeOffset start,
+            DateTimeOffset end,
+            bool hasMainWindow,
+            bool isCurrentSessionProcess,
+            DateTimeOffset localNow)
+        {
+            var effectiveEnd = end > localNow ? localNow : end;
+            if (effectiveEnd <= start)
+                return;
+
+            ExecuteNonQuery(
+                connection,
+                transaction,
+                """
+                INSERT INTO process_runtime_sessions (
+                    app_id,
+                    process_id,
+                    started_at,
+                    ended_at,
+                    duration_ms,
+                    first_observed_at,
+                    last_observed_at,
+                    tracking_scope,
+                    has_main_window,
+                    is_current_session_process
+                )
+                VALUES (
+                    $appId,
+                    $processId,
+                    $startedAt,
+                    $endedAt,
+                    $durationMs,
+                    $firstObservedAt,
+                    $lastObservedAt,
+                    $trackingScope,
+                    $hasMainWindow,
+                    $isCurrentSessionProcess
+                );
+                """,
+                command =>
+                {
+                    command.Parameters.AddWithValue("$appId", appId);
+                    command.Parameters.AddWithValue("$processId", processId);
+                    command.Parameters.AddWithValue("$startedAt", FormatTimestamp(start));
+                    command.Parameters.AddWithValue("$endedAt", FormatTimestamp(effectiveEnd));
+                    command.Parameters.AddWithValue("$durationMs", (long)(effectiveEnd - start).TotalMilliseconds);
+                    command.Parameters.AddWithValue("$firstObservedAt", FormatTimestamp(start));
+                    command.Parameters.AddWithValue("$lastObservedAt", FormatTimestamp(effectiveEnd));
+                    command.Parameters.AddWithValue("$trackingScope", (int)ProcessRuntimeTrackingScope.AllProcesses);
+                    command.Parameters.AddWithValue("$hasMainWindow", hasMainWindow ? 1 : 0);
+                    command.Parameters.AddWithValue("$isCurrentSessionProcess", isCurrentSessionProcess ? 1 : 0);
                 });
         }
 
