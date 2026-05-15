@@ -946,11 +946,12 @@
             // Form1
             // 
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(720, 480);
+            ClientSize = new Size(1040, 640);
             Controls.Add(mainTabs);
             Controls.Add(statusLabel);
             Controls.Add(mainMenuStrip);
             MainMenuStrip = mainMenuStrip;
+            MinimumSize = new Size(900, 560);
             Name = "Form1";
             Text = "TimePilot";
             mainMenuStrip.ResumeLayout(false);

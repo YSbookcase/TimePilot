@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Drawing;
 
 namespace TimePilot.WinForms.KYS24
 {
@@ -51,6 +52,16 @@ namespace TimePilot.WinForms.KYS24
 
         public DateTimeOffset? ProcessRuntimeRiskAcceptedAt { get; set; }
 
+        public int? WindowLeft { get; set; }
+
+        public int? WindowTop { get; set; }
+
+        public int? WindowWidth { get; set; }
+
+        public int? WindowHeight { get; set; }
+
+        public bool WindowMaximized { get; set; }
+
         public bool IsCurrentProcessRuntimeRiskAccepted =>
             !IsDangerousProcessRuntimeTracking(
                 ProcessRuntimeTrackingEnabled,
@@ -87,6 +98,11 @@ namespace TimePilot.WinForms.KYS24
                     NormalizeNullableProcessRuntimeSampleIntervalSeconds(
                         persisted?.ApprovedRiskyProcessRuntimeSampleIntervalSeconds);
                 settings.ProcessRuntimeRiskAcceptedAt = persisted?.ProcessRuntimeRiskAcceptedAt;
+                settings.WindowLeft = NormalizeNullableWindowCoordinate(persisted?.WindowLeft);
+                settings.WindowTop = NormalizeNullableWindowCoordinate(persisted?.WindowTop);
+                settings.WindowWidth = NormalizeNullableWindowSize(persisted?.WindowWidth);
+                settings.WindowHeight = NormalizeNullableWindowSize(persisted?.WindowHeight);
+                settings.WindowMaximized = persisted?.WindowMaximized ?? false;
             }
             catch
             {
@@ -100,6 +116,11 @@ namespace TimePilot.WinForms.KYS24
                 settings.ApprovedRiskyProcessRuntimeTrackingScope = null;
                 settings.ApprovedRiskyProcessRuntimeSampleIntervalSeconds = null;
                 settings.ProcessRuntimeRiskAcceptedAt = null;
+                settings.WindowLeft = null;
+                settings.WindowTop = null;
+                settings.WindowWidth = null;
+                settings.WindowHeight = null;
+                settings.WindowMaximized = false;
             }
 
             return settings;
@@ -123,7 +144,12 @@ namespace TimePilot.WinForms.KYS24
                 ApprovedRiskyProcessRuntimeSampleIntervalSeconds =
                     NormalizeNullableProcessRuntimeSampleIntervalSeconds(
                         ApprovedRiskyProcessRuntimeSampleIntervalSeconds),
-                ProcessRuntimeRiskAcceptedAt = ProcessRuntimeRiskAcceptedAt
+                ProcessRuntimeRiskAcceptedAt = ProcessRuntimeRiskAcceptedAt,
+                WindowLeft = NormalizeNullableWindowCoordinate(WindowLeft),
+                WindowTop = NormalizeNullableWindowCoordinate(WindowTop),
+                WindowWidth = NormalizeNullableWindowSize(WindowWidth),
+                WindowHeight = NormalizeNullableWindowSize(WindowHeight),
+                WindowMaximized = WindowMaximized
             };
             IdleThresholdMinutes = persisted.IdleThresholdMinutes;
             StartWithWindows = persisted.StartWithWindows;
@@ -136,6 +162,11 @@ namespace TimePilot.WinForms.KYS24
             ApprovedRiskyProcessRuntimeSampleIntervalSeconds =
                 persisted.ApprovedRiskyProcessRuntimeSampleIntervalSeconds;
             ProcessRuntimeRiskAcceptedAt = persisted.ProcessRuntimeRiskAcceptedAt;
+            WindowLeft = persisted.WindowLeft;
+            WindowTop = persisted.WindowTop;
+            WindowWidth = persisted.WindowWidth;
+            WindowHeight = persisted.WindowHeight;
+            WindowMaximized = persisted.WindowMaximized;
 
             File.WriteAllText(
                 settingsPath,
@@ -203,6 +234,16 @@ namespace TimePilot.WinForms.KYS24
             Save();
         }
 
+        public void SetWindowPlacement(Rectangle normalBounds, bool isMaximized)
+        {
+            WindowLeft = normalBounds.Left;
+            WindowTop = normalBounds.Top;
+            WindowWidth = normalBounds.Width;
+            WindowHeight = normalBounds.Height;
+            WindowMaximized = isMaximized;
+            Save();
+        }
+
         private static int NormalizeIdleThresholdMinutes(int? minutes)
         {
             return Math.Clamp(
@@ -238,6 +279,16 @@ namespace TimePilot.WinForms.KYS24
             return seconds is null
                 ? null
                 : NormalizeProcessRuntimeSampleIntervalSeconds(seconds);
+        }
+
+        private static int? NormalizeNullableWindowCoordinate(int? value)
+        {
+            return value is null ? null : Math.Clamp(value.Value, -100000, 100000);
+        }
+
+        private static int? NormalizeNullableWindowSize(int? value)
+        {
+            return value is null ? null : Math.Clamp(value.Value, 1, 100000);
         }
 
         public static bool IsDangerousProcessRuntimeTracking(
@@ -292,6 +343,16 @@ namespace TimePilot.WinForms.KYS24
             public int? ApprovedRiskyProcessRuntimeSampleIntervalSeconds { get; set; }
 
             public DateTimeOffset? ProcessRuntimeRiskAcceptedAt { get; set; }
+
+            public int? WindowLeft { get; set; }
+
+            public int? WindowTop { get; set; }
+
+            public int? WindowWidth { get; set; }
+
+            public int? WindowHeight { get; set; }
+
+            public bool WindowMaximized { get; set; }
         }
     }
 }
