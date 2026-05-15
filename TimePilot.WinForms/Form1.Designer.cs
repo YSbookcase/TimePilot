@@ -124,20 +124,20 @@
             fileMenuItem.DropDownItems.AddRange(new ToolStripItem[] { exportCsvMenuItem, exitMenuItem });
             fileMenuItem.Name = "fileMenuItem";
             fileMenuItem.Size = new Size(43, 20);
-            fileMenuItem.Text = "파일";
+            fileMenuItem.Text = UiText.Main.FileMenu;
             // 
             // exportCsvMenuItem
             // 
             exportCsvMenuItem.Name = "exportCsvMenuItem";
             exportCsvMenuItem.Size = new Size(180, 22);
-            exportCsvMenuItem.Text = "CSV 내보내기...";
+            exportCsvMenuItem.Text = UiText.Main.ExportCsv;
             exportCsvMenuItem.Click += OnExportCsvMenuItemClick;
             // 
             // exitMenuItem
             // 
             exitMenuItem.Name = "exitMenuItem";
             exitMenuItem.Size = new Size(180, 22);
-            exitMenuItem.Text = "종료";
+            exitMenuItem.Text = UiText.Main.Exit;
             exitMenuItem.Click += OnExitMenuItemClick;
             // 
             // settingsMenuItem
@@ -145,13 +145,13 @@
             settingsMenuItem.DropDownItems.AddRange(new ToolStripItem[] { preferencesMenuItem });
             settingsMenuItem.Name = "settingsMenuItem";
             settingsMenuItem.Size = new Size(43, 20);
-            settingsMenuItem.Text = "설정";
+            settingsMenuItem.Text = UiText.Main.SettingsMenu;
             // 
             // preferencesMenuItem
             // 
             preferencesMenuItem.Name = "preferencesMenuItem";
             preferencesMenuItem.Size = new Size(146, 22);
-            preferencesMenuItem.Text = "환경 설정...";
+            preferencesMenuItem.Text = UiText.Main.Preferences;
             preferencesMenuItem.Click += OnPreferencesMenuItemClick;
             // 
             // helpMenuItem
@@ -159,13 +159,13 @@
             helpMenuItem.DropDownItems.AddRange(new ToolStripItem[] { aboutMenuItem });
             helpMenuItem.Name = "helpMenuItem";
             helpMenuItem.Size = new Size(55, 20);
-            helpMenuItem.Text = "도움말";
+            helpMenuItem.Text = UiText.Main.HelpMenu;
             // 
             // aboutMenuItem
             // 
             aboutMenuItem.Name = "aboutMenuItem";
             aboutMenuItem.Size = new Size(98, 22);
-            aboutMenuItem.Text = "정보";
+            aboutMenuItem.Text = UiText.Main.About;
             aboutMenuItem.Click += OnAboutMenuItemClick;
             // 
             // statusLabel
@@ -201,7 +201,7 @@
             summaryTab.Padding = new Padding(3);
             summaryTab.Size = new Size(712, 420);
             summaryTab.TabIndex = 0;
-            summaryTab.Text = "요약";
+            summaryTab.Text = UiText.Main.SummaryTab;
             summaryTab.UseVisualStyleBackColor = true;
             // 
             // summaryPeriodPanel
@@ -225,7 +225,7 @@
             summaryPeriodLabel.Name = "summaryPeriodLabel";
             summaryPeriodLabel.Size = new Size(31, 15);
             summaryPeriodLabel.TabIndex = 0;
-            summaryPeriodLabel.Text = "기간";
+            summaryPeriodLabel.Text = UiText.Main.Period;
             // 
             // summaryPeriodComboBox
             // 
@@ -308,7 +308,7 @@
             // dailyUsageDateColumn
             // 
             dailyUsageDateColumn.DataPropertyName = "DateText";
-            dailyUsageDateColumn.HeaderText = "날짜";
+            dailyUsageDateColumn.HeaderText = UiText.Main.Date;
             dailyUsageDateColumn.MinimumWidth = 110;
             dailyUsageDateColumn.Name = "dailyUsageDateColumn";
             dailyUsageDateColumn.ReadOnly = true;
@@ -318,7 +318,7 @@
             // dailyUsageActiveTimeColumn
             // 
             dailyUsageActiveTimeColumn.DataPropertyName = "ActiveUsageTimeText";
-            dailyUsageActiveTimeColumn.HeaderText = "총 활성 사용 시간";
+            dailyUsageActiveTimeColumn.HeaderText = UiText.Main.TotalActiveUsageTime;
             dailyUsageActiveTimeColumn.MinimumWidth = 130;
             dailyUsageActiveTimeColumn.Name = "dailyUsageActiveTimeColumn";
             dailyUsageActiveTimeColumn.ReadOnly = true;
@@ -328,7 +328,7 @@
             // dailyUsageTopAppColumn
             // 
             dailyUsageTopAppColumn.DataPropertyName = "TopAppName";
-            dailyUsageTopAppColumn.HeaderText = "가장 많이 사용한 앱";
+            dailyUsageTopAppColumn.HeaderText = UiText.Main.TopApp;
             dailyUsageTopAppColumn.MinimumWidth = 180;
             dailyUsageTopAppColumn.Name = "dailyUsageTopAppColumn";
             dailyUsageTopAppColumn.ReadOnly = true;
@@ -338,7 +338,7 @@
             // dailyUsageTopAppTimeColumn
             // 
             dailyUsageTopAppTimeColumn.DataPropertyName = "TopAppUsageTimeText";
-            dailyUsageTopAppTimeColumn.HeaderText = "주요 앱 시간";
+            dailyUsageTopAppTimeColumn.HeaderText = UiText.Main.TopAppTime;
             dailyUsageTopAppTimeColumn.MinimumWidth = 120;
             dailyUsageTopAppTimeColumn.Name = "dailyUsageTopAppTimeColumn";
             dailyUsageTopAppTimeColumn.ReadOnly = true;
@@ -359,7 +359,7 @@
             // appNameColumn
             // 
             appNameColumn.DataPropertyName = "AppName";
-            appNameColumn.HeaderText = "앱";
+            appNameColumn.HeaderText = UiText.Main.App;
             appNameColumn.MinimumWidth = 180;
             appNameColumn.Name = "appNameColumn";
             appNameColumn.ReadOnly = true;
@@ -369,7 +369,7 @@
             // firstStartedAtColumn
             // 
             firstStartedAtColumn.DataPropertyName = "FirstStartedAtText";
-            firstStartedAtColumn.HeaderText = "첫 시작";
+            firstStartedAtColumn.HeaderText = UiText.Main.FirstStartedAt;
             firstStartedAtColumn.MinimumWidth = 120;
             firstStartedAtColumn.Name = "firstStartedAtColumn";
             firstStartedAtColumn.ReadOnly = true;
@@ -379,7 +379,7 @@
             // lastObservedAtColumn
             // 
             lastObservedAtColumn.DataPropertyName = "LastObservedAtText";
-            lastObservedAtColumn.HeaderText = "마지막 감지";
+            lastObservedAtColumn.HeaderText = UiText.Main.LastObservedAt;
             lastObservedAtColumn.MinimumWidth = 120;
             lastObservedAtColumn.Name = "lastObservedAtColumn";
             lastObservedAtColumn.ReadOnly = true;
@@ -389,7 +389,7 @@
             // activeUsageTimeColumn
             // 
             activeUsageTimeColumn.DataPropertyName = "ActiveUsageTimeText";
-            activeUsageTimeColumn.HeaderText = "활성 사용 시간";
+            activeUsageTimeColumn.HeaderText = UiText.Main.ActiveUsageTime;
             activeUsageTimeColumn.MinimumWidth = 120;
             activeUsageTimeColumn.Name = "activeUsageTimeColumn";
             activeUsageTimeColumn.ReadOnly = true;
@@ -399,18 +399,18 @@
             // usageRatioColumn
             // 
             usageRatioColumn.DataPropertyName = "UsageRatioText";
-            usageRatioColumn.HeaderText = "활성 비중";
+            usageRatioColumn.HeaderText = UiText.Main.ActiveRatio;
             usageRatioColumn.MinimumWidth = 80;
             usageRatioColumn.Name = "usageRatioColumn";
             usageRatioColumn.ReadOnly = true;
             usageRatioColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
-            usageRatioColumn.ToolTipText = "선택 기간 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
+            usageRatioColumn.ToolTipText = UiText.Main.UsageRatioTooltip;
             usageRatioColumn.Width = 90;
             // 
             // switchCountColumn
             // 
             switchCountColumn.DataPropertyName = "SwitchCountText";
-            switchCountColumn.HeaderText = "전환 횟수";
+            switchCountColumn.HeaderText = UiText.Main.SwitchCount;
             switchCountColumn.MinimumWidth = 90;
             switchCountColumn.Name = "switchCountColumn";
             switchCountColumn.ReadOnly = true;
@@ -426,7 +426,7 @@
             detailTab.Padding = new Padding(3);
             detailTab.Size = new Size(712, 420);
             detailTab.TabIndex = 1;
-            detailTab.Text = "상세";
+            detailTab.Text = UiText.Main.DetailTab;
             detailTab.UseVisualStyleBackColor = true;
             //
             // detailFilterPanel
@@ -453,7 +453,7 @@
             detailDateLabel.Name = "detailDateLabel";
             detailDateLabel.Size = new Size(31, 15);
             detailDateLabel.TabIndex = 0;
-            detailDateLabel.Text = "날짜";
+            detailDateLabel.Text = UiText.Main.Date;
             //
             // detailDatePicker
             //
@@ -470,7 +470,7 @@
             detailCalendarButton.Name = "detailCalendarButton";
             detailCalendarButton.Size = new Size(52, 23);
             detailCalendarButton.TabIndex = 2;
-            detailCalendarButton.Text = "달력";
+            detailCalendarButton.Text = UiText.Main.Calendar;
             detailCalendarButton.UseVisualStyleBackColor = true;
             detailCalendarButton.Click += OnDetailCalendarButtonClick;
             //
@@ -500,7 +500,7 @@
             detailTodayButton.Name = "detailTodayButton";
             detailTodayButton.Size = new Size(48, 23);
             detailTodayButton.TabIndex = 5;
-            detailTodayButton.Text = "오늘";
+            detailTodayButton.Text = UiText.Main.Today;
             detailTodayButton.UseVisualStyleBackColor = true;
             detailTodayButton.Click += OnDetailTodayButtonClick;
             //
@@ -512,7 +512,7 @@
             detailDateStatusLabel.Name = "detailDateStatusLabel";
             detailDateStatusLabel.Size = new Size(55, 15);
             detailDateStatusLabel.TabIndex = 6;
-            detailDateStatusLabel.Text = "확인 전";
+            detailDateStatusLabel.Text = UiText.Main.NotChecked;
             //
             // currentTrackingScopeOnlyCheckBox
             //
@@ -523,7 +523,7 @@
             currentTrackingScopeOnlyCheckBox.Name = "currentTrackingScopeOnlyCheckBox";
             currentTrackingScopeOnlyCheckBox.Size = new Size(134, 19);
             currentTrackingScopeOnlyCheckBox.TabIndex = 7;
-            currentTrackingScopeOnlyCheckBox.Text = "현재 추적 범위만";
+            currentTrackingScopeOnlyCheckBox.Text = UiText.Main.CurrentTrackingScopeOnly;
             currentTrackingScopeOnlyCheckBox.UseVisualStyleBackColor = true;
             currentTrackingScopeOnlyCheckBox.CheckedChanged += OnCurrentTrackingScopeOnlyCheckBoxCheckedChanged;
             //
@@ -534,7 +534,7 @@
             runningRuntimeOnlyCheckBox.Name = "runningRuntimeOnlyCheckBox";
             runningRuntimeOnlyCheckBox.Size = new Size(82, 19);
             runningRuntimeOnlyCheckBox.TabIndex = 8;
-            runningRuntimeOnlyCheckBox.Text = "실행 중만";
+            runningRuntimeOnlyCheckBox.Text = UiText.Main.RunningOnly;
             runningRuntimeOnlyCheckBox.UseVisualStyleBackColor = true;
             runningRuntimeOnlyCheckBox.CheckedChanged += OnRunningRuntimeOnlyCheckBoxCheckedChanged;
             //
@@ -595,7 +595,7 @@
             // runtimeAppNameColumn
             //
             runtimeAppNameColumn.DataPropertyName = "AppName";
-            runtimeAppNameColumn.HeaderText = "앱";
+            runtimeAppNameColumn.HeaderText = UiText.Main.App;
             runtimeAppNameColumn.MinimumWidth = 180;
             runtimeAppNameColumn.Name = "runtimeAppNameColumn";
             runtimeAppNameColumn.ReadOnly = true;
@@ -605,7 +605,7 @@
             // runtimeFirstObservedAtColumn
             //
             runtimeFirstObservedAtColumn.DataPropertyName = "FirstObservedAtText";
-            runtimeFirstObservedAtColumn.HeaderText = "첫 감지";
+            runtimeFirstObservedAtColumn.HeaderText = UiText.Main.FirstObservedAt;
             runtimeFirstObservedAtColumn.MinimumWidth = 90;
             runtimeFirstObservedAtColumn.Name = "runtimeFirstObservedAtColumn";
             runtimeFirstObservedAtColumn.ReadOnly = true;
@@ -615,29 +615,29 @@
             // runtimeLastObservedAtColumn
             //
             runtimeLastObservedAtColumn.DataPropertyName = "LastObservedAtText";
-            runtimeLastObservedAtColumn.HeaderText = "마지막 감지";
+            runtimeLastObservedAtColumn.HeaderText = UiText.Main.LastObservedAt;
             runtimeLastObservedAtColumn.MinimumWidth = 100;
             runtimeLastObservedAtColumn.Name = "runtimeLastObservedAtColumn";
             runtimeLastObservedAtColumn.ReadOnly = true;
             runtimeLastObservedAtColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
-            runtimeLastObservedAtColumn.ToolTipText = "백그라운드 앱 추적이 실제로 마지막 관측한 시각입니다.";
+            runtimeLastObservedAtColumn.ToolTipText = UiText.Main.RuntimeLastObservedTooltip;
             runtimeLastObservedAtColumn.Width = 110;
             //
             // runtimeDurationColumn
             //
             runtimeDurationColumn.DataPropertyName = "RuntimeText";
-            runtimeDurationColumn.HeaderText = "실행 시간";
+            runtimeDurationColumn.HeaderText = UiText.Main.Runtime;
             runtimeDurationColumn.MinimumWidth = 110;
             runtimeDurationColumn.Name = "runtimeDurationColumn";
             runtimeDurationColumn.ReadOnly = true;
             runtimeDurationColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
-            runtimeDurationColumn.ToolTipText = "실행 중인 앱은 현재 시각 기준으로 계속 증가하고, 종료된 앱은 마지막 관측 시각까지 계산합니다.";
+            runtimeDurationColumn.ToolTipText = UiText.Main.RuntimeDurationTooltip;
             runtimeDurationColumn.Width = 120;
             //
             // runtimeActiveUsageColumn
             //
             runtimeActiveUsageColumn.DataPropertyName = "ActiveUsageTimeText";
-            runtimeActiveUsageColumn.HeaderText = "활성 사용 시간";
+            runtimeActiveUsageColumn.HeaderText = UiText.Main.ActiveUsageTime;
             runtimeActiveUsageColumn.MinimumWidth = 120;
             runtimeActiveUsageColumn.Name = "runtimeActiveUsageColumn";
             runtimeActiveUsageColumn.ReadOnly = true;
@@ -647,34 +647,34 @@
             // runtimeActualUsageRatioColumn
             //
             runtimeActualUsageRatioColumn.DataPropertyName = "ActualUsageRatioText";
-            runtimeActualUsageRatioColumn.HeaderText = "실사용 비율";
+            runtimeActualUsageRatioColumn.HeaderText = UiText.Main.ActualUsageRatio;
             runtimeActualUsageRatioColumn.MinimumWidth = 100;
             runtimeActualUsageRatioColumn.Name = "runtimeActualUsageRatioColumn";
             runtimeActualUsageRatioColumn.ReadOnly = true;
             runtimeActualUsageRatioColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
-            runtimeActualUsageRatioColumn.ToolTipText = "실행 시간 중 실제 foreground 활성 사용 시간이 차지한 비율입니다.";
+            runtimeActualUsageRatioColumn.ToolTipText = UiText.Main.RuntimeActualUsageRatioTooltip;
             runtimeActualUsageRatioColumn.Width = 110;
             //
             // runtimeSessionCountColumn
             //
             runtimeSessionCountColumn.DataPropertyName = "RuntimeSegmentCountText";
-            runtimeSessionCountColumn.HeaderText = "실행 구간";
+            runtimeSessionCountColumn.HeaderText = UiText.Main.RuntimeSegmentCount;
             runtimeSessionCountColumn.MinimumWidth = 80;
             runtimeSessionCountColumn.Name = "runtimeSessionCountColumn";
             runtimeSessionCountColumn.ReadOnly = true;
             runtimeSessionCountColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
-            runtimeSessionCountColumn.ToolTipText = "앱이 이어서 실행된 것으로 관측된 구간 수입니다.";
+            runtimeSessionCountColumn.ToolTipText = UiText.Main.RuntimeSegmentCountTooltip;
             runtimeSessionCountColumn.Width = 90;
             //
             // runtimeStatusColumn
             //
             runtimeStatusColumn.DataPropertyName = "StatusText";
-            runtimeStatusColumn.HeaderText = "상태";
+            runtimeStatusColumn.HeaderText = UiText.Main.Status;
             runtimeStatusColumn.MinimumWidth = 80;
             runtimeStatusColumn.Name = "runtimeStatusColumn";
             runtimeStatusColumn.ReadOnly = true;
             runtimeStatusColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
-            runtimeStatusColumn.ToolTipText = "현재 설정 기준으로 실행 중, 종료, 추적 범위 밖 상태를 표시합니다.";
+            runtimeStatusColumn.ToolTipText = UiText.Main.RuntimeStatusTooltip;
             runtimeStatusColumn.Width = 90;
             //
             // runtimeSegmentsGrid
@@ -703,7 +703,7 @@
             // runtimeSegmentStartedAtColumn
             //
             runtimeSegmentStartedAtColumn.DataPropertyName = "StartedAtText";
-            runtimeSegmentStartedAtColumn.HeaderText = "시작";
+            runtimeSegmentStartedAtColumn.HeaderText = UiText.Main.Start;
             runtimeSegmentStartedAtColumn.MinimumWidth = 90;
             runtimeSegmentStartedAtColumn.Name = "runtimeSegmentStartedAtColumn";
             runtimeSegmentStartedAtColumn.ReadOnly = true;
@@ -713,7 +713,7 @@
             // runtimeSegmentEndedAtColumn
             //
             runtimeSegmentEndedAtColumn.DataPropertyName = "EndedAtText";
-            runtimeSegmentEndedAtColumn.HeaderText = "종료";
+            runtimeSegmentEndedAtColumn.HeaderText = UiText.Main.End;
             runtimeSegmentEndedAtColumn.MinimumWidth = 90;
             runtimeSegmentEndedAtColumn.Name = "runtimeSegmentEndedAtColumn";
             runtimeSegmentEndedAtColumn.ReadOnly = true;
@@ -723,7 +723,7 @@
             // runtimeSegmentDurationColumn
             //
             runtimeSegmentDurationColumn.DataPropertyName = "DurationText";
-            runtimeSegmentDurationColumn.HeaderText = "시간";
+            runtimeSegmentDurationColumn.HeaderText = UiText.Main.Duration;
             runtimeSegmentDurationColumn.MinimumWidth = 100;
             runtimeSegmentDurationColumn.Name = "runtimeSegmentDurationColumn";
             runtimeSegmentDurationColumn.ReadOnly = true;
@@ -733,7 +733,7 @@
             // runtimeSegmentStatusColumn
             //
             runtimeSegmentStatusColumn.DataPropertyName = "StatusText";
-            runtimeSegmentStatusColumn.HeaderText = "상태";
+            runtimeSegmentStatusColumn.HeaderText = UiText.Main.Status;
             runtimeSegmentStatusColumn.MinimumWidth = 80;
             runtimeSegmentStatusColumn.Name = "runtimeSegmentStatusColumn";
             runtimeSegmentStatusColumn.ReadOnly = true;
@@ -743,7 +743,7 @@
             // runtimeSegmentObservationTypeColumn
             //
             runtimeSegmentObservationTypeColumn.DataPropertyName = "ObservationTypeText";
-            runtimeSegmentObservationTypeColumn.HeaderText = "관측 기준";
+            runtimeSegmentObservationTypeColumn.HeaderText = UiText.Main.ObservationBasis;
             runtimeSegmentObservationTypeColumn.MinimumWidth = 110;
             runtimeSegmentObservationTypeColumn.Name = "runtimeSegmentObservationTypeColumn";
             runtimeSegmentObservationTypeColumn.ReadOnly = true;
@@ -753,7 +753,7 @@
             // runtimeSegmentProcessIdColumn
             //
             runtimeSegmentProcessIdColumn.DataPropertyName = "ProcessId";
-            runtimeSegmentProcessIdColumn.HeaderText = "PID";
+            runtimeSegmentProcessIdColumn.HeaderText = UiText.Main.Pid;
             runtimeSegmentProcessIdColumn.MinimumWidth = 70;
             runtimeSegmentProcessIdColumn.Name = "runtimeSegmentProcessIdColumn";
             runtimeSegmentProcessIdColumn.ReadOnly = true;
@@ -769,7 +769,7 @@
             timelineTab.Padding = new Padding(3);
             timelineTab.Size = new Size(712, 420);
             timelineTab.TabIndex = 2;
-            timelineTab.Text = "타임라인";
+            timelineTab.Text = UiText.Main.TimelineTab;
             timelineTab.UseVisualStyleBackColor = true;
             // 
             // timelineDatePanel
@@ -797,7 +797,7 @@
             timelineDateLabel.Name = "timelineDateLabel";
             timelineDateLabel.Size = new Size(31, 15);
             timelineDateLabel.TabIndex = 0;
-            timelineDateLabel.Text = "날짜";
+            timelineDateLabel.Text = UiText.Main.Date;
             // 
             // timelineDatePicker
             // 
@@ -814,7 +814,7 @@
             timelineCalendarButton.Name = "timelineCalendarButton";
             timelineCalendarButton.Size = new Size(52, 23);
             timelineCalendarButton.TabIndex = 2;
-            timelineCalendarButton.Text = "달력";
+            timelineCalendarButton.Text = UiText.Main.Calendar;
             timelineCalendarButton.UseVisualStyleBackColor = true;
             timelineCalendarButton.Click += OnTimelineCalendarButtonClick;
             // 
@@ -844,7 +844,7 @@
             timelineTodayButton.Name = "timelineTodayButton";
             timelineTodayButton.Size = new Size(48, 23);
             timelineTodayButton.TabIndex = 5;
-            timelineTodayButton.Text = "오늘";
+            timelineTodayButton.Text = UiText.Main.Today;
             timelineTodayButton.UseVisualStyleBackColor = true;
             timelineTodayButton.Click += OnTimelineTodayButtonClick;
             // 
@@ -857,7 +857,7 @@
             timelineDateStatusLabel.Name = "timelineDateStatusLabel";
             timelineDateStatusLabel.Size = new Size(55, 15);
             timelineDateStatusLabel.TabIndex = 6;
-            timelineDateStatusLabel.Text = "확인 전";
+            timelineDateStatusLabel.Text = UiText.Main.NotChecked;
             // 
             // timelineGrid
             // 
@@ -885,7 +885,7 @@
             // timelineTypeColumn
             // 
             timelineTypeColumn.DataPropertyName = "ActivityType";
-            timelineTypeColumn.HeaderText = "유형";
+            timelineTypeColumn.HeaderText = UiText.Main.Type;
             timelineTypeColumn.MinimumWidth = 80;
             timelineTypeColumn.Name = "timelineTypeColumn";
             timelineTypeColumn.ReadOnly = true;
@@ -895,7 +895,7 @@
             // timelineStartedAtColumn
             // 
             timelineStartedAtColumn.DataPropertyName = "StartedAtText";
-            timelineStartedAtColumn.HeaderText = "시작";
+            timelineStartedAtColumn.HeaderText = UiText.Main.Start;
             timelineStartedAtColumn.MinimumWidth = 90;
             timelineStartedAtColumn.Name = "timelineStartedAtColumn";
             timelineStartedAtColumn.ReadOnly = true;
@@ -905,7 +905,7 @@
             // timelineEndedAtColumn
             // 
             timelineEndedAtColumn.DataPropertyName = "EndedAtText";
-            timelineEndedAtColumn.HeaderText = "종료";
+            timelineEndedAtColumn.HeaderText = UiText.Main.End;
             timelineEndedAtColumn.MinimumWidth = 90;
             timelineEndedAtColumn.Name = "timelineEndedAtColumn";
             timelineEndedAtColumn.ReadOnly = true;
@@ -915,7 +915,7 @@
             // timelineDurationColumn
             // 
             timelineDurationColumn.DataPropertyName = "DurationText";
-            timelineDurationColumn.HeaderText = "시간";
+            timelineDurationColumn.HeaderText = UiText.Main.Duration;
             timelineDurationColumn.MinimumWidth = 100;
             timelineDurationColumn.Name = "timelineDurationColumn";
             timelineDurationColumn.ReadOnly = true;
@@ -936,7 +936,7 @@
             // timelineDisplayNameColumn
             // 
             timelineDisplayNameColumn.DataPropertyName = "DisplayName";
-            timelineDisplayNameColumn.HeaderText = "앱";
+            timelineDisplayNameColumn.HeaderText = UiText.Main.App;
             timelineDisplayNameColumn.MinimumWidth = 220;
             timelineDisplayNameColumn.Name = "timelineDisplayNameColumn";
             timelineDisplayNameColumn.ReadOnly = true;
@@ -953,7 +953,7 @@
             MainMenuStrip = mainMenuStrip;
             MinimumSize = new Size(900, 560);
             Name = "Form1";
-            Text = "TimePilot";
+            Text = UiText.AppName;
             mainMenuStrip.ResumeLayout(false);
             mainMenuStrip.PerformLayout();
             mainTabs.ResumeLayout(false);

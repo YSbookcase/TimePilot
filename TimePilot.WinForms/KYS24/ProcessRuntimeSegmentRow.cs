@@ -12,13 +12,14 @@ namespace TimePilot.WinForms.KYS24
     {
         public string StartedAtText => StartedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture);
 
-        public string EndedAtText => EndedAt?.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture) ?? "진행 중";
+        public string EndedAtText => EndedAt?.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture)
+            ?? UiText.Timeline.InProgress;
 
         public string DurationText => FormatDuration(DurationMs);
 
         public bool IsRunning => EndedAt is null;
 
-        public string StatusText => EndedAt is null ? "실행 중" : "종료";
+        public string StatusText => EndedAt is null ? UiText.Main.Running : UiText.Main.Ended;
 
         public string ObservationTypeText
         {

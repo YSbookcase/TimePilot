@@ -126,9 +126,9 @@ namespace TimePilot.WinForms
             foregroundSessionTracker?.Track(foregroundApp, isIdle, observedAt);
             _ = TrackProcessRuntimeSessionsAsync(observedAt);
 
-            var idleText = isIdle ? "유휴" : "활성";
+            var idleText = isIdle ? UiText.Main.Idle : UiText.Main.Active;
             statusLabel.Text = foregroundApp is null
-                ? $"전경: (없음) · {idleText}"
+                ? $"전경: {UiText.Main.NoForegroundApp} · {idleText}"
                 : $"전경: {foregroundApp.DisplayName} · {idleText}";
             SetStatusText(statusLabel.Text);
             RefreshViews(observedAt);
@@ -234,21 +234,20 @@ namespace TimePilot.WinForms
             if (!processRuntimeSafeModeActivated)
                 return;
 
-            const string message = "이전 실행에서 위험한 백그라운드 앱 추적 설정으로 짧은 시간 안에 비정상 종료가 반복된 것으로 보입니다.\n\n안전모드로 백그라운드 앱 추적만 자동으로 껐습니다. 현재 사용 중인 앱 기록과 유휴 감지는 계속 동작합니다.\n\n다시 사용하려면 설정 > 환경 설정에서 백그라운드 앱 추적을 켜주세요.";
             if (startMinimizedToTray)
             {
                 trayIcon.ShowBalloonTip(
                     8000,
-                    "TimePilot 안전모드",
-                    "반복 비정상 종료를 피하기 위해 백그라운드 앱 추적을 자동으로 껐습니다.",
+                    UiText.Main.SafeModeTitle,
+                    UiText.Main.SafeModeBalloonMessage,
                     ToolTipIcon.Warning);
                 return;
             }
 
             CenteredMessageDialog.Show(
                 this,
-                message,
-                "TimePilot 안전모드",
+                UiText.Main.SafeModeMessage,
+                UiText.Main.SafeModeTitle,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
         }
@@ -260,8 +259,8 @@ namespace TimePilot.WinForms
 
             var result = CenteredMessageDialog.Show(
                 this,
-                "Windows 시작 시 TimePilot을 자동으로 실행할까요?\n\n나중에 환경 설정에서 언제든 변경할 수 있습니다.",
-                "TimePilot 자동 시작",
+                UiText.Main.StartupPromptMessage,
+                UiText.Main.StartupPromptTitle,
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
 
@@ -381,10 +380,10 @@ namespace TimePilot.WinForms
 
             runtimeCoverageSummaryToolTip.SetToolTip(
                 detailCalendarButton,
-                "기록이 있는 날짜는 달력에서 굵게 표시됩니다.");
+                UiText.Main.RecordedDateCalendarTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(
                 timelineCalendarButton,
-                "기록이 있는 날짜는 달력에서 굵게 표시됩니다.");
+                UiText.Main.RecordedDateCalendarTooltip);
         }
 
         private void ConfigureDesignPreview()
@@ -475,10 +474,10 @@ namespace TimePilot.WinForms
 
         private void ConfigureTrayIcon()
         {
-            var openMenuItem = new ToolStripMenuItem("창 열기");
+            var openMenuItem = new ToolStripMenuItem(UiText.Main.OpenWindow);
             openMenuItem.Click += (_, _) => ShowMainWindow();
 
-            var exitTrayMenuItem = new ToolStripMenuItem("종료");
+            var exitTrayMenuItem = new ToolStripMenuItem(UiText.Main.Exit);
             exitTrayMenuItem.Click += (_, _) => ExitApplication();
 
             trayMenu.Items.AddRange(new ToolStripItem[]
@@ -490,7 +489,7 @@ namespace TimePilot.WinForms
 
             trayIcon.ContextMenuStrip = trayMenu;
             trayIcon.Icon = LoadAppIcon();
-            trayIcon.Text = "TimePilot";
+            trayIcon.Text = UiText.AppName;
             trayIcon.Visible = true;
             trayIcon.DoubleClick += (_, _) => ShowMainWindow();
         }
@@ -695,9 +694,9 @@ namespace TimePilot.WinForms
         {
             label.Text = hasData switch
             {
-                true => "기록 있음",
-                false => "기록 없음",
-                _ => "확인 전"
+                true => UiText.DateStatus.HasData,
+                false => UiText.DateStatus.NoData,
+                _ => UiText.DateStatus.NotChecked
             };
             label.ForeColor = hasData switch
             {
@@ -792,7 +791,7 @@ namespace TimePilot.WinForms
             if (slowTimings.Count == 0)
                 return;
 
-            performanceStatusText = "성능: " + string.Join(", ", slowTimings);
+            performanceStatusText = UiText.Main.PerformancePrefix + string.Join(", ", slowTimings);
             performanceStatusExpiresAt = DateTimeOffset.UtcNow.Add(PerformanceStatusDuration);
             RefreshStatusLabel();
         }
@@ -805,7 +804,7 @@ namespace TimePilot.WinForms
             if (events.Length == 0)
                 return;
 
-            performanceStatusText = "성능: " + string.Join(", ", events);
+            performanceStatusText = UiText.Main.PerformancePrefix + string.Join(", ", events);
             performanceStatusExpiresAt = DateTimeOffset.UtcNow.Add(PerformanceStatusDuration);
             RefreshStatusLabel();
         }
@@ -1350,7 +1349,7 @@ namespace TimePilot.WinForms
             headerToolTipLabel.Location = new Point(0, 0);
             headerToolTipLabel.Padding = new Padding(8, 5, 8, 5);
             headerToolTipLabel.Size = new Size(274, 42);
-            headerToolTipLabel.Text = "선택 기간 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
+            headerToolTipLabel.Text = UiText.Main.UsageRatioTooltip;
 
             headerToolTipForm.BackColor = SystemColors.Info;
             headerToolTipForm.ClientSize = headerToolTipLabel.Size;
@@ -1394,22 +1393,22 @@ namespace TimePilot.WinForms
         private string? GetHeaderToolTipText(DataGridView grid, DataGridViewColumn column)
         {
             if (grid == usageGrid && column == usageRatioColumn)
-                return "선택 기간 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.";
+                return UiText.Main.UsageRatioTooltip;
 
             if (grid == runtimeGrid && column == runtimeLastObservedAtColumn)
-                return "백그라운드 앱 추적이 실제로 마지막 관측한 시각입니다.";
+                return UiText.Main.RuntimeLastObservedTooltip;
 
             if (grid == runtimeGrid && column == runtimeDurationColumn)
-                return "실행 중인 앱은 현재 시각 기준으로 계속 증가하고, 종료된 앱은 마지막 관측 시각까지 계산합니다.";
+                return UiText.Main.RuntimeDurationTooltip;
 
             if (grid == runtimeGrid && column == runtimeActualUsageRatioColumn)
-                return "실행 시간 중 실제 foreground 활성 사용 시간이 차지한 비율입니다.";
+                return UiText.Main.RuntimeActualUsageRatioTooltip;
 
             if (grid == runtimeGrid && column == runtimeSessionCountColumn)
-                return "앱이 이어서 실행된 것으로 관측된 구간 수입니다.";
+                return UiText.Main.RuntimeSegmentCountTooltip;
 
             if (grid == runtimeGrid && column == runtimeStatusColumn)
-                return "현재 설정 기준으로 실행 중, 종료, 추적 범위 밖 상태를 표시합니다.";
+                return UiText.Main.RuntimeStatusTooltip;
 
             return null;
         }
@@ -1628,7 +1627,7 @@ namespace TimePilot.WinForms
                 SetGridDataSourcePreservingView(timelineGrid, Array.Empty<ActivityTimelineRow>());
                 SetGridDataSourcePreservingView(runtimeGrid, Array.Empty<ProcessRuntimeSummaryRow>());
                 SetGridDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
-                SetStatusText("사용 기록을 삭제했습니다.");
+                SetStatusText(UiText.Main.UsageDataCleared);
             }
             finally
             {

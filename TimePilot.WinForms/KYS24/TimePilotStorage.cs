@@ -731,7 +731,14 @@ namespace TimePilot.WinForms.KYS24
             foreach (var interval in MergeIntervals(trackedIntervals))
             {
                 if (interval.Start > cursor)
-                    AddTimelineRow(rows, "미실행", cursor, interval.Start, interval.Start, "TimePilot 미실행", null);
+                    AddTimelineRow(
+                        rows,
+                        UiText.Main.Untracked,
+                        cursor,
+                        interval.Start,
+                        interval.Start,
+                        UiText.Main.TimePilotUntracked,
+                        null);
 
                 if (interval.End > cursor)
                     cursor = interval.End;
@@ -739,7 +746,14 @@ namespace TimePilot.WinForms.KYS24
 
             var gapEnd = Min(now, dayEnd);
             if (gapEnd > cursor)
-                AddTimelineRow(rows, "미실행", cursor, gapEnd, gapEnd, "TimePilot 미실행", null);
+                AddTimelineRow(
+                    rows,
+                    UiText.Main.Untracked,
+                    cursor,
+                    gapEnd,
+                    gapEnd,
+                    UiText.Main.TimePilotUntracked,
+                    null);
         }
 
         private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> GetRuntimeIntervalsForDay(
@@ -1405,7 +1419,7 @@ namespace TimePilot.WinForms.KYS24
                 DateTimeOffset? displayEnd = IsCurrentTimelineSession(endedAt, observedEnd, dayEnd, now)
                     ? null
                     : effectiveEnd;
-                AddTimelineRow(rows, "활성", effectiveStart, displayEnd, effectiveEnd, appName, executablePath);
+                AddTimelineRow(rows, UiText.Main.Active, effectiveStart, displayEnd, effectiveEnd, appName, executablePath);
             }
         }
 
@@ -1444,7 +1458,14 @@ namespace TimePilot.WinForms.KYS24
                 DateTimeOffset? displayEnd = IsCurrentTimelineSession(endedAt, effectiveEnd, dayEnd, now)
                     ? null
                     : effectiveEnd;
-                AddTimelineRow(rows, "유휴", effectiveStart, displayEnd, effectiveEnd, foregroundAppName, executablePath);
+                AddTimelineRow(
+                    rows,
+                    UiText.Main.Idle,
+                    effectiveStart,
+                    displayEnd,
+                    effectiveEnd,
+                    foregroundAppName,
+                    executablePath);
             }
         }
 

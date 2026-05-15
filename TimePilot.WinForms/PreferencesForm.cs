@@ -12,7 +12,7 @@ namespace TimePilot.WinForms
             new("5분", 5),
             new("10분", 10),
             new("15분", 15),
-            new("사용자 지정", null)
+            new(UiText.Preferences.Custom, null)
         ];
 
         private static readonly IReadOnlyList<ProcessRuntimeIntervalOption> ProcessRuntimeIntervalOptions =
@@ -21,7 +21,7 @@ namespace TimePilot.WinForms
             new("30초", 30),
             new("60초", 60),
             new("5분", 300),
-            new("사용자 지정", null)
+            new(UiText.Preferences.Custom, null)
         ];
 
         private readonly ComboBox idleThresholdComboBox = new();
@@ -88,7 +88,7 @@ namespace TimePilot.WinForms
             idleThresholdLabel.Location = new Point(20, 22);
             idleThresholdLabel.Name = "idleThresholdLabel";
             idleThresholdLabel.Size = new Size(126, 15);
-            idleThresholdLabel.Text = "유휴 판단 대기시간";
+            idleThresholdLabel.Text = UiText.Preferences.IdleThresholdLabel;
 
             idleThresholdComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             idleThresholdComboBox.FormattingEnabled = true;
@@ -107,19 +107,19 @@ namespace TimePilot.WinForms
             customIdleThresholdUnitLabel.Location = new Point(274, 52);
             customIdleThresholdUnitLabel.Name = "customIdleThresholdUnitLabel";
             customIdleThresholdUnitLabel.Size = new Size(19, 15);
-            customIdleThresholdUnitLabel.Text = "분";
+            customIdleThresholdUnitLabel.Text = UiText.Preferences.MinuteUnit;
 
             startWithWindowsCheckBox.AutoSize = true;
             startWithWindowsCheckBox.Location = new Point(20, 88);
             startWithWindowsCheckBox.Name = "startWithWindowsCheckBox";
             startWithWindowsCheckBox.Size = new Size(178, 19);
-            startWithWindowsCheckBox.Text = "Windows 시작 시 자동 실행";
+            startWithWindowsCheckBox.Text = UiText.Preferences.StartWithWindows;
 
             performanceDiagnosticsCheckBox.AutoSize = true;
             performanceDiagnosticsCheckBox.Location = new Point(20, 116);
             performanceDiagnosticsCheckBox.Name = "performanceDiagnosticsCheckBox";
             performanceDiagnosticsCheckBox.Size = new Size(112, 19);
-            performanceDiagnosticsCheckBox.Text = "성능 진단 표시";
+            performanceDiagnosticsCheckBox.Text = UiText.Preferences.PerformanceDiagnostics;
 
             processRuntimeGroupBox.Controls.Add(processRuntimeTrackingCheckBox);
             processRuntimeGroupBox.Controls.Add(processRuntimeScopeLabel);
@@ -134,20 +134,20 @@ namespace TimePilot.WinForms
             processRuntimeGroupBox.Size = new Size(430, 190);
             processRuntimeGroupBox.TabIndex = 4;
             processRuntimeGroupBox.TabStop = false;
-            processRuntimeGroupBox.Text = "백그라운드 앱 추적";
+            processRuntimeGroupBox.Text = UiText.Preferences.ProcessRuntimeGroup;
 
             processRuntimeTrackingCheckBox.AutoSize = true;
             processRuntimeTrackingCheckBox.Location = new Point(16, 28);
             processRuntimeTrackingCheckBox.Name = "processRuntimeTrackingCheckBox";
             processRuntimeTrackingCheckBox.Size = new Size(150, 19);
-            processRuntimeTrackingCheckBox.Text = "실행 중 앱 세션 추적";
+            processRuntimeTrackingCheckBox.Text = UiText.Preferences.ProcessRuntimeTracking;
             processRuntimeTrackingCheckBox.CheckedChanged += OnProcessRuntimeSettingsChanged;
 
             processRuntimeScopeLabel.AutoSize = true;
             processRuntimeScopeLabel.Location = new Point(16, 62);
             processRuntimeScopeLabel.Name = "processRuntimeScopeLabel";
             processRuntimeScopeLabel.Size = new Size(59, 15);
-            processRuntimeScopeLabel.Text = "추적 범위";
+            processRuntimeScopeLabel.Text = UiText.Preferences.ProcessRuntimeScope;
 
             processRuntimeScopeComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             processRuntimeScopeComboBox.FormattingEnabled = true;
@@ -160,7 +160,7 @@ namespace TimePilot.WinForms
             processRuntimeIntervalLabel.Location = new Point(16, 100);
             processRuntimeIntervalLabel.Name = "processRuntimeIntervalLabel";
             processRuntimeIntervalLabel.Size = new Size(59, 15);
-            processRuntimeIntervalLabel.Text = "확인 주기";
+            processRuntimeIntervalLabel.Text = UiText.Preferences.ProcessRuntimeInterval;
 
             processRuntimeIntervalComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             processRuntimeIntervalComboBox.FormattingEnabled = true;
@@ -180,13 +180,13 @@ namespace TimePilot.WinForms
             customProcessRuntimeIntervalUnitLabel.Location = new Point(334, 100);
             customProcessRuntimeIntervalUnitLabel.Name = "customProcessRuntimeIntervalUnitLabel";
             customProcessRuntimeIntervalUnitLabel.Size = new Size(19, 15);
-            customProcessRuntimeIntervalUnitLabel.Text = "초";
+            customProcessRuntimeIntervalUnitLabel.Text = UiText.Preferences.SecondUnit;
 
             processRuntimeWarningLabel.ForeColor = Color.Firebrick;
             processRuntimeWarningLabel.Location = new Point(16, 132);
             processRuntimeWarningLabel.Name = "processRuntimeWarningLabel";
             processRuntimeWarningLabel.Size = new Size(396, 42);
-            processRuntimeWarningLabel.Text = "짧은 확인 주기는 CPU 사용량, 배터리 소모, 저장 데이터 증가를 유발할 수 있습니다.";
+            processRuntimeWarningLabel.Text = UiText.Preferences.ProcessRuntimeWarning;
 
             dataManagementGroupBox.Controls.Add(dataManagementLabel);
             dataManagementGroupBox.Controls.Add(openDataFolderButton);
@@ -196,24 +196,24 @@ namespace TimePilot.WinForms
             dataManagementGroupBox.Size = new Size(430, 72);
             dataManagementGroupBox.TabIndex = 5;
             dataManagementGroupBox.TabStop = false;
-            dataManagementGroupBox.Text = "데이터 관리";
+            dataManagementGroupBox.Text = UiText.Preferences.DataManagementGroup;
 
             dataManagementLabel.AutoSize = false;
             dataManagementLabel.Location = new Point(16, 32);
             dataManagementLabel.Name = "dataManagementLabel";
             dataManagementLabel.Size = new Size(170, 30);
-            dataManagementLabel.Text = "기록과 설정 저장 위치를 관리합니다.";
+            dataManagementLabel.Text = UiText.Preferences.DataManagementDescription;
 
             openDataFolderButton.Location = new Point(206, 27);
             openDataFolderButton.Name = "openDataFolderButton";
             openDataFolderButton.Size = new Size(92, 27);
-            openDataFolderButton.Text = "폴더 열기";
+            openDataFolderButton.Text = UiText.Preferences.OpenDataFolder;
             openDataFolderButton.Click += OnOpenDataFolderButtonClick;
 
             clearUsageDataButton.Location = new Point(304, 27);
             clearUsageDataButton.Name = "clearUsageDataButton";
             clearUsageDataButton.Size = new Size(108, 27);
-            clearUsageDataButton.Text = "기록 삭제";
+            clearUsageDataButton.Text = UiText.Preferences.ClearUsageData;
             clearUsageDataButton.Click += OnClearUsageDataButtonClick;
 
             okButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
@@ -221,7 +221,7 @@ namespace TimePilot.WinForms
             okButton.Location = new Point(294, 446);
             okButton.Name = "okButton";
             okButton.Size = new Size(75, 27);
-            okButton.Text = "저장";
+            okButton.Text = UiText.Common.Save;
             okButton.Click += OnOkButtonClick;
 
             cancelButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
@@ -229,7 +229,7 @@ namespace TimePilot.WinForms
             cancelButton.Location = new Point(375, 446);
             cancelButton.Name = "cancelButton";
             cancelButton.Size = new Size(75, 27);
-            cancelButton.Text = "취소";
+            cancelButton.Text = UiText.Common.Cancel;
 
             AcceptButton = okButton;
             CancelButton = cancelButton;
@@ -252,7 +252,7 @@ namespace TimePilot.WinForms
             ShowIcon = false;
             ShowInTaskbar = false;
             StartPosition = FormStartPosition.CenterParent;
-            Text = "환경 설정";
+            Text = UiText.Preferences.Title;
 
             processRuntimeGroupBox.ResumeLayout(false);
             processRuntimeGroupBox.PerformLayout();
@@ -281,9 +281,9 @@ namespace TimePilot.WinForms
 
             processRuntimeScopeComboBox.DataSource = new List<ProcessRuntimeScopeOption>
             {
-                new("창이 있는 앱만", ProcessRuntimeTrackingScope.WindowedApps),
-                new("모든 사용자 프로세스", ProcessRuntimeTrackingScope.UserProcesses),
-                new("모든 프로세스", ProcessRuntimeTrackingScope.AllProcesses)
+                new(UiText.Preferences.WindowedAppsScope, ProcessRuntimeTrackingScope.WindowedApps),
+                new(UiText.Preferences.UserProcessesScope, ProcessRuntimeTrackingScope.UserProcesses),
+                new(UiText.Preferences.AllProcessesScope, ProcessRuntimeTrackingScope.AllProcesses)
             };
             processRuntimeScopeComboBox.DisplayMember = nameof(ProcessRuntimeScopeOption.Label);
             processRuntimeScopeComboBox.ValueMember = nameof(ProcessRuntimeScopeOption.Scope);
@@ -337,8 +337,8 @@ namespace TimePilot.WinForms
             {
                 CenteredMessageDialog.Show(
                     this,
-                    $"데이터 폴더를 열 수 없습니다.\n\n{ex.Message}",
-                    "데이터 폴더 열기",
+                    UiText.Preferences.DataFolderOpenFailed(ex.Message),
+                    UiText.Preferences.DataFolderOpenTitle,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
             }
@@ -348,8 +348,8 @@ namespace TimePilot.WinForms
         {
             var result = CenteredMessageDialog.Show(
                 this,
-                "저장을 누르면 앱 사용 기록과 타임라인 기록이 삭제됩니다.\n\n환경 설정과 Windows 시작 시 자동 실행 설정은 유지됩니다.",
-                "사용 기록 삭제",
+                UiText.Preferences.ClearUsageDataMessage,
+                UiText.Preferences.ClearUsageDataTitle,
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning);
 
@@ -357,7 +357,7 @@ namespace TimePilot.WinForms
                 return;
 
             ClearUsageDataRequested = true;
-            clearUsageDataButton.Text = "삭제 예정";
+            clearUsageDataButton.Text = UiText.Preferences.ClearUsageDataPending;
         }
 
         private void OnOkButtonClick(object? sender, EventArgs e)
@@ -412,8 +412,8 @@ namespace TimePilot.WinForms
             customProcessRuntimeIntervalNumeric.Visible = isCustomInterval;
             customProcessRuntimeIntervalUnitLabel.Visible = isCustomInterval;
             processRuntimeWarningLabel.Text = isDangerousSetting
-                ? "위험 설정입니다. 반복 비정상 종료가 감지되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼질 수 있습니다."
-                : "짧은 확인 주기는 CPU 사용량, 배터리 소모, 저장 데이터 증가를 유발할 수 있습니다.";
+                ? UiText.Preferences.ProcessRuntimeDangerWarning
+                : UiText.Preferences.ProcessRuntimeWarning;
             processRuntimeWarningLabel.Visible = isEnabled
                 && (isDangerousSetting || intervalSeconds < AppSettings.WarningProcessRuntimeSampleIntervalSeconds);
         }
@@ -438,11 +438,11 @@ namespace TimePilot.WinForms
             var message = ProcessRuntimeTrackingScope switch
             {
                 ProcessRuntimeTrackingScope.AllProcesses =>
-                    "모든 프로세스를 10초 이하 주기로 추적하면 환경에 따라 TimePilot이 멈추거나 비정상 종료될 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
+                    UiText.Preferences.AllProcessesRiskMessage,
                 ProcessRuntimeTrackingScope.UserProcesses =>
-                    "모든 사용자 프로세스를 5초 이하 주기로 추적하면 CPU 사용량과 저장 데이터가 크게 증가할 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
+                    UiText.Preferences.UserProcessesRiskMessage,
                 _ =>
-                    "3초 이하 확인 주기는 추적 범위와 관계없이 시스템 부하와 저장 데이터 증가를 유발할 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?"
+                    UiText.Preferences.AnyScopeRiskMessage
             };
 
             ProcessRuntimeRiskAccepted = ShowCenteredWarning(message) == DialogResult.Yes;
@@ -468,14 +468,14 @@ namespace TimePilot.WinForms
             yesButton.Location = new Point(286, 160);
             yesButton.Name = "yesButton";
             yesButton.Size = new Size(75, 27);
-            yesButton.Text = "저장";
+            yesButton.Text = UiText.Common.Save;
 
             noButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             noButton.DialogResult = DialogResult.No;
             noButton.Location = new Point(367, 160);
             noButton.Name = "noButton";
             noButton.Size = new Size(75, 27);
-            noButton.Text = "취소";
+            noButton.Text = UiText.Common.Cancel;
 
             dialog.AcceptButton = yesButton;
             dialog.CancelButton = noButton;
@@ -491,7 +491,7 @@ namespace TimePilot.WinForms
             dialog.ShowIcon = false;
             dialog.ShowInTaskbar = false;
             dialog.StartPosition = FormStartPosition.CenterParent;
-            dialog.Text = "고급 추적 설정";
+            dialog.Text = UiText.Preferences.AdvancedTrackingTitle;
 
             dialog.ResumeLayout(false);
 

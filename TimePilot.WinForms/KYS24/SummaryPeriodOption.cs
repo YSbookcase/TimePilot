@@ -13,15 +13,19 @@ namespace TimePilot.WinForms.KYS24
 
             return
             [
-                new(SummaryPeriod.Today, $"오늘 ({FormatDate(today)})"),
-                new(SummaryPeriod.Yesterday, $"어제 ({FormatDate(today.AddDays(-1))})"),
-                new(SummaryPeriod.SpecificDate, "특정 날짜"),
-                new(SummaryPeriod.ThisWeek, $"이번 주({FormatDate(weekStart)}~오늘)"),
-                new(SummaryPeriod.LastWeek, $"지난 주({FormatDate(lastWeekStart)}~{FormatDate(lastWeekEnd)})"),
-                new(SummaryPeriod.ThisMonth, $"이번 달(1일~오늘)"),
-                new(SummaryPeriod.LastMonth, $"지난 달({FormatMonthDay(lastMonthStart)}~{FormatMonthDay(lastMonthEnd)})"),
-                new(SummaryPeriod.ThisYear, $"올해({today.Year}.01~오늘)"),
-                new(SummaryPeriod.LastYear, $"작년({today.Year - 1})")
+                new(SummaryPeriod.Today, UiText.SummaryPeriod.Today(FormatDate(today))),
+                new(SummaryPeriod.Yesterday, UiText.SummaryPeriod.Yesterday(FormatDate(today.AddDays(-1)))),
+                new(SummaryPeriod.SpecificDate, UiText.SummaryPeriod.SpecificDate),
+                new(SummaryPeriod.ThisWeek, UiText.SummaryPeriod.ThisWeek(FormatDate(weekStart))),
+                new(SummaryPeriod.LastWeek, UiText.SummaryPeriod.LastWeek(
+                    FormatDate(lastWeekStart),
+                    FormatDate(lastWeekEnd))),
+                new(SummaryPeriod.ThisMonth, UiText.SummaryPeriod.ThisMonth()),
+                new(SummaryPeriod.LastMonth, UiText.SummaryPeriod.LastMonth(
+                    FormatMonthDay(lastMonthStart),
+                    FormatMonthDay(lastMonthEnd))),
+                new(SummaryPeriod.ThisYear, UiText.SummaryPeriod.ThisYear(today.Year)),
+                new(SummaryPeriod.LastYear, UiText.SummaryPeriod.LastYear(today.Year - 1))
             ];
         }
 
