@@ -5,25 +5,6 @@ namespace TimePilot.WinForms
 {
     internal sealed class PreferencesForm : Form
     {
-        private static readonly IReadOnlyList<IdleThresholdOption> IdleThresholdOptions =
-        [
-            new("1분", 1),
-            new("2분", 2),
-            new("5분", 5),
-            new("10분", 10),
-            new("15분", 15),
-            new(UiText.Preferences.Custom, null)
-        ];
-
-        private static readonly IReadOnlyList<ProcessRuntimeIntervalOption> ProcessRuntimeIntervalOptions =
-        [
-            new("10초", 10),
-            new("30초", 30),
-            new("60초", 60),
-            new("5분", 300),
-            new(UiText.Preferences.Custom, null)
-        ];
-
         private readonly ComboBox idleThresholdComboBox = new();
         private readonly NumericUpDown customIdleThresholdNumeric = new();
         private readonly Label customIdleThresholdUnitLabel = new();
@@ -264,13 +245,14 @@ namespace TimePilot.WinForms
 
         private void ConfigureIdleThresholdControls()
         {
-            idleThresholdComboBox.DataSource = IdleThresholdOptions.ToList();
+            var idleThresholdOptions = GetIdleThresholdOptions();
+            idleThresholdComboBox.DataSource = idleThresholdOptions.ToList();
             idleThresholdComboBox.DisplayMember = nameof(IdleThresholdOption.Label);
             idleThresholdComboBox.ValueMember = nameof(IdleThresholdOption.Minutes);
             customIdleThresholdNumeric.Value = IdleThresholdMinutes;
 
-            var selectedOption = IdleThresholdOptions.FirstOrDefault(option => option.Minutes == IdleThresholdMinutes)
-                ?? IdleThresholdOptions.First(option => option.Minutes is null);
+            var selectedOption = idleThresholdOptions.FirstOrDefault(option => option.Minutes == IdleThresholdMinutes)
+                ?? idleThresholdOptions.First(option => option.Minutes is null);
             idleThresholdComboBox.SelectedItem = selectedOption;
             UpdateCustomIdleThresholdVisibility();
         }
@@ -291,7 +273,8 @@ namespace TimePilot.WinForms
                 .Cast<ProcessRuntimeScopeOption>()
                 .First(option => option.Scope == ProcessRuntimeTrackingScope);
 
-            processRuntimeIntervalComboBox.DataSource = ProcessRuntimeIntervalOptions.ToList();
+            var processRuntimeIntervalOptions = GetProcessRuntimeIntervalOptions();
+            processRuntimeIntervalComboBox.DataSource = processRuntimeIntervalOptions.ToList();
             processRuntimeIntervalComboBox.DisplayMember = nameof(ProcessRuntimeIntervalOption.Label);
             processRuntimeIntervalComboBox.ValueMember = nameof(ProcessRuntimeIntervalOption.Seconds);
             customProcessRuntimeIntervalNumeric.Value = Math.Clamp(
@@ -299,11 +282,36 @@ namespace TimePilot.WinForms
                 AppSettings.MinProcessRuntimeSampleIntervalSeconds,
                 AppSettings.MaxProcessRuntimeSampleIntervalSeconds);
 
-            var selectedOption = ProcessRuntimeIntervalOptions
+            var selectedOption = processRuntimeIntervalOptions
                 .FirstOrDefault(option => option.Seconds == ProcessRuntimeSampleIntervalSeconds)
-                ?? ProcessRuntimeIntervalOptions.First(option => option.Seconds is null);
+                ?? processRuntimeIntervalOptions.First(option => option.Seconds is null);
             processRuntimeIntervalComboBox.SelectedItem = selectedOption;
             UpdateProcessRuntimeControls();
+        }
+
+        private static IReadOnlyList<IdleThresholdOption> GetIdleThresholdOptions()
+        {
+            return
+            [
+                new("1분", 1),
+                new("2분", 2),
+                new("5분", 5),
+                new("10분", 10),
+                new("15분", 15),
+                new(UiText.Preferences.Custom, null)
+            ];
+        }
+
+        private static IReadOnlyList<ProcessRuntimeIntervalOption> GetProcessRuntimeIntervalOptions()
+        {
+            return
+            [
+                new("10초", 10),
+                new("30초", 30),
+                new("60초", 60),
+                new("5분", 300),
+                new(UiText.Preferences.Custom, null)
+            ];
         }
 
         private void ConfigureStartupControls()
