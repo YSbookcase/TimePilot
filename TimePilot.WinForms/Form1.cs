@@ -68,6 +68,7 @@ namespace TimePilot.WinForms
             this.startMinimizedToTray = startMinimizedToTray;
 
             InitializeComponent();
+            ApplySavedWindowPlacement();
             InitializeRecordedDateCalendar();
             InitializeSummaryPeriodSelector();
             InitializeDateSelectors();
@@ -137,6 +138,7 @@ namespace TimePilot.WinForms
         {
             var endedAt = DateTimeOffset.UtcNow;
             isClosing = true;
+            SaveWindowPlacement();
             sampleTimer.Stop();
             idleSessionTracker?.EndCurrentSession(endedAt);
             foregroundSessionTracker?.EndCurrentSession(endedAt);
@@ -160,8 +162,50 @@ namespace TimePilot.WinForms
             if (isExplicitExitRequested || e.CloseReason != CloseReason.UserClosing)
                 return;
 
+            SaveWindowPlacement();
             e.Cancel = true;
             HideToTray();
+        }
+
+        private void ApplySavedWindowPlacement()
+        {
+            if (settings.WindowLeft is not { } left
+                || settings.WindowTop is not { } top
+                || settings.WindowWidth is not { } width
+                || settings.WindowHeight is not { } height)
+                return;
+
+            var bounds = new Rectangle(
+                left,
+                top,
+                Math.Max(width, MinimumSize.Width),
+                Math.Max(height, MinimumSize.Height));
+
+            if (!IsWindowBoundsVisible(bounds))
+                return;
+
+            StartPosition = FormStartPosition.Manual;
+            Bounds = bounds;
+
+            if (settings.WindowMaximized)
+                WindowState = FormWindowState.Maximized;
+        }
+
+        private void SaveWindowPlacement()
+        {
+            if (WindowState == FormWindowState.Minimized)
+                return;
+
+            var normalBounds = WindowState == FormWindowState.Maximized ? RestoreBounds : Bounds;
+            if (normalBounds.Width <= 0 || normalBounds.Height <= 0)
+                return;
+
+            settings.SetWindowPlacement(normalBounds, WindowState == FormWindowState.Maximized);
+        }
+
+        private static bool IsWindowBoundsVisible(Rectangle bounds)
+        {
+            return Screen.AllScreens.Any(screen => screen.WorkingArea.IntersectsWith(bounds));
         }
 
         private void OnShown(object? sender, EventArgs e)
