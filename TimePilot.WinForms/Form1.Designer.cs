@@ -32,6 +32,7 @@
             summaryPeriodPanel = new FlowLayoutPanel();
             summaryPeriodLabel = new Label();
             summaryPeriodComboBox = new ComboBox();
+            summarySpecificDatePicker = new DateTimePicker();
             runtimeCoverageSummaryPanel = new FlowLayoutPanel();
             runtimeCoverageSummaryToolTip = new ToolTip(components);
             usageGrid = new BufferedDataGridView();
@@ -205,6 +206,7 @@
             // 
             summaryPeriodPanel.Controls.Add(summaryPeriodLabel);
             summaryPeriodPanel.Controls.Add(summaryPeriodComboBox);
+            summaryPeriodPanel.Controls.Add(summarySpecificDatePicker);
             summaryPeriodPanel.Dock = DockStyle.Top;
             summaryPeriodPanel.Location = new Point(3, 3);
             summaryPeriodPanel.Name = "summaryPeriodPanel";
@@ -229,9 +231,19 @@
             summaryPeriodComboBox.FormattingEnabled = true;
             summaryPeriodComboBox.Location = new Point(50, 7);
             summaryPeriodComboBox.Name = "summaryPeriodComboBox";
-            summaryPeriodComboBox.Size = new Size(120, 23);
+            summaryPeriodComboBox.Size = new Size(220, 23);
             summaryPeriodComboBox.TabIndex = 1;
             summaryPeriodComboBox.SelectedIndexChanged += OnSummaryPeriodComboBoxSelectedIndexChanged;
+            // 
+            // summarySpecificDatePicker
+            // 
+            summarySpecificDatePicker.Format = DateTimePickerFormat.Short;
+            summarySpecificDatePicker.Location = new Point(282, 7);
+            summarySpecificDatePicker.Name = "summarySpecificDatePicker";
+            summarySpecificDatePicker.Size = new Size(112, 23);
+            summarySpecificDatePicker.TabIndex = 2;
+            summarySpecificDatePicker.Visible = false;
+            summarySpecificDatePicker.ValueChanged += OnSummarySpecificDatePickerValueChanged;
             // 
             // runtimeCoverageSummaryPanel
             // 
@@ -954,6 +966,7 @@
         private FlowLayoutPanel summaryPeriodPanel;
         private Label summaryPeriodLabel;
         private ComboBox summaryPeriodComboBox;
+        private DateTimePicker summarySpecificDatePicker;
         private FlowLayoutPanel runtimeCoverageSummaryPanel;
         private ToolTip runtimeCoverageSummaryToolTip;
         private DataGridView usageGrid;
