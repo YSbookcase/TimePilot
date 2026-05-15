@@ -73,6 +73,7 @@ namespace TimePilot.WinForms
             InitializeRecordedDateCalendar();
             InitializeSummaryPeriodSelector();
             InitializeDateSelectors();
+            ApplyUiText();
 
             if (IsRunningInDesigner())
             {
@@ -391,10 +392,10 @@ namespace TimePilot.WinForms
         {
             statusLabel.Text = $"{UiText.Main.ForegroundPrefix}Visual Studio · {UiText.Main.Active}";
             SetRuntimeCoverageSummaryParts(
-                "오늘 0시~현재 기록 커버리지 98.1%",
-                "기록 07:48:12",
-                "미기록 00:09:00",
-                "최장 미기록 00:04:12");
+                UiText.RuntimeCoverage.Coverage(0.981),
+                UiText.RuntimeCoverage.Tracked("07:48:12"),
+                UiText.RuntimeCoverage.Missing("00:09:00"),
+                UiText.RuntimeCoverage.LongestMissing("00:04:12"));
             usageGrid.DataSource = AddIcons(new List<UsageSummaryRow>
             {
                 new("Microsoft Visual Studio", "devenv", null, 3_900_000, 0.54, 8, null, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now),
@@ -408,9 +409,9 @@ namespace TimePilot.WinForms
             };
             timelineGrid.DataSource = AddIcons(new List<ActivityTimelineRow>
             {
-                new("활성", DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now.AddHours(-1), 3_600_000, "devenv"),
-                new("유휴", DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-45), 900_000, "devenv"),
-                new("활성", DateTimeOffset.Now.AddMinutes(-45), null, 2_700_000, "chrome")
+                new(UiText.Main.Active, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now.AddHours(-1), 3_600_000, "devenv"),
+                new(UiText.Main.Idle, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-45), 900_000, "devenv"),
+                new(UiText.Main.Active, DateTimeOffset.Now.AddMinutes(-45), null, 2_700_000, "chrome")
             });
         }
 
@@ -418,7 +419,7 @@ namespace TimePilot.WinForms
         {
             if (summary is null)
             {
-                SetRuntimeCoverageSummaryParts("기록 커버리지 -");
+                SetRuntimeCoverageSummaryParts(UiText.RuntimeCoverage.NotChecked);
                 return;
             }
 
@@ -567,6 +568,9 @@ namespace TimePilot.WinForms
             }
 
             trayIcon.Text = UiText.AppName;
+            runtimeCoverageSummaryToolTip.SetToolTip(runtimeCoverageSummaryPanel, UiText.RuntimeCoverage.Tooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(detailCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(timelineCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
             RefreshSummaryPeriodOptions(DateTime.Today);
             SetDateStatus(detailDateStatusLabel, null);
             SetDateStatus(timelineDateStatusLabel, null);

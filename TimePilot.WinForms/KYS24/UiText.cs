@@ -71,6 +71,9 @@ namespace TimePilot.WinForms.KYS24
             public static string ActualUsageRatio => current.Main.ActualUsageRatio;
             public static string RuntimeSegmentCount => current.Main.RuntimeSegmentCount;
             public static string ObservationBasis => current.Main.ObservationBasis;
+            public static string WindowedApp => current.Main.WindowedApp;
+            public static string UserProcess => current.Main.UserProcess;
+            public static string AllProcesses => current.Main.AllProcesses;
             public static string HasData => current.Main.HasData;
             public static string NoData => current.Main.NoData;
             public static string Active => current.Main.Active;
@@ -100,9 +103,31 @@ namespace TimePilot.WinForms.KYS24
             public static string SafeModeTitle => current.Main.SafeModeTitle;
             public static string SafeModeMessage => current.Main.SafeModeMessage;
             public static string SafeModeBalloonMessage => current.Main.SafeModeBalloonMessage;
+            public static string DuplicateInstanceMessage => current.Main.DuplicateInstanceMessage;
             public static string CsvExportCompleted(int count, string? directory) =>
                 current.Main.CsvExportCompleted(count, directory);
             public static string CsvExportFailed(string message) => current.Main.CsvExportFailed(message);
+        }
+
+        public static class Csv
+        {
+            public static string Date => current.Csv.Date;
+            public static string AppName => current.Csv.AppName;
+            public static string ProcessName => current.Csv.ProcessName;
+            public static string ActiveUsageTime => current.Csv.ActiveUsageTime;
+            public static string OverallRatio => current.Csv.OverallRatio;
+            public static string SwitchCount => current.Csv.SwitchCount;
+            public static string FirstStartedAt => current.Csv.FirstStartedAt;
+            public static string LastObservedAt => current.Csv.LastObservedAt;
+            public static string StartedAt => current.Csv.StartedAt;
+            public static string EndedAt => current.Csv.EndedAt;
+            public static string StartTime => current.Csv.StartTime;
+            public static string EndTime => current.Csv.EndTime;
+            public static string Duration => current.Csv.Duration;
+            public static string Status => current.Csv.Status;
+            public static string Runtime => current.Csv.Runtime;
+            public static string Running => current.Csv.Running;
+            public static string Ended => current.Csv.Ended;
         }
 
         public static class Preferences
@@ -174,6 +199,8 @@ namespace TimePilot.WinForms.KYS24
 
         public static class RuntimeCoverage
         {
+            public static string NotChecked => current.RuntimeCoverage.NotChecked;
+            public static string Tooltip => current.RuntimeCoverage.Tooltip;
             public static string Coverage(double ratio) => current.RuntimeCoverage.Coverage(ratio);
             public static string Tracked(string duration) => current.RuntimeCoverage.Tracked(duration);
             public static string Missing(string duration) => current.RuntimeCoverage.Missing(duration);
@@ -185,6 +212,7 @@ namespace TimePilot.WinForms.KYS24
         private sealed record UiTextResources(
             CommonText Common,
             MainText Main,
+            CsvText Csv,
             PreferencesText Preferences,
             DateStatusText DateStatus,
             SummaryPeriodText SummaryPeriod,
@@ -233,6 +261,9 @@ namespace TimePilot.WinForms.KYS24
                         ActualUsageRatio: "실사용 비율",
                         RuntimeSegmentCount: "실행 구간",
                         ObservationBasis: "관측 기준",
+                        WindowedApp: "창 있음",
+                        UserProcess: "사용자 프로세스",
+                        AllProcesses: "전체 프로세스",
                         HasData: "기록 있음",
                         NoData: "기록 없음",
                         Active: "활성",
@@ -262,8 +293,27 @@ namespace TimePilot.WinForms.KYS24
                         SafeModeTitle: "TimePilot 안전모드",
                         SafeModeMessage: "이전 실행에서 위험한 백그라운드 앱 추적 설정으로 짧은 시간 안에 비정상 종료가 반복된 것으로 보입니다.\n\n안전모드로 백그라운드 앱 추적만 자동으로 껐습니다. 현재 사용 중인 앱 기록과 유휴 감지는 계속 동작합니다.\n\n다시 사용하려면 설정 > 환경 설정에서 백그라운드 앱 추적을 켜주세요.",
                         SafeModeBalloonMessage: "반복 비정상 종료를 피하기 위해 백그라운드 앱 추적을 자동으로 껐습니다.",
+                        DuplicateInstanceMessage: "TimePilot이 이미 실행 중입니다. 트레이 아이콘을 확인해 주세요.",
                         CsvExportCompleted: (count, directory) => $"CSV 파일 {count}개를 내보냈습니다.\n\n{directory}",
                         CsvExportFailed: message => $"CSV 내보내기에 실패했습니다.\n\n{message}"),
+                    new CsvText(
+                        Date: "날짜",
+                        AppName: "앱 이름",
+                        ProcessName: "프로세스 이름",
+                        ActiveUsageTime: "활성 사용 시간",
+                        OverallRatio: "전체 대비 비율",
+                        SwitchCount: "전환 횟수",
+                        FirstStartedAt: "첫 시작",
+                        LastObservedAt: "마지막 감지",
+                        StartedAt: "시작 일시",
+                        EndedAt: "종료 일시",
+                        StartTime: "시작 시간",
+                        EndTime: "종료 시간",
+                        Duration: "지속 시간",
+                        Status: "상태",
+                        Runtime: "실행 시간",
+                        Running: "실행 중",
+                        Ended: "종료"),
                     new PreferencesText(
                         Title: "환경 설정",
                         LanguageLabel: "표시 언어",
@@ -310,6 +360,8 @@ namespace TimePilot.WinForms.KYS24
                         LastYear: year => $"작년({year})"),
                     new TimelineText("진행 중"),
                     new RuntimeCoverageText(
+                        NotChecked: "기록 커버리지 -",
+                        Tooltip: "기록 커버리지는 오늘 0시부터 현재까지의 전체 시간 중 TimePilot이 실행되어 기록할 수 있었던 시간의 비율입니다. 컴퓨터를 실제로 사용한 시간 기준이 아닙니다.\n\n미기록 시간은 TimePilot이 실행되지 않았거나 기록할 수 없었던 구간입니다. PC 종료, Windows 절전, 앱 종료, 비정상 종료 등이 원인일 수 있으며 정확한 원인은 단정하지 않습니다.\n\n부팅 후 미실행은 Windows 시스템 시작 후 TimePilot이 처음 실행되기 전까지의 추정 시간입니다. Windows 로그인 시간이 아니라 시스템 시작 시각 기준입니다.",
                         Coverage: ratio => string.Format(CultureInfo.CurrentCulture, "오늘 0시~현재 기록 커버리지 {0:P1}", ratio),
                         Tracked: duration => $"기록 {duration}",
                         Missing: duration => $"미기록 {duration}(원인 미확정)",
@@ -359,6 +411,9 @@ namespace TimePilot.WinForms.KYS24
                         ActualUsageRatio: "Actual usage ratio",
                         RuntimeSegmentCount: "Runtime segments",
                         ObservationBasis: "Observation basis",
+                        WindowedApp: "Windowed app",
+                        UserProcess: "User process",
+                        AllProcesses: "All processes",
                         HasData: "Has records",
                         NoData: "No records",
                         Active: "Active",
@@ -388,8 +443,27 @@ namespace TimePilot.WinForms.KYS24
                         SafeModeTitle: "TimePilot safe mode",
                         SafeModeMessage: "TimePilot appears to have closed unexpectedly multiple times in a short period while risky background app tracking settings were enabled.\n\nSafe mode automatically disabled only background app tracking. Current app usage tracking and idle detection will continue to work.\n\nTo enable it again, go to Settings > Preferences and turn on background app tracking.",
                         SafeModeBalloonMessage: "Background app tracking was automatically disabled to avoid repeated unexpected exits.",
+                        DuplicateInstanceMessage: "TimePilot is already running. Check the tray icon.",
                         CsvExportCompleted: (count, directory) => $"Exported {count} CSV files.\n\n{directory}",
                         CsvExportFailed: message => $"CSV export failed.\n\n{message}"),
+                    new CsvText(
+                        Date: "Date",
+                        AppName: "App name",
+                        ProcessName: "Process name",
+                        ActiveUsageTime: "Active usage time",
+                        OverallRatio: "Overall ratio",
+                        SwitchCount: "Switch count",
+                        FirstStartedAt: "First start",
+                        LastObservedAt: "Last observed",
+                        StartedAt: "Started at",
+                        EndedAt: "Ended at",
+                        StartTime: "Start time",
+                        EndTime: "End time",
+                        Duration: "Duration",
+                        Status: "Status",
+                        Runtime: "Runtime",
+                        Running: "Running",
+                        Ended: "Ended"),
                     new PreferencesText(
                         Title: "Preferences",
                         LanguageLabel: "Display language",
@@ -436,6 +510,8 @@ namespace TimePilot.WinForms.KYS24
                         LastYear: year => $"Last year ({year})"),
                     new TimelineText("In progress"),
                     new RuntimeCoverageText(
+                        NotChecked: "Record coverage -",
+                        Tooltip: "Record coverage is the share of time from midnight to now when TimePilot was running and able to record. It is not based on actual PC usage time.\n\nMissing time means TimePilot was not running or could not record during that period. Possible causes include PC shutdown, Windows sleep, app exit, or unexpected exit; the exact cause is not determined.\n\nBefore TimePilot after boot is the estimated time from Windows system startup until TimePilot first started. It is based on system startup time, not Windows login time.",
                         Coverage: ratio => string.Format(CultureInfo.CurrentCulture, "Record coverage from midnight to now {0:P1}", ratio),
                         Tracked: duration => $"Recorded {duration}",
                         Missing: duration => $"Missing {duration} (cause unknown)",
@@ -484,6 +560,9 @@ namespace TimePilot.WinForms.KYS24
             string ActualUsageRatio,
             string RuntimeSegmentCount,
             string ObservationBasis,
+            string WindowedApp,
+            string UserProcess,
+            string AllProcesses,
             string HasData,
             string NoData,
             string Active,
@@ -513,8 +592,28 @@ namespace TimePilot.WinForms.KYS24
             string SafeModeTitle,
             string SafeModeMessage,
             string SafeModeBalloonMessage,
+            string DuplicateInstanceMessage,
             Func<int, string?, string> CsvExportCompleted,
             Func<string, string> CsvExportFailed);
+
+        private sealed record CsvText(
+            string Date,
+            string AppName,
+            string ProcessName,
+            string ActiveUsageTime,
+            string OverallRatio,
+            string SwitchCount,
+            string FirstStartedAt,
+            string LastObservedAt,
+            string StartedAt,
+            string EndedAt,
+            string StartTime,
+            string EndTime,
+            string Duration,
+            string Status,
+            string Runtime,
+            string Running,
+            string Ended);
 
         private sealed record PreferencesText(
             string Title,
@@ -566,6 +665,8 @@ namespace TimePilot.WinForms.KYS24
         private sealed record TimelineText(string InProgress);
 
         private sealed record RuntimeCoverageText(
+            string NotChecked,
+            string Tooltip,
             Func<double, string> Coverage,
             Func<string, string> Tracked,
             Func<string, string> Missing,
