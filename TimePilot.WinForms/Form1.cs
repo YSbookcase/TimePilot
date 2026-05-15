@@ -67,11 +67,13 @@ namespace TimePilot.WinForms
         {
             this.startMinimizedToTray = startMinimizedToTray;
 
+            UiText.UseLanguage(settings.UiLanguage);
             InitializeComponent();
             ApplySavedWindowPlacement();
             InitializeRecordedDateCalendar();
             InitializeSummaryPeriodSelector();
             InitializeDateSelectors();
+            ApplyUiText();
 
             if (IsRunningInDesigner())
             {
@@ -128,8 +130,8 @@ namespace TimePilot.WinForms
 
             var idleText = isIdle ? UiText.Main.Idle : UiText.Main.Active;
             statusLabel.Text = foregroundApp is null
-                ? $"전경: {UiText.Main.NoForegroundApp} · {idleText}"
-                : $"전경: {foregroundApp.DisplayName} · {idleText}";
+                ? $"{UiText.Main.ForegroundPrefix}{UiText.Main.NoForegroundApp} · {idleText}"
+                : $"{UiText.Main.ForegroundPrefix}{foregroundApp.DisplayName} · {idleText}";
             SetStatusText(statusLabel.Text);
             RefreshViews(observedAt);
         }
@@ -388,12 +390,12 @@ namespace TimePilot.WinForms
 
         private void ConfigureDesignPreview()
         {
-            statusLabel.Text = "전경: Visual Studio · 활성";
+            statusLabel.Text = $"{UiText.Main.ForegroundPrefix}Visual Studio · {UiText.Main.Active}";
             SetRuntimeCoverageSummaryParts(
-                "오늘 0시~현재 기록 커버리지 98.1%",
-                "기록 07:48:12",
-                "미기록 00:09:00",
-                "최장 미기록 00:04:12");
+                UiText.RuntimeCoverage.Coverage(0.981),
+                UiText.RuntimeCoverage.Tracked("07:48:12"),
+                UiText.RuntimeCoverage.Missing("00:09:00"),
+                UiText.RuntimeCoverage.LongestMissing("00:04:12"));
             usageGrid.DataSource = AddIcons(new List<UsageSummaryRow>
             {
                 new("Microsoft Visual Studio", "devenv", null, 3_900_000, 0.54, 8, null, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now),
@@ -407,9 +409,9 @@ namespace TimePilot.WinForms
             };
             timelineGrid.DataSource = AddIcons(new List<ActivityTimelineRow>
             {
-                new("활성", DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now.AddHours(-1), 3_600_000, "devenv"),
-                new("유휴", DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-45), 900_000, "devenv"),
-                new("활성", DateTimeOffset.Now.AddMinutes(-45), null, 2_700_000, "chrome")
+                new(UiText.Main.Active, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now.AddHours(-1), 3_600_000, "devenv"),
+                new(UiText.Main.Idle, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-45), 900_000, "devenv"),
+                new(UiText.Main.Active, DateTimeOffset.Now.AddMinutes(-45), null, 2_700_000, "chrome")
             });
         }
 
@@ -417,7 +419,7 @@ namespace TimePilot.WinForms
         {
             if (summary is null)
             {
-                SetRuntimeCoverageSummaryParts("기록 커버리지 -");
+                SetRuntimeCoverageSummaryParts(UiText.RuntimeCoverage.NotChecked);
                 return;
             }
 
@@ -492,6 +494,87 @@ namespace TimePilot.WinForms
             trayIcon.Text = UiText.AppName;
             trayIcon.Visible = true;
             trayIcon.DoubleClick += (_, _) => ShowMainWindow();
+        }
+
+        private void ApplyUiText()
+        {
+            Text = UiText.AppName;
+            fileMenuItem.Text = UiText.Main.FileMenu;
+            exportCsvMenuItem.Text = UiText.Main.ExportCsv;
+            exitMenuItem.Text = UiText.Main.Exit;
+            settingsMenuItem.Text = UiText.Main.SettingsMenu;
+            preferencesMenuItem.Text = UiText.Main.Preferences;
+            helpMenuItem.Text = UiText.Main.HelpMenu;
+            aboutMenuItem.Text = UiText.Main.About;
+
+            summaryTab.Text = UiText.Main.SummaryTab;
+            detailTab.Text = UiText.Main.DetailTab;
+            timelineTab.Text = UiText.Main.TimelineTab;
+            summaryPeriodLabel.Text = UiText.Main.Period;
+            detailDateLabel.Text = UiText.Main.Date;
+            detailCalendarButton.Text = UiText.Main.Calendar;
+            detailTodayButton.Text = UiText.Main.Today;
+            currentTrackingScopeOnlyCheckBox.Text = UiText.Main.CurrentTrackingScopeOnly;
+            runningRuntimeOnlyCheckBox.Text = UiText.Main.RunningOnly;
+            timelineDateLabel.Text = UiText.Main.Date;
+            timelineCalendarButton.Text = UiText.Main.Calendar;
+            timelineTodayButton.Text = UiText.Main.Today;
+
+            dailyUsageDateColumn.HeaderText = UiText.Main.Date;
+            dailyUsageActiveTimeColumn.HeaderText = UiText.Main.TotalActiveUsageTime;
+            dailyUsageTopAppColumn.HeaderText = UiText.Main.TopApp;
+            dailyUsageTopAppTimeColumn.HeaderText = UiText.Main.TopAppTime;
+            appNameColumn.HeaderText = UiText.Main.App;
+            firstStartedAtColumn.HeaderText = UiText.Main.FirstStartedAt;
+            lastObservedAtColumn.HeaderText = UiText.Main.LastObservedAt;
+            activeUsageTimeColumn.HeaderText = UiText.Main.ActiveUsageTime;
+            usageRatioColumn.HeaderText = UiText.Main.ActiveRatio;
+            usageRatioColumn.ToolTipText = UiText.Main.UsageRatioTooltip;
+            switchCountColumn.HeaderText = UiText.Main.SwitchCount;
+
+            runtimeAppNameColumn.HeaderText = UiText.Main.App;
+            runtimeFirstObservedAtColumn.HeaderText = UiText.Main.FirstObservedAt;
+            runtimeLastObservedAtColumn.HeaderText = UiText.Main.LastObservedAt;
+            runtimeLastObservedAtColumn.ToolTipText = UiText.Main.RuntimeLastObservedTooltip;
+            runtimeDurationColumn.HeaderText = UiText.Main.Runtime;
+            runtimeDurationColumn.ToolTipText = UiText.Main.RuntimeDurationTooltip;
+            runtimeActiveUsageColumn.HeaderText = UiText.Main.ActiveUsageTime;
+            runtimeActualUsageRatioColumn.HeaderText = UiText.Main.ActualUsageRatio;
+            runtimeActualUsageRatioColumn.ToolTipText = UiText.Main.RuntimeActualUsageRatioTooltip;
+            runtimeSessionCountColumn.HeaderText = UiText.Main.RuntimeSegmentCount;
+            runtimeSessionCountColumn.ToolTipText = UiText.Main.RuntimeSegmentCountTooltip;
+            runtimeStatusColumn.HeaderText = UiText.Main.Status;
+            runtimeStatusColumn.ToolTipText = UiText.Main.RuntimeStatusTooltip;
+            runtimeSegmentStartedAtColumn.HeaderText = UiText.Main.Start;
+            runtimeSegmentEndedAtColumn.HeaderText = UiText.Main.End;
+            runtimeSegmentDurationColumn.HeaderText = UiText.Main.Duration;
+            runtimeSegmentStatusColumn.HeaderText = UiText.Main.Status;
+            runtimeSegmentObservationTypeColumn.HeaderText = UiText.Main.ObservationBasis;
+            runtimeSegmentProcessIdColumn.HeaderText = UiText.Main.Pid;
+
+            timelineTypeColumn.HeaderText = UiText.Main.Type;
+            timelineStartedAtColumn.HeaderText = UiText.Main.Start;
+            timelineEndedAtColumn.HeaderText = UiText.Main.End;
+            timelineDurationColumn.HeaderText = UiText.Main.Duration;
+            timelineDisplayNameColumn.HeaderText = UiText.Main.App;
+
+            if (trayMenu.Items.Count > 0)
+            {
+                if (trayMenu.Items[0] is ToolStripMenuItem openItem)
+                    openItem.Text = UiText.Main.OpenWindow;
+
+                if (trayMenu.Items[^1] is ToolStripMenuItem exitItem)
+                    exitItem.Text = UiText.Main.Exit;
+            }
+
+            trayIcon.Text = UiText.AppName;
+            runtimeCoverageSummaryToolTip.SetToolTip(runtimeCoverageSummaryPanel, UiText.RuntimeCoverage.Tooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(detailCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(timelineCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
+            RefreshSummaryPeriodOptions(DateTime.Today);
+            SetDateStatus(detailDateStatusLabel, null);
+            SetDateStatus(timelineDateStatusLabel, null);
+            RefreshViews(DateTimeOffset.UtcNow);
         }
 
         private static Icon LoadAppIcon()
@@ -1571,6 +1654,14 @@ namespace TimePilot.WinForms
                 return;
 
             settings.SetIdleThresholdMinutes(form.IdleThresholdMinutes);
+            var languageChanged = settings.UiLanguage != form.UiLanguage;
+            settings.SetUiLanguage(form.UiLanguage);
+            if (languageChanged)
+            {
+                UiText.UseLanguage(settings.UiLanguage);
+                ApplyUiText();
+            }
+
             settings.SetStartWithWindows(form.StartWithWindows);
             settings.SetPerformanceDiagnosticsEnabled(form.PerformanceDiagnosticsEnabled);
             if (!settings.PerformanceDiagnosticsEnabled)
@@ -1647,9 +1738,9 @@ namespace TimePilot.WinForms
                 AddExtension = true,
                 DefaultExt = "csv",
                 FileName = $"TimePilot-usage-{now.ToLocalTime():yyyy-MM-dd}.csv",
-                Filter = "CSV 파일 (*.csv)|*.csv",
+                Filter = UiText.Main.CsvFilter,
                 OverwritePrompt = false,
-                Title = "CSV 내보내기"
+                Title = UiText.Main.CsvExportTitle
             };
 
             if (dialog.ShowDialog(this) != DialogResult.OK)
@@ -1661,8 +1752,8 @@ namespace TimePilot.WinForms
                 var exportedFiles = exporter.ExportToday(dialog.FileName, now);
                 CenteredMessageDialog.Show(
                     this,
-                    $"CSV 파일 {exportedFiles.Count}개를 내보냈습니다.\n\n{Path.GetDirectoryName(dialog.FileName)}",
-                    "CSV 내보내기",
+                    UiText.Main.CsvExportCompleted(exportedFiles.Count, Path.GetDirectoryName(dialog.FileName)),
+                    UiText.Main.CsvExportTitle,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
             }
@@ -1670,8 +1761,8 @@ namespace TimePilot.WinForms
             {
                 CenteredMessageDialog.Show(
                     this,
-                    $"CSV 내보내기에 실패했습니다.\n\n{ex.Message}",
-                    "CSV 내보내기",
+                    UiText.Main.CsvExportFailed(ex.Message),
+                    UiText.Main.CsvExportTitle,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
             }
@@ -1687,7 +1778,7 @@ namespace TimePilot.WinForms
             CenteredMessageDialog.Show(
                 this,
                 $"TimePilot {Application.ProductVersion}",
-                "TimePilot 정보",
+                UiText.Main.AboutTitle,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }

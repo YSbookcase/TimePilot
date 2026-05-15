@@ -26,9 +26,9 @@ namespace TimePilot.WinForms.KYS24
             get
             {
                 if (HasMainWindow)
-                    return "창 있음";
+                    return UiText.Main.WindowedApp;
 
-                return IsCurrentSessionProcess ? "사용자 프로세스" : "전체 프로세스";
+                return IsCurrentSessionProcess ? UiText.Main.UserProcess : UiText.Main.AllProcesses;
             }
         }
 

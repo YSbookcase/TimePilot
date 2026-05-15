@@ -257,7 +257,7 @@
             runtimeCoverageSummaryPanel.TabIndex = 2;
             runtimeCoverageSummaryPanel.Visible = false;
             runtimeCoverageSummaryPanel.WrapContents = true;
-            runtimeCoverageSummaryToolTip.SetToolTip(runtimeCoverageSummaryPanel, "기록 커버리지는 오늘 0시부터 현재까지의 전체 시간 중 TimePilot이 실행되어 기록할 수 있었던 시간의 비율입니다. 컴퓨터를 실제로 사용한 시간 기준이 아닙니다.\r\n\r\n미기록 시간은 TimePilot이 실행되지 않았거나 기록할 수 없었던 구간입니다. PC 종료, Windows 절전, 앱 종료, 비정상 종료 등이 원인일 수 있으며 정확한 원인은 단정하지 않습니다.\r\n\r\n부팅 후 미실행은 Windows 시스템 시작 후 TimePilot이 처음 실행되기 전까지의 추정 시간입니다. Windows 로그인 시간이 아니라 시스템 시작 시각 기준입니다.");
+            runtimeCoverageSummaryToolTip.SetToolTip(runtimeCoverageSummaryPanel, "");
             // 
             // usageGrid
             // 

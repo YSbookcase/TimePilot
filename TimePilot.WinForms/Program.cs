@@ -10,6 +10,9 @@
         [STAThread]
         static void Main(string[] args)
         {
+            if (TryApplyUiLanguageArgument(args))
+                return;
+
             if (args.Contains("--seed-sample-data"))
             {
                 KYS24.SampleDataSeeder.SeedDefault();
@@ -31,6 +34,9 @@
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
+            var settings = KYS24.AppSettings.LoadDefault();
+            KYS24.UiText.UseLanguage(settings.UiLanguage);
+
             using var singleInstanceMutex = new Mutex(
                 initiallyOwned: true,
                 name: SingleInstanceMutexName,
@@ -40,8 +46,8 @@
                 if (!args.Contains(KYS24.WindowsStartupRegistration.TrayStartupArgument))
                 {
                     MessageBox.Show(
-                        "TimePilot이 이미 실행 중입니다. 트레이 아이콘을 확인해 주세요.",
-                        "TimePilot",
+                        KYS24.UiText.Main.DuplicateInstanceMessage,
+                        KYS24.UiText.AppName,
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
                 }
@@ -50,6 +56,31 @@
             }
 
             Application.Run(new Form1(args.Contains(KYS24.WindowsStartupRegistration.TrayStartupArgument)));
+        }
+
+        private static bool TryApplyUiLanguageArgument(string[] args)
+        {
+            var languageIndex = Array.IndexOf(args, "--set-ui-language");
+            if (languageIndex < 0)
+                return false;
+
+            if (languageIndex + 1 >= args.Length)
+                return true;
+
+            var language = args[languageIndex + 1].Trim();
+            try
+            {
+                var settings = KYS24.AppSettings.LoadDefault();
+                settings.SetUiLanguage(language.Equals("english", StringComparison.OrdinalIgnoreCase)
+                    ? KYS24.UiLanguage.English
+                    : KYS24.UiLanguage.Korean);
+            }
+            catch
+            {
+                // The installer may run this while another copy is still closing; keep setup non-blocking.
+            }
+
+            return true;
         }
     }
 }

@@ -43,7 +43,16 @@ namespace TimePilot.WinForms.KYS24
             var rows = UsageSummaryRowBuilder.FromForegroundUsage(storage.GetForegroundUsageForDay(now));
             WriteCsv(
                 path,
-                ["날짜", "앱 이름", "프로세스 이름", "활성 사용 시간", "전체 대비 비율", "전환 횟수", "첫 시작", "마지막 감지"],
+                [
+                    UiText.Csv.Date,
+                    UiText.Csv.AppName,
+                    UiText.Csv.ProcessName,
+                    UiText.Csv.ActiveUsageTime,
+                    UiText.Csv.OverallRatio,
+                    UiText.Csv.SwitchCount,
+                    UiText.Csv.FirstStartedAt,
+                    UiText.Csv.LastObservedAt
+                ],
                 rows.Select(row => new[]
                 {
                     dateText,
@@ -65,7 +74,17 @@ namespace TimePilot.WinForms.KYS24
                 .ToList();
             WriteCsv(
                 path,
-                ["날짜", "시작 일시", "종료 일시", "시작 시간", "종료 시간", "지속 시간", "상태", "앱 이름", "프로세스 이름"],
+                [
+                    UiText.Csv.Date,
+                    UiText.Csv.StartedAt,
+                    UiText.Csv.EndedAt,
+                    UiText.Csv.StartTime,
+                    UiText.Csv.EndTime,
+                    UiText.Csv.Duration,
+                    UiText.Csv.Status,
+                    UiText.Csv.AppName,
+                    UiText.Csv.ProcessName
+                ],
                 rows.Select(row => new[]
                 {
                     dateText,
@@ -88,7 +107,17 @@ namespace TimePilot.WinForms.KYS24
                 .ToList();
             WriteCsv(
                 path,
-                ["날짜", "앱 이름", "프로세스 이름", "시작 일시", "종료 일시", "시작 시간", "종료 시간", "실행 시간", "상태"],
+                [
+                    UiText.Csv.Date,
+                    UiText.Csv.AppName,
+                    UiText.Csv.ProcessName,
+                    UiText.Csv.StartedAt,
+                    UiText.Csv.EndedAt,
+                    UiText.Csv.StartTime,
+                    UiText.Csv.EndTime,
+                    UiText.Csv.Runtime,
+                    UiText.Csv.Status
+                ],
                 rows.Select(row => new[]
                 {
                     dateText,
@@ -99,7 +128,7 @@ namespace TimePilot.WinForms.KYS24
                     FormatTime(row.StartedAt),
                     FormatTime(row.EndedAt),
                     FormatDuration(row.DurationMs),
-                    row.EndedAt is null ? "실행 중" : "종료"
+                    row.EndedAt is null ? UiText.Csv.Running : UiText.Csv.Ended
                 }));
         }
 
