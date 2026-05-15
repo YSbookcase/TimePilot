@@ -26,6 +26,8 @@ namespace TimePilot.WinForms
         private string runtimeSortProperty = nameof(ProcessRuntimeSummaryRow.RuntimeMs);
         private string runtimeSegmentSortProperty = nameof(ProcessRuntimeSegmentRow.StartedAt);
         private SummaryPeriod selectedSummaryPeriod = SummaryPeriod.Today;
+        private DateTime selectedSummarySpecificDate = DateTime.Today;
+        private DateTime summaryPeriodOptionsDate = DateTime.Today;
         private DateTime selectedDetailDate = DateTime.Today;
         private DateTime selectedTimelineDate = DateTime.Today;
         private SortOrder usageSortOrder = SortOrder.Descending;
@@ -240,17 +242,52 @@ namespace TimePilot.WinForms
 
         private void InitializeSummaryPeriodSelector()
         {
+            selectedSummaryPeriod = SummaryPeriod.Today;
+            selectedSummarySpecificDate = DateTime.Today;
+            RefreshSummaryPeriodOptions(DateTime.Today);
+        }
+
+        private void RefreshSummaryPeriodOptions(DateTime today)
+        {
+            var options = SummaryPeriodOption.GetOptions(today);
+            var selectedIndex = Array.FindIndex(options.ToArray(), option => option.Period == selectedSummaryPeriod);
+
             isInitializingSummaryPeriodSelector = true;
+            summaryPeriodComboBox.BeginUpdate();
             try
             {
                 summaryPeriodComboBox.Items.Clear();
-                summaryPeriodComboBox.Items.AddRange(SummaryPeriodOption.All.Cast<object>().ToArray());
-                summaryPeriodComboBox.SelectedIndex = 0;
+                summaryPeriodComboBox.Items.AddRange(options.Cast<object>().ToArray());
+                summaryPeriodComboBox.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+
+                summaryPeriodOptionsDate = today;
+                selectedSummaryPeriod = ((SummaryPeriodOption)summaryPeriodComboBox.SelectedItem!).Period;
+
+                if (selectedSummarySpecificDate > today)
+                    selectedSummarySpecificDate = today;
+
+                if (summarySpecificDatePicker.Value.Date > today)
+                    summarySpecificDatePicker.Value = today;
+
+                summarySpecificDatePicker.MaxDate = today;
+                summarySpecificDatePicker.Value = selectedSummarySpecificDate;
+                summarySpecificDatePicker.Visible = selectedSummaryPeriod == SummaryPeriod.SpecificDate;
             }
             finally
             {
+                summaryPeriodComboBox.EndUpdate();
                 isInitializingSummaryPeriodSelector = false;
             }
+        }
+
+        private void RefreshSummaryPeriodOptionsIfDateChanged(DateTimeOffset observedAt)
+        {
+            var today = observedAt.ToLocalTime().Date;
+
+            if (today == summaryPeriodOptionsDate)
+                return;
+
+            RefreshSummaryPeriodOptions(today);
         }
 
         private void InitializeDateSelectors()
@@ -272,35 +309,6 @@ namespace TimePilot.WinForms
             }
 
             UpdateDateNavigationButtons();
-        }
-
-        private static SummaryPeriodRange GetSummaryPeriodRange(DateTimeOffset observedAt, SummaryPeriod period)
-        {
-            var localNow = observedAt.ToLocalTime();
-            var localDate = localNow.Date;
-            var periodStart = period switch
-            {
-                SummaryPeriod.ThisWeek => localDate.AddDays(-GetDaysSinceMonday(localDate.DayOfWeek)),
-                SummaryPeriod.ThisMonth => new DateTime(localDate.Year, localDate.Month, 1),
-                SummaryPeriod.ThisYear => new DateTime(localDate.Year, 1, 1),
-                _ => localDate
-            };
-            var periodEnd = period switch
-            {
-                SummaryPeriod.ThisWeek => periodStart.AddDays(7),
-                SummaryPeriod.ThisMonth => periodStart.AddMonths(1),
-                SummaryPeriod.ThisYear => periodStart.AddYears(1),
-                _ => periodStart.AddDays(1)
-            };
-
-            var start = new DateTimeOffset(periodStart, TimeZoneInfo.Local.GetUtcOffset(periodStart));
-            var end = new DateTimeOffset(periodEnd, TimeZoneInfo.Local.GetUtcOffset(periodEnd));
-            return new SummaryPeriodRange(start, end, period != SummaryPeriod.Today);
-        }
-
-        private static int GetDaysSinceMonday(DayOfWeek dayOfWeek)
-        {
-            return ((int)dayOfWeek + 6) % 7;
         }
 
         private void ConfigureDesignPreview()
@@ -462,7 +470,11 @@ namespace TimePilot.WinForms
             var appIdToRestore = selectedRuntimeAppId ?? GetSelectedRuntimeAppId();
             var runtimeHorizontalOffset = GetHorizontalScrollingOffset(runtimeGrid);
             var selectedTab = mainTabs.SelectedTab;
-            var summaryPeriodRange = GetSummaryPeriodRange(observedAt, selectedSummaryPeriod);
+            RefreshSummaryPeriodOptionsIfDateChanged(observedAt);
+            var summaryPeriodRange = SummaryPeriodCalculator.GetRange(
+                observedAt,
+                selectedSummaryPeriod,
+                selectedSummarySpecificDate);
             var detailDate = selectedDetailDate;
             var timelineDate = selectedTimelineDate;
             isViewRefreshRunning = true;
@@ -1016,7 +1028,16 @@ namespace TimePilot.WinForms
                 return;
 
             selectedSummaryPeriod = option.Period;
+            summarySpecificDatePicker.Visible = selectedSummaryPeriod == SummaryPeriod.SpecificDate;
             RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void OnSummarySpecificDatePickerValueChanged(object? sender, EventArgs e)
+        {
+            selectedSummarySpecificDate = summarySpecificDatePicker.Value.Date;
+
+            if (!isInitializingSummaryPeriodSelector && selectedSummaryPeriod == SummaryPeriod.SpecificDate)
+                RefreshViews(DateTimeOffset.UtcNow);
         }
 
         private void OnRuntimeGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
@@ -1524,33 +1545,5 @@ namespace TimePilot.WinForms
             IReadOnlyList<ProcessRuntimeSegmentRow>? RuntimeSegmentRows,
             long ReadElapsedMs);
 
-        private enum SummaryPeriod
-        {
-            Today,
-            ThisWeek,
-            ThisMonth,
-            ThisYear
-        }
-
-        private sealed record SummaryPeriodRange(
-            DateTimeOffset Start,
-            DateTimeOffset End,
-            bool ShowDateInTimestamps);
-
-        private sealed record SummaryPeriodOption(SummaryPeriod Period, string DisplayName)
-        {
-            public static IReadOnlyList<SummaryPeriodOption> All { get; } =
-            [
-                new(SummaryPeriod.Today, "오늘"),
-                new(SummaryPeriod.ThisWeek, "이번 주"),
-                new(SummaryPeriod.ThisMonth, "이번 달"),
-                new(SummaryPeriod.ThisYear, "올해")
-            ];
-
-            public override string ToString()
-            {
-                return DisplayName;
-            }
-        }
     }
 }
