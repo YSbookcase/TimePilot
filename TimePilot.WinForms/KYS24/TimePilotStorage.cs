@@ -9,6 +9,8 @@ namespace TimePilot.WinForms.KYS24
         private readonly string connectionString;
         private long? runtimeSessionId;
         private bool disposed;
+        private static readonly TimeSpan CurrentTimelineSessionTolerance = TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan SystemBootTimeTolerance = TimeSpan.FromSeconds(60);
 
         public TimePilotStorage(string databasePath)
         {
@@ -23,8 +25,6 @@ namespace TimePilot.WinForms.KYS24
         {
             return new TimePilotStorage(AppDataPaths.DatabasePath);
         }
-
-        private static readonly TimeSpan SystemBootTimeTolerance = TimeSpan.FromSeconds(60);
 
         public void Initialize(DateTimeOffset now, DateTimeOffset systemBootedAt)
         {
@@ -1402,7 +1402,10 @@ namespace TimePilot.WinForms.KYS24
                     ?? (reader.IsDBNull(4) ? startedAt : ParseTimestamp(reader.GetString(4)));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(observedEnd, dayEnd);
-                AddTimelineRow(rows, "활성", effectiveStart, endedAt, effectiveEnd, appName, executablePath);
+                DateTimeOffset? displayEnd = IsCurrentTimelineSession(endedAt, observedEnd, dayEnd, now)
+                    ? null
+                    : effectiveEnd;
+                AddTimelineRow(rows, "활성", effectiveStart, displayEnd, effectiveEnd, appName, executablePath);
             }
         }
 
@@ -1438,15 +1441,33 @@ namespace TimePilot.WinForms.KYS24
                 DateTimeOffset? endedAt = reader.IsDBNull(3) ? null : ParseTimestamp(reader.GetString(3));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(endedAt ?? now, dayEnd);
-                AddTimelineRow(rows, "유휴", effectiveStart, endedAt, effectiveEnd, foregroundAppName, executablePath);
+                DateTimeOffset? displayEnd = IsCurrentTimelineSession(endedAt, effectiveEnd, dayEnd, now)
+                    ? null
+                    : effectiveEnd;
+                AddTimelineRow(rows, "유휴", effectiveStart, displayEnd, effectiveEnd, foregroundAppName, executablePath);
             }
+        }
+
+        private static bool IsCurrentTimelineSession(
+            DateTimeOffset? endedAt,
+            DateTimeOffset observedEnd,
+            DateTimeOffset dayEnd,
+            DateTimeOffset now)
+        {
+            if (endedAt is not null)
+                return false;
+
+            if (now >= dayEnd)
+                return false;
+
+            return now - observedEnd <= CurrentTimelineSessionTolerance;
         }
 
         private static void AddTimelineRow(
             List<ActivityTimelineRow> rows,
             string activityType,
             DateTimeOffset effectiveStart,
-            DateTimeOffset? originalEnd,
+            DateTimeOffset? displayEnd,
             DateTimeOffset effectiveEnd,
             string displayName,
             string? executablePath)
@@ -1458,7 +1479,7 @@ namespace TimePilot.WinForms.KYS24
             rows.Add(new ActivityTimelineRow(
                 activityType,
                 effectiveStart,
-                originalEnd,
+                displayEnd,
                 durationMs,
                 displayName,
                 executablePath));
