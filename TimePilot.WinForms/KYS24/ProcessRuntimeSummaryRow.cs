@@ -34,9 +34,9 @@ namespace TimePilot.WinForms.KYS24
             get
             {
                 if (!IsInCurrentTrackingScope)
-                    return "추적 범위 밖";
+                    return UiText.Main.OutsideTrackingScope;
 
-                return HasRunningSession ? "실행 중" : "종료";
+                return HasRunningSession ? UiText.Main.Running : UiText.Main.Ended;
             }
         }
 

@@ -27,14 +27,14 @@ namespace TimePilot.WinForms.KYS24
             {
                 var parts = new List<string>
                 {
-                    string.Format(CultureInfo.CurrentCulture, "오늘 0시~현재 기록 커버리지 {0:P1}", CoverageRatio),
-                    $"기록 {FormatDuration(TrackedRuntimeMs)}",
-                    $"미기록 {FormatDuration(MissingRuntimeMs)}(원인 미확정)",
-                    $"최장 미기록 {FormatDuration(LongestMissingRuntimeMs)}"
+                    UiText.RuntimeCoverage.Coverage(CoverageRatio),
+                    UiText.RuntimeCoverage.Tracked(FormatDuration(TrackedRuntimeMs)),
+                    UiText.RuntimeCoverage.Missing(FormatDuration(MissingRuntimeMs)),
+                    UiText.RuntimeCoverage.LongestMissing(FormatDuration(LongestMissingRuntimeMs))
                 };
 
                 if (BootBeforeTimePilotMs is { } bootMs && bootMs > 0)
-                    parts.Add($"부팅 후 미실행 {FormatDuration(bootMs)}");
+                    parts.Add(UiText.RuntimeCoverage.BootBeforeTimePilot(FormatDuration(bootMs)));
 
                 return parts;
             }

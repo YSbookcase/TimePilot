@@ -1,3 +1,5 @@
+using TimePilot.WinForms.KYS24;
+
 namespace TimePilot.WinForms
 {
     internal sealed class CenteredMessageDialog : Form
@@ -39,16 +41,16 @@ namespace TimePilot.WinForms
             if (buttons == MessageBoxButtons.YesNo)
             {
                 primaryButton.DialogResult = DialogResult.Yes;
-                primaryButton.Text = "예";
+                primaryButton.Text = UiText.Common.Yes;
                 secondaryButton.DialogResult = DialogResult.No;
-                secondaryButton.Text = "아니오";
+                secondaryButton.Text = UiText.Common.No;
                 CancelButton = secondaryButton;
                 Controls.Add(secondaryButton);
             }
             else
             {
                 primaryButton.DialogResult = DialogResult.OK;
-                primaryButton.Text = "확인";
+                primaryButton.Text = UiText.Common.Ok;
                 primaryButton.Location = secondaryButton.Location;
                 CancelButton = primaryButton;
             }
