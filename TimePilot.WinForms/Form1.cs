@@ -18,6 +18,8 @@ namespace TimePilot.WinForms
         private readonly Form headerToolTipForm = new();
         private readonly Label headerToolTipLabel = new();
         private readonly List<Label> runtimeCoverageSummaryLabels = new();
+        private readonly MonthCalendar recordedDateCalendar = new();
+        private readonly ToolStripDropDown recordedDateCalendarDropDown = new();
         private readonly NotifyIcon trayIcon = new();
         private readonly ContextMenuStrip trayMenu = new();
         private readonly bool startMinimizedToTray;
@@ -56,12 +58,17 @@ namespace TimePilot.WinForms
         private bool processRuntimeSafeModeActivated;
         private bool isInitializingSummaryPeriodSelector;
         private bool isInitializingDateSelectors;
+        private bool isUpdatingRecordedDateCalendar;
+        private DateTime recordedDateCalendarRangeStart = DateTime.MinValue;
+        private DateTime recordedDateCalendarRangeEnd = DateTime.MinValue;
+        private Action<DateTime>? applyRecordedCalendarDate;
 
         public Form1(bool startMinimizedToTray = false)
         {
             this.startMinimizedToTray = startMinimizedToTray;
 
             InitializeComponent();
+            InitializeRecordedDateCalendar();
             InitializeSummaryPeriodSelector();
             InitializeDateSelectors();
 
@@ -309,6 +316,31 @@ namespace TimePilot.WinForms
             }
 
             UpdateDateNavigationButtons();
+        }
+
+        private void InitializeRecordedDateCalendar()
+        {
+            recordedDateCalendar.CalendarDimensions = new Size(2, 1);
+            recordedDateCalendar.MaxSelectionCount = 1;
+            recordedDateCalendar.ShowToday = true;
+            recordedDateCalendar.ShowTodayCircle = true;
+            recordedDateCalendar.DateChanged += OnRecordedDateCalendarDateChanged;
+            recordedDateCalendar.DateSelected += OnRecordedDateCalendarDateSelected;
+
+            var host = new ToolStripControlHost(recordedDateCalendar)
+            {
+                Margin = Padding.Empty,
+                Padding = Padding.Empty
+            };
+            recordedDateCalendarDropDown.Padding = Padding.Empty;
+            recordedDateCalendarDropDown.Items.Add(host);
+
+            runtimeCoverageSummaryToolTip.SetToolTip(
+                detailCalendarButton,
+                "기록이 있는 날짜는 달력에서 굵게 표시됩니다.");
+            runtimeCoverageSummaryToolTip.SetToolTip(
+                timelineCalendarButton,
+                "기록이 있는 날짜는 달력에서 굵게 표시됩니다.");
         }
 
         private void ConfigureDesignPreview()
@@ -942,6 +974,16 @@ namespace TimePilot.WinForms
             ApplyTimelineDate(timelineDatePicker.Value.Date);
         }
 
+        private void OnDetailCalendarButtonClick(object? sender, EventArgs e)
+        {
+            ShowRecordedDateCalendar(detailCalendarButton, selectedDetailDate, ApplyDetailDate);
+        }
+
+        private void OnTimelineCalendarButtonClick(object? sender, EventArgs e)
+        {
+            ShowRecordedDateCalendar(timelineCalendarButton, selectedTimelineDate, ApplyTimelineDate);
+        }
+
         private void OnDetailPreviousDateButtonClick(object? sender, EventArgs e)
         {
             ApplyDetailDate(selectedDetailDate.AddDays(-1));
@@ -1008,6 +1050,80 @@ namespace TimePilot.WinForms
             {
                 isInitializingDateSelectors = false;
             }
+        }
+
+        private void ShowRecordedDateCalendar(Control anchor, DateTime selectedDate, Action<DateTime> applyDate)
+        {
+            var today = DateTime.Today;
+            var normalizedDate = NormalizeSelectableDate(selectedDate);
+            applyRecordedCalendarDate = applyDate;
+            recordedDateCalendarRangeStart = DateTime.MinValue;
+            recordedDateCalendarRangeEnd = DateTime.MinValue;
+
+            isUpdatingRecordedDateCalendar = true;
+            try
+            {
+                recordedDateCalendar.MaxDate = today;
+                recordedDateCalendar.SetDate(normalizedDate);
+                recordedDateCalendar.SelectionStart = normalizedDate;
+                recordedDateCalendar.SelectionEnd = normalizedDate;
+            }
+            finally
+            {
+                isUpdatingRecordedDateCalendar = false;
+            }
+
+            RefreshRecordedDateCalendarBoldedDates(normalizedDate);
+            recordedDateCalendarDropDown.Show(anchor, new Point(0, anchor.Height));
+        }
+
+        private void OnRecordedDateCalendarDateChanged(object? sender, DateRangeEventArgs e)
+        {
+            if (isUpdatingRecordedDateCalendar)
+                return;
+
+            RefreshRecordedDateCalendarBoldedDates(e.Start);
+        }
+
+        private void OnRecordedDateCalendarDateSelected(object? sender, DateRangeEventArgs e)
+        {
+            recordedDateCalendarDropDown.Hide();
+            applyRecordedCalendarDate?.Invoke(e.Start.Date);
+        }
+
+        private void RefreshRecordedDateCalendarBoldedDates(DateTime visibleDate)
+        {
+            var rangeStart = new DateTime(visibleDate.Year, visibleDate.Month, 1).AddMonths(-1);
+            var rangeEnd = new DateTime(visibleDate.Year, visibleDate.Month, 1).AddMonths(3);
+
+            if (rangeStart == recordedDateCalendarRangeStart && rangeEnd == recordedDateCalendarRangeEnd)
+                return;
+
+            recordedDateCalendarRangeStart = rangeStart;
+            recordedDateCalendarRangeEnd = rangeEnd;
+
+            var dates = GetRecordedDates(rangeStart, rangeEnd);
+            recordedDateCalendar.RemoveAllBoldedDates();
+            recordedDateCalendar.BoldedDates = dates.ToArray();
+            recordedDateCalendar.UpdateBoldedDates();
+        }
+
+        private IReadOnlyList<DateTime> GetRecordedDates(DateTime rangeStart, DateTime rangeEnd)
+        {
+            if (storage is null)
+                return Array.Empty<DateTime>();
+
+            var dates = new List<DateTime>();
+            var today = DateTime.Today;
+            var now = DateTimeOffset.UtcNow;
+
+            for (var date = rangeStart.Date; date < rangeEnd.Date && date <= today; date = date.AddDays(1))
+            {
+                if (storage.HasActivityDataForDate(date, now))
+                    dates.Add(date);
+            }
+
+            return dates;
         }
 
         private void UpdateDateNavigationButtons()

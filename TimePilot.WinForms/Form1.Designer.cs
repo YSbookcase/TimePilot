@@ -52,6 +52,7 @@
             detailFilterPanel = new Panel();
             detailDateLabel = new Label();
             detailDatePicker = new DateTimePicker();
+            detailCalendarButton = new Button();
             detailPreviousDateButton = new Button();
             detailNextDateButton = new Button();
             detailTodayButton = new Button();
@@ -80,6 +81,7 @@
             timelineDatePanel = new FlowLayoutPanel();
             timelineDateLabel = new Label();
             timelineDatePicker = new DateTimePicker();
+            timelineCalendarButton = new Button();
             timelinePreviousDateButton = new Button();
             timelineNextDateButton = new Button();
             timelineTodayButton = new Button();
@@ -431,6 +433,7 @@
             //
             detailFilterPanel.Controls.Add(detailDateLabel);
             detailFilterPanel.Controls.Add(detailDatePicker);
+            detailFilterPanel.Controls.Add(detailCalendarButton);
             detailFilterPanel.Controls.Add(detailPreviousDateButton);
             detailFilterPanel.Controls.Add(detailNextDateButton);
             detailFilterPanel.Controls.Add(detailTodayButton);
@@ -461,32 +464,42 @@
             detailDatePicker.TabIndex = 1;
             detailDatePicker.ValueChanged += OnDetailDatePickerValueChanged;
             //
+            // detailCalendarButton
+            //
+            detailCalendarButton.Location = new Point(165, 4);
+            detailCalendarButton.Name = "detailCalendarButton";
+            detailCalendarButton.Size = new Size(52, 23);
+            detailCalendarButton.TabIndex = 2;
+            detailCalendarButton.Text = "달력";
+            detailCalendarButton.UseVisualStyleBackColor = true;
+            detailCalendarButton.Click += OnDetailCalendarButtonClick;
+            //
             // detailPreviousDateButton
             //
-            detailPreviousDateButton.Location = new Point(165, 4);
+            detailPreviousDateButton.Location = new Point(223, 4);
             detailPreviousDateButton.Name = "detailPreviousDateButton";
             detailPreviousDateButton.Size = new Size(32, 23);
-            detailPreviousDateButton.TabIndex = 2;
+            detailPreviousDateButton.TabIndex = 3;
             detailPreviousDateButton.Text = "<";
             detailPreviousDateButton.UseVisualStyleBackColor = true;
             detailPreviousDateButton.Click += OnDetailPreviousDateButtonClick;
             //
             // detailNextDateButton
             //
-            detailNextDateButton.Location = new Point(201, 4);
+            detailNextDateButton.Location = new Point(259, 4);
             detailNextDateButton.Name = "detailNextDateButton";
             detailNextDateButton.Size = new Size(32, 23);
-            detailNextDateButton.TabIndex = 3;
+            detailNextDateButton.TabIndex = 4;
             detailNextDateButton.Text = ">";
             detailNextDateButton.UseVisualStyleBackColor = true;
             detailNextDateButton.Click += OnDetailNextDateButtonClick;
             //
             // detailTodayButton
             //
-            detailTodayButton.Location = new Point(239, 4);
+            detailTodayButton.Location = new Point(297, 4);
             detailTodayButton.Name = "detailTodayButton";
             detailTodayButton.Size = new Size(48, 23);
-            detailTodayButton.TabIndex = 4;
+            detailTodayButton.TabIndex = 5;
             detailTodayButton.Text = "오늘";
             detailTodayButton.UseVisualStyleBackColor = true;
             detailTodayButton.Click += OnDetailTodayButtonClick;
@@ -495,10 +508,10 @@
             //
             detailDateStatusLabel.AutoSize = true;
             detailDateStatusLabel.ForeColor = SystemColors.GrayText;
-            detailDateStatusLabel.Location = new Point(296, 8);
+            detailDateStatusLabel.Location = new Point(354, 8);
             detailDateStatusLabel.Name = "detailDateStatusLabel";
             detailDateStatusLabel.Size = new Size(55, 15);
-            detailDateStatusLabel.TabIndex = 5;
+            detailDateStatusLabel.TabIndex = 6;
             detailDateStatusLabel.Text = "확인 전";
             //
             // currentTrackingScopeOnlyCheckBox
@@ -763,6 +776,7 @@
             // 
             timelineDatePanel.Controls.Add(timelineDateLabel);
             timelineDatePanel.Controls.Add(timelineDatePicker);
+            timelineDatePanel.Controls.Add(timelineCalendarButton);
             timelineDatePanel.Controls.Add(timelinePreviousDateButton);
             timelineDatePanel.Controls.Add(timelineNextDateButton);
             timelineDatePanel.Controls.Add(timelineTodayButton);
@@ -794,32 +808,42 @@
             timelineDatePicker.TabIndex = 1;
             timelineDatePicker.ValueChanged += OnTimelineDatePickerValueChanged;
             // 
+            // timelineCalendarButton
+            // 
+            timelineCalendarButton.Location = new Point(168, 7);
+            timelineCalendarButton.Name = "timelineCalendarButton";
+            timelineCalendarButton.Size = new Size(52, 23);
+            timelineCalendarButton.TabIndex = 2;
+            timelineCalendarButton.Text = "달력";
+            timelineCalendarButton.UseVisualStyleBackColor = true;
+            timelineCalendarButton.Click += OnTimelineCalendarButtonClick;
+            // 
             // timelinePreviousDateButton
             // 
-            timelinePreviousDateButton.Location = new Point(168, 7);
+            timelinePreviousDateButton.Location = new Point(226, 7);
             timelinePreviousDateButton.Name = "timelinePreviousDateButton";
             timelinePreviousDateButton.Size = new Size(32, 23);
-            timelinePreviousDateButton.TabIndex = 2;
+            timelinePreviousDateButton.TabIndex = 3;
             timelinePreviousDateButton.Text = "<";
             timelinePreviousDateButton.UseVisualStyleBackColor = true;
             timelinePreviousDateButton.Click += OnTimelinePreviousDateButtonClick;
             // 
             // timelineNextDateButton
             // 
-            timelineNextDateButton.Location = new Point(206, 7);
+            timelineNextDateButton.Location = new Point(264, 7);
             timelineNextDateButton.Name = "timelineNextDateButton";
             timelineNextDateButton.Size = new Size(32, 23);
-            timelineNextDateButton.TabIndex = 3;
+            timelineNextDateButton.TabIndex = 4;
             timelineNextDateButton.Text = ">";
             timelineNextDateButton.UseVisualStyleBackColor = true;
             timelineNextDateButton.Click += OnTimelineNextDateButtonClick;
             // 
             // timelineTodayButton
             // 
-            timelineTodayButton.Location = new Point(244, 7);
+            timelineTodayButton.Location = new Point(302, 7);
             timelineTodayButton.Name = "timelineTodayButton";
             timelineTodayButton.Size = new Size(48, 23);
-            timelineTodayButton.TabIndex = 4;
+            timelineTodayButton.TabIndex = 5;
             timelineTodayButton.Text = "오늘";
             timelineTodayButton.UseVisualStyleBackColor = true;
             timelineTodayButton.Click += OnTimelineTodayButtonClick;
@@ -828,11 +852,11 @@
             // 
             timelineDateStatusLabel.AutoSize = true;
             timelineDateStatusLabel.ForeColor = SystemColors.GrayText;
-            timelineDateStatusLabel.Location = new Point(306, 10);
+            timelineDateStatusLabel.Location = new Point(364, 10);
             timelineDateStatusLabel.Margin = new Padding(8, 6, 8, 0);
             timelineDateStatusLabel.Name = "timelineDateStatusLabel";
             timelineDateStatusLabel.Size = new Size(55, 15);
-            timelineDateStatusLabel.TabIndex = 5;
+            timelineDateStatusLabel.TabIndex = 6;
             timelineDateStatusLabel.Text = "확인 전";
             // 
             // timelineGrid
@@ -986,6 +1010,7 @@
         private Panel detailFilterPanel;
         private Label detailDateLabel;
         private DateTimePicker detailDatePicker;
+        private Button detailCalendarButton;
         private Button detailPreviousDateButton;
         private Button detailNextDateButton;
         private Button detailTodayButton;
@@ -1014,6 +1039,7 @@
         private FlowLayoutPanel timelineDatePanel;
         private Label timelineDateLabel;
         private DateTimePicker timelineDatePicker;
+        private Button timelineCalendarButton;
         private Button timelinePreviousDateButton;
         private Button timelineNextDateButton;
         private Button timelineTodayButton;
