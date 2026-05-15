@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Data.Sqlite;
 
 namespace TimePilot.WinForms.KYS24
@@ -571,11 +572,70 @@ namespace TimePilot.WinForms.KYS24
                 .ToList();
         }
 
+        public IReadOnlyList<DailyUsageTrendRow> GetDailyUsageTrendForPeriod(
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    a.display_name,
+                    fs.started_at,
+                    fs.ended_at,
+                    fs.last_observed_at
+                FROM foreground_sessions fs
+                INNER JOIN apps a ON a.id = fs.app_id
+                WHERE fs.started_at < $periodEnd
+                  AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $periodStart;
+                """;
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
+
+            var totals = new Dictionary<DateTime, DailyUsageTrendAggregation>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var appName = reader.GetString(0);
+                var startedAt = ParseTimestamp(reader.GetString(1));
+                var endedAt = reader.IsDBNull(2)
+                    ? reader.IsDBNull(3) ? startedAt : ParseTimestamp(reader.GetString(3))
+                    : ParseTimestamp(reader.GetString(2));
+                var effectiveStart = Max(startedAt, periodStart);
+                var effectiveEnd = Min(endedAt, periodEnd);
+                if (effectiveEnd <= effectiveStart)
+                    continue;
+
+                AddDailyUsageTrend(totals, appName, effectiveStart, effectiveEnd);
+            }
+
+            return totals
+                .OrderByDescending(x => x.Key)
+                .Select(x =>
+                {
+                    var topApp = x.Value.AppTotals
+                        .OrderByDescending(app => app.Value)
+                        .ThenBy(app => app.Key, StringComparer.CurrentCultureIgnoreCase)
+                        .FirstOrDefault();
+
+                    return new DailyUsageTrendRow(
+                        x.Key,
+                        x.Value.ActiveUsageMs,
+                        topApp.Key ?? "",
+                        topApp.Value);
+                })
+                .ToList();
+        }
+
         public IReadOnlyList<ActivityTimelineRow> GetActivityTimelineForDay(DateTimeOffset now)
         {
             var localDayStart = now.ToLocalTime().Date;
-            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
-            var dayEnd = dayStart.AddDays(1);
+            return GetActivityTimelineForDate(localDayStart, now);
+        }
+
+        public IReadOnlyList<ActivityTimelineRow> GetActivityTimelineForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var (dayStart, dayEnd) = GetLocalDayRange(localDate);
             var rows = new List<ActivityTimelineRow>();
 
             using var connection = OpenConnection();
@@ -586,6 +646,49 @@ namespace TimePilot.WinForms.KYS24
             return rows
                 .OrderBy(x => x.StartedAt)
                 .ToList();
+        }
+
+        public bool HasActivityDataForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var (dayStart, dayEnd) = GetLocalDayRange(localDate);
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM foreground_sessions
+                    WHERE started_at < $dayEnd
+                      AND COALESCE(ended_at, last_observed_at, started_at) > $dayStart
+                    LIMIT 1
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM idle_sessions
+                    WHERE started_at < $dayEnd
+                      AND COALESCE(ended_at, started_at) > $dayStart
+                    LIMIT 1
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM app_runtime_sessions
+                    WHERE started_at < $dayEnd
+                      AND COALESCE(ended_at, last_heartbeat_at, $now) > $dayStart
+                    LIMIT 1
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM process_runtime_sessions
+                    WHERE started_at < $dayEnd
+                      AND COALESCE(ended_at, last_observed_at, started_at) > $dayStart
+                    LIMIT 1
+                );
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture) != 0;
         }
 
         public RuntimeCoverageSummary GetRuntimeCoverageForDay(DateTimeOffset now)
@@ -732,8 +835,12 @@ namespace TimePilot.WinForms.KYS24
         public IReadOnlyList<ProcessRuntimeSummaryRow> GetProcessRuntimeUsageForDay(DateTimeOffset now)
         {
             var localDayStart = now.ToLocalTime().Date;
-            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
-            var dayEnd = dayStart.AddDays(1);
+            return GetProcessRuntimeUsageForDate(localDayStart, now);
+        }
+
+        public IReadOnlyList<ProcessRuntimeSummaryRow> GetProcessRuntimeUsageForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var (dayStart, dayEnd) = GetLocalDayRange(localDate);
 
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
@@ -826,8 +933,15 @@ namespace TimePilot.WinForms.KYS24
         public IReadOnlyList<ProcessRuntimeSegmentRow> GetProcessRuntimeSegmentsForDay(long appId, DateTimeOffset now)
         {
             var localDayStart = now.ToLocalTime().Date;
-            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
-            var dayEnd = dayStart.AddDays(1);
+            return GetProcessRuntimeSegmentsForDate(appId, localDayStart, now);
+        }
+
+        public IReadOnlyList<ProcessRuntimeSegmentRow> GetProcessRuntimeSegmentsForDate(
+            long appId,
+            DateTime localDate,
+            DateTimeOffset now)
+        {
+            var (dayStart, dayEnd) = GetLocalDayRange(localDate);
 
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
@@ -1418,6 +1532,46 @@ namespace TimePilot.WinForms.KYS24
             return left >= right ? left : right;
         }
 
+        private static (DateTimeOffset Start, DateTimeOffset End) GetLocalDayRange(DateTime localDate)
+        {
+            var dayStartDate = localDate.Date;
+            var dayEndDate = dayStartDate.AddDays(1);
+            return (
+                new DateTimeOffset(dayStartDate, TimeZoneInfo.Local.GetUtcOffset(dayStartDate)),
+                new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate)));
+        }
+
+        private static void AddDailyUsageTrend(
+            Dictionary<DateTime, DailyUsageTrendAggregation> totals,
+            string appName,
+            DateTimeOffset start,
+            DateTimeOffset end)
+        {
+            var cursor = start;
+            while (cursor < end)
+            {
+                var localDate = cursor.ToLocalTime().Date;
+                var (_, dayEnd) = GetLocalDayRange(localDate);
+                var segmentEnd = Min(end, dayEnd);
+                var durationMs = Math.Max(0, (long)(segmentEnd - cursor).TotalMilliseconds);
+
+                if (durationMs > 0)
+                {
+                    if (!totals.TryGetValue(localDate, out var aggregation))
+                    {
+                        aggregation = new DailyUsageTrendAggregation();
+                        totals[localDate] = aggregation;
+                    }
+
+                    aggregation.ActiveUsageMs += durationMs;
+                    aggregation.AppTotals.TryGetValue(appName, out var appTotalMs);
+                    aggregation.AppTotals[appName] = appTotalMs + durationMs;
+                }
+
+                cursor = segmentEnd;
+            }
+        }
+
         private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> MergeIntervals(
             IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> intervals)
         {
@@ -1465,6 +1619,13 @@ namespace TimePilot.WinForms.KYS24
             public DateTimeOffset FirstStartedAt { get; set; }
 
             public DateTimeOffset LastObservedAt { get; set; }
+        }
+
+        private sealed class DailyUsageTrendAggregation
+        {
+            public long ActiveUsageMs { get; set; }
+
+            public Dictionary<string, long> AppTotals { get; } = new(StringComparer.OrdinalIgnoreCase);
         }
 
         private sealed class ProcessRuntimeAggregation

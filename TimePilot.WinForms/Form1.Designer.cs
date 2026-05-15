@@ -35,6 +35,11 @@
             runtimeCoverageSummaryPanel = new FlowLayoutPanel();
             runtimeCoverageSummaryToolTip = new ToolTip(components);
             usageGrid = new BufferedDataGridView();
+            dailyUsageTrendGrid = new BufferedDataGridView();
+            dailyUsageDateColumn = new DataGridViewTextBoxColumn();
+            dailyUsageActiveTimeColumn = new DataGridViewTextBoxColumn();
+            dailyUsageTopAppColumn = new DataGridViewTextBoxColumn();
+            dailyUsageTopAppTimeColumn = new DataGridViewTextBoxColumn();
             appIconColumn = new DataGridViewImageColumn();
             appNameColumn = new DataGridViewTextBoxColumn();
             firstStartedAtColumn = new DataGridViewTextBoxColumn();
@@ -44,6 +49,12 @@
             switchCountColumn = new DataGridViewTextBoxColumn();
             detailTab = new TabPage();
             detailFilterPanel = new Panel();
+            detailDateLabel = new Label();
+            detailDatePicker = new DateTimePicker();
+            detailPreviousDateButton = new Button();
+            detailNextDateButton = new Button();
+            detailTodayButton = new Button();
+            detailDateStatusLabel = new Label();
             currentTrackingScopeOnlyCheckBox = new CheckBox();
             runningRuntimeOnlyCheckBox = new CheckBox();
             detailSplitContainer = new SplitContainer();
@@ -65,6 +76,13 @@
             runtimeSegmentObservationTypeColumn = new DataGridViewTextBoxColumn();
             runtimeSegmentProcessIdColumn = new DataGridViewTextBoxColumn();
             timelineTab = new TabPage();
+            timelineDatePanel = new FlowLayoutPanel();
+            timelineDateLabel = new Label();
+            timelineDatePicker = new DateTimePicker();
+            timelinePreviousDateButton = new Button();
+            timelineNextDateButton = new Button();
+            timelineTodayButton = new Button();
+            timelineDateStatusLabel = new Label();
             timelineGrid = new BufferedDataGridView();
             timelineTypeColumn = new DataGridViewTextBoxColumn();
             timelineStartedAtColumn = new DataGridViewTextBoxColumn();
@@ -76,6 +94,7 @@
             mainTabs.SuspendLayout();
             summaryTab.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)usageGrid).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)dailyUsageTrendGrid).BeginInit();
             detailTab.SuspendLayout();
             detailFilterPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)detailSplitContainer).BeginInit();
@@ -85,6 +104,7 @@
             ((System.ComponentModel.ISupportInitialize)runtimeGrid).BeginInit();
             ((System.ComponentModel.ISupportInitialize)runtimeSegmentsGrid).BeginInit();
             timelineTab.SuspendLayout();
+            timelineDatePanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)timelineGrid).BeginInit();
             SuspendLayout();
             // 
@@ -170,6 +190,7 @@
             // summaryTab
             // 
             summaryTab.Controls.Add(usageGrid);
+            summaryTab.Controls.Add(dailyUsageTrendGrid);
             summaryTab.Controls.Add(runtimeCoverageSummaryPanel);
             summaryTab.Controls.Add(summaryPeriodPanel);
             summaryTab.Location = new Point(4, 24);
@@ -220,6 +241,7 @@
             runtimeCoverageSummaryPanel.Padding = new Padding(8, 4, 8, 4);
             runtimeCoverageSummaryPanel.Size = new Size(706, 48);
             runtimeCoverageSummaryPanel.TabIndex = 2;
+            runtimeCoverageSummaryPanel.Visible = false;
             runtimeCoverageSummaryPanel.WrapContents = true;
             runtimeCoverageSummaryToolTip.SetToolTip(runtimeCoverageSummaryPanel, "기록 커버리지는 오늘 0시부터 현재까지의 전체 시간 중 TimePilot이 실행되어 기록할 수 있었던 시간의 비율입니다. 컴퓨터를 실제로 사용한 시간 기준이 아닙니다.\r\n\r\n미기록 시간은 TimePilot이 실행되지 않았거나 기록할 수 없었던 구간입니다. PC 종료, Windows 절전, 앱 종료, 비정상 종료 등이 원인일 수 있으며 정확한 원인은 단정하지 않습니다.\r\n\r\n부팅 후 미실행은 Windows 시스템 시작 후 TimePilot이 처음 실행되기 전까지의 추정 시간입니다. Windows 로그인 시간이 아니라 시스템 시작 시각 기준입니다.");
             // 
@@ -236,16 +258,78 @@
             usageGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             usageGrid.Columns.AddRange(new DataGridViewColumn[] { appIconColumn, appNameColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, usageRatioColumn, switchCountColumn });
             usageGrid.Dock = DockStyle.Fill;
-            usageGrid.Location = new Point(3, 87);
+            usageGrid.Location = new Point(3, 39);
             usageGrid.MultiSelect = false;
             usageGrid.Name = "usageGrid";
             usageGrid.ReadOnly = true;
             usageGrid.RowHeadersVisible = false;
             usageGrid.ScrollBars = ScrollBars.Both;
             usageGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            usageGrid.Size = new Size(706, 330);
+            usageGrid.Size = new Size(706, 378);
             usageGrid.TabIndex = 1;
             usageGrid.ColumnHeaderMouseClick += OnUsageGridColumnHeaderMouseClick;
+            // 
+            // dailyUsageTrendGrid
+            // 
+            dailyUsageTrendGrid.AllowUserToAddRows = false;
+            dailyUsageTrendGrid.AllowUserToDeleteRows = false;
+            dailyUsageTrendGrid.AllowUserToResizeRows = false;
+            dailyUsageTrendGrid.AutoGenerateColumns = false;
+            dailyUsageTrendGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+            dailyUsageTrendGrid.BackgroundColor = SystemColors.Window;
+            dailyUsageTrendGrid.BorderStyle = BorderStyle.None;
+            dailyUsageTrendGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dailyUsageTrendGrid.Columns.AddRange(new DataGridViewColumn[] { dailyUsageDateColumn, dailyUsageActiveTimeColumn, dailyUsageTopAppColumn, dailyUsageTopAppTimeColumn });
+            dailyUsageTrendGrid.Dock = DockStyle.Bottom;
+            dailyUsageTrendGrid.Location = new Point(3, 289);
+            dailyUsageTrendGrid.MultiSelect = false;
+            dailyUsageTrendGrid.Name = "dailyUsageTrendGrid";
+            dailyUsageTrendGrid.ReadOnly = true;
+            dailyUsageTrendGrid.RowHeadersVisible = false;
+            dailyUsageTrendGrid.ScrollBars = ScrollBars.Both;
+            dailyUsageTrendGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dailyUsageTrendGrid.Size = new Size(706, 128);
+            dailyUsageTrendGrid.TabIndex = 4;
+            // 
+            // dailyUsageDateColumn
+            // 
+            dailyUsageDateColumn.DataPropertyName = "DateText";
+            dailyUsageDateColumn.HeaderText = "날짜";
+            dailyUsageDateColumn.MinimumWidth = 110;
+            dailyUsageDateColumn.Name = "dailyUsageDateColumn";
+            dailyUsageDateColumn.ReadOnly = true;
+            dailyUsageDateColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            dailyUsageDateColumn.Width = 120;
+            // 
+            // dailyUsageActiveTimeColumn
+            // 
+            dailyUsageActiveTimeColumn.DataPropertyName = "ActiveUsageTimeText";
+            dailyUsageActiveTimeColumn.HeaderText = "총 활성 사용 시간";
+            dailyUsageActiveTimeColumn.MinimumWidth = 130;
+            dailyUsageActiveTimeColumn.Name = "dailyUsageActiveTimeColumn";
+            dailyUsageActiveTimeColumn.ReadOnly = true;
+            dailyUsageActiveTimeColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            dailyUsageActiveTimeColumn.Width = 150;
+            // 
+            // dailyUsageTopAppColumn
+            // 
+            dailyUsageTopAppColumn.DataPropertyName = "TopAppName";
+            dailyUsageTopAppColumn.HeaderText = "가장 많이 사용한 앱";
+            dailyUsageTopAppColumn.MinimumWidth = 180;
+            dailyUsageTopAppColumn.Name = "dailyUsageTopAppColumn";
+            dailyUsageTopAppColumn.ReadOnly = true;
+            dailyUsageTopAppColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            dailyUsageTopAppColumn.Width = 220;
+            // 
+            // dailyUsageTopAppTimeColumn
+            // 
+            dailyUsageTopAppTimeColumn.DataPropertyName = "TopAppUsageTimeText";
+            dailyUsageTopAppTimeColumn.HeaderText = "주요 앱 시간";
+            dailyUsageTopAppTimeColumn.MinimumWidth = 120;
+            dailyUsageTopAppTimeColumn.Name = "dailyUsageTopAppTimeColumn";
+            dailyUsageTopAppTimeColumn.ReadOnly = true;
+            dailyUsageTopAppTimeColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            dailyUsageTopAppTimeColumn.Width = 130;
             // 
             // appIconColumn
             // 
@@ -333,23 +417,87 @@
             //
             // detailFilterPanel
             //
+            detailFilterPanel.Controls.Add(detailDateLabel);
+            detailFilterPanel.Controls.Add(detailDatePicker);
+            detailFilterPanel.Controls.Add(detailPreviousDateButton);
+            detailFilterPanel.Controls.Add(detailNextDateButton);
+            detailFilterPanel.Controls.Add(detailTodayButton);
+            detailFilterPanel.Controls.Add(detailDateStatusLabel);
             detailFilterPanel.Controls.Add(currentTrackingScopeOnlyCheckBox);
             detailFilterPanel.Controls.Add(runningRuntimeOnlyCheckBox);
             detailFilterPanel.Dock = DockStyle.Top;
             detailFilterPanel.Location = new Point(3, 3);
             detailFilterPanel.Name = "detailFilterPanel";
-            detailFilterPanel.Size = new Size(706, 32);
+            detailFilterPanel.Size = new Size(706, 60);
             detailFilterPanel.TabIndex = 1;
+            //
+            // detailDateLabel
+            //
+            detailDateLabel.AutoSize = true;
+            detailDateLabel.Location = new Point(8, 8);
+            detailDateLabel.Name = "detailDateLabel";
+            detailDateLabel.Size = new Size(31, 15);
+            detailDateLabel.TabIndex = 0;
+            detailDateLabel.Text = "날짜";
+            //
+            // detailDatePicker
+            //
+            detailDatePicker.Format = DateTimePickerFormat.Short;
+            detailDatePicker.Location = new Point(47, 4);
+            detailDatePicker.Name = "detailDatePicker";
+            detailDatePicker.Size = new Size(112, 23);
+            detailDatePicker.TabIndex = 1;
+            detailDatePicker.ValueChanged += OnDetailDatePickerValueChanged;
+            //
+            // detailPreviousDateButton
+            //
+            detailPreviousDateButton.Location = new Point(165, 4);
+            detailPreviousDateButton.Name = "detailPreviousDateButton";
+            detailPreviousDateButton.Size = new Size(32, 23);
+            detailPreviousDateButton.TabIndex = 2;
+            detailPreviousDateButton.Text = "<";
+            detailPreviousDateButton.UseVisualStyleBackColor = true;
+            detailPreviousDateButton.Click += OnDetailPreviousDateButtonClick;
+            //
+            // detailNextDateButton
+            //
+            detailNextDateButton.Location = new Point(201, 4);
+            detailNextDateButton.Name = "detailNextDateButton";
+            detailNextDateButton.Size = new Size(32, 23);
+            detailNextDateButton.TabIndex = 3;
+            detailNextDateButton.Text = ">";
+            detailNextDateButton.UseVisualStyleBackColor = true;
+            detailNextDateButton.Click += OnDetailNextDateButtonClick;
+            //
+            // detailTodayButton
+            //
+            detailTodayButton.Location = new Point(239, 4);
+            detailTodayButton.Name = "detailTodayButton";
+            detailTodayButton.Size = new Size(48, 23);
+            detailTodayButton.TabIndex = 4;
+            detailTodayButton.Text = "오늘";
+            detailTodayButton.UseVisualStyleBackColor = true;
+            detailTodayButton.Click += OnDetailTodayButtonClick;
+            //
+            // detailDateStatusLabel
+            //
+            detailDateStatusLabel.AutoSize = true;
+            detailDateStatusLabel.ForeColor = SystemColors.GrayText;
+            detailDateStatusLabel.Location = new Point(296, 8);
+            detailDateStatusLabel.Name = "detailDateStatusLabel";
+            detailDateStatusLabel.Size = new Size(55, 15);
+            detailDateStatusLabel.TabIndex = 5;
+            detailDateStatusLabel.Text = "확인 전";
             //
             // currentTrackingScopeOnlyCheckBox
             //
             currentTrackingScopeOnlyCheckBox.AutoSize = true;
             currentTrackingScopeOnlyCheckBox.Checked = true;
             currentTrackingScopeOnlyCheckBox.CheckState = CheckState.Checked;
-            currentTrackingScopeOnlyCheckBox.Location = new Point(8, 7);
+            currentTrackingScopeOnlyCheckBox.Location = new Point(8, 35);
             currentTrackingScopeOnlyCheckBox.Name = "currentTrackingScopeOnlyCheckBox";
             currentTrackingScopeOnlyCheckBox.Size = new Size(134, 19);
-            currentTrackingScopeOnlyCheckBox.TabIndex = 0;
+            currentTrackingScopeOnlyCheckBox.TabIndex = 7;
             currentTrackingScopeOnlyCheckBox.Text = "현재 추적 범위만";
             currentTrackingScopeOnlyCheckBox.UseVisualStyleBackColor = true;
             currentTrackingScopeOnlyCheckBox.CheckedChanged += OnCurrentTrackingScopeOnlyCheckBoxCheckedChanged;
@@ -357,10 +505,10 @@
             // runningRuntimeOnlyCheckBox
             //
             runningRuntimeOnlyCheckBox.AutoSize = true;
-            runningRuntimeOnlyCheckBox.Location = new Point(154, 7);
+            runningRuntimeOnlyCheckBox.Location = new Point(154, 35);
             runningRuntimeOnlyCheckBox.Name = "runningRuntimeOnlyCheckBox";
             runningRuntimeOnlyCheckBox.Size = new Size(82, 19);
-            runningRuntimeOnlyCheckBox.TabIndex = 1;
+            runningRuntimeOnlyCheckBox.TabIndex = 8;
             runningRuntimeOnlyCheckBox.Text = "실행 중만";
             runningRuntimeOnlyCheckBox.UseVisualStyleBackColor = true;
             runningRuntimeOnlyCheckBox.CheckedChanged += OnRunningRuntimeOnlyCheckBoxCheckedChanged;
@@ -368,7 +516,7 @@
             // detailSplitContainer
             //
             detailSplitContainer.Dock = DockStyle.Fill;
-            detailSplitContainer.Location = new Point(3, 35);
+            detailSplitContainer.Location = new Point(3, 63);
             detailSplitContainer.Name = "detailSplitContainer";
             detailSplitContainer.Orientation = Orientation.Horizontal;
             //
@@ -379,8 +527,8 @@
             // detailSplitContainer.Panel2
             //
             detailSplitContainer.Panel2.Controls.Add(runtimeSegmentsGrid);
-            detailSplitContainer.Size = new Size(706, 382);
-            detailSplitContainer.SplitterDistance = 245;
+            detailSplitContainer.Size = new Size(706, 354);
+            detailSplitContainer.SplitterDistance = 226;
             detailSplitContainer.TabIndex = 0;
             //
             // runtimeGrid
@@ -403,7 +551,7 @@
             runtimeGrid.RowHeadersVisible = false;
             runtimeGrid.ScrollBars = ScrollBars.Both;
             runtimeGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            runtimeGrid.Size = new Size(706, 245);
+            runtimeGrid.Size = new Size(706, 226);
             runtimeGrid.TabIndex = 0;
             runtimeGrid.ColumnHeaderMouseClick += OnRuntimeGridColumnHeaderMouseClick;
             runtimeGrid.SelectionChanged += OnRuntimeGridSelectionChanged;
@@ -523,7 +671,7 @@
             runtimeSegmentsGrid.RowHeadersVisible = false;
             runtimeSegmentsGrid.ScrollBars = ScrollBars.Both;
             runtimeSegmentsGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            runtimeSegmentsGrid.Size = new Size(706, 133);
+            runtimeSegmentsGrid.Size = new Size(706, 124);
             runtimeSegmentsGrid.TabIndex = 0;
             runtimeSegmentsGrid.ColumnHeaderMouseClick += OnRuntimeSegmentsGridColumnHeaderMouseClick;
             //
@@ -590,6 +738,7 @@
             // timelineTab
             // 
             timelineTab.Controls.Add(timelineGrid);
+            timelineTab.Controls.Add(timelineDatePanel);
             timelineTab.Location = new Point(4, 24);
             timelineTab.Name = "timelineTab";
             timelineTab.Padding = new Padding(3);
@@ -597,6 +746,82 @@
             timelineTab.TabIndex = 2;
             timelineTab.Text = "타임라인";
             timelineTab.UseVisualStyleBackColor = true;
+            // 
+            // timelineDatePanel
+            // 
+            timelineDatePanel.Controls.Add(timelineDateLabel);
+            timelineDatePanel.Controls.Add(timelineDatePicker);
+            timelineDatePanel.Controls.Add(timelinePreviousDateButton);
+            timelineDatePanel.Controls.Add(timelineNextDateButton);
+            timelineDatePanel.Controls.Add(timelineTodayButton);
+            timelineDatePanel.Controls.Add(timelineDateStatusLabel);
+            timelineDatePanel.Dock = DockStyle.Top;
+            timelineDatePanel.Location = new Point(3, 3);
+            timelineDatePanel.Name = "timelineDatePanel";
+            timelineDatePanel.Padding = new Padding(8, 4, 8, 2);
+            timelineDatePanel.Size = new Size(706, 36);
+            timelineDatePanel.TabIndex = 1;
+            timelineDatePanel.WrapContents = false;
+            // 
+            // timelineDateLabel
+            // 
+            timelineDateLabel.AutoSize = true;
+            timelineDateLabel.Location = new Point(11, 10);
+            timelineDateLabel.Margin = new Padding(0, 6, 8, 0);
+            timelineDateLabel.Name = "timelineDateLabel";
+            timelineDateLabel.Size = new Size(31, 15);
+            timelineDateLabel.TabIndex = 0;
+            timelineDateLabel.Text = "날짜";
+            // 
+            // timelineDatePicker
+            // 
+            timelineDatePicker.Format = DateTimePickerFormat.Short;
+            timelineDatePicker.Location = new Point(50, 7);
+            timelineDatePicker.Name = "timelineDatePicker";
+            timelineDatePicker.Size = new Size(112, 23);
+            timelineDatePicker.TabIndex = 1;
+            timelineDatePicker.ValueChanged += OnTimelineDatePickerValueChanged;
+            // 
+            // timelinePreviousDateButton
+            // 
+            timelinePreviousDateButton.Location = new Point(168, 7);
+            timelinePreviousDateButton.Name = "timelinePreviousDateButton";
+            timelinePreviousDateButton.Size = new Size(32, 23);
+            timelinePreviousDateButton.TabIndex = 2;
+            timelinePreviousDateButton.Text = "<";
+            timelinePreviousDateButton.UseVisualStyleBackColor = true;
+            timelinePreviousDateButton.Click += OnTimelinePreviousDateButtonClick;
+            // 
+            // timelineNextDateButton
+            // 
+            timelineNextDateButton.Location = new Point(206, 7);
+            timelineNextDateButton.Name = "timelineNextDateButton";
+            timelineNextDateButton.Size = new Size(32, 23);
+            timelineNextDateButton.TabIndex = 3;
+            timelineNextDateButton.Text = ">";
+            timelineNextDateButton.UseVisualStyleBackColor = true;
+            timelineNextDateButton.Click += OnTimelineNextDateButtonClick;
+            // 
+            // timelineTodayButton
+            // 
+            timelineTodayButton.Location = new Point(244, 7);
+            timelineTodayButton.Name = "timelineTodayButton";
+            timelineTodayButton.Size = new Size(48, 23);
+            timelineTodayButton.TabIndex = 4;
+            timelineTodayButton.Text = "오늘";
+            timelineTodayButton.UseVisualStyleBackColor = true;
+            timelineTodayButton.Click += OnTimelineTodayButtonClick;
+            // 
+            // timelineDateStatusLabel
+            // 
+            timelineDateStatusLabel.AutoSize = true;
+            timelineDateStatusLabel.ForeColor = SystemColors.GrayText;
+            timelineDateStatusLabel.Location = new Point(306, 10);
+            timelineDateStatusLabel.Margin = new Padding(8, 6, 8, 0);
+            timelineDateStatusLabel.Name = "timelineDateStatusLabel";
+            timelineDateStatusLabel.Size = new Size(55, 15);
+            timelineDateStatusLabel.TabIndex = 5;
+            timelineDateStatusLabel.Text = "확인 전";
             // 
             // timelineGrid
             // 
@@ -610,14 +835,14 @@
             timelineGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             timelineGrid.Columns.AddRange(new DataGridViewColumn[] { timelineTypeColumn, timelineStartedAtColumn, timelineEndedAtColumn, timelineDurationColumn, timelineAppIconColumn, timelineDisplayNameColumn });
             timelineGrid.Dock = DockStyle.Fill;
-            timelineGrid.Location = new Point(3, 3);
+            timelineGrid.Location = new Point(3, 39);
             timelineGrid.MultiSelect = false;
             timelineGrid.Name = "timelineGrid";
             timelineGrid.ReadOnly = true;
             timelineGrid.RowHeadersVisible = false;
             timelineGrid.ScrollBars = ScrollBars.Both;
             timelineGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            timelineGrid.Size = new Size(706, 414);
+            timelineGrid.Size = new Size(706, 378);
             timelineGrid.TabIndex = 0;
             timelineGrid.ColumnHeaderMouseClick += OnTimelineGridColumnHeaderMouseClick;
             // 
@@ -697,6 +922,7 @@
             mainTabs.ResumeLayout(false);
             summaryTab.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)usageGrid).EndInit();
+            ((System.ComponentModel.ISupportInitialize)dailyUsageTrendGrid).EndInit();
             detailTab.ResumeLayout(false);
             detailFilterPanel.ResumeLayout(false);
             detailFilterPanel.PerformLayout();
@@ -707,6 +933,8 @@
             ((System.ComponentModel.ISupportInitialize)runtimeGrid).EndInit();
             ((System.ComponentModel.ISupportInitialize)runtimeSegmentsGrid).EndInit();
             timelineTab.ResumeLayout(false);
+            timelineDatePanel.ResumeLayout(false);
+            timelineDatePanel.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)timelineGrid).EndInit();
             ResumeLayout(false);
             PerformLayout();
@@ -729,6 +957,11 @@
         private FlowLayoutPanel runtimeCoverageSummaryPanel;
         private ToolTip runtimeCoverageSummaryToolTip;
         private DataGridView usageGrid;
+        private DataGridView dailyUsageTrendGrid;
+        private DataGridViewTextBoxColumn dailyUsageDateColumn;
+        private DataGridViewTextBoxColumn dailyUsageActiveTimeColumn;
+        private DataGridViewTextBoxColumn dailyUsageTopAppColumn;
+        private DataGridViewTextBoxColumn dailyUsageTopAppTimeColumn;
         private DataGridViewImageColumn appIconColumn;
         private DataGridViewTextBoxColumn appNameColumn;
         private DataGridViewTextBoxColumn firstStartedAtColumn;
@@ -738,6 +971,12 @@
         private DataGridViewTextBoxColumn switchCountColumn;
         private TabPage detailTab;
         private Panel detailFilterPanel;
+        private Label detailDateLabel;
+        private DateTimePicker detailDatePicker;
+        private Button detailPreviousDateButton;
+        private Button detailNextDateButton;
+        private Button detailTodayButton;
+        private Label detailDateStatusLabel;
         private CheckBox currentTrackingScopeOnlyCheckBox;
         private CheckBox runningRuntimeOnlyCheckBox;
         private SplitContainer detailSplitContainer;
@@ -759,6 +998,13 @@
         private DataGridViewTextBoxColumn runtimeSegmentObservationTypeColumn;
         private DataGridViewTextBoxColumn runtimeSegmentProcessIdColumn;
         private TabPage timelineTab;
+        private FlowLayoutPanel timelineDatePanel;
+        private Label timelineDateLabel;
+        private DateTimePicker timelineDatePicker;
+        private Button timelinePreviousDateButton;
+        private Button timelineNextDateButton;
+        private Button timelineTodayButton;
+        private Label timelineDateStatusLabel;
         private DataGridView timelineGrid;
         private DataGridViewTextBoxColumn timelineTypeColumn;
         private DataGridViewTextBoxColumn timelineStartedAtColumn;
