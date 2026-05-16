@@ -63,6 +63,8 @@ namespace TimePilot.WinForms.KYS24
             public static string DetailHelpMessage => current.Main.DetailHelpMessage;
             public static string DetailHelpCurrentSelection(string selection, string description) =>
                 current.Main.DetailHelpCurrentSelection(selection, description);
+            public static string DetailTrackingDisabledMessage => current.Main.DetailTrackingDisabledMessage;
+            public static string DetailTrackingDisabledOpenPreferences => current.Main.DetailTrackingDisabledOpenPreferences;
             public static string DetailFilterSummaryAppsDescription => current.Main.DetailFilterSummaryAppsDescription;
             public static string DetailFilterCurrentScopeDescription => current.Main.DetailFilterCurrentScopeDescription;
             public static string DetailFilterVisibleAppsDescription => current.Main.DetailFilterVisibleAppsDescription;
@@ -299,6 +301,8 @@ namespace TimePilot.WinForms.KYS24
                             "사용자 프로세스: 현재 로그인한 사용자 세션에서 실행된 프로세스입니다. 창이 없어도 포함될 수 있습니다.\n\n" +
                             "모든 감지 기록: 과거에 감지되었거나 저장된 모든 실행 기록을 보여줍니다.\n\n" +
                             "실행 구간 수는 겹치거나 이어진 실행 세션을 병합한 구간 수입니다. 아래 목록은 병합 전 개별 감지 세션을 보여주므로 행 수와 다를 수 있습니다.",
+                        DetailTrackingDisabledMessage: "백그라운드 앱 추적이 꺼져 있어 새 실행 기록이 쌓이지 않습니다. 상세 탭은 기존 기록만 표시하며, 요약/타임라인의 현재 사용 앱 기록은 계속 동작할 수 있습니다.",
+                        DetailTrackingDisabledOpenPreferences: "환경 설정 열기",
                         RunningOnly: "실행 중만",
                         App: "앱",
                         Start: "시작",
@@ -490,6 +494,8 @@ namespace TimePilot.WinForms.KYS24
                             "User processes: Processes running in the current signed-in user session. Processes without windows can be included.\n\n" +
                             "All detected records: Shows all runtime records that were detected or stored in the past.\n\n" +
                             "Runtime segment count is the number of merged overlapping or continuous runtime sessions. The lower list shows individual detected sessions before merging, so the row count can be different.",
+                        DetailTrackingDisabledMessage: "Background app tracking is off, so new runtime records are not being collected. Details shows existing records only; Summary and Timeline current-app tracking can still continue.",
+                        DetailTrackingDisabledOpenPreferences: "Open Preferences",
                         RunningOnly: "Running only",
                         App: "App",
                         Start: "Start",
@@ -673,6 +679,8 @@ namespace TimePilot.WinForms.KYS24
             string DetailFilterUserProcessesDescription,
             string DetailFilterAllRecordsDescription,
             string DetailHelpMessage,
+            string DetailTrackingDisabledMessage,
+            string DetailTrackingDisabledOpenPreferences,
             string RunningOnly,
             string App,
             string Start,
