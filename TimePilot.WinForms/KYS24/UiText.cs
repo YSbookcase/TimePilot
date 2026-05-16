@@ -51,6 +51,23 @@ namespace TimePilot.WinForms.KYS24
             public static string Today => current.Main.Today;
             public static string NotChecked => current.Main.NotChecked;
             public static string CurrentTrackingScopeOnly => current.Main.CurrentTrackingScopeOnly;
+            public static string DetailRuntimeFilter => current.Main.DetailRuntimeFilter;
+            public static string DetailFilterSummaryApps => current.Main.DetailFilterSummaryApps;
+            public static string DetailFilterCurrentScope => current.Main.DetailFilterCurrentScope;
+            public static string DetailFilterVisibleApps => current.Main.DetailFilterVisibleApps;
+            public static string DetailFilterUserProcesses => current.Main.DetailFilterUserProcesses;
+            public static string DetailFilterAllRecords => current.Main.DetailFilterAllRecords;
+            public static string DetailDescription => current.Main.DetailDescription;
+            public static string DetailHelp => current.Main.DetailHelp;
+            public static string DetailHelpTitle => current.Main.DetailHelpTitle;
+            public static string DetailHelpMessage => current.Main.DetailHelpMessage;
+            public static string DetailHelpCurrentSelection(string selection, string description) =>
+                current.Main.DetailHelpCurrentSelection(selection, description);
+            public static string DetailFilterSummaryAppsDescription => current.Main.DetailFilterSummaryAppsDescription;
+            public static string DetailFilterCurrentScopeDescription => current.Main.DetailFilterCurrentScopeDescription;
+            public static string DetailFilterVisibleAppsDescription => current.Main.DetailFilterVisibleAppsDescription;
+            public static string DetailFilterUserProcessesDescription => current.Main.DetailFilterUserProcessesDescription;
+            public static string DetailFilterAllRecordsDescription => current.Main.DetailFilterAllRecordsDescription;
             public static string RunningOnly => current.Main.RunningOnly;
             public static string App => current.Main.App;
             public static string Start => current.Main.Start;
@@ -95,7 +112,9 @@ namespace TimePilot.WinForms.KYS24
             public static string RuntimeDurationTooltip => current.Main.RuntimeDurationTooltip;
             public static string RuntimeActualUsageRatioTooltip => current.Main.RuntimeActualUsageRatioTooltip;
             public static string RuntimeSegmentCountTooltip => current.Main.RuntimeSegmentCountTooltip;
+            public static string RuntimeTrackingTypeTooltip => current.Main.RuntimeTrackingTypeTooltip;
             public static string RuntimeStatusTooltip => current.Main.RuntimeStatusTooltip;
+            public static string RuntimeSegmentObservationTooltip => current.Main.RuntimeSegmentObservationTooltip;
             public static string RecordedDateCalendarTooltip => current.Main.RecordedDateCalendarTooltip;
             public static string OpenWindow => current.Main.OpenWindow;
             public static string UsageDataCleared => current.Main.UsageDataCleared;
@@ -249,6 +268,29 @@ namespace TimePilot.WinForms.KYS24
                         Today: "오늘",
                         NotChecked: "확인 전",
                         CurrentTrackingScopeOnly: "현재 추적 범위만",
+                        DetailRuntimeFilter: "표시",
+                        DetailFilterSummaryApps: "요약에 표시된 앱",
+                        DetailFilterCurrentScope: "현재 추적 범위",
+                        DetailFilterVisibleApps: "화면에 보이는 앱",
+                        DetailFilterUserProcesses: "사용자 프로세스",
+                        DetailFilterAllRecords: "모든 감지 기록",
+                        DetailDescription: "상세 탭은 앱이 실행되어 있었던 시간과 구간을 보여줍니다. 요약과 다르게 직접 사용하지 않은 실행 기록도 포함될 수 있습니다.",
+                        DetailHelp: "?",
+                        DetailHelpTitle: "상세 탭 도움말",
+                        DetailHelpCurrentSelection: (selection, description) => $"현재 선택: {selection}\n\n{description}",
+                        DetailFilterSummaryAppsDescription: "선택한 날짜의 요약 탭에 표시되는 앱만 보여줍니다. 실제로 foreground에서 사용한 앱을 중심으로 상세 실행 기록을 확인할 때 사용합니다.",
+                        DetailFilterCurrentScopeDescription: "현재 백그라운드 앱 추적 설정에 맞는 기록만 보여줍니다. 설정이 바뀌면 과거에 기록된 일부 항목이 제외될 수 있습니다.",
+                        DetailFilterVisibleAppsDescription: "창이 감지된 앱입니다. 작업관리자의 앱 항목과 비슷하지만 완전히 동일하지 않을 수 있습니다.",
+                        DetailFilterUserProcessesDescription: "현재 로그인한 사용자 세션에서 실행된 프로세스입니다. 창이 없는 백그라운드 앱이나 트레이 앱도 포함될 수 있습니다.",
+                        DetailFilterAllRecordsDescription: "과거에 감지되었거나 저장된 모든 실행 기록을 보여줍니다. 현재 설정의 추적 대상이 아닐 수 있습니다.",
+                        DetailHelpMessage:
+                            "전체 표시 옵션:\n\n" +
+                            "요약에 표시된 앱: 선택한 날짜의 요약 탭에 표시되는 앱만 보여줍니다.\n\n" +
+                            "현재 추적 범위: 현재 백그라운드 앱 추적 설정에 맞는 기록만 보여줍니다.\n\n" +
+                            "화면에 보이는 앱: 창이 감지된 앱입니다. 작업관리자의 앱 항목과 비슷하지만 완전히 동일하지 않을 수 있습니다.\n\n" +
+                            "사용자 프로세스: 현재 로그인한 사용자 세션에서 실행된 프로세스입니다. 창이 없어도 포함될 수 있습니다.\n\n" +
+                            "모든 감지 기록: 과거에 감지되었거나 저장된 모든 실행 기록을 보여줍니다.\n\n" +
+                            "실행 구간 수는 겹치거나 이어진 실행 세션을 병합한 구간 수입니다. 아래 목록은 병합 전 개별 감지 세션을 보여주므로 행 수와 다를 수 있습니다.",
                         RunningOnly: "실행 중만",
                         App: "앱",
                         Start: "시작",
@@ -270,7 +312,7 @@ namespace TimePilot.WinForms.KYS24
                         ActualUsageRatio: "실사용 비율",
                         RuntimeSegmentCount: "실행 구간",
                         ObservationBasis: "관측 기준",
-                        WindowedApp: "창 있음",
+                        WindowedApp: "화면 앱",
                         UserProcess: "사용자 프로세스",
                         AllProcesses: "전체 프로세스",
                         HasData: "기록 있음",
@@ -292,8 +334,10 @@ namespace TimePilot.WinForms.KYS24
                         RuntimeLastObservedTooltip: "백그라운드 앱 추적이 실제로 마지막 관측한 시각입니다.",
                         RuntimeDurationTooltip: "실행 중인 앱은 현재 시각 기준으로 계속 증가하고, 종료된 앱은 마지막 관측 시각까지 계산합니다.",
                         RuntimeActualUsageRatioTooltip: "실행 시간 중 실제 foreground 활성 사용 시간이 차지한 비율입니다.",
-                        RuntimeSegmentCountTooltip: "앱이 이어서 실행된 것으로 관측된 구간 수입니다.",
+                        RuntimeSegmentCountTooltip: "겹치거나 이어진 실행 세션을 병합한 구간 수입니다. 아래 목록은 병합 전 개별 감지 세션을 보여주므로 행 수와 다를 수 있습니다.",
+                        RuntimeTrackingTypeTooltip: "화면 앱은 창이 감지된 앱입니다. 작업관리자의 앱 항목과 비슷하지만 완전히 동일하지 않을 수 있습니다.",
                         RuntimeStatusTooltip: "현재 설정 기준으로 실행 중, 종료, 추적 범위 밖 상태를 표시합니다.",
+                        RuntimeSegmentObservationTooltip: "해당 개별 감지 세션이 어떤 기준으로 관측되었는지 표시합니다. 같은 앱 안에서도 화면 앱과 사용자 프로세스가 섞일 수 있습니다.",
                         RecordedDateCalendarTooltip: "기록이 있는 날짜는 달력에서 굵게 표시됩니다.",
                         OpenWindow: "창 열기",
                         UsageDataCleared: "사용 기록을 삭제했습니다.",
@@ -403,6 +447,29 @@ namespace TimePilot.WinForms.KYS24
                         Today: "Today",
                         NotChecked: "Not checked",
                         CurrentTrackingScopeOnly: "Current scope only",
+                        DetailRuntimeFilter: "Show",
+                        DetailFilterSummaryApps: "Apps in summary",
+                        DetailFilterCurrentScope: "Current tracking scope",
+                        DetailFilterVisibleApps: "Visible apps",
+                        DetailFilterUserProcesses: "User processes",
+                        DetailFilterAllRecords: "All detected records",
+                        DetailDescription: "Details show when apps were running and their runtime segments. Unlike Summary, it can include records that were not directly used in the foreground.",
+                        DetailHelp: "?",
+                        DetailHelpTitle: "Details Help",
+                        DetailHelpCurrentSelection: (selection, description) => $"Current selection: {selection}\n\n{description}",
+                        DetailFilterSummaryAppsDescription: "Shows only apps that appear in Summary for the selected date. Use this to inspect runtime records for apps you actually used in the foreground.",
+                        DetailFilterCurrentScopeDescription: "Shows records that match the current background app tracking setting. Some past records can be excluded if the setting has changed.",
+                        DetailFilterVisibleAppsDescription: "Apps with a detected app window. This is similar to Task Manager's Apps group, but may not match it exactly.",
+                        DetailFilterUserProcessesDescription: "Processes running in the current signed-in user session. Background or tray apps without windows can be included.",
+                        DetailFilterAllRecordsDescription: "Shows all runtime records that were detected or stored in the past. Some records may be outside the current tracking setting.",
+                        DetailHelpMessage:
+                            "All display options:\n\n" +
+                            "Apps in summary: Shows only apps that appear in Summary for the selected date.\n\n" +
+                            "Current tracking scope: Shows records that match the current background app tracking setting.\n\n" +
+                            "Visible apps: Apps with a detected app window. This is similar to Task Manager's Apps group, but may not match it exactly.\n\n" +
+                            "User processes: Processes running in the current signed-in user session. Processes without windows can be included.\n\n" +
+                            "All detected records: Shows all runtime records that were detected or stored in the past.\n\n" +
+                            "Runtime segment count is the number of merged overlapping or continuous runtime sessions. The lower list shows individual detected sessions before merging, so the row count can be different.",
                         RunningOnly: "Running only",
                         App: "App",
                         Start: "Start",
@@ -424,7 +491,7 @@ namespace TimePilot.WinForms.KYS24
                         ActualUsageRatio: "Actual usage ratio",
                         RuntimeSegmentCount: "Runtime segments",
                         ObservationBasis: "Observation basis",
-                        WindowedApp: "Windowed app",
+                        WindowedApp: "Visible app",
                         UserProcess: "User process",
                         AllProcesses: "All processes",
                         HasData: "Has records",
@@ -446,8 +513,10 @@ namespace TimePilot.WinForms.KYS24
                         RuntimeLastObservedTooltip: "The last time background app tracking actually observed this app.",
                         RuntimeDurationTooltip: "Running apps continue to increase from the current time; ended apps are calculated up to the last observed time.",
                         RuntimeActualUsageRatioTooltip: "The share of foreground active usage time within this app's runtime.",
-                        RuntimeSegmentCountTooltip: "The number of observed continuous runtime segments for this app.",
+                        RuntimeSegmentCountTooltip: "The number of merged overlapping or continuous runtime sessions. The lower list shows individual detected sessions before merging, so the row count can be different.",
+                        RuntimeTrackingTypeTooltip: "Visible apps have a detected app window. This is similar to Task Manager's Apps group, but may not match it exactly.",
                         RuntimeStatusTooltip: "Shows running, ended, or outside tracking scope based on the current settings.",
+                        RuntimeSegmentObservationTooltip: "Shows how each individual detected session was observed. A single app can include both visible app and user process sessions.",
                         RecordedDateCalendarTooltip: "Dates with records are shown in bold on the calendar.",
                         OpenWindow: "Open window",
                         UsageDataCleared: "Usage records were deleted.",
@@ -556,6 +625,22 @@ namespace TimePilot.WinForms.KYS24
             string Today,
             string NotChecked,
             string CurrentTrackingScopeOnly,
+            string DetailRuntimeFilter,
+            string DetailFilterSummaryApps,
+            string DetailFilterCurrentScope,
+            string DetailFilterVisibleApps,
+            string DetailFilterUserProcesses,
+            string DetailFilterAllRecords,
+            string DetailDescription,
+            string DetailHelp,
+            string DetailHelpTitle,
+            Func<string, string, string> DetailHelpCurrentSelection,
+            string DetailFilterSummaryAppsDescription,
+            string DetailFilterCurrentScopeDescription,
+            string DetailFilterVisibleAppsDescription,
+            string DetailFilterUserProcessesDescription,
+            string DetailFilterAllRecordsDescription,
+            string DetailHelpMessage,
             string RunningOnly,
             string App,
             string Start,
@@ -600,7 +685,9 @@ namespace TimePilot.WinForms.KYS24
             string RuntimeDurationTooltip,
             string RuntimeActualUsageRatioTooltip,
             string RuntimeSegmentCountTooltip,
+            string RuntimeTrackingTypeTooltip,
             string RuntimeStatusTooltip,
+            string RuntimeSegmentObservationTooltip,
             string RecordedDateCalendarTooltip,
             string OpenWindow,
             string UsageDataCleared,

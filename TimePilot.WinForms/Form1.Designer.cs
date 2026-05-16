@@ -57,12 +57,16 @@
             detailNextDateButton = new Button();
             detailTodayButton = new Button();
             detailDateStatusLabel = new Label();
-            currentTrackingScopeOnlyCheckBox = new CheckBox();
+            detailRuntimeFilterLabel = new Label();
+            detailRuntimeFilterComboBox = new ComboBox();
             runningRuntimeOnlyCheckBox = new CheckBox();
+            detailHelpButton = new Button();
+            detailDescriptionLabel = new Label();
             detailSplitContainer = new SplitContainer();
             runtimeGrid = new BufferedDataGridView();
             runtimeAppIconColumn = new DataGridViewImageColumn();
             runtimeAppNameColumn = new DataGridViewTextBoxColumn();
+            runtimeTrackingTypeColumn = new DataGridViewTextBoxColumn();
             runtimeFirstObservedAtColumn = new DataGridViewTextBoxColumn();
             runtimeLastObservedAtColumn = new DataGridViewTextBoxColumn();
             runtimeDurationColumn = new DataGridViewTextBoxColumn();
@@ -439,12 +443,15 @@
             detailFilterPanel.Controls.Add(detailNextDateButton);
             detailFilterPanel.Controls.Add(detailTodayButton);
             detailFilterPanel.Controls.Add(detailDateStatusLabel);
-            detailFilterPanel.Controls.Add(currentTrackingScopeOnlyCheckBox);
+            detailFilterPanel.Controls.Add(detailRuntimeFilterLabel);
+            detailFilterPanel.Controls.Add(detailRuntimeFilterComboBox);
             detailFilterPanel.Controls.Add(runningRuntimeOnlyCheckBox);
+            detailFilterPanel.Controls.Add(detailHelpButton);
+            detailFilterPanel.Controls.Add(detailDescriptionLabel);
             detailFilterPanel.Dock = DockStyle.Top;
             detailFilterPanel.Location = new Point(3, 3);
             detailFilterPanel.Name = "detailFilterPanel";
-            detailFilterPanel.Size = new Size(706, 60);
+            detailFilterPanel.Size = new Size(706, 82);
             detailFilterPanel.TabIndex = 1;
             //
             // detailDateLabel
@@ -516,34 +523,61 @@
             detailDateStatusLabel.TabIndex = 6;
             detailDateStatusLabel.Text = UiText.Main.NotChecked;
             //
-            // currentTrackingScopeOnlyCheckBox
+            // detailRuntimeFilterLabel
             //
-            currentTrackingScopeOnlyCheckBox.AutoSize = true;
-            currentTrackingScopeOnlyCheckBox.Checked = true;
-            currentTrackingScopeOnlyCheckBox.CheckState = CheckState.Checked;
-            currentTrackingScopeOnlyCheckBox.Location = new Point(8, 35);
-            currentTrackingScopeOnlyCheckBox.Name = "currentTrackingScopeOnlyCheckBox";
-            currentTrackingScopeOnlyCheckBox.Size = new Size(134, 19);
-            currentTrackingScopeOnlyCheckBox.TabIndex = 7;
-            currentTrackingScopeOnlyCheckBox.Text = UiText.Main.CurrentTrackingScopeOnly;
-            currentTrackingScopeOnlyCheckBox.UseVisualStyleBackColor = true;
-            currentTrackingScopeOnlyCheckBox.CheckedChanged += OnCurrentTrackingScopeOnlyCheckBoxCheckedChanged;
+            detailRuntimeFilterLabel.AutoSize = true;
+            detailRuntimeFilterLabel.Location = new Point(8, 37);
+            detailRuntimeFilterLabel.Name = "detailRuntimeFilterLabel";
+            detailRuntimeFilterLabel.Size = new Size(31, 15);
+            detailRuntimeFilterLabel.TabIndex = 7;
+            detailRuntimeFilterLabel.Text = UiText.Main.DetailRuntimeFilter;
+            //
+            // detailRuntimeFilterComboBox
+            //
+            detailRuntimeFilterComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            detailRuntimeFilterComboBox.FormattingEnabled = true;
+            detailRuntimeFilterComboBox.Location = new Point(47, 33);
+            detailRuntimeFilterComboBox.Name = "detailRuntimeFilterComboBox";
+            detailRuntimeFilterComboBox.Size = new Size(174, 23);
+            detailRuntimeFilterComboBox.TabIndex = 8;
+            detailRuntimeFilterComboBox.SelectedIndexChanged += OnDetailRuntimeFilterComboBoxSelectedIndexChanged;
             //
             // runningRuntimeOnlyCheckBox
             //
             runningRuntimeOnlyCheckBox.AutoSize = true;
-            runningRuntimeOnlyCheckBox.Location = new Point(154, 35);
+            runningRuntimeOnlyCheckBox.Location = new Point(235, 35);
             runningRuntimeOnlyCheckBox.Name = "runningRuntimeOnlyCheckBox";
             runningRuntimeOnlyCheckBox.Size = new Size(82, 19);
-            runningRuntimeOnlyCheckBox.TabIndex = 8;
+            runningRuntimeOnlyCheckBox.TabIndex = 9;
             runningRuntimeOnlyCheckBox.Text = UiText.Main.RunningOnly;
             runningRuntimeOnlyCheckBox.UseVisualStyleBackColor = true;
             runningRuntimeOnlyCheckBox.CheckedChanged += OnRunningRuntimeOnlyCheckBoxCheckedChanged;
             //
+            // detailHelpButton
+            //
+            detailHelpButton.Location = new Point(329, 33);
+            detailHelpButton.Name = "detailHelpButton";
+            detailHelpButton.Size = new Size(28, 23);
+            detailHelpButton.TabIndex = 10;
+            detailHelpButton.Text = UiText.Main.DetailHelp;
+            detailHelpButton.UseVisualStyleBackColor = true;
+            detailHelpButton.Click += OnDetailHelpButtonClick;
+            //
+            // detailDescriptionLabel
+            //
+            detailDescriptionLabel.Anchor = AnchorStyles.Left | AnchorStyles.Right;
+            detailDescriptionLabel.AutoEllipsis = true;
+            detailDescriptionLabel.ForeColor = SystemColors.GrayText;
+            detailDescriptionLabel.Location = new Point(8, 61);
+            detailDescriptionLabel.Name = "detailDescriptionLabel";
+            detailDescriptionLabel.Size = new Size(690, 15);
+            detailDescriptionLabel.TabIndex = 11;
+            detailDescriptionLabel.Text = UiText.Main.DetailDescription;
+            //
             // detailSplitContainer
             //
             detailSplitContainer.Dock = DockStyle.Fill;
-            detailSplitContainer.Location = new Point(3, 63);
+            detailSplitContainer.Location = new Point(3, 85);
             detailSplitContainer.Name = "detailSplitContainer";
             detailSplitContainer.Orientation = Orientation.Horizontal;
             //
@@ -554,8 +588,8 @@
             // detailSplitContainer.Panel2
             //
             detailSplitContainer.Panel2.Controls.Add(runtimeSegmentsGrid);
-            detailSplitContainer.Size = new Size(706, 354);
-            detailSplitContainer.SplitterDistance = 226;
+            detailSplitContainer.Size = new Size(706, 332);
+            detailSplitContainer.SplitterDistance = 212;
             detailSplitContainer.TabIndex = 0;
             //
             // runtimeGrid
@@ -569,7 +603,7 @@
             runtimeGrid.BackgroundColor = SystemColors.Window;
             runtimeGrid.BorderStyle = BorderStyle.None;
             runtimeGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            runtimeGrid.Columns.AddRange(new DataGridViewColumn[] { runtimeAppIconColumn, runtimeAppNameColumn, runtimeFirstObservedAtColumn, runtimeLastObservedAtColumn, runtimeDurationColumn, runtimeActiveUsageColumn, runtimeActualUsageRatioColumn, runtimeSessionCountColumn, runtimeStatusColumn });
+            runtimeGrid.Columns.AddRange(new DataGridViewColumn[] { runtimeAppIconColumn, runtimeAppNameColumn, runtimeTrackingTypeColumn, runtimeFirstObservedAtColumn, runtimeLastObservedAtColumn, runtimeDurationColumn, runtimeActiveUsageColumn, runtimeActualUsageRatioColumn, runtimeSessionCountColumn, runtimeStatusColumn });
             runtimeGrid.Dock = DockStyle.Fill;
             runtimeGrid.Location = new Point(0, 0);
             runtimeGrid.MultiSelect = false;
@@ -603,6 +637,17 @@
             runtimeAppNameColumn.ReadOnly = true;
             runtimeAppNameColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             runtimeAppNameColumn.Width = 220;
+            //
+            // runtimeTrackingTypeColumn
+            //
+            runtimeTrackingTypeColumn.DataPropertyName = "TrackingTypeText";
+            runtimeTrackingTypeColumn.HeaderText = UiText.Main.Type;
+            runtimeTrackingTypeColumn.MinimumWidth = 90;
+            runtimeTrackingTypeColumn.Name = "runtimeTrackingTypeColumn";
+            runtimeTrackingTypeColumn.ReadOnly = true;
+            runtimeTrackingTypeColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeTrackingTypeColumn.ToolTipText = UiText.Main.RuntimeTrackingTypeTooltip;
+            runtimeTrackingTypeColumn.Width = 110;
             //
             // runtimeFirstObservedAtColumn
             //
@@ -1019,12 +1064,16 @@
         private Button detailNextDateButton;
         private Button detailTodayButton;
         private Label detailDateStatusLabel;
-        private CheckBox currentTrackingScopeOnlyCheckBox;
+        private Label detailRuntimeFilterLabel;
+        private ComboBox detailRuntimeFilterComboBox;
         private CheckBox runningRuntimeOnlyCheckBox;
+        private Button detailHelpButton;
+        private Label detailDescriptionLabel;
         private SplitContainer detailSplitContainer;
         private DataGridView runtimeGrid;
         private DataGridViewImageColumn runtimeAppIconColumn;
         private DataGridViewTextBoxColumn runtimeAppNameColumn;
+        private DataGridViewTextBoxColumn runtimeTrackingTypeColumn;
         private DataGridViewTextBoxColumn runtimeFirstObservedAtColumn;
         private DataGridViewTextBoxColumn runtimeLastObservedAtColumn;
         private DataGridViewTextBoxColumn runtimeDurationColumn;

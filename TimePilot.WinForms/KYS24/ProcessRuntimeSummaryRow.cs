@@ -29,6 +29,17 @@ namespace TimePilot.WinForms.KYS24
 
         public string RuntimeSegmentCountText => RuntimeSegmentCount.ToString("N0", CultureInfo.CurrentCulture);
 
+        public string TrackingTypeText
+        {
+            get
+            {
+                if (HasMainWindow)
+                    return UiText.Main.WindowedApp;
+
+                return IsCurrentSessionProcess ? UiText.Main.UserProcess : UiText.Main.AllProcesses;
+            }
+        }
+
         public string StatusText
         {
             get
