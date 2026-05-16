@@ -86,6 +86,7 @@ namespace TimePilot.WinForms
             var systemBootedAt = GetCurrentSystemBootedAt(startedAt);
             storage.Initialize(startedAt, systemBootedAt);
             ApplyProcessRuntimeSafeModeIfNeeded();
+            UpdateDetailTrackingDisabledBanner();
             storage.BeginRuntimeSession(startedAt, systemBootedAt, Application.ProductVersion);
 
             Icon = LoadAppIcon();
@@ -529,6 +530,8 @@ namespace TimePilot.WinForms
             runningRuntimeOnlyCheckBox.Text = UiText.Main.RunningOnly;
             detailHelpButton.Text = UiText.Main.DetailHelp;
             detailDescriptionLabel.Text = UiText.Main.DetailDescription;
+            detailTrackingDisabledLabel.Text = UiText.Main.DetailTrackingDisabledMessage;
+            detailTrackingDisabledPreferencesButton.Text = UiText.Main.DetailTrackingDisabledOpenPreferences;
             timelineDateLabel.Text = UiText.Main.Date;
             timelineCalendarButton.Text = UiText.Main.Calendar;
             timelineTodayButton.Text = UiText.Main.Today;
@@ -592,6 +595,7 @@ namespace TimePilot.WinForms
             runtimeCoverageSummaryToolTip.SetToolTip(timelineCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
             RefreshDetailRuntimeFilterOptions();
             RefreshSummaryPeriodOptions(DateTime.Today);
+            UpdateDetailTrackingDisabledBanner();
             SetDateStatus(detailDateStatusLabel, null);
             SetDateStatus(timelineDateStatusLabel, null);
             RefreshViews(DateTimeOffset.UtcNow);
@@ -1375,6 +1379,11 @@ namespace TimePilot.WinForms
                 MessageBoxIcon.Information);
         }
 
+        private void OnDetailTrackingDisabledPreferencesButtonClick(object? sender, EventArgs e)
+        {
+            ShowPreferencesDialog();
+        }
+
         private static string GetDetailRuntimeFilterText(DetailRuntimeFilter filter)
         {
             return filter switch
@@ -1713,6 +1722,11 @@ namespace TimePilot.WinForms
 
         private void OnPreferencesMenuItemClick(object? sender, EventArgs e)
         {
+            ShowPreferencesDialog();
+        }
+
+        private void ShowPreferencesDialog()
+        {
             using var form = new PreferencesForm(settings);
             if (form.ShowDialog(this) != DialogResult.OK)
                 return;
@@ -1741,9 +1755,19 @@ namespace TimePilot.WinForms
                 form.ProcessRuntimeSampleIntervalSeconds,
                 form.ProcessRuntimeRiskAccepted);
             lastProcessRuntimeSampleAt = null;
+            UpdateDetailTrackingDisabledBanner();
+            RefreshViews(DateTimeOffset.UtcNow);
 
             if (form.ClearUsageDataRequested)
                 ClearUsageData();
+        }
+
+        private void UpdateDetailTrackingDisabledBanner()
+        {
+            if (detailTrackingDisabledPanel.IsDisposed)
+                return;
+
+            detailTrackingDisabledPanel.Visible = !settings.ProcessRuntimeTrackingEnabled;
         }
 
         private void ClearUsageData()

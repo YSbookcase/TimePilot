@@ -49,6 +49,9 @@
             usageRatioColumn = new DataGridViewTextBoxColumn();
             switchCountColumn = new DataGridViewTextBoxColumn();
             detailTab = new TabPage();
+            detailTrackingDisabledPanel = new Panel();
+            detailTrackingDisabledLabel = new Label();
+            detailTrackingDisabledPreferencesButton = new Button();
             detailFilterPanel = new Panel();
             detailDateLabel = new Label();
             detailDatePicker = new DateTimePicker();
@@ -103,6 +106,7 @@
             ((System.ComponentModel.ISupportInitialize)usageGrid).BeginInit();
             ((System.ComponentModel.ISupportInitialize)dailyUsageTrendGrid).BeginInit();
             detailTab.SuspendLayout();
+            detailTrackingDisabledPanel.SuspendLayout();
             detailFilterPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)detailSplitContainer).BeginInit();
             detailSplitContainer.Panel1.SuspendLayout();
@@ -425,6 +429,7 @@
             // detailTab
             //
             detailTab.Controls.Add(detailSplitContainer);
+            detailTab.Controls.Add(detailTrackingDisabledPanel);
             detailTab.Controls.Add(detailFilterPanel);
             detailTab.Location = new Point(4, 24);
             detailTab.Name = "detailTab";
@@ -433,6 +438,40 @@
             detailTab.TabIndex = 1;
             detailTab.Text = UiText.Main.DetailTab;
             detailTab.UseVisualStyleBackColor = true;
+            //
+            // detailTrackingDisabledPanel
+            //
+            detailTrackingDisabledPanel.BackColor = Color.FromArgb(255, 248, 220);
+            detailTrackingDisabledPanel.Controls.Add(detailTrackingDisabledLabel);
+            detailTrackingDisabledPanel.Controls.Add(detailTrackingDisabledPreferencesButton);
+            detailTrackingDisabledPanel.Dock = DockStyle.Top;
+            detailTrackingDisabledPanel.Location = new Point(3, 85);
+            detailTrackingDisabledPanel.Name = "detailTrackingDisabledPanel";
+            detailTrackingDisabledPanel.Padding = new Padding(8, 6, 8, 6);
+            detailTrackingDisabledPanel.Size = new Size(706, 54);
+            detailTrackingDisabledPanel.TabIndex = 2;
+            detailTrackingDisabledPanel.Visible = false;
+            //
+            // detailTrackingDisabledLabel
+            //
+            detailTrackingDisabledLabel.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            detailTrackingDisabledLabel.Location = new Point(11, 7);
+            detailTrackingDisabledLabel.Name = "detailTrackingDisabledLabel";
+            detailTrackingDisabledLabel.Size = new Size(560, 40);
+            detailTrackingDisabledLabel.TabIndex = 0;
+            detailTrackingDisabledLabel.Text = UiText.Main.DetailTrackingDisabledMessage;
+            detailTrackingDisabledLabel.TextAlign = ContentAlignment.MiddleLeft;
+            //
+            // detailTrackingDisabledPreferencesButton
+            //
+            detailTrackingDisabledPreferencesButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            detailTrackingDisabledPreferencesButton.Location = new Point(577, 15);
+            detailTrackingDisabledPreferencesButton.Name = "detailTrackingDisabledPreferencesButton";
+            detailTrackingDisabledPreferencesButton.Size = new Size(118, 25);
+            detailTrackingDisabledPreferencesButton.TabIndex = 1;
+            detailTrackingDisabledPreferencesButton.Text = UiText.Main.DetailTrackingDisabledOpenPreferences;
+            detailTrackingDisabledPreferencesButton.UseVisualStyleBackColor = true;
+            detailTrackingDisabledPreferencesButton.Click += OnDetailTrackingDisabledPreferencesButtonClick;
             //
             // detailFilterPanel
             //
@@ -1009,6 +1048,7 @@
             ((System.ComponentModel.ISupportInitialize)usageGrid).EndInit();
             ((System.ComponentModel.ISupportInitialize)dailyUsageTrendGrid).EndInit();
             detailTab.ResumeLayout(false);
+            detailTrackingDisabledPanel.ResumeLayout(false);
             detailFilterPanel.ResumeLayout(false);
             detailFilterPanel.PerformLayout();
             detailSplitContainer.Panel1.ResumeLayout(false);
@@ -1056,6 +1096,9 @@
         private DataGridViewTextBoxColumn usageRatioColumn;
         private DataGridViewTextBoxColumn switchCountColumn;
         private TabPage detailTab;
+        private Panel detailTrackingDisabledPanel;
+        private Label detailTrackingDisabledLabel;
+        private Button detailTrackingDisabledPreferencesButton;
         private Panel detailFilterPanel;
         private Label detailDateLabel;
         private DateTimePicker detailDatePicker;
