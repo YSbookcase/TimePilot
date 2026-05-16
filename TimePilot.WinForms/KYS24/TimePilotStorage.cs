@@ -501,9 +501,12 @@ namespace TimePilot.WinForms.KYS24
         public IReadOnlyList<ForegroundUsageSummary> GetForegroundUsageForDay(DateTimeOffset now)
         {
             var localDayStart = now.ToLocalTime().Date;
-            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
-            var dayEnd = dayStart.AddDays(1);
+            return GetForegroundUsageForDate(localDayStart);
+        }
 
+        public IReadOnlyList<ForegroundUsageSummary> GetForegroundUsageForDate(DateTime localDate)
+        {
+            var (dayStart, dayEnd) = GetLocalDayRange(localDate);
             return GetForegroundUsageForPeriod(dayStart, dayEnd);
         }
 
@@ -515,6 +518,7 @@ namespace TimePilot.WinForms.KYS24
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT
+                    a.id,
                     a.display_name,
                     a.process_name,
                     a.executable_path,
@@ -529,27 +533,28 @@ namespace TimePilot.WinForms.KYS24
             command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
             command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
 
-            var totals = new Dictionary<string, UsageAggregation>(StringComparer.OrdinalIgnoreCase);
+            var totals = new Dictionary<long, UsageAggregation>();
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                var appName = reader.GetString(0);
-                var processName = reader.GetString(1);
-                var executablePath = reader.IsDBNull(2) ? null : reader.GetString(2);
-                var startedAt = ParseTimestamp(reader.GetString(3));
-                var endedAt = reader.IsDBNull(4)
-                    ? reader.IsDBNull(5) ? startedAt : ParseTimestamp(reader.GetString(5))
-                    : ParseTimestamp(reader.GetString(4));
+                var appId = reader.GetInt64(0);
+                var appName = reader.GetString(1);
+                var processName = reader.GetString(2);
+                var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
+                var startedAt = ParseTimestamp(reader.GetString(4));
+                var endedAt = reader.IsDBNull(5)
+                    ? reader.IsDBNull(6) ? startedAt : ParseTimestamp(reader.GetString(6))
+                    : ParseTimestamp(reader.GetString(5));
                 var effectiveStart = Max(startedAt, periodStart);
                 var effectiveEnd = Min(endedAt, periodEnd);
                 var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
                 if (durationMs <= 0)
                     continue;
 
-                if (!totals.TryGetValue(appName, out var aggregation))
+                if (!totals.TryGetValue(appId, out var aggregation))
                 {
-                    aggregation = new UsageAggregation(processName, effectiveStart, effectiveEnd, executablePath);
-                    totals[appName] = aggregation;
+                    aggregation = new UsageAggregation(appId, appName, processName, effectiveStart, effectiveEnd, executablePath);
+                    totals[appId] = aggregation;
                 }
 
                 aggregation.ExecutablePath ??= executablePath;
@@ -561,7 +566,8 @@ namespace TimePilot.WinForms.KYS24
 
             return totals
                 .Select(x => new ForegroundUsageSummary(
-                    x.Key,
+                    x.Value.AppId,
+                    x.Value.AppName,
                     x.Value.ProcessName,
                     x.Value.ExecutablePath,
                     x.Value.ActiveUsageMs,
@@ -1714,13 +1720,19 @@ namespace TimePilot.WinForms.KYS24
 
         private sealed class UsageAggregation
         {
-            public UsageAggregation(string processName, DateTimeOffset firstStartedAt, DateTimeOffset lastObservedAt, string? executablePath)
+            public UsageAggregation(long appId, string appName, string processName, DateTimeOffset firstStartedAt, DateTimeOffset lastObservedAt, string? executablePath)
             {
+                AppId = appId;
+                AppName = appName;
                 ProcessName = processName;
                 FirstStartedAt = firstStartedAt;
                 LastObservedAt = lastObservedAt;
                 ExecutablePath = executablePath;
             }
+
+            public long AppId { get; }
+
+            public string AppName { get; }
 
             public string ProcessName { get; }
 

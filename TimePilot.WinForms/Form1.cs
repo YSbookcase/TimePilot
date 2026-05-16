@@ -34,9 +34,10 @@ namespace TimePilot.WinForms
         private SortOrder runtimeSortOrder = SortOrder.Descending;
         private SortOrder runtimeSegmentSortOrder = SortOrder.Descending;
         private bool showRecentTimelineFirst = true;
-        private bool showCurrentTrackingScopeOnly = true;
+        private DetailRuntimeFilter selectedDetailRuntimeFilter = DetailRuntimeFilter.SummaryApps;
         private bool showRunningRuntimeOnly;
         private bool isRefreshingRuntimeGrid;
+        private bool isUpdatingDetailRuntimeFilterOptions;
         private bool isExplicitExitRequested;
         private volatile bool isViewRefreshRunning;
         private long? selectedRuntimeAppId;
@@ -292,7 +293,36 @@ namespace TimePilot.WinForms
         {
             selectedSummaryPeriod = SummaryPeriod.Today;
             selectedSummarySpecificDate = DateTime.Today;
+            RefreshDetailRuntimeFilterOptions();
             RefreshSummaryPeriodOptions(DateTime.Today);
+        }
+
+        private void RefreshDetailRuntimeFilterOptions()
+        {
+            var selectedIndex = (int)selectedDetailRuntimeFilter;
+            isUpdatingDetailRuntimeFilterOptions = true;
+            detailRuntimeFilterComboBox.BeginUpdate();
+            try
+            {
+                detailRuntimeFilterComboBox.Items.Clear();
+                detailRuntimeFilterComboBox.Items.AddRange(new object[]
+                {
+                    UiText.Main.DetailFilterSummaryApps,
+                    UiText.Main.DetailFilterCurrentScope,
+                    UiText.Main.DetailFilterVisibleApps,
+                    UiText.Main.DetailFilterUserProcesses,
+                    UiText.Main.DetailFilterAllRecords
+                });
+                detailRuntimeFilterComboBox.SelectedIndex = Math.Clamp(
+                    selectedIndex,
+                    0,
+                    detailRuntimeFilterComboBox.Items.Count - 1);
+            }
+            finally
+            {
+                detailRuntimeFilterComboBox.EndUpdate();
+                isUpdatingDetailRuntimeFilterOptions = false;
+            }
         }
 
         private void RefreshSummaryPeriodOptions(DateTime today)
@@ -495,8 +525,10 @@ namespace TimePilot.WinForms
             detailDateLabel.Text = UiText.Main.Date;
             detailCalendarButton.Text = UiText.Main.Calendar;
             detailTodayButton.Text = UiText.Main.Today;
-            currentTrackingScopeOnlyCheckBox.Text = UiText.Main.CurrentTrackingScopeOnly;
+            detailRuntimeFilterLabel.Text = UiText.Main.DetailRuntimeFilter;
             runningRuntimeOnlyCheckBox.Text = UiText.Main.RunningOnly;
+            detailHelpButton.Text = UiText.Main.DetailHelp;
+            detailDescriptionLabel.Text = UiText.Main.DetailDescription;
             timelineDateLabel.Text = UiText.Main.Date;
             timelineCalendarButton.Text = UiText.Main.Calendar;
             timelineTodayButton.Text = UiText.Main.Today;
@@ -514,6 +546,8 @@ namespace TimePilot.WinForms
             switchCountColumn.HeaderText = UiText.Main.SwitchCount;
 
             runtimeAppNameColumn.HeaderText = UiText.Main.App;
+            runtimeTrackingTypeColumn.HeaderText = UiText.Main.Type;
+            runtimeTrackingTypeColumn.ToolTipText = UiText.Main.RuntimeTrackingTypeTooltip;
             runtimeFirstObservedAtColumn.HeaderText = UiText.Main.FirstObservedAt;
             runtimeLastObservedAtColumn.HeaderText = UiText.Main.LastObservedAt;
             runtimeLastObservedAtColumn.ToolTipText = UiText.Main.RuntimeLastObservedTooltip;
@@ -531,6 +565,7 @@ namespace TimePilot.WinForms
             runtimeSegmentDurationColumn.HeaderText = UiText.Main.Duration;
             runtimeSegmentStatusColumn.HeaderText = UiText.Main.Status;
             runtimeSegmentObservationTypeColumn.HeaderText = UiText.Main.ObservationBasis;
+            runtimeSegmentObservationTypeColumn.ToolTipText = UiText.Main.RuntimeSegmentObservationTooltip;
             runtimeSegmentProcessIdColumn.HeaderText = UiText.Main.Pid;
 
             timelineTypeColumn.HeaderText = UiText.Main.Type;
@@ -551,7 +586,11 @@ namespace TimePilot.WinForms
             trayIcon.Text = UiText.AppName;
             runtimeCoverageSummaryToolTip.SetToolTip(runtimeCoverageSummaryPanel, UiText.RuntimeCoverage.Tooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(detailCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(detailRuntimeFilterComboBox, UiText.Main.RuntimeTrackingTypeTooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(detailHelpButton, UiText.Main.DetailHelpTitle);
+            runtimeCoverageSummaryToolTip.SetToolTip(detailDescriptionLabel, UiText.Main.DetailDescription);
             runtimeCoverageSummaryToolTip.SetToolTip(timelineCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
+            RefreshDetailRuntimeFilterOptions();
             RefreshSummaryPeriodOptions(DateTime.Today);
             SetDateStatus(detailDateStatusLabel, null);
             SetDateStatus(timelineDateStatusLabel, null);
@@ -638,6 +677,11 @@ namespace TimePilot.WinForms
                     var runtimeRows = selectedTab == detailTab
                         ? storage.GetProcessRuntimeUsageForDate(detailDate, observedAt)
                         : null;
+                    var detailSummaryAppIds = selectedTab == detailTab
+                        ? storage.GetForegroundUsageForDate(detailDate)
+                            .Select(x => x.AppId)
+                            .ToHashSet()
+                        : null;
                     var detailDateHasData = selectedTab == detailTab
                         ? storage.HasActivityDataForDate(detailDate, observedAt)
                         : (bool?)null;
@@ -655,6 +699,7 @@ namespace TimePilot.WinForms
                         timelineDateHasData,
                         timelineRows,
                         runtimeRows,
+                        detailSummaryAppIds,
                         runtimeSegmentRows,
                         readStopwatch.ElapsedMilliseconds);
                 });
@@ -703,7 +748,8 @@ namespace TimePilot.WinForms
                     SetGridDataSourcePreservingView(
                         runtimeGrid,
                         AddIcons(SortRuntimeSummaryRows(FilterRuntimeSummaryRows(
-                            runtimeRows))));
+                            runtimeRows,
+                            snapshot.DetailSummaryAppIds))));
                     RestoreRuntimeSelection(
                         appIdToRestore,
                         GetFirstDisplayedColumnIndex(runtimeGrid),
@@ -939,12 +985,20 @@ namespace TimePilot.WinForms
                 : rows.OrderBy(x => x.StartedAt).ToList();
         }
 
-        private IReadOnlyList<ProcessRuntimeSummaryRow> FilterRuntimeSummaryRows(IReadOnlyList<ProcessRuntimeSummaryRow> rows)
+        private IReadOnlyList<ProcessRuntimeSummaryRow> FilterRuntimeSummaryRows(
+            IReadOnlyList<ProcessRuntimeSummaryRow> rows,
+            IReadOnlySet<long>? summaryAppIds)
         {
             IEnumerable<ProcessRuntimeSummaryRow> filteredRows = rows;
 
-            if (showCurrentTrackingScopeOnly)
-                filteredRows = filteredRows.Where(x => x.IsInCurrentTrackingScope);
+            filteredRows = selectedDetailRuntimeFilter switch
+            {
+                DetailRuntimeFilter.SummaryApps => filteredRows.Where(x => summaryAppIds?.Contains(x.AppId) == true),
+                DetailRuntimeFilter.CurrentTrackingScope => filteredRows.Where(x => x.IsInCurrentTrackingScope),
+                DetailRuntimeFilter.VisibleApps => filteredRows.Where(x => x.HasMainWindow),
+                DetailRuntimeFilter.UserProcesses => filteredRows.Where(x => x.IsCurrentSessionProcess),
+                _ => filteredRows
+            };
 
             if (showRunningRuntimeOnly)
                 filteredRows = filteredRows.Where(x => x.HasRunningSession);
@@ -962,6 +1016,7 @@ namespace TimePilot.WinForms
                 nameof(ProcessRuntimeSummaryRow.ActiveUsageMs) => OrderRuntimeRows(rows, x => x.ActiveUsageMs),
                 nameof(ProcessRuntimeSummaryRow.ActualUsageRatio) => OrderRuntimeRows(rows, x => x.ActualUsageRatio ?? -1),
                 nameof(ProcessRuntimeSummaryRow.RuntimeSegmentCount) => OrderRuntimeRows(rows, x => x.RuntimeSegmentCount),
+                nameof(ProcessRuntimeSummaryRow.TrackingTypeText) => OrderRuntimeRows(rows, x => x.TrackingTypeText),
                 nameof(ProcessRuntimeSummaryRow.StatusText) => OrderRuntimeRows(rows, x => x.StatusText),
                 _ => OrderRuntimeRows(rows, x => x.RuntimeMs)
             };
@@ -1294,10 +1349,54 @@ namespace TimePilot.WinForms
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
-        private void OnCurrentTrackingScopeOnlyCheckBoxCheckedChanged(object? sender, EventArgs e)
+        private void OnDetailRuntimeFilterComboBoxSelectedIndexChanged(object? sender, EventArgs e)
         {
-            showCurrentTrackingScopeOnly = currentTrackingScopeOnlyCheckBox.Checked;
+            if (isUpdatingDetailRuntimeFilterOptions || detailRuntimeFilterComboBox.SelectedIndex < 0)
+                return;
+
+            selectedDetailRuntimeFilter = (DetailRuntimeFilter)detailRuntimeFilterComboBox.SelectedIndex;
             RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void OnDetailHelpButtonClick(object? sender, EventArgs e)
+        {
+            var currentSelection = GetDetailRuntimeFilterText(selectedDetailRuntimeFilter);
+            var currentDescription = GetDetailRuntimeFilterDescription(selectedDetailRuntimeFilter);
+            var message = UiText.Main.DetailHelpCurrentSelection(currentSelection, currentDescription)
+                + Environment.NewLine
+                + Environment.NewLine
+                + UiText.Main.DetailHelpMessage;
+
+            CenteredMessageDialog.Show(
+                this,
+                message,
+                UiText.Main.DetailHelpTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private static string GetDetailRuntimeFilterText(DetailRuntimeFilter filter)
+        {
+            return filter switch
+            {
+                DetailRuntimeFilter.CurrentTrackingScope => UiText.Main.DetailFilterCurrentScope,
+                DetailRuntimeFilter.VisibleApps => UiText.Main.DetailFilterVisibleApps,
+                DetailRuntimeFilter.UserProcesses => UiText.Main.DetailFilterUserProcesses,
+                DetailRuntimeFilter.AllRecords => UiText.Main.DetailFilterAllRecords,
+                _ => UiText.Main.DetailFilterSummaryApps
+            };
+        }
+
+        private static string GetDetailRuntimeFilterDescription(DetailRuntimeFilter filter)
+        {
+            return filter switch
+            {
+                DetailRuntimeFilter.CurrentTrackingScope => UiText.Main.DetailFilterCurrentScopeDescription,
+                DetailRuntimeFilter.VisibleApps => UiText.Main.DetailFilterVisibleAppsDescription,
+                DetailRuntimeFilter.UserProcesses => UiText.Main.DetailFilterUserProcessesDescription,
+                DetailRuntimeFilter.AllRecords => UiText.Main.DetailFilterAllRecordsDescription,
+                _ => UiText.Main.DetailFilterSummaryAppsDescription
+            };
         }
 
         private string? GetUsageSortPropertyName(DataGridViewColumn column)
@@ -1319,6 +1418,7 @@ namespace TimePilot.WinForms
             return column.Name switch
             {
                 nameof(runtimeAppNameColumn) => nameof(ProcessRuntimeSummaryRow.AppName),
+                nameof(runtimeTrackingTypeColumn) => nameof(ProcessRuntimeSummaryRow.TrackingTypeText),
                 nameof(runtimeFirstObservedAtColumn) => nameof(ProcessRuntimeSummaryRow.FirstObservedAt),
                 nameof(runtimeLastObservedAtColumn) => nameof(ProcessRuntimeSummaryRow.LastObservedAt),
                 nameof(runtimeDurationColumn) => nameof(ProcessRuntimeSummaryRow.RuntimeMs),
@@ -1756,6 +1856,7 @@ namespace TimePilot.WinForms
             bool? TimelineDateHasData,
             IReadOnlyList<ActivityTimelineRow>? TimelineRows,
             IReadOnlyList<ProcessRuntimeSummaryRow>? RuntimeRows,
+            IReadOnlySet<long>? DetailSummaryAppIds,
             IReadOnlyList<ProcessRuntimeSegmentRow>? RuntimeSegmentRows,
             long ReadElapsedMs);
 
