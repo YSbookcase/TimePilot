@@ -30,6 +30,7 @@ namespace TimePilot.WinForms.KYS24
             public static string Ok => current.Common.Ok;
             public static string Save => current.Common.Save;
             public static string Cancel => current.Common.Cancel;
+            public static string Apply => current.Common.Apply;
         }
 
         public static class Main
@@ -177,6 +178,13 @@ namespace TimePilot.WinForms.KYS24
             public static string NotChecked => current.DateStatus.NotChecked;
         }
 
+        public static class CalendarPicker
+        {
+            public static string MonthTitle(DateTime month) => current.CalendarPicker.MonthTitle(month);
+            public static string MonthName(int month) => current.CalendarPicker.MonthName(month);
+            public static IReadOnlyList<string> DayNames => current.CalendarPicker.DayNames;
+        }
+
         public static class SummaryPeriod
         {
             public static string SpecificDate => current.SummaryPeriod.SpecificDate;
@@ -215,6 +223,7 @@ namespace TimePilot.WinForms.KYS24
             CsvText Csv,
             PreferencesText Preferences,
             DateStatusText DateStatus,
+            CalendarPickerText CalendarPicker,
             SummaryPeriodText SummaryPeriod,
             TimelineText Timeline,
             RuntimeCoverageText RuntimeCoverage)
@@ -222,7 +231,7 @@ namespace TimePilot.WinForms.KYS24
             public static UiTextResources CreateKorean()
             {
                 return new UiTextResources(
-                    new CommonText("예", "아니오", "확인", "저장", "취소"),
+                    new CommonText("예", "아니오", "확인", "저장", "취소", "적용"),
                     new MainText(
                         FileMenu: "파일",
                         ExportCsv: "CSV 내보내기...",
@@ -348,6 +357,10 @@ namespace TimePilot.WinForms.KYS24
                         AnyScopeRiskMessage: "3초 이하 확인 주기는 추적 범위와 관계없이 시스템 부하와 저장 데이터 증가를 유발할 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
                         DataFolderOpenFailed: message => $"데이터 폴더를 열 수 없습니다.\n\n{message}"),
                     new DateStatusText("기록 있음", "기록 없음", "확인 전"),
+                    new CalendarPickerText(
+                        MonthTitle: month => string.Format(CultureInfo.CurrentCulture, "{0:yyyy}년 {0:M월}", month),
+                        MonthName: month => $"{month}월",
+                        DayNames: ["일", "월", "화", "수", "목", "금", "토"]),
                     new SummaryPeriodText(
                         SpecificDate: "특정 날짜",
                         Today: date => $"오늘 ({date})",
@@ -372,7 +385,7 @@ namespace TimePilot.WinForms.KYS24
             public static UiTextResources CreateEnglish()
             {
                 return new UiTextResources(
-                    new CommonText("Yes", "No", "OK", "Save", "Cancel"),
+                    new CommonText("Yes", "No", "OK", "Save", "Cancel", "Apply"),
                     new MainText(
                         FileMenu: "File",
                         ExportCsv: "Export CSV...",
@@ -498,6 +511,10 @@ namespace TimePilot.WinForms.KYS24
                         AnyScopeRiskMessage: "Check intervals of 3 seconds or less can increase system load and stored data regardless of tracking scope.\n\nIf repeated unexpected exits happen shortly after launch with the same setting, background app tracking will be disabled on the next launch.\n\nSave this risky setting?",
                         DataFolderOpenFailed: message => $"Could not open the data folder.\n\n{message}"),
                     new DateStatusText("Has records", "No records", "Not checked"),
+                    new CalendarPickerText(
+                        MonthTitle: month => month.ToString("MMMM yyyy", CultureInfo.CurrentCulture),
+                        MonthName: month => CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(month),
+                        DayNames: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]),
                     new SummaryPeriodText(
                         SpecificDate: "Specific date",
                         Today: date => $"Today ({date})",
@@ -520,7 +537,7 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
-        private sealed record CommonText(string Yes, string No, string Ok, string Save, string Cancel);
+        private sealed record CommonText(string Yes, string No, string Ok, string Save, string Cancel, string Apply);
 
         private sealed record MainText(
             string FileMenu,
@@ -650,6 +667,11 @@ namespace TimePilot.WinForms.KYS24
             Func<string, string> DataFolderOpenFailed);
 
         private sealed record DateStatusText(string HasData, string NoData, string NotChecked);
+
+        private sealed record CalendarPickerText(
+            Func<DateTime, string> MonthTitle,
+            Func<int, string> MonthName,
+            IReadOnlyList<string> DayNames);
 
         private sealed record SummaryPeriodText(
             string SpecificDate,

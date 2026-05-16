@@ -18,8 +18,6 @@ namespace TimePilot.WinForms
         private readonly Form headerToolTipForm = new();
         private readonly Label headerToolTipLabel = new();
         private readonly List<Label> runtimeCoverageSummaryLabels = new();
-        private readonly MonthCalendar recordedDateCalendar = new();
-        private readonly ToolStripDropDown recordedDateCalendarDropDown = new();
         private readonly NotifyIcon trayIcon = new();
         private readonly ContextMenuStrip trayMenu = new();
         private readonly bool startMinimizedToTray;
@@ -58,10 +56,7 @@ namespace TimePilot.WinForms
         private bool processRuntimeSafeModeActivated;
         private bool isInitializingSummaryPeriodSelector;
         private bool isInitializingDateSelectors;
-        private bool isUpdatingRecordedDateCalendar;
-        private DateTime recordedDateCalendarRangeStart = DateTime.MinValue;
-        private DateTime recordedDateCalendarRangeEnd = DateTime.MinValue;
-        private Action<DateTime>? applyRecordedCalendarDate;
+        private Form? recordedDatePickerPopupForm;
 
         public Form1(bool startMinimizedToTray = false)
         {
@@ -152,6 +147,7 @@ namespace TimePilot.WinForms
             storage?.EndRuntimeSession(endedAt, "normal");
             storage?.Dispose();
             appIconCache.Dispose();
+            CloseRecordedDatePickerDropDown();
             headerToolTipForm.Dispose();
             trayIcon.Visible = false;
             trayIcon.Dispose();
@@ -365,21 +361,6 @@ namespace TimePilot.WinForms
 
         private void InitializeRecordedDateCalendar()
         {
-            recordedDateCalendar.CalendarDimensions = new Size(2, 1);
-            recordedDateCalendar.MaxSelectionCount = 1;
-            recordedDateCalendar.ShowToday = true;
-            recordedDateCalendar.ShowTodayCircle = true;
-            recordedDateCalendar.DateChanged += OnRecordedDateCalendarDateChanged;
-            recordedDateCalendar.DateSelected += OnRecordedDateCalendarDateSelected;
-
-            var host = new ToolStripControlHost(recordedDateCalendar)
-            {
-                Margin = Padding.Empty,
-                Padding = Padding.Empty
-            };
-            recordedDateCalendarDropDown.Padding = Padding.Empty;
-            recordedDateCalendarDropDown.Items.Add(host);
-
             runtimeCoverageSummaryToolTip.SetToolTip(
                 detailCalendarButton,
                 UiText.Main.RecordedDateCalendarTooltip);
@@ -1182,56 +1163,48 @@ namespace TimePilot.WinForms
         {
             var today = DateTime.Today;
             var normalizedDate = NormalizeSelectableDate(selectedDate);
-            applyRecordedCalendarDate = applyDate;
-            recordedDateCalendarRangeStart = DateTime.MinValue;
-            recordedDateCalendarRangeEnd = DateTime.MinValue;
+            CloseRecordedDatePickerDropDown();
 
-            isUpdatingRecordedDateCalendar = true;
-            try
+            var picker = new RecordedDatePickerPopup(normalizedDate, today, GetRecordedDates);
+            var popupForm = new Form
             {
-                recordedDateCalendar.MaxDate = today;
-                recordedDateCalendar.SetDate(normalizedDate);
-                recordedDateCalendar.SelectionStart = normalizedDate;
-                recordedDateCalendar.SelectionEnd = normalizedDate;
-            }
-            finally
-            {
-                isUpdatingRecordedDateCalendar = false;
-            }
+                AutoScaleMode = AutoScaleMode.None,
+                ClientSize = picker.Size,
+                FormBorderStyle = FormBorderStyle.None,
+                ShowInTaskbar = false,
+                StartPosition = FormStartPosition.Manual,
+                TopMost = true
+            };
+            popupForm.Controls.Add(picker);
+            picker.Dock = DockStyle.Fill;
 
-            RefreshRecordedDateCalendarBoldedDates(normalizedDate);
-            recordedDateCalendarDropDown.Show(anchor, new Point(0, anchor.Height));
+            picker.DateApplied += (_, date) =>
+            {
+                CloseRecordedDatePickerDropDown();
+                applyDate(date);
+            };
+            picker.CloseRequested += (_, _) => CloseRecordedDatePickerDropDown();
+            popupForm.Deactivate += (_, _) => CloseRecordedDatePickerDropDown();
+            popupForm.FormClosed += (_, _) =>
+            {
+                if (ReferenceEquals(recordedDatePickerPopupForm, popupForm))
+                    recordedDatePickerPopupForm = null;
+            };
+
+            recordedDatePickerPopupForm = popupForm;
+            popupForm.Location = anchor.PointToScreen(new Point(0, anchor.Height));
+            popupForm.Show(this);
         }
 
-        private void OnRecordedDateCalendarDateChanged(object? sender, DateRangeEventArgs e)
+        private void CloseRecordedDatePickerDropDown()
         {
-            if (isUpdatingRecordedDateCalendar)
+            if (recordedDatePickerPopupForm is null)
                 return;
 
-            RefreshRecordedDateCalendarBoldedDates(e.Start);
-        }
-
-        private void OnRecordedDateCalendarDateSelected(object? sender, DateRangeEventArgs e)
-        {
-            recordedDateCalendarDropDown.Hide();
-            applyRecordedCalendarDate?.Invoke(e.Start.Date);
-        }
-
-        private void RefreshRecordedDateCalendarBoldedDates(DateTime visibleDate)
-        {
-            var rangeStart = new DateTime(visibleDate.Year, visibleDate.Month, 1).AddMonths(-1);
-            var rangeEnd = new DateTime(visibleDate.Year, visibleDate.Month, 1).AddMonths(3);
-
-            if (rangeStart == recordedDateCalendarRangeStart && rangeEnd == recordedDateCalendarRangeEnd)
-                return;
-
-            recordedDateCalendarRangeStart = rangeStart;
-            recordedDateCalendarRangeEnd = rangeEnd;
-
-            var dates = GetRecordedDates(rangeStart, rangeEnd);
-            recordedDateCalendar.RemoveAllBoldedDates();
-            recordedDateCalendar.BoldedDates = dates.ToArray();
-            recordedDateCalendar.UpdateBoldedDates();
+            var popupForm = recordedDatePickerPopupForm;
+            recordedDatePickerPopupForm = null;
+            if (!popupForm.IsDisposed)
+                popupForm.Close();
         }
 
         private IReadOnlyList<DateTime> GetRecordedDates(DateTime rangeStart, DateTime rangeEnd)
@@ -1239,17 +1212,8 @@ namespace TimePilot.WinForms
             if (storage is null)
                 return Array.Empty<DateTime>();
 
-            var dates = new List<DateTime>();
-            var today = DateTime.Today;
             var now = DateTimeOffset.UtcNow;
-
-            for (var date = rangeStart.Date; date < rangeEnd.Date && date <= today; date = date.AddDays(1))
-            {
-                if (storage.HasActivityDataForDate(date, now))
-                    dates.Add(date);
-            }
-
-            return dates;
+            return storage.GetActivityDates(rangeStart, rangeEnd, now);
         }
 
         private void UpdateDateNavigationButtons()

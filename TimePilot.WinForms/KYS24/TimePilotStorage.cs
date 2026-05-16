@@ -691,6 +691,62 @@ namespace TimePilot.WinForms.KYS24
             return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture) != 0;
         }
 
+        public IReadOnlyList<DateTime> GetActivityDates(DateTime rangeStart, DateTime rangeEnd, DateTimeOffset now)
+        {
+            var localStart = rangeStart.Date;
+            var localEnd = rangeEnd.Date;
+            var today = now.ToLocalTime().Date;
+            if (localEnd > today.AddDays(1))
+                localEnd = today.AddDays(1);
+
+            if (localEnd <= localStart)
+                return Array.Empty<DateTime>();
+
+            var (periodStart, _) = GetLocalDayRange(localStart);
+            var (_, periodEnd) = GetLocalDayRange(localEnd.AddDays(-1));
+            var dates = new HashSet<DateTime>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT started_at, COALESCE(ended_at, last_observed_at, started_at)
+                FROM foreground_sessions
+                WHERE started_at < $periodEnd
+                  AND COALESCE(ended_at, last_observed_at, started_at) > $periodStart
+                UNION ALL
+                SELECT started_at, COALESCE(ended_at, started_at)
+                FROM idle_sessions
+                WHERE started_at < $periodEnd
+                  AND COALESCE(ended_at, started_at) > $periodStart
+                UNION ALL
+                SELECT started_at, COALESCE(ended_at, last_heartbeat_at, $now)
+                FROM app_runtime_sessions
+                WHERE started_at < $periodEnd
+                  AND COALESCE(ended_at, last_heartbeat_at, $now) > $periodStart
+                UNION ALL
+                SELECT started_at, COALESCE(ended_at, last_observed_at, started_at)
+                FROM process_runtime_sessions
+                WHERE started_at < $periodEnd
+                  AND COALESCE(ended_at, last_observed_at, started_at) > $periodStart;
+                """;
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = ParseTimestamp(reader.GetString(0));
+                var endedAt = ParseTimestamp(reader.GetString(1));
+                AddActivityDates(dates, Max(startedAt, periodStart), Min(endedAt, periodEnd));
+            }
+
+            return dates
+                .Where(date => date >= localStart && date < localEnd)
+                .OrderBy(date => date)
+                .ToList();
+        }
+
         public RuntimeCoverageSummary GetRuntimeCoverageForDay(DateTimeOffset now)
         {
             var localDayStart = now.ToLocalTime().Date;
@@ -1581,6 +1637,22 @@ namespace TimePilot.WinForms.KYS24
             return (
                 new DateTimeOffset(dayStartDate, TimeZoneInfo.Local.GetUtcOffset(dayStartDate)),
                 new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate)));
+        }
+
+        private static void AddActivityDates(HashSet<DateTime> dates, DateTimeOffset start, DateTimeOffset end)
+        {
+            if (end <= start)
+                return;
+
+            var cursor = start;
+            while (cursor < end)
+            {
+                var localDate = cursor.ToLocalTime().Date;
+                dates.Add(localDate);
+
+                var (_, dayEnd) = GetLocalDayRange(localDate);
+                cursor = Min(end, dayEnd);
+            }
         }
 
         private static void AddDailyUsageTrend(
