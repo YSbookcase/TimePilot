@@ -13,6 +13,7 @@ namespace TimePilot.WinForms
         private readonly CheckBox performanceDiagnosticsCheckBox = new();
         private readonly CheckBox processRuntimeTrackingCheckBox = new();
         private readonly ComboBox processRuntimeScopeComboBox = new();
+        private readonly Button processRuntimeScopeHelpButton = new();
         private readonly ComboBox processRuntimeIntervalComboBox = new();
         private readonly NumericUpDown customProcessRuntimeIntervalNumeric = new();
         private readonly Label customProcessRuntimeIntervalUnitLabel = new();
@@ -123,6 +124,7 @@ namespace TimePilot.WinForms
             processRuntimeGroupBox.Controls.Add(processRuntimeTrackingCheckBox);
             processRuntimeGroupBox.Controls.Add(processRuntimeScopeLabel);
             processRuntimeGroupBox.Controls.Add(processRuntimeScopeComboBox);
+            processRuntimeGroupBox.Controls.Add(processRuntimeScopeHelpButton);
             processRuntimeGroupBox.Controls.Add(processRuntimeIntervalLabel);
             processRuntimeGroupBox.Controls.Add(processRuntimeIntervalComboBox);
             processRuntimeGroupBox.Controls.Add(customProcessRuntimeIntervalNumeric);
@@ -154,6 +156,13 @@ namespace TimePilot.WinForms
             processRuntimeScopeComboBox.Name = "processRuntimeScopeComboBox";
             processRuntimeScopeComboBox.Size = new Size(180, 23);
             processRuntimeScopeComboBox.SelectedIndexChanged += OnProcessRuntimeSettingsChanged;
+
+            processRuntimeScopeHelpButton.Location = new Point(306, 58);
+            processRuntimeScopeHelpButton.Name = "processRuntimeScopeHelpButton";
+            processRuntimeScopeHelpButton.Size = new Size(28, 23);
+            processRuntimeScopeHelpButton.Text = UiText.Preferences.ProcessRuntimeScopeHelp;
+            processRuntimeScopeHelpButton.UseVisualStyleBackColor = true;
+            processRuntimeScopeHelpButton.Click += OnProcessRuntimeScopeHelpButtonClick;
 
             processRuntimeIntervalLabel.AutoSize = true;
             processRuntimeIntervalLabel.Location = new Point(16, 100);
@@ -456,6 +465,7 @@ namespace TimePilot.WinForms
                 intervalSeconds);
 
             processRuntimeScopeComboBox.Enabled = isEnabled;
+            processRuntimeScopeHelpButton.Enabled = isEnabled;
             processRuntimeIntervalComboBox.Enabled = isEnabled;
             customProcessRuntimeIntervalNumeric.Enabled = isEnabled;
             customProcessRuntimeIntervalNumeric.Visible = isCustomInterval;
@@ -496,6 +506,46 @@ namespace TimePilot.WinForms
 
             ProcessRuntimeRiskAccepted = ShowCenteredWarning(message) == DialogResult.Yes;
             return ProcessRuntimeRiskAccepted;
+        }
+
+        private void OnProcessRuntimeScopeHelpButtonClick(object? sender, EventArgs e)
+        {
+            var scope = processRuntimeScopeComboBox.SelectedItem is ProcessRuntimeScopeOption scopeOption
+                ? scopeOption.Scope
+                : AppSettings.DefaultProcessRuntimeTrackingScope;
+            var selection = GetProcessRuntimeScopeLabel(scope);
+            var description = GetProcessRuntimeScopeDescription(scope);
+            var message = UiText.Preferences.ProcessRuntimeScopeHelpCurrentSelection(selection, description)
+                + Environment.NewLine
+                + Environment.NewLine
+                + UiText.Preferences.ProcessRuntimeScopeHelpMessage;
+
+            CenteredMessageDialog.Show(
+                this,
+                message,
+                UiText.Preferences.ProcessRuntimeScopeHelpTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private static string GetProcessRuntimeScopeLabel(ProcessRuntimeTrackingScope scope)
+        {
+            return scope switch
+            {
+                ProcessRuntimeTrackingScope.UserProcesses => UiText.Preferences.UserProcessesScope,
+                ProcessRuntimeTrackingScope.AllProcesses => UiText.Preferences.AllProcessesScope,
+                _ => UiText.Preferences.WindowedAppsScope
+            };
+        }
+
+        private static string GetProcessRuntimeScopeDescription(ProcessRuntimeTrackingScope scope)
+        {
+            return scope switch
+            {
+                ProcessRuntimeTrackingScope.UserProcesses => UiText.Preferences.UserProcessesScopeDescription,
+                ProcessRuntimeTrackingScope.AllProcesses => UiText.Preferences.AllProcessesScopeDescription,
+                _ => UiText.Preferences.WindowedAppsScopeDescription
+            };
         }
 
         private DialogResult ShowCenteredWarning(string message)
