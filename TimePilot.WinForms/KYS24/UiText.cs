@@ -164,6 +164,11 @@ namespace TimePilot.WinForms.KYS24
             public static string ProcessRuntimeGroup => current.Preferences.ProcessRuntimeGroup;
             public static string ProcessRuntimeTracking => current.Preferences.ProcessRuntimeTracking;
             public static string ProcessRuntimeScope => current.Preferences.ProcessRuntimeScope;
+            public static string ProcessRuntimeScopeHelp => current.Preferences.ProcessRuntimeScopeHelp;
+            public static string ProcessRuntimeScopeHelpTitle => current.Preferences.ProcessRuntimeScopeHelpTitle;
+            public static string ProcessRuntimeScopeHelpMessage => current.Preferences.ProcessRuntimeScopeHelpMessage;
+            public static string ProcessRuntimeScopeHelpCurrentSelection(string selection, string description) =>
+                current.Preferences.ProcessRuntimeScopeHelpCurrentSelection(selection, description);
             public static string ProcessRuntimeInterval => current.Preferences.ProcessRuntimeInterval;
             public static string ProcessRuntimeWarning => current.Preferences.ProcessRuntimeWarning;
             public static string ProcessRuntimeDangerWarning => current.Preferences.ProcessRuntimeDangerWarning;
@@ -177,8 +182,11 @@ namespace TimePilot.WinForms.KYS24
             public static string ClearUsageDataMessage => current.Preferences.ClearUsageDataMessage;
             public static string AdvancedTrackingTitle => current.Preferences.AdvancedTrackingTitle;
             public static string WindowedAppsScope => current.Preferences.WindowedAppsScope;
+            public static string WindowedAppsScopeDescription => current.Preferences.WindowedAppsScopeDescription;
             public static string UserProcessesScope => current.Preferences.UserProcessesScope;
+            public static string UserProcessesScopeDescription => current.Preferences.UserProcessesScopeDescription;
             public static string AllProcessesScope => current.Preferences.AllProcessesScope;
+            public static string AllProcessesScopeDescription => current.Preferences.AllProcessesScopeDescription;
             public static string Custom => current.Preferences.Custom;
             public static string AllProcessesRiskMessage => current.Preferences.AllProcessesRiskMessage;
             public static string UserProcessesRiskMessage => current.Preferences.UserProcessesRiskMessage;
@@ -380,6 +388,15 @@ namespace TimePilot.WinForms.KYS24
                         ProcessRuntimeGroup: "백그라운드 앱 추적",
                         ProcessRuntimeTracking: "실행 중 앱 세션 추적",
                         ProcessRuntimeScope: "추적 범위",
+                        ProcessRuntimeScopeHelp: "?",
+                        ProcessRuntimeScopeHelpTitle: "백그라운드 앱 추적 범위 도움말",
+                        ProcessRuntimeScopeHelpCurrentSelection: (selection, description) => $"현재 선택: {selection}\n\n{description}",
+                        ProcessRuntimeScopeHelpMessage:
+                            "전체 추적 범위:\n\n" +
+                            "화면에 보이는 앱만: 창이 감지된 앱을 추적합니다. 작업관리자의 앱 항목과 비슷하지만 완전히 동일하지 않을 수 있습니다.\n\n" +
+                            "모든 사용자 프로세스: 현재 로그인한 사용자 세션에서 실행 중인 프로세스를 추적합니다. 창이 없는 백그라운드 앱이나 트레이 앱도 포함될 수 있습니다.\n\n" +
+                            "모든 프로세스: TimePilot이 접근 가능한 실행 중 프로세스 전체를 추적합니다. 시스템/서비스 프로세스가 일부 포함될 수 있고 성능 부담과 저장 데이터가 늘어날 수 있습니다.\n\n" +
+                            "확인 주기를 짧게 하거나 추적 범위를 넓히면 CPU 사용량, 배터리 소모, 저장 데이터가 증가할 수 있습니다. 반복 비정상 종료가 감지되면 안전모드가 백그라운드 앱 추적을 자동으로 끌 수 있습니다.",
                         ProcessRuntimeInterval: "확인 주기",
                         ProcessRuntimeWarning: "짧은 확인 주기는 CPU 사용량, 배터리 소모, 저장 데이터 증가를 유발할 수 있습니다.",
                         ProcessRuntimeDangerWarning: "위험 설정입니다. 반복 비정상 종료가 감지되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼질 수 있습니다.",
@@ -392,9 +409,12 @@ namespace TimePilot.WinForms.KYS24
                         ClearUsageDataTitle: "사용 기록 삭제",
                         ClearUsageDataMessage: "저장을 누르면 앱 사용 기록과 타임라인 기록이 삭제됩니다.\n\n환경 설정과 Windows 시작 시 자동 실행 설정은 유지됩니다.",
                         AdvancedTrackingTitle: "고급 추적 설정",
-                        WindowedAppsScope: "창이 있는 앱만",
+                        WindowedAppsScope: "화면에 보이는 앱만",
+                        WindowedAppsScopeDescription: "창이 감지된 앱을 추적합니다. 작업관리자의 앱 항목과 비슷하지만 완전히 동일하지 않을 수 있습니다.",
                         UserProcessesScope: "모든 사용자 프로세스",
+                        UserProcessesScopeDescription: "현재 로그인한 사용자 세션에서 실행 중인 프로세스를 추적합니다. 창이 없는 백그라운드 앱이나 트레이 앱도 포함될 수 있습니다.",
                         AllProcessesScope: "모든 프로세스",
+                        AllProcessesScopeDescription: "TimePilot이 접근 가능한 실행 중 프로세스 전체를 추적합니다. 시스템/서비스 프로세스가 일부 포함될 수 있고 성능 부담과 저장 데이터가 늘어날 수 있습니다.",
                         Custom: "사용자 지정",
                         AllProcessesRiskMessage: "모든 프로세스를 10초 이하 주기로 추적하면 환경에 따라 TimePilot이 멈추거나 비정상 종료될 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
                         UserProcessesRiskMessage: "모든 사용자 프로세스를 5초 이하 주기로 추적하면 CPU 사용량과 저장 데이터가 크게 증가할 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
@@ -559,6 +579,15 @@ namespace TimePilot.WinForms.KYS24
                         ProcessRuntimeGroup: "Background app tracking",
                         ProcessRuntimeTracking: "Track running app sessions",
                         ProcessRuntimeScope: "Tracking scope",
+                        ProcessRuntimeScopeHelp: "?",
+                        ProcessRuntimeScopeHelpTitle: "Background App Tracking Scope Help",
+                        ProcessRuntimeScopeHelpCurrentSelection: (selection, description) => $"Current selection: {selection}\n\n{description}",
+                        ProcessRuntimeScopeHelpMessage:
+                            "All tracking scopes:\n\n" +
+                            "Visible apps only: Tracks apps with a detected app window. This is similar to Task Manager's Apps group, but may not match it exactly.\n\n" +
+                            "All user processes: Tracks processes running in the current signed-in user session. Background or tray apps without windows can be included.\n\n" +
+                            "All processes: Tracks all running processes TimePilot can access. Some system or service processes can be included, and performance cost and stored data can increase.\n\n" +
+                            "Shorter check intervals or wider tracking scopes can increase CPU usage, battery drain, and stored data. If repeated unexpected exits are detected, safe mode may automatically disable background app tracking.",
                         ProcessRuntimeInterval: "Check interval",
                         ProcessRuntimeWarning: "Short check intervals can increase CPU usage, battery drain, and stored data.",
                         ProcessRuntimeDangerWarning: "Risky setting. If repeated unexpected exits are detected, background app tracking may be disabled on the next launch.",
@@ -571,9 +600,12 @@ namespace TimePilot.WinForms.KYS24
                         ClearUsageDataTitle: "Delete usage records",
                         ClearUsageDataMessage: "When you click Save, app usage records and timeline records will be deleted.\n\nPreferences and Windows startup settings will be kept.",
                         AdvancedTrackingTitle: "Advanced tracking settings",
-                        WindowedAppsScope: "Apps with windows only",
+                        WindowedAppsScope: "Visible apps only",
+                        WindowedAppsScopeDescription: "Tracks apps with a detected app window. This is similar to Task Manager's Apps group, but may not match it exactly.",
                         UserProcessesScope: "All user processes",
+                        UserProcessesScopeDescription: "Tracks processes running in the current signed-in user session. Background or tray apps without windows can be included.",
                         AllProcessesScope: "All processes",
+                        AllProcessesScopeDescription: "Tracks all running processes TimePilot can access. Some system or service processes can be included, and performance cost and stored data can increase.",
                         Custom: "Custom",
                         AllProcessesRiskMessage: "Tracking all processes every 10 seconds or less may freeze or unexpectedly close TimePilot depending on your environment.\n\nIf repeated unexpected exits happen shortly after launch with the same setting, background app tracking will be disabled on the next launch.\n\nSave this risky setting?",
                         UserProcessesRiskMessage: "Tracking all user processes every 5 seconds or less can significantly increase CPU usage and stored data.\n\nIf repeated unexpected exits happen shortly after launch with the same setting, background app tracking will be disabled on the next launch.\n\nSave this risky setting?",
@@ -732,6 +764,10 @@ namespace TimePilot.WinForms.KYS24
             string ProcessRuntimeGroup,
             string ProcessRuntimeTracking,
             string ProcessRuntimeScope,
+            string ProcessRuntimeScopeHelp,
+            string ProcessRuntimeScopeHelpTitle,
+            Func<string, string, string> ProcessRuntimeScopeHelpCurrentSelection,
+            string ProcessRuntimeScopeHelpMessage,
             string ProcessRuntimeInterval,
             string ProcessRuntimeWarning,
             string ProcessRuntimeDangerWarning,
@@ -745,8 +781,11 @@ namespace TimePilot.WinForms.KYS24
             string ClearUsageDataMessage,
             string AdvancedTrackingTitle,
             string WindowedAppsScope,
+            string WindowedAppsScopeDescription,
             string UserProcessesScope,
+            string UserProcessesScopeDescription,
             string AllProcessesScope,
+            string AllProcessesScopeDescription,
             string Custom,
             string AllProcessesRiskMessage,
             string UserProcessesRiskMessage,
