@@ -242,6 +242,7 @@
             summarySpecificDatePicker.Format = DateTimePickerFormat.Short;
             summarySpecificDatePicker.Location = new Point(282, 7);
             summarySpecificDatePicker.Name = "summarySpecificDatePicker";
+            summarySpecificDatePicker.ShowUpDown = true;
             summarySpecificDatePicker.Size = new Size(112, 23);
             summarySpecificDatePicker.TabIndex = 2;
             summarySpecificDatePicker.Visible = false;
@@ -460,6 +461,7 @@
             detailDatePicker.Format = DateTimePickerFormat.Short;
             detailDatePicker.Location = new Point(47, 4);
             detailDatePicker.Name = "detailDatePicker";
+            detailDatePicker.ShowUpDown = true;
             detailDatePicker.Size = new Size(112, 23);
             detailDatePicker.TabIndex = 1;
             detailDatePicker.ValueChanged += OnDetailDatePickerValueChanged;
@@ -804,6 +806,7 @@
             timelineDatePicker.Format = DateTimePickerFormat.Short;
             timelineDatePicker.Location = new Point(50, 7);
             timelineDatePicker.Name = "timelineDatePicker";
+            timelineDatePicker.ShowUpDown = true;
             timelineDatePicker.Size = new Size(112, 23);
             timelineDatePicker.TabIndex = 1;
             timelineDatePicker.ValueChanged += OnTimelineDatePickerValueChanged;
@@ -951,7 +954,7 @@
             Controls.Add(statusLabel);
             Controls.Add(mainMenuStrip);
             MainMenuStrip = mainMenuStrip;
-            MinimumSize = new Size(900, 560);
+            MinimumSize = new Size(760, 480);
             Name = "Form1";
             Text = UiText.AppName;
             mainMenuStrip.ResumeLayout(false);
