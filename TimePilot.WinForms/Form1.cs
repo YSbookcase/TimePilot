@@ -428,6 +428,13 @@ namespace TimePilot.WinForms
                 new(UiText.Main.Idle, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-45), 900_000, "devenv"),
                 new(UiText.Main.Active, DateTimeOffset.Now.AddMinutes(-45), null, 2_700_000, "chrome")
             });
+            timelineOverviewControl.SetTimeline(
+                DateTime.Today,
+                (IReadOnlyList<ActivityTimelineRow>)timelineGrid.DataSource,
+                new[]
+                {
+                    new TimelineRange(DateTimeOffset.Now.AddHours(-3), DateTimeOffset.Now)
+                });
         }
 
         private void SetRuntimeCoverageSummary(RuntimeCoverageSummary? summary)
@@ -541,6 +548,7 @@ namespace TimePilot.WinForms
             timelineDateLabel.Text = UiText.Main.Date;
             timelineCalendarButton.Text = UiText.Main.Calendar;
             timelineTodayButton.Text = UiText.Main.Today;
+            timelineOverviewControl.Invalidate();
 
             dailyUsageDateColumn.HeaderText = UiText.Main.Date;
             dailyUsageActiveTimeColumn.HeaderText = UiText.Main.TotalActiveUsageTime;
@@ -682,6 +690,9 @@ namespace TimePilot.WinForms
                     var timelineRows = selectedTab == timelineTab
                         ? storage.GetActivityTimelineForDate(timelineDate, observedAt)
                         : null;
+                    var windowsRuntimeRanges = selectedTab == timelineTab
+                        ? storage.GetWindowsRuntimeRangesForDate(timelineDate, observedAt)
+                        : null;
                     var timelineDateHasData = selectedTab == timelineTab
                         ? storage.HasActivityDataForDate(timelineDate, observedAt)
                         : (bool?)null;
@@ -709,6 +720,7 @@ namespace TimePilot.WinForms
                         detailDateHasData,
                         timelineDateHasData,
                         timelineRows,
+                        windowsRuntimeRanges,
                         runtimeRows,
                         detailSummaryAppIds,
                         runtimeSegmentRows,
@@ -744,6 +756,10 @@ namespace TimePilot.WinForms
             if (snapshot.TimelineRows is not null)
             {
                 SetDateStatus(timelineDateStatusLabel, snapshot.TimelineDateHasData);
+                timelineOverviewControl.SetTimeline(
+                    selectedTimelineDate,
+                    snapshot.TimelineRows,
+                    snapshot.WindowsRuntimeRanges ?? Array.Empty<TimelineRange>());
                 SetGridDataSourcePreservingView(
                     timelineGrid,
                     AddIcons(SortTimelineRows(snapshot.TimelineRows)));
@@ -1842,6 +1858,10 @@ namespace TimePilot.WinForms
                 SetGridDataSourcePreservingView(usageGrid, Array.Empty<UsageSummaryRow>());
                 SetGridDataSourcePreservingView(dailyUsageTrendGrid, Array.Empty<DailyUsageTrendRow>());
                 SetRuntimeCoverageSummary(null);
+                timelineOverviewControl.SetTimeline(
+                    selectedTimelineDate,
+                    Array.Empty<ActivityTimelineRow>(),
+                    Array.Empty<TimelineRange>());
                 SetGridDataSourcePreservingView(timelineGrid, Array.Empty<ActivityTimelineRow>());
                 SetGridDataSourcePreservingView(runtimeGrid, Array.Empty<ProcessRuntimeSummaryRow>());
                 SetGridDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
@@ -2062,6 +2082,7 @@ namespace TimePilot.WinForms
             bool? DetailDateHasData,
             bool? TimelineDateHasData,
             IReadOnlyList<ActivityTimelineRow>? TimelineRows,
+            IReadOnlyList<TimelineRange>? WindowsRuntimeRanges,
             IReadOnlyList<ProcessRuntimeSummaryRow>? RuntimeRows,
             IReadOnlySet<long>? DetailSummaryAppIds,
             IReadOnlyList<ProcessRuntimeSegmentRow>? RuntimeSegmentRows,

@@ -913,6 +913,52 @@ namespace TimePilot.WinForms.KYS24
                 bootBeforeTimePilotMs);
         }
 
+        public IReadOnlyList<TimelineRange> GetWindowsRuntimeRangesForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var dayStart = new DateTimeOffset(localDate.Date, TimeZoneInfo.Local.GetUtcOffset(localDate.Date));
+            var dayEndDate = localDate.Date.AddDays(1);
+            var dayEnd = new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate));
+
+            if (dayEnd > now)
+                dayEnd = now;
+
+            if (dayEnd <= dayStart)
+                return Array.Empty<TimelineRange>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT system_booted_at,
+                       started_at,
+                       COALESCE(ended_at, last_heartbeat_at, $now)
+                FROM app_runtime_sessions
+                WHERE COALESCE(system_booted_at, started_at) < $dayEnd
+                  AND COALESCE(ended_at, last_heartbeat_at, $now) > $dayStart
+                ORDER BY COALESCE(system_booted_at, started_at);
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            var intervals = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = reader.IsDBNull(0)
+                    ? ParseTimestamp(reader.GetString(1))
+                    : ParseTimestamp(reader.GetString(0));
+                var endedAt = ParseTimestamp(reader.GetString(2));
+                if (endedAt <= startedAt)
+                    continue;
+
+                intervals.Add((Max(startedAt, dayStart), Min(endedAt, dayEnd)));
+            }
+
+            return MergeIntervals(intervals)
+                .Select(interval => new TimelineRange(interval.Start, interval.End))
+                .ToList();
+        }
+
         private void AddUntrackedTimelineRows(
             SqliteConnection connection,
             List<ActivityTimelineRow> rows,
