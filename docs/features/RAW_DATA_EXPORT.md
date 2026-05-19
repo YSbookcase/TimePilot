@@ -2,6 +2,8 @@
 
 Raw data export writes TimePilot's internal SQLite tables to CSV files and bundles them into a ZIP file.
 
+The first implementation exports **all raw data without a date range limit**. Date-range export should be considered later together with large-export UX improvements.
+
 The regular `Export CSV` command exports user-friendly summary, timeline, and runtime segment data. Raw data export keeps column names and values close to the internal table structure.
 
 ## Purpose
@@ -14,7 +16,7 @@ This is not a backup and restore feature. Restorable backups should be handled s
 
 ## Privacy Notice
 
-The exported ZIP can include personal usage records such as app names, process names, executable paths, usage times, and runtime segments.
+The exported ZIP can include personal usage records for the full stored period, such as app names, process names, executable paths, usage times, and runtime segments.
 
 Users should be careful when sharing or storing the exported file.
 

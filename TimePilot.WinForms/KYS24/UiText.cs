@@ -303,7 +303,7 @@ namespace TimePilot.WinForms.KYS24
                     new MainText(
                         FileMenu: "파일",
                         ExportCsv: "CSV 내보내기...",
-                        ExportRawData: "원본 데이터 내보내기...",
+                        ExportRawData: "원본 데이터 전체 내보내기...",
                         Exit: "종료",
                         SettingsMenu: "설정",
                         Preferences: "환경 설정...",
@@ -382,8 +382,8 @@ namespace TimePilot.WinForms.KYS24
                         CsvFilter: "CSV 파일 (*.csv)|*.csv",
                         CsvExportTitle: "CSV 내보내기",
                         ZipFilter: "ZIP 파일 (*.zip)|*.zip",
-                        RawDataExportTitle: "원본 데이터 내보내기",
-                        RawDataExportWarning: "원본 데이터에는 앱 이름, 프로세스 이름, 실행 경로, 사용 시간, 실행 기록이 포함될 수 있습니다.\n\n선택한 위치에 원본 테이블 CSV를 ZIP 파일로 저장합니다. 계속할까요?",
+                        RawDataExportTitle: "원본 데이터 전체 내보내기",
+                        RawDataExportWarning: "원본 데이터에는 앱 이름, 프로세스 이름, 실행 경로, 사용 시간, 실행 기록이 포함될 수 있습니다.\n\n현재는 기간 제한 없이 전체 원본 테이블 CSV를 ZIP 파일로 저장합니다. 계속할까요?",
                         RuntimeDiagnostics: "실행 진단",
                         RuntimeDiagnosticsTitle: "TimePilot 실행 진단",
                         RuntimeDiagnosticsNoHistory: "아직 확인할 수 있는 이전 실행 기록이 없습니다.",
@@ -444,7 +444,7 @@ namespace TimePilot.WinForms.KYS24
                         Ended: "종료"),
                     new RawDataExportText(
                         ReadmeTitle: "TimePilot 원본 데이터 내보내기",
-                        ReadmePrivacyNotice: "이 ZIP 파일에는 TimePilot 내부 SQLite 테이블에 가까운 원본 데이터가 포함되어 있습니다. 앱 이름, 프로세스 이름, 실행 파일 경로, 사용 시간, 실행 구간 등 개인 사용 기록이 포함될 수 있으므로 공유와 보관에 주의하세요.",
+                        ReadmePrivacyNotice: "이 ZIP 파일에는 기간 제한 없이 내보낸 전체 원본 데이터가 포함되어 있습니다. TimePilot 내부 SQLite 테이블에 가까운 형태이며, 앱 이름, 프로세스 이름, 실행 파일 경로, 사용 시간, 실행 구간 등 개인 사용 기록이 포함될 수 있으므로 공유와 보관에 주의하세요.",
                         ReadmeTableList: "포함된 CSV 파일과 컬럼:"),
                     new PreferencesText(
                         Title: "환경 설정",
@@ -524,7 +524,7 @@ namespace TimePilot.WinForms.KYS24
                     new MainText(
                         FileMenu: "File",
                         ExportCsv: "Export CSV...",
-                        ExportRawData: "Export raw data...",
+                        ExportRawData: "Export all raw data...",
                         Exit: "Exit",
                         SettingsMenu: "Settings",
                         Preferences: "Preferences...",
@@ -603,8 +603,8 @@ namespace TimePilot.WinForms.KYS24
                         CsvFilter: "CSV files (*.csv)|*.csv",
                         CsvExportTitle: "Export CSV",
                         ZipFilter: "ZIP files (*.zip)|*.zip",
-                        RawDataExportTitle: "Export raw data",
-                        RawDataExportWarning: "Raw data can include app names, process names, executable paths, usage times, and runtime records.\n\nTimePilot will save raw table CSV files into a ZIP file at the selected location. Continue?",
+                        RawDataExportTitle: "Export all raw data",
+                        RawDataExportWarning: "Raw data can include app names, process names, executable paths, usage times, and runtime records.\n\nTimePilot currently exports all raw table CSV files without a date range limit into a ZIP file. Continue?",
                         RuntimeDiagnostics: "Runtime diagnostics",
                         RuntimeDiagnosticsTitle: "TimePilot runtime diagnostics",
                         RuntimeDiagnosticsNoHistory: "No previous runtime history is available yet.",
@@ -665,7 +665,7 @@ namespace TimePilot.WinForms.KYS24
                         Ended: "Ended"),
                     new RawDataExportText(
                         ReadmeTitle: "TimePilot raw data export",
-                        ReadmePrivacyNotice: "This ZIP file contains data close to TimePilot's internal SQLite tables. It can include personal usage records such as app names, process names, executable paths, usage times, and runtime segments. Be careful when storing or sharing it.",
+                        ReadmePrivacyNotice: "This ZIP file contains all exported raw data without a date range limit. The data is close to TimePilot's internal SQLite tables and can include personal usage records such as app names, process names, executable paths, usage times, and runtime segments. Be careful when storing or sharing it.",
                         ReadmeTableList: "Included CSV files and columns:"),
                     new PreferencesText(
                         Title: "Preferences",
