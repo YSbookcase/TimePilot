@@ -548,7 +548,12 @@ namespace TimePilot.WinForms
             timelineDateLabel.Text = UiText.Main.Date;
             timelineCalendarButton.Text = UiText.Main.Calendar;
             timelineTodayButton.Text = UiText.Main.Today;
+            timelineZoomBackButton.Text = UiText.Main.TimelinePreviousView;
+            timelineZoomPreviousButton.Text = UiText.Main.TimelinePreviousRange;
+            timelineZoomNextButton.Text = UiText.Main.TimelineNextRange;
+            timelineZoomResetButton.Text = UiText.Main.TimelineResetView;
             timelineOverviewControl.Invalidate();
+            UpdateTimelineZoomControls();
 
             dailyUsageDateColumn.HeaderText = UiText.Main.Date;
             dailyUsageActiveTimeColumn.HeaderText = UiText.Main.TotalActiveUsageTime;
@@ -1203,6 +1208,31 @@ namespace TimePilot.WinForms
             ApplyTimelineDate(DateTime.Today);
         }
 
+        private void OnTimelineOverviewViewRangeChanged(object? sender, EventArgs e)
+        {
+            UpdateTimelineZoomControls();
+        }
+
+        private void OnTimelineZoomBackButtonClick(object? sender, EventArgs e)
+        {
+            timelineOverviewControl.GoBack();
+        }
+
+        private void OnTimelineZoomPreviousButtonClick(object? sender, EventArgs e)
+        {
+            timelineOverviewControl.PanPrevious();
+        }
+
+        private void OnTimelineZoomNextButtonClick(object? sender, EventArgs e)
+        {
+            timelineOverviewControl.PanNext();
+        }
+
+        private void OnTimelineZoomResetButtonClick(object? sender, EventArgs e)
+        {
+            timelineOverviewControl.ResetView();
+        }
+
         private void ApplyDetailDate(DateTime date)
         {
             var normalizedDate = NormalizeSelectableDate(date);
@@ -1305,6 +1335,15 @@ namespace TimePilot.WinForms
             detailTodayButton.Enabled = selectedDetailDate < today;
             timelineNextDateButton.Enabled = selectedTimelineDate < today;
             timelineTodayButton.Enabled = selectedTimelineDate < today;
+        }
+
+        private void UpdateTimelineZoomControls()
+        {
+            timelineZoomRangeLabel.Text = UiText.Main.TimelineViewRange(timelineOverviewControl.ViewRangeText);
+            timelineZoomBackButton.Enabled = timelineOverviewControl.CanGoBack;
+            timelineZoomPreviousButton.Enabled = timelineOverviewControl.CanPanPrevious;
+            timelineZoomNextButton.Enabled = timelineOverviewControl.CanPanNext;
+            timelineZoomResetButton.Enabled = timelineOverviewControl.IsZoomed;
         }
 
         private void OnSummaryPeriodComboBoxSelectedIndexChanged(object? sender, EventArgs e)

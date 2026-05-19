@@ -12,13 +12,63 @@ namespace TimePilot.WinForms
         private static readonly Color UntrackedBorderColor = Color.FromArgb(211, 162, 92);
         private static readonly Color WindowsFillColor = Color.FromArgb(198, 225, 246);
         private static readonly Color WindowsBorderColor = Color.FromArgb(87, 137, 184);
+        private static readonly Color SelectionFillColor = Color.FromArgb(80, 47, 111, 172);
+        private static readonly Color SelectionBorderColor = Color.FromArgb(47, 111, 172);
         private static readonly Color AxisColor = Color.FromArgb(190, 196, 204);
         private static readonly Color TextColor = Color.FromArgb(65, 72, 82);
+        private static readonly Color[] AppFillPalette =
+        [
+            Color.FromArgb(137, 176, 211),
+            Color.FromArgb(143, 191, 169),
+            Color.FromArgb(224, 173, 116),
+            Color.FromArgb(188, 166, 216),
+            Color.FromArgb(218, 145, 154),
+            Color.FromArgb(132, 190, 201),
+            Color.FromArgb(198, 184, 123),
+            Color.FromArgb(164, 184, 221),
+            Color.FromArgb(207, 159, 199),
+            Color.FromArgb(151, 198, 142)
+        ];
+        private static readonly Color[] AppBorderPalette =
+        [
+            Color.FromArgb(72, 119, 164),
+            Color.FromArgb(75, 137, 111),
+            Color.FromArgb(168, 112, 54),
+            Color.FromArgb(128, 104, 165),
+            Color.FromArgb(164, 83, 95),
+            Color.FromArgb(62, 130, 143),
+            Color.FromArgb(145, 128, 65),
+            Color.FromArgb(86, 111, 171),
+            Color.FromArgb(150, 93, 140),
+            Color.FromArgb(89, 139, 82)
+        ];
+        private static readonly TimeSpan MinimumViewRange = TimeSpan.FromMinutes(5);
+        private const int MinimumDragPixels = 8;
 
         private IReadOnlyList<ActivityTimelineRow> rows = Array.Empty<ActivityTimelineRow>();
         private IReadOnlyList<TimelineRange> windowsRuntimeRanges = Array.Empty<TimelineRange>();
         private DateTime localDate = DateTime.Today;
+        private TimeSpan viewStart = TimeSpan.Zero;
+        private TimeSpan viewEnd = TimeSpan.FromDays(1);
+        private readonly Stack<(TimeSpan Start, TimeSpan End)> viewHistory = new();
         private string? hoverText;
+        private bool isDragging;
+        private int dragStartX;
+        private int dragCurrentX;
+
+        public event EventHandler? ViewRangeChanged;
+
+        public bool IsZoomed => viewStart > TimeSpan.Zero || viewEnd < TimeSpan.FromDays(1);
+
+        public bool CanGoBack => viewHistory.Count > 0;
+
+        public bool CanPanPrevious => IsZoomed && viewStart > TimeSpan.Zero;
+
+        public bool CanPanNext => IsZoomed && viewEnd < TimeSpan.FromDays(1);
+
+        public string ViewRangeText => IsZoomed
+            ? $"{FormatTimeOfDay(viewStart)}-{FormatTimeOfDay(viewEnd)} ({FormatRangeDuration(viewEnd - viewStart)})"
+            : UiText.Main.TimelineFullDay;
 
         public TimelineOverviewControl()
         {
@@ -32,11 +82,46 @@ namespace TimePilot.WinForms
             IReadOnlyList<ActivityTimelineRow> timelineRows,
             IReadOnlyList<TimelineRange> windowsRanges)
         {
+            var dateChanged = date.Date != localDate;
             localDate = date.Date;
             rows = timelineRows.OrderBy(row => row.StartedAt).ToList();
             windowsRuntimeRanges = windowsRanges.OrderBy(range => range.StartedAt).ToList();
             hoverText = null;
+            if (dateChanged)
+            {
+                viewHistory.Clear();
+                SetViewRange(TimeSpan.Zero, TimeSpan.FromDays(1), addHistory: false);
+            }
+
             Invalidate();
+        }
+
+        public void GoBack()
+        {
+            if (viewHistory.Count == 0)
+                return;
+
+            var previous = viewHistory.Pop();
+            SetViewRange(previous.Start, previous.End, addHistory: false);
+        }
+
+        public void ResetView()
+        {
+            if (!IsZoomed)
+                return;
+
+            viewHistory.Clear();
+            SetViewRange(TimeSpan.Zero, TimeSpan.FromDays(1), addHistory: false);
+        }
+
+        public void PanPrevious()
+        {
+            Pan(-0.5);
+        }
+
+        public void PanNext()
+        {
+            Pan(0.5);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -58,14 +143,37 @@ namespace TimePilot.WinForms
             DrawAxis(graphics, activityBounds);
             DrawWindowsRanges(graphics, windowsBounds);
             DrawActivityRows(graphics, activityBounds);
+            DrawDragSelection(graphics, bounds);
 
             if (!string.IsNullOrEmpty(hoverText))
                 DrawHoverInfo(graphics, hoverText, bounds);
         }
 
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+
+            if (e.Button != MouseButtons.Left || !GetInteractiveBounds(ClientRectangle).Contains(e.Location))
+                return;
+
+            isDragging = true;
+            dragStartX = e.X;
+            dragCurrentX = e.X;
+            Capture = true;
+            Invalidate();
+        }
+
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
+
+            if (isDragging)
+            {
+                dragCurrentX = e.X;
+                hoverText = null;
+                Invalidate();
+                return;
+            }
 
             var text = FindHoverTextAt(e.Location);
             if (string.Equals(text, hoverText, StringComparison.Ordinal))
@@ -75,9 +183,31 @@ namespace TimePilot.WinForms
             Invalidate();
         }
 
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+
+            if (!isDragging)
+                return;
+
+            isDragging = false;
+            Capture = false;
+
+            var startX = dragStartX;
+            var endX = e.X;
+            dragCurrentX = e.X;
+            if (Math.Abs(endX - startX) >= MinimumDragPixels)
+                ZoomToDragRange(startX, endX);
+
+            Invalidate();
+        }
+
         protected override void OnMouseLeave(EventArgs e)
         {
             base.OnMouseLeave(e);
+            if (isDragging)
+                return;
+
             hoverText = null;
             Invalidate();
         }
@@ -90,6 +220,13 @@ namespace TimePilot.WinForms
         private Rectangle GetActivityBounds(Rectangle bounds)
         {
             return new Rectangle(bounds.Left + 78, bounds.Top + 48, Math.Max(1, bounds.Width - 90), Math.Max(18, bounds.Height - 78));
+        }
+
+        private Rectangle GetInteractiveBounds(Rectangle bounds)
+        {
+            var windowsBounds = GetWindowsBounds(bounds);
+            var activityBounds = GetActivityBounds(bounds);
+            return Rectangle.Union(windowsBounds, activityBounds);
         }
 
         private void DrawTrackLabel(Graphics graphics, string text, Rectangle trackBounds)
@@ -109,13 +246,13 @@ namespace TimePilot.WinForms
             using var axisPen = new Pen(AxisColor);
             graphics.DrawRectangle(axisPen, timelineBounds);
 
-            for (var hour = 0; hour <= 24; hour += 3)
+            foreach (var tick in GetAxisTicks())
             {
-                var x = timelineBounds.Left + (int)Math.Round(timelineBounds.Width * (hour / 24.0));
+                var x = timelineBounds.Left + (int)Math.Round(timelineBounds.Width * GetRatio(tick));
                 graphics.DrawLine(axisPen, x, timelineBounds.Top - 5, x, timelineBounds.Bottom + 4);
 
-                var label = hour == 24 ? "24" : $"{hour:00}";
-                var labelBounds = new Rectangle(x - 18, timelineBounds.Bottom + 7, 36, 16);
+                var label = FormatAxisLabel(tick);
+                var labelBounds = GetAxisLabelBounds(label, x, timelineBounds);
                 TextRenderer.DrawText(
                     graphics,
                     label,
@@ -176,17 +313,19 @@ namespace TimePilot.WinForms
             var dayStart = new DateTimeOffset(localDate, TimeZoneInfo.Local.GetUtcOffset(localDate));
             var dayEndDate = localDate.AddDays(1);
             var dayEnd = new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate));
+            var viewStartAt = dayStart + viewStart;
+            var viewEndAt = dayStart + viewEnd;
             var fallbackEnd = localDate == DateTime.Today
                 ? Min(DateTimeOffset.Now, dayEnd)
                 : dayEnd;
-            var startedAt = Max(rangeStart, dayStart);
-            var endedAt = Min(rangeEnd ?? fallbackEnd, dayEnd);
+            var startedAt = Max(rangeStart, viewStartAt);
+            var endedAt = Min(rangeEnd ?? fallbackEnd, Min(viewEndAt, dayEnd));
             if (endedAt <= startedAt)
                 return Rectangle.Empty;
 
-            var dayDurationMs = Math.Max(1, (dayEnd - dayStart).TotalMilliseconds);
-            var startRatio = (startedAt - dayStart).TotalMilliseconds / dayDurationMs;
-            var endRatio = (endedAt - dayStart).TotalMilliseconds / dayDurationMs;
+            var viewDurationMs = Math.Max(1, (viewEndAt - viewStartAt).TotalMilliseconds);
+            var startRatio = (startedAt - viewStartAt).TotalMilliseconds / viewDurationMs;
+            var endRatio = (endedAt - viewStartAt).TotalMilliseconds / viewDurationMs;
             var left = timelineBounds.Left + (int)Math.Round(timelineBounds.Width * startRatio);
             var right = timelineBounds.Left + (int)Math.Round(timelineBounds.Width * endRatio);
             var width = Math.Max(2, right - left);
@@ -200,6 +339,24 @@ namespace TimePilot.WinForms
             using var borderPen = new Pen(GetBorderColor(row));
             graphics.FillRectangle(fillBrush, segment);
             graphics.DrawRectangle(borderPen, segment);
+        }
+
+        private void DrawDragSelection(Graphics graphics, Rectangle bounds)
+        {
+            if (!isDragging)
+                return;
+
+            var interactiveBounds = GetInteractiveBounds(bounds);
+            var left = Math.Clamp(Math.Min(dragStartX, dragCurrentX), interactiveBounds.Left, interactiveBounds.Right);
+            var right = Math.Clamp(Math.Max(dragStartX, dragCurrentX), interactiveBounds.Left, interactiveBounds.Right);
+            if (right - left < 2)
+                return;
+
+            var selectionBounds = new Rectangle(left, interactiveBounds.Top, right - left, interactiveBounds.Height);
+            using var fillBrush = new SolidBrush(SelectionFillColor);
+            using var borderPen = new Pen(SelectionBorderColor);
+            graphics.FillRectangle(fillBrush, selectionBounds);
+            graphics.DrawRectangle(borderPen, selectionBounds);
         }
 
         private string? FindHoverTextAt(Point point)
@@ -280,9 +437,7 @@ namespace TimePilot.WinForms
                 || string.Equals(row.ActivityType, UiText.Main.TimePilotUntracked, StringComparison.Ordinal))
                 return UntrackedFillColor;
 
-            var hash = unchecked((uint)StringComparer.OrdinalIgnoreCase.GetHashCode(row.DisplayName));
-            var hue = (int)(hash % 360);
-            return FromHsl(hue, 0.52, 0.72);
+            return AppFillPalette[GetAppPaletteIndex(row.DisplayName)];
         }
 
         private static Color GetBorderColor(ActivityTimelineRow row)
@@ -294,33 +449,7 @@ namespace TimePilot.WinForms
                 || string.Equals(row.ActivityType, UiText.Main.TimePilotUntracked, StringComparison.Ordinal))
                 return UntrackedBorderColor;
 
-            return ActiveBorderColor;
-        }
-
-        private static Color FromHsl(int hue, double saturation, double lightness)
-        {
-            var c = (1 - Math.Abs(2 * lightness - 1)) * saturation;
-            var x = c * (1 - Math.Abs((hue / 60.0) % 2 - 1));
-            var m = lightness - c / 2;
-            var (r, g, b) = hue switch
-            {
-                < 60 => (c, x, 0.0),
-                < 120 => (x, c, 0.0),
-                < 180 => (0.0, c, x),
-                < 240 => (0.0, x, c),
-                < 300 => (x, 0.0, c),
-                _ => (c, 0.0, x)
-            };
-
-            return Color.FromArgb(
-                ToRgbComponent(r + m),
-                ToRgbComponent(g + m),
-                ToRgbComponent(b + m));
-        }
-
-        private static int ToRgbComponent(double value)
-        {
-            return Math.Clamp((int)Math.Round(value * 255), 0, 255);
+            return AppBorderPalette[GetAppPaletteIndex(row.DisplayName)];
         }
 
         private static DateTimeOffset Min(DateTimeOffset left, DateTimeOffset right)
@@ -331,6 +460,159 @@ namespace TimePilot.WinForms
         private static DateTimeOffset Max(DateTimeOffset left, DateTimeOffset right)
         {
             return left >= right ? left : right;
+        }
+
+        private void ZoomToDragRange(int startX, int endX)
+        {
+            var interactiveBounds = GetInteractiveBounds(ClientRectangle);
+            if (interactiveBounds.Width <= 0)
+                return;
+
+            var leftX = Math.Clamp(Math.Min(startX, endX), interactiveBounds.Left, interactiveBounds.Right);
+            var rightX = Math.Clamp(Math.Max(startX, endX), interactiveBounds.Left, interactiveBounds.Right);
+            var start = XToViewOffset(leftX, interactiveBounds);
+            var end = XToViewOffset(rightX, interactiveBounds);
+            if (end - start < MinimumViewRange)
+                return;
+
+            SetViewRange(start, end, addHistory: true);
+        }
+
+        private void Pan(double ratio)
+        {
+            if (!IsZoomed)
+                return;
+
+            var width = viewEnd - viewStart;
+            var offset = TimeSpan.FromTicks((long)(width.Ticks * ratio));
+            var nextStart = viewStart + offset;
+            var nextEnd = viewEnd + offset;
+            if (nextStart < TimeSpan.Zero)
+            {
+                nextStart = TimeSpan.Zero;
+                nextEnd = width;
+            }
+            else if (nextEnd > TimeSpan.FromDays(1))
+            {
+                nextEnd = TimeSpan.FromDays(1);
+                nextStart = nextEnd - width;
+            }
+
+            if (nextStart == viewStart && nextEnd == viewEnd)
+                return;
+
+            SetViewRange(nextStart, nextEnd, addHistory: false);
+        }
+
+        private void SetViewRange(TimeSpan start, TimeSpan end, bool addHistory)
+        {
+            var normalizedStart = ClampToDay(start);
+            var normalizedEnd = ClampToDay(end);
+            if (normalizedEnd - normalizedStart < MinimumViewRange)
+                return;
+            if (normalizedStart == viewStart && normalizedEnd == viewEnd)
+                return;
+
+            if (addHistory)
+                viewHistory.Push((viewStart, viewEnd));
+
+            viewStart = normalizedStart;
+            viewEnd = normalizedEnd;
+            ViewRangeChanged?.Invoke(this, EventArgs.Empty);
+            Invalidate();
+        }
+
+        private TimeSpan XToViewOffset(int x, Rectangle bounds)
+        {
+            var ratio = Math.Clamp((x - bounds.Left) / (double)Math.Max(1, bounds.Width), 0, 1);
+            var width = viewEnd - viewStart;
+            return viewStart + TimeSpan.FromTicks((long)(width.Ticks * ratio));
+        }
+
+        private double GetRatio(TimeSpan value)
+        {
+            var width = viewEnd - viewStart;
+            if (width <= TimeSpan.Zero)
+                return 0;
+
+            return Math.Clamp((value - viewStart).TotalMilliseconds / width.TotalMilliseconds, 0, 1);
+        }
+
+        private IEnumerable<TimeSpan> GetAxisTicks()
+        {
+            var step = GetAxisStep();
+            var firstTick = TimeSpan.FromTicks(((viewStart.Ticks + step.Ticks - 1) / step.Ticks) * step.Ticks);
+            if (firstTick > viewStart)
+                yield return viewStart;
+
+            for (var tick = firstTick; tick < viewEnd; tick += step)
+                yield return tick;
+
+            yield return viewEnd;
+        }
+
+        private TimeSpan GetAxisStep()
+        {
+            var width = viewEnd - viewStart;
+            if (width <= TimeSpan.FromHours(1))
+                return TimeSpan.FromMinutes(10);
+            if (width <= TimeSpan.FromHours(3))
+                return TimeSpan.FromMinutes(30);
+            if (width <= TimeSpan.FromHours(8))
+                return TimeSpan.FromHours(1);
+
+            return TimeSpan.FromHours(3);
+        }
+
+        private static TimeSpan ClampToDay(TimeSpan value)
+        {
+            if (value < TimeSpan.Zero)
+                return TimeSpan.Zero;
+            if (value > TimeSpan.FromDays(1))
+                return TimeSpan.FromDays(1);
+
+            return value;
+        }
+
+        private static string FormatAxisLabel(TimeSpan value)
+        {
+            if (value >= TimeSpan.FromDays(1))
+                return "24";
+
+            return string.Format(CultureInfo.CurrentCulture, "{0:00}:{1:00}", (int)value.TotalHours, value.Minutes);
+        }
+
+        private static string FormatTimeOfDay(TimeSpan value)
+        {
+            if (value >= TimeSpan.FromDays(1))
+                return "24:00";
+
+            return string.Format(CultureInfo.CurrentCulture, "{0:00}:{1:00}", (int)value.TotalHours, value.Minutes);
+        }
+
+        private static string FormatRangeDuration(TimeSpan value)
+        {
+            var totalHours = (int)value.TotalHours;
+            return string.Format(CultureInfo.CurrentCulture, "{0:00}:{1:00}", totalHours, value.Minutes);
+        }
+
+        private Rectangle GetAxisLabelBounds(string label, int centerX, Rectangle timelineBounds)
+        {
+            var labelSize = TextRenderer.MeasureText(label, Font);
+            var width = Math.Max(36, labelSize.Width + 6);
+            var left = centerX - (width / 2);
+            left = Math.Clamp(left, timelineBounds.Left, Math.Max(timelineBounds.Left, timelineBounds.Right - width));
+
+            return new Rectangle(left, timelineBounds.Bottom + 7, width, 16);
+        }
+
+        private static int GetAppPaletteIndex(string displayName)
+        {
+            var hash = 17;
+            foreach (var character in displayName)
+                hash = unchecked((hash * 31) + char.ToUpperInvariant(character));
+
+            return Math.Abs(hash) % AppFillPalette.Length;
         }
     }
 }
