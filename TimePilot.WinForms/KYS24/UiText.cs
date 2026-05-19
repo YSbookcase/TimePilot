@@ -48,6 +48,12 @@ namespace TimePilot.WinForms.KYS24
             public static string TimelineTab => current.Main.TimelineTab;
             public static string WindowsRuntimeTrack => current.Main.WindowsRuntimeTrack;
             public static string ActivityTimelineTrack => current.Main.ActivityTimelineTrack;
+            public static string TimelineFullDay => current.Main.TimelineFullDay;
+            public static string TimelinePreviousView => current.Main.TimelinePreviousView;
+            public static string TimelinePreviousRange => current.Main.TimelinePreviousRange;
+            public static string TimelineNextRange => current.Main.TimelineNextRange;
+            public static string TimelineResetView => current.Main.TimelineResetView;
+            public static string TimelineViewRange(string value) => current.Main.TimelineViewRange(value);
             public static string Period => current.Main.Period;
             public static string Date => current.Main.Date;
             public static string Calendar => current.Main.Calendar;
@@ -316,6 +322,12 @@ namespace TimePilot.WinForms.KYS24
                         TimelineTab: "타임라인",
                         WindowsRuntimeTrack: "Windows",
                         ActivityTimelineTrack: "활동",
+                        TimelineFullDay: "전체 보기",
+                        TimelinePreviousView: "이전 보기",
+                        TimelinePreviousRange: "이전 구간",
+                        TimelineNextRange: "다음 구간",
+                        TimelineResetView: "전체 보기",
+                        TimelineViewRange: value => $"보기 범위: {value}",
                         Period: "기간",
                         Date: "날짜",
                         Calendar: "달력",
@@ -539,6 +551,12 @@ namespace TimePilot.WinForms.KYS24
                         TimelineTab: "Timeline",
                         WindowsRuntimeTrack: "Windows",
                         ActivityTimelineTrack: "Activity",
+                        TimelineFullDay: "Full day",
+                        TimelinePreviousView: "Previous view",
+                        TimelinePreviousRange: "Previous range",
+                        TimelineNextRange: "Next range",
+                        TimelineResetView: "Full day",
+                        TimelineViewRange: value => $"View range: {value}",
                         Period: "Period",
                         Date: "Date",
                         Calendar: "Calendar",
@@ -761,6 +779,12 @@ namespace TimePilot.WinForms.KYS24
             string TimelineTab,
             string WindowsRuntimeTrack,
             string ActivityTimelineTrack,
+            string TimelineFullDay,
+            string TimelinePreviousView,
+            string TimelinePreviousRange,
+            string TimelineNextRange,
+            string TimelineResetView,
+            Func<string, string> TimelineViewRange,
             string Period,
             string Date,
             string Calendar,

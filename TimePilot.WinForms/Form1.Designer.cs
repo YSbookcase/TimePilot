@@ -96,6 +96,12 @@
             timelineNextDateButton = new Button();
             timelineTodayButton = new Button();
             timelineDateStatusLabel = new Label();
+            timelineZoomPanel = new FlowLayoutPanel();
+            timelineZoomRangeLabel = new Label();
+            timelineZoomBackButton = new Button();
+            timelineZoomPreviousButton = new Button();
+            timelineZoomNextButton = new Button();
+            timelineZoomResetButton = new Button();
             timelineOverviewControl = new TimelineOverviewControl();
             timelineGrid = new BufferedDataGridView();
             timelineTypeColumn = new DataGridViewTextBoxColumn();
@@ -120,6 +126,7 @@
             ((System.ComponentModel.ISupportInitialize)runtimeSegmentsGrid).BeginInit();
             timelineTab.SuspendLayout();
             timelineDatePanel.SuspendLayout();
+            timelineZoomPanel.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)timelineGrid).BeginInit();
             SuspendLayout();
             // 
@@ -880,6 +887,7 @@
             //
             timelineTab.Controls.Add(timelineGrid);
             timelineTab.Controls.Add(timelineOverviewControl);
+            timelineTab.Controls.Add(timelineZoomPanel);
             timelineTab.Controls.Add(timelineDatePanel);
             timelineTab.Location = new Point(4, 24);
             timelineTab.Name = "timelineTab";
@@ -977,13 +985,84 @@
             timelineDateStatusLabel.TabIndex = 6;
             timelineDateStatusLabel.Text = UiText.Main.NotChecked;
             //
+            // timelineZoomPanel
+            //
+            timelineZoomPanel.Controls.Add(timelineZoomRangeLabel);
+            timelineZoomPanel.Controls.Add(timelineZoomBackButton);
+            timelineZoomPanel.Controls.Add(timelineZoomPreviousButton);
+            timelineZoomPanel.Controls.Add(timelineZoomNextButton);
+            timelineZoomPanel.Controls.Add(timelineZoomResetButton);
+            timelineZoomPanel.Dock = DockStyle.Top;
+            timelineZoomPanel.Location = new Point(3, 39);
+            timelineZoomPanel.Name = "timelineZoomPanel";
+            timelineZoomPanel.Padding = new Padding(8, 4, 8, 2);
+            timelineZoomPanel.Size = new Size(706, 32);
+            timelineZoomPanel.TabIndex = 2;
+            timelineZoomPanel.WrapContents = false;
+            //
+            // timelineZoomRangeLabel
+            //
+            timelineZoomRangeLabel.AutoSize = true;
+            timelineZoomRangeLabel.ForeColor = SystemColors.GrayText;
+            timelineZoomRangeLabel.Location = new Point(11, 10);
+            timelineZoomRangeLabel.Margin = new Padding(0, 6, 12, 0);
+            timelineZoomRangeLabel.Name = "timelineZoomRangeLabel";
+            timelineZoomRangeLabel.Size = new Size(91, 15);
+            timelineZoomRangeLabel.TabIndex = 0;
+            timelineZoomRangeLabel.Text = UiText.Main.TimelineViewRange(UiText.Main.TimelineFullDay);
+            //
+            // timelineZoomBackButton
+            //
+            timelineZoomBackButton.Enabled = false;
+            timelineZoomBackButton.Location = new Point(117, 7);
+            timelineZoomBackButton.Name = "timelineZoomBackButton";
+            timelineZoomBackButton.Size = new Size(76, 23);
+            timelineZoomBackButton.TabIndex = 1;
+            timelineZoomBackButton.Text = UiText.Main.TimelinePreviousView;
+            timelineZoomBackButton.UseVisualStyleBackColor = true;
+            timelineZoomBackButton.Click += OnTimelineZoomBackButtonClick;
+            //
+            // timelineZoomPreviousButton
+            //
+            timelineZoomPreviousButton.Enabled = false;
+            timelineZoomPreviousButton.Location = new Point(199, 7);
+            timelineZoomPreviousButton.Name = "timelineZoomPreviousButton";
+            timelineZoomPreviousButton.Size = new Size(76, 23);
+            timelineZoomPreviousButton.TabIndex = 2;
+            timelineZoomPreviousButton.Text = UiText.Main.TimelinePreviousRange;
+            timelineZoomPreviousButton.UseVisualStyleBackColor = true;
+            timelineZoomPreviousButton.Click += OnTimelineZoomPreviousButtonClick;
+            //
+            // timelineZoomNextButton
+            //
+            timelineZoomNextButton.Enabled = false;
+            timelineZoomNextButton.Location = new Point(281, 7);
+            timelineZoomNextButton.Name = "timelineZoomNextButton";
+            timelineZoomNextButton.Size = new Size(76, 23);
+            timelineZoomNextButton.TabIndex = 3;
+            timelineZoomNextButton.Text = UiText.Main.TimelineNextRange;
+            timelineZoomNextButton.UseVisualStyleBackColor = true;
+            timelineZoomNextButton.Click += OnTimelineZoomNextButtonClick;
+            //
+            // timelineZoomResetButton
+            //
+            timelineZoomResetButton.Enabled = false;
+            timelineZoomResetButton.Location = new Point(363, 7);
+            timelineZoomResetButton.Name = "timelineZoomResetButton";
+            timelineZoomResetButton.Size = new Size(76, 23);
+            timelineZoomResetButton.TabIndex = 4;
+            timelineZoomResetButton.Text = UiText.Main.TimelineResetView;
+            timelineZoomResetButton.UseVisualStyleBackColor = true;
+            timelineZoomResetButton.Click += OnTimelineZoomResetButtonClick;
+            //
             // timelineOverviewControl
             //
             timelineOverviewControl.Dock = DockStyle.Top;
-            timelineOverviewControl.Location = new Point(3, 39);
+            timelineOverviewControl.Location = new Point(3, 71);
             timelineOverviewControl.Name = "timelineOverviewControl";
             timelineOverviewControl.Size = new Size(706, 132);
-            timelineOverviewControl.TabIndex = 2;
+            timelineOverviewControl.TabIndex = 3;
+            timelineOverviewControl.ViewRangeChanged += OnTimelineOverviewViewRangeChanged;
             //
             // timelineGrid
             // 
@@ -997,14 +1076,14 @@
             timelineGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             timelineGrid.Columns.AddRange(new DataGridViewColumn[] { timelineTypeColumn, timelineStartedAtColumn, timelineEndedAtColumn, timelineDurationColumn, timelineAppIconColumn, timelineDisplayNameColumn });
             timelineGrid.Dock = DockStyle.Fill;
-            timelineGrid.Location = new Point(3, 171);
+            timelineGrid.Location = new Point(3, 203);
             timelineGrid.MultiSelect = false;
             timelineGrid.Name = "timelineGrid";
             timelineGrid.ReadOnly = true;
             timelineGrid.RowHeadersVisible = false;
             timelineGrid.ScrollBars = ScrollBars.Both;
             timelineGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            timelineGrid.Size = new Size(706, 246);
+            timelineGrid.Size = new Size(706, 214);
             timelineGrid.TabIndex = 0;
             timelineGrid.ColumnHeaderMouseClick += OnTimelineGridColumnHeaderMouseClick;
             // 
@@ -1099,6 +1178,8 @@
             timelineTab.ResumeLayout(false);
             timelineDatePanel.ResumeLayout(false);
             timelineDatePanel.PerformLayout();
+            timelineZoomPanel.ResumeLayout(false);
+            timelineZoomPanel.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)timelineGrid).EndInit();
             ResumeLayout(false);
             PerformLayout();
@@ -1182,6 +1263,12 @@
         private Button timelineNextDateButton;
         private Button timelineTodayButton;
         private Label timelineDateStatusLabel;
+        private FlowLayoutPanel timelineZoomPanel;
+        private Label timelineZoomRangeLabel;
+        private Button timelineZoomBackButton;
+        private Button timelineZoomPreviousButton;
+        private Button timelineZoomNextButton;
+        private Button timelineZoomResetButton;
         private TimelineOverviewControl timelineOverviewControl;
         private DataGridView timelineGrid;
         private DataGridViewTextBoxColumn timelineTypeColumn;
