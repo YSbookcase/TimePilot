@@ -486,6 +486,100 @@ namespace TimePilot.WinForms.KYS24
             return sessions;
         }
 
+        public IReadOnlyList<RawDataExportTable> GetRawDataExportTables()
+        {
+            return
+            [
+                GetRawDataExportTable(
+                    "apps",
+                    [
+                        "id",
+                        "process_name",
+                        "display_name",
+                        "executable_path",
+                        "first_seen_at",
+                        "last_seen_at",
+                        "user_alias",
+                        "is_excluded"
+                    ]),
+                GetRawDataExportTable(
+                    "app_runtime_sessions",
+                    [
+                        "id",
+                        "started_at",
+                        "ended_at",
+                        "duration_ms",
+                        "last_heartbeat_at",
+                        "shutdown_reason",
+                        "system_booted_at",
+                        "app_version"
+                    ]),
+                GetRawDataExportTable(
+                    "foreground_sessions",
+                    [
+                        "id",
+                        "app_id",
+                        "started_at",
+                        "ended_at",
+                        "duration_ms",
+                        "last_observed_at"
+                    ]),
+                GetRawDataExportTable(
+                    "idle_sessions",
+                    [
+                        "id",
+                        "started_at",
+                        "ended_at",
+                        "duration_ms",
+                        "threshold_ms",
+                        "foreground_app_id"
+                    ]),
+                GetRawDataExportTable(
+                    "process_runtime_sessions",
+                    [
+                        "id",
+                        "app_id",
+                        "process_id",
+                        "started_at",
+                        "ended_at",
+                        "duration_ms",
+                        "first_observed_at",
+                        "last_observed_at",
+                        "tracking_scope",
+                        "has_main_window",
+                        "is_current_session_process"
+                    ])
+            ];
+        }
+
+        private RawDataExportTable GetRawDataExportTable(string tableName, IReadOnlyList<string> columns)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = $"""
+                SELECT {string.Join(", ", columns)}
+                FROM {tableName}
+                ORDER BY id;
+                """;
+
+            var rows = new List<IReadOnlyList<string>>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var row = new string[columns.Count];
+                for (var i = 0; i < columns.Count; i++)
+                {
+                    row[i] = reader.IsDBNull(i)
+                        ? ""
+                        : Convert.ToString(reader.GetValue(i), CultureInfo.InvariantCulture) ?? "";
+                }
+
+                rows.Add(row);
+            }
+
+            return new RawDataExportTable(tableName, $"{tableName}.csv", columns, rows);
+        }
+
         public IReadOnlyList<ProcessRuntimeSessionStartResult> ApplyProcessRuntimeSessionChanges(
             IReadOnlyList<ProcessRuntimeSessionStart> starts,
             IReadOnlyList<ProcessRuntimeSessionUpdate> updates,

@@ -516,6 +516,7 @@ namespace TimePilot.WinForms
             Text = UiText.AppName;
             fileMenuItem.Text = UiText.Main.FileMenu;
             exportCsvMenuItem.Text = UiText.Main.ExportCsv;
+            exportRawDataMenuItem.Text = UiText.Main.ExportRawData;
             exitMenuItem.Text = UiText.Main.Exit;
             settingsMenuItem.Text = UiText.Main.SettingsMenu;
             preferencesMenuItem.Text = UiText.Main.Preferences;
@@ -1889,6 +1890,56 @@ namespace TimePilot.WinForms
                     this,
                     UiText.Main.CsvExportFailed(ex.Message),
                     UiText.Main.CsvExportTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+
+        private void OnExportRawDataMenuItemClick(object? sender, EventArgs e)
+        {
+            if (storage is null)
+                return;
+
+            var confirm = CenteredMessageDialog.Show(
+                this,
+                UiText.Main.RawDataExportWarning,
+                UiText.Main.RawDataExportTitle,
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Warning);
+            if (confirm != DialogResult.OK)
+                return;
+
+            var now = DateTimeOffset.UtcNow;
+            using var dialog = new SaveFileDialog
+            {
+                AddExtension = true,
+                DefaultExt = "zip",
+                FileName = $"TimePilot-raw-data-{now.ToLocalTime():yyyy-MM-dd}.zip",
+                Filter = UiText.Main.ZipFilter,
+                OverwritePrompt = true,
+                Title = UiText.Main.RawDataExportTitle
+            };
+
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            try
+            {
+                var exporter = new RawDataZipExporter(storage);
+                var exportedFiles = exporter.Export(dialog.FileName);
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Main.RawDataExportCompleted(dialog.FileName, exportedFiles.Count),
+                    UiText.Main.RawDataExportTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Main.RawDataExportFailed(ex.Message),
+                    UiText.Main.RawDataExportTitle,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
             }
