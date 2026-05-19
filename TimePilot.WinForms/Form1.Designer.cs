@@ -34,6 +34,7 @@
             summaryPeriodLabel = new Label();
             summaryPeriodComboBox = new ComboBox();
             summarySpecificDatePicker = new DateTimePicker();
+            summarySpecificDateCalendarButton = new Button();
             runtimeCoverageSummaryPanel = new FlowLayoutPanel();
             runtimeCoverageSummaryToolTip = new ToolTip(components);
             usageGrid = new BufferedDataGridView();
@@ -225,6 +226,7 @@
             summaryPeriodPanel.Controls.Add(summaryPeriodLabel);
             summaryPeriodPanel.Controls.Add(summaryPeriodComboBox);
             summaryPeriodPanel.Controls.Add(summarySpecificDatePicker);
+            summaryPeriodPanel.Controls.Add(summarySpecificDateCalendarButton);
             summaryPeriodPanel.Dock = DockStyle.Top;
             summaryPeriodPanel.Location = new Point(3, 3);
             summaryPeriodPanel.Name = "summaryPeriodPanel";
@@ -263,6 +265,17 @@
             summarySpecificDatePicker.TabIndex = 2;
             summarySpecificDatePicker.Visible = false;
             summarySpecificDatePicker.ValueChanged += OnSummarySpecificDatePickerValueChanged;
+            //
+            // summarySpecificDateCalendarButton
+            //
+            summarySpecificDateCalendarButton.Location = new Point(400, 7);
+            summarySpecificDateCalendarButton.Name = "summarySpecificDateCalendarButton";
+            summarySpecificDateCalendarButton.Size = new Size(52, 23);
+            summarySpecificDateCalendarButton.TabIndex = 3;
+            summarySpecificDateCalendarButton.Text = UiText.Main.Calendar;
+            summarySpecificDateCalendarButton.UseVisualStyleBackColor = true;
+            summarySpecificDateCalendarButton.Visible = false;
+            summarySpecificDateCalendarButton.Click += OnSummarySpecificDateCalendarButtonClick;
             // 
             // runtimeCoverageSummaryPanel
             // 
@@ -1089,6 +1102,7 @@
         private Label summaryPeriodLabel;
         private ComboBox summaryPeriodComboBox;
         private DateTimePicker summarySpecificDatePicker;
+        private Button summarySpecificDateCalendarButton;
         private FlowLayoutPanel runtimeCoverageSummaryPanel;
         private ToolTip runtimeCoverageSummaryToolTip;
         private DataGridView usageGrid;

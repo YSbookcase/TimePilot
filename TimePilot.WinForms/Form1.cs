@@ -350,7 +350,7 @@ namespace TimePilot.WinForms
 
                 summarySpecificDatePicker.MaxDate = today;
                 summarySpecificDatePicker.Value = selectedSummarySpecificDate;
-                summarySpecificDatePicker.Visible = selectedSummaryPeriod == SummaryPeriod.SpecificDate;
+                UpdateSummarySpecificDateControlsVisibility();
             }
             finally
             {
@@ -392,6 +392,9 @@ namespace TimePilot.WinForms
 
         private void InitializeRecordedDateCalendar()
         {
+            runtimeCoverageSummaryToolTip.SetToolTip(
+                summarySpecificDateCalendarButton,
+                UiText.Main.RecordedDateCalendarTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(
                 detailCalendarButton,
                 UiText.Main.RecordedDateCalendarTooltip);
@@ -524,6 +527,7 @@ namespace TimePilot.WinForms
             detailTab.Text = UiText.Main.DetailTab;
             timelineTab.Text = UiText.Main.TimelineTab;
             summaryPeriodLabel.Text = UiText.Main.Period;
+            summarySpecificDateCalendarButton.Text = UiText.Main.Calendar;
             detailDateLabel.Text = UiText.Main.Date;
             detailCalendarButton.Text = UiText.Main.Calendar;
             detailTodayButton.Text = UiText.Main.Today;
@@ -589,6 +593,7 @@ namespace TimePilot.WinForms
 
             trayIcon.Text = UiText.AppName;
             runtimeCoverageSummaryToolTip.SetToolTip(runtimeCoverageSummaryPanel, UiText.RuntimeCoverage.Tooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(summarySpecificDateCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(detailCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(detailRuntimeFilterComboBox, UiText.Main.RuntimeTrackingTypeTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(detailHelpButton, UiText.Main.DetailHelpTitle);
@@ -1294,16 +1299,48 @@ namespace TimePilot.WinForms
                 return;
 
             selectedSummaryPeriod = option.Period;
-            summarySpecificDatePicker.Visible = selectedSummaryPeriod == SummaryPeriod.SpecificDate;
+            UpdateSummarySpecificDateControlsVisibility();
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
         private void OnSummarySpecificDatePickerValueChanged(object? sender, EventArgs e)
         {
-            selectedSummarySpecificDate = summarySpecificDatePicker.Value.Date;
+            ApplySummarySpecificDate(summarySpecificDatePicker.Value.Date);
+        }
+
+        private void OnSummarySpecificDateCalendarButtonClick(object? sender, EventArgs e)
+        {
+            ShowRecordedDateCalendar(
+                summarySpecificDateCalendarButton,
+                selectedSummarySpecificDate,
+                ApplySummarySpecificDate);
+        }
+
+        private void ApplySummarySpecificDate(DateTime date)
+        {
+            selectedSummarySpecificDate = NormalizeSelectableDate(date);
+            if (summarySpecificDatePicker.Value.Date != selectedSummarySpecificDate)
+            {
+                isInitializingSummaryPeriodSelector = true;
+                try
+                {
+                    summarySpecificDatePicker.Value = selectedSummarySpecificDate;
+                }
+                finally
+                {
+                    isInitializingSummaryPeriodSelector = false;
+                }
+            }
 
             if (!isInitializingSummaryPeriodSelector && selectedSummaryPeriod == SummaryPeriod.SpecificDate)
                 RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void UpdateSummarySpecificDateControlsVisibility()
+        {
+            var isSpecificDate = selectedSummaryPeriod == SummaryPeriod.SpecificDate;
+            summarySpecificDatePicker.Visible = isSpecificDate;
+            summarySpecificDateCalendarButton.Visible = isSpecificDate;
         }
 
         private void OnRuntimeGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
