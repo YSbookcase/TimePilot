@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Win32;
 using TimePilot.WinForms.KYS24;
 
 namespace TimePilot.WinForms
@@ -57,6 +58,7 @@ namespace TimePilot.WinForms
         private bool processRuntimeSafeModeActivated;
         private bool isInitializingSummaryPeriodSelector;
         private bool isInitializingDateSelectors;
+        private bool systemEventHandlersRegistered;
         private Form? recordedDatePickerPopupForm;
 
         public Form1(bool startMinimizedToTray = false)
@@ -88,6 +90,8 @@ namespace TimePilot.WinForms
             ApplyProcessRuntimeSafeModeIfNeeded();
             UpdateDetailTrackingDisabledBanner();
             storage.BeginRuntimeSession(startedAt, systemBootedAt, Application.ProductVersion);
+            RecordWindowsSystemEvent("timepilot-start", "ApplicationStarted");
+            RegisterWindowsSystemEventHandlers();
 
             Icon = LoadAppIcon();
             ConfigureHeaderToolTip();
@@ -137,6 +141,7 @@ namespace TimePilot.WinForms
         {
             var endedAt = DateTimeOffset.UtcNow;
             isClosing = true;
+            UnregisterWindowsSystemEventHandlers();
             SaveWindowPlacement();
             sampleTimer.Stop();
             idleSessionTracker?.EndCurrentSession(endedAt);
@@ -146,6 +151,7 @@ namespace TimePilot.WinForms
                 processRuntimeSessionTracker?.EndCurrentSessions(endedAt);
             }
 
+            RecordWindowsSystemEvent("timepilot-exit", "ApplicationClosed");
             storage?.EndRuntimeSession(endedAt, "normal");
             storage?.Dispose();
             appIconCache.Dispose();
@@ -288,6 +294,89 @@ namespace TimePilot.WinForms
         private static DateTimeOffset GetCurrentSystemBootedAt(DateTimeOffset now)
         {
             return now - TimeSpan.FromMilliseconds(Environment.TickCount64);
+        }
+
+        private void RegisterWindowsSystemEventHandlers()
+        {
+            if (systemEventHandlersRegistered)
+                return;
+
+            SystemEvents.SessionSwitch += OnSystemSessionSwitch;
+            SystemEvents.PowerModeChanged += OnSystemPowerModeChanged;
+            SystemEvents.SessionEnding += OnSystemSessionEnding;
+            systemEventHandlersRegistered = true;
+        }
+
+        private void UnregisterWindowsSystemEventHandlers()
+        {
+            if (!systemEventHandlersRegistered)
+                return;
+
+            SystemEvents.SessionSwitch -= OnSystemSessionSwitch;
+            SystemEvents.PowerModeChanged -= OnSystemPowerModeChanged;
+            SystemEvents.SessionEnding -= OnSystemSessionEnding;
+            systemEventHandlersRegistered = false;
+        }
+
+        private void OnSystemSessionSwitch(object sender, SessionSwitchEventArgs e)
+        {
+            var eventType = e.Reason switch
+            {
+                SessionSwitchReason.SessionLock => "lock",
+                SessionSwitchReason.SessionUnlock => "unlock",
+                SessionSwitchReason.SessionLogon => "logon",
+                SessionSwitchReason.SessionLogoff => "logoff",
+                SessionSwitchReason.ConsoleConnect => "console-connect",
+                SessionSwitchReason.ConsoleDisconnect => "console-disconnect",
+                SessionSwitchReason.RemoteConnect => "remote-connect",
+                SessionSwitchReason.RemoteDisconnect => "remote-disconnect",
+                SessionSwitchReason.SessionRemoteControl => "remote-control",
+                _ => "session-switch"
+            };
+
+            RecordWindowsSystemEvent(eventType, e.Reason.ToString());
+        }
+
+        private void OnSystemPowerModeChanged(object sender, PowerModeChangedEventArgs e)
+        {
+            var eventType = e.Mode switch
+            {
+                PowerModes.Suspend => "suspend",
+                PowerModes.Resume => "resume",
+                PowerModes.StatusChange => "power-status-change",
+                _ => "power-mode"
+            };
+
+            RecordWindowsSystemEvent(eventType, e.Mode.ToString());
+        }
+
+        private void OnSystemSessionEnding(object sender, SessionEndingEventArgs e)
+        {
+            var eventType = e.Reason == SessionEndReasons.Logoff
+                ? "logoff"
+                : "system-shutdown";
+
+            RecordWindowsSystemEvent(eventType, $"SessionEnding:{e.Reason}");
+        }
+
+        private void RecordWindowsSystemEvent(string eventType, string details)
+        {
+            if (storage is null)
+                return;
+
+            try
+            {
+                var observedAt = DateTimeOffset.UtcNow;
+                storage.RecordSystemEvent(
+                    eventType,
+                    observedAt,
+                    GetCurrentSystemBootedAt(observedAt),
+                    details);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to record Windows system event: {ex}");
+            }
         }
 
         private void InitializeSummaryPeriodSelector()
@@ -1884,6 +1973,7 @@ namespace TimePilot.WinForms
                 storage.EndRuntimeSession(now, "clear-data");
                 storage.ClearUsageData();
                 storage.BeginRuntimeSession(now, GetCurrentSystemBootedAt(now), Application.ProductVersion);
+                RecordWindowsSystemEvent("timepilot-start", "ApplicationRestartedAfterClearData");
 
                 foregroundSessionTracker = new ForegroundSessionTracker(storage);
                 idleSessionTracker = new IdleSessionTracker(storage);
@@ -2025,7 +2115,8 @@ namespace TimePilot.WinForms
                 return;
 
             var sessions = storage.GetRecentRuntimeSessionDiagnostics(10);
-            var message = BuildRuntimeDiagnosticsMessage(sessions);
+            var systemEvents = storage.GetRecentSystemEventDiagnostics(5);
+            var message = BuildRuntimeDiagnosticsMessage(sessions, systemEvents);
             CenteredMessageDialog.Show(
                 this,
                 message,
@@ -2034,10 +2125,23 @@ namespace TimePilot.WinForms
                 MessageBoxIcon.Information);
         }
 
-        private static string BuildRuntimeDiagnosticsMessage(IReadOnlyList<AppRuntimeSessionDiagnostic> sessions)
+        private static string BuildRuntimeDiagnosticsMessage(
+            IReadOnlyList<AppRuntimeSessionDiagnostic> sessions,
+            IReadOnlyList<SystemEventDiagnostic> systemEvents)
         {
             if (sessions.Count == 0)
-                return UiText.Main.RuntimeDiagnosticsNoHistory;
+            {
+                if (systemEvents.Count == 0)
+                    return UiText.Main.RuntimeDiagnosticsNoHistory;
+
+                var eventOnlyLines = new List<string>
+                {
+                    UiText.Main.RuntimeDiagnosticsNoHistory,
+                    string.Empty
+                };
+                AddSystemEventDiagnostics(eventOnlyLines, systemEvents);
+                return string.Join(Environment.NewLine, eventOnlyLines);
+            }
 
             var lastSession = sessions[0];
             var unexpectedCount = sessions.Count(x => IsShutdownReason(x, "unexpected"));
@@ -2062,6 +2166,8 @@ namespace TimePilot.WinForms
                     FormatDiagnosticDuration(session)));
             }
 
+            AddSystemEventDiagnostics(lines, systemEvents);
+
             lines.AddRange(new[]
             {
                 string.Empty,
@@ -2069,6 +2175,24 @@ namespace TimePilot.WinForms
             });
 
             return string.Join(Environment.NewLine, lines);
+        }
+
+        private static void AddSystemEventDiagnostics(
+            List<string> lines,
+            IReadOnlyList<SystemEventDiagnostic> systemEvents)
+        {
+            if (systemEvents.Count == 0)
+                return;
+
+            lines.Add(string.Empty);
+            lines.Add(UiText.Main.RuntimeDiagnosticsSystemEvents);
+            foreach (var systemEvent in systemEvents)
+            {
+                lines.Add(UiText.Main.RuntimeDiagnosticsSystemEventItem(
+                    FormatDiagnosticDateTime(systemEvent.OccurredAt),
+                    GetSystemEventTypeText(systemEvent.EventType),
+                    systemEvent.Details ?? "-"));
+            }
         }
 
         private static bool IsShutdownReason(AppRuntimeSessionDiagnostic session, string reason)
@@ -2086,6 +2210,23 @@ namespace TimePilot.WinForms
                 "clear-data" => UiText.Main.ShutdownReasonClearData,
                 "running" => UiText.Main.ShutdownReasonRunning,
                 _ => UiText.Main.ShutdownReasonUnknown
+            };
+        }
+
+        private static string GetSystemEventTypeText(string eventType)
+        {
+            return eventType.ToLowerInvariant() switch
+            {
+                "lock" => UiText.Main.SystemEventLock,
+                "unlock" => UiText.Main.SystemEventUnlock,
+                "logon" => UiText.Main.SystemEventLogon,
+                "logoff" => UiText.Main.SystemEventLogoff,
+                "suspend" => UiText.Main.SystemEventSuspend,
+                "resume" => UiText.Main.SystemEventResume,
+                "timepilot-start" => UiText.Main.SystemEventTimePilotStart,
+                "timepilot-exit" => UiText.Main.SystemEventTimePilotExit,
+                "system-shutdown" => UiText.Main.ShutdownReasonSystemShutdown,
+                _ => eventType
             };
         }
 

@@ -137,6 +137,9 @@ namespace TimePilot.WinForms.KYS24
             public static string RuntimeDiagnosticsHistory => current.Main.RuntimeDiagnosticsHistory;
             public static string RuntimeDiagnosticsHistoryItem(string startedAt, string endedAt, string reason, string duration) =>
                 current.Main.RuntimeDiagnosticsHistoryItem(startedAt, endedAt, reason, duration);
+            public static string RuntimeDiagnosticsSystemEvents => current.Main.RuntimeDiagnosticsSystemEvents;
+            public static string RuntimeDiagnosticsSystemEventItem(string occurredAt, string eventType, string details) =>
+                current.Main.RuntimeDiagnosticsSystemEventItem(occurredAt, eventType, details);
             public static string RuntimeDiagnosticsNote => current.Main.RuntimeDiagnosticsNote;
             public static string ShutdownReasonNormal => current.Main.ShutdownReasonNormal;
             public static string ShutdownReasonUnexpected => current.Main.ShutdownReasonUnexpected;
@@ -144,6 +147,14 @@ namespace TimePilot.WinForms.KYS24
             public static string ShutdownReasonClearData => current.Main.ShutdownReasonClearData;
             public static string ShutdownReasonRunning => current.Main.ShutdownReasonRunning;
             public static string ShutdownReasonUnknown => current.Main.ShutdownReasonUnknown;
+            public static string SystemEventLock => current.Main.SystemEventLock;
+            public static string SystemEventUnlock => current.Main.SystemEventUnlock;
+            public static string SystemEventLogon => current.Main.SystemEventLogon;
+            public static string SystemEventLogoff => current.Main.SystemEventLogoff;
+            public static string SystemEventSuspend => current.Main.SystemEventSuspend;
+            public static string SystemEventResume => current.Main.SystemEventResume;
+            public static string SystemEventTimePilotStart => current.Main.SystemEventTimePilotStart;
+            public static string SystemEventTimePilotExit => current.Main.SystemEventTimePilotExit;
             public static string AboutTitle => current.Main.AboutTitle;
             public static string UsageRatioTooltip => current.Main.UsageRatioTooltip;
             public static string RuntimeLastObservedTooltip => current.Main.RuntimeLastObservedTooltip;
@@ -411,6 +422,8 @@ namespace TimePilot.WinForms.KYS24
                         RuntimeDiagnosticsRecentUnexpectedCount: (count, total) => $"최근 {total}회 중 예상치 못한 종료: {count}회",
                         RuntimeDiagnosticsHistory: "최근 실행 이력",
                         RuntimeDiagnosticsHistoryItem: (startedAt, endedAt, reason, duration) => $"- {startedAt} ~ {endedAt} · {reason} · {duration}",
+                        RuntimeDiagnosticsSystemEvents: "최근 Windows 이벤트",
+                        RuntimeDiagnosticsSystemEventItem: (occurredAt, eventType, details) => $"- {occurredAt} · {eventType} · {details}",
                         RuntimeDiagnosticsNote: "Windows 종료/다시 시작으로 인한 종료는 비정상 종료가 아닙니다. 예상치 못한 종료가 반복되면 안전모드나 성능 문제 진단과 함께 확인하세요.",
                         ShutdownReasonNormal: "정상 종료",
                         ShutdownReasonUnexpected: "예상치 못한 종료",
@@ -418,6 +431,14 @@ namespace TimePilot.WinForms.KYS24
                         ShutdownReasonClearData: "사용 기록 삭제 중 재시작",
                         ShutdownReasonRunning: "실행 중",
                         ShutdownReasonUnknown: "알 수 없음",
+                        SystemEventLock: "잠금",
+                        SystemEventUnlock: "잠금 해제",
+                        SystemEventLogon: "로그온",
+                        SystemEventLogoff: "로그오프",
+                        SystemEventSuspend: "절전",
+                        SystemEventResume: "복귀",
+                        SystemEventTimePilotStart: "TimePilot 시작",
+                        SystemEventTimePilotExit: "TimePilot 종료",
                         AboutTitle: "TimePilot 정보",
                         UsageRatioTooltip: "선택 기간 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.",
                         RuntimeLastObservedTooltip: "백그라운드 앱 추적이 실제로 마지막 관측한 시각입니다.",
@@ -640,6 +661,8 @@ namespace TimePilot.WinForms.KYS24
                         RuntimeDiagnosticsRecentUnexpectedCount: (count, total) => $"Unexpected exits in last {total} runs: {count}",
                         RuntimeDiagnosticsHistory: "Recent run history",
                         RuntimeDiagnosticsHistoryItem: (startedAt, endedAt, reason, duration) => $"- {startedAt} ~ {endedAt} · {reason} · {duration}",
+                        RuntimeDiagnosticsSystemEvents: "Recent Windows events",
+                        RuntimeDiagnosticsSystemEventItem: (occurredAt, eventType, details) => $"- {occurredAt} · {eventType} · {details}",
                         RuntimeDiagnosticsNote: "Windows shutdown or restart is not treated as an unexpected exit. If unexpected exits repeat, check safe mode and performance diagnostics together.",
                         ShutdownReasonNormal: "Normal exit",
                         ShutdownReasonUnexpected: "Unexpected exit",
@@ -647,6 +670,14 @@ namespace TimePilot.WinForms.KYS24
                         ShutdownReasonClearData: "Restarted while clearing usage data",
                         ShutdownReasonRunning: "Running",
                         ShutdownReasonUnknown: "Unknown",
+                        SystemEventLock: "Lock",
+                        SystemEventUnlock: "Unlock",
+                        SystemEventLogon: "Logon",
+                        SystemEventLogoff: "Logoff",
+                        SystemEventSuspend: "Suspend",
+                        SystemEventResume: "Resume",
+                        SystemEventTimePilotStart: "TimePilot start",
+                        SystemEventTimePilotExit: "TimePilot exit",
                         AboutTitle: "About TimePilot",
                         UsageRatioTooltip: "The share of this app within total active usage time for the selected period.",
                         RuntimeLastObservedTooltip: "The last time background app tracking actually observed this app.",
@@ -861,6 +892,8 @@ namespace TimePilot.WinForms.KYS24
             Func<int, int, string> RuntimeDiagnosticsRecentUnexpectedCount,
             string RuntimeDiagnosticsHistory,
             Func<string, string, string, string, string> RuntimeDiagnosticsHistoryItem,
+            string RuntimeDiagnosticsSystemEvents,
+            Func<string, string, string, string> RuntimeDiagnosticsSystemEventItem,
             string RuntimeDiagnosticsNote,
             string ShutdownReasonNormal,
             string ShutdownReasonUnexpected,
@@ -868,6 +901,14 @@ namespace TimePilot.WinForms.KYS24
             string ShutdownReasonClearData,
             string ShutdownReasonRunning,
             string ShutdownReasonUnknown,
+            string SystemEventLock,
+            string SystemEventUnlock,
+            string SystemEventLogon,
+            string SystemEventLogoff,
+            string SystemEventSuspend,
+            string SystemEventResume,
+            string SystemEventTimePilotStart,
+            string SystemEventTimePilotExit,
             string AboutTitle,
             string UsageRatioTooltip,
             string RuntimeLastObservedTooltip,

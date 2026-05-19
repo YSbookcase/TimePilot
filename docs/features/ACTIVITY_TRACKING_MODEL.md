@@ -12,6 +12,7 @@ The first model should track:
 - Foreground activity time
 - Idle time after the configured inactivity threshold
 - Process runtime, including background programs
+- Windows system events that explain gaps, such as lock, unlock, suspend, and resume
 
 CPU, memory, disk, and network tracking are deferred because they can increase database size and background overhead.
 
@@ -158,6 +159,35 @@ is_current_session_process
 The process list can be sampled every 30 or 60 seconds at first. Resource metrics are intentionally excluded.
 
 `tracking_scope`, `has_main_window`, and `is_current_session_process` preserve enough context to explain how the process was observed. They can also help distinguish current tracking-scope visibility from actual process termination.
+
+### 3.6 system_events
+
+Windows system events observed while TimePilot is running.
+
+```text
+id
+event_type
+occurred_at
+app_runtime_session_id
+system_booted_at
+details
+```
+
+Initial event types include:
+
+```text
+lock
+unlock
+logon
+logoff
+suspend
+resume
+system-shutdown
+timepilot-start
+timepilot-exit
+```
+
+These events are not a replacement for foreground, idle, or runtime sessions. They provide context for timeline gaps and diagnostics, especially when distinguishing TimePilot not running, Windows sleep, screen lock, logoff, or shutdown.
 
 ---
 

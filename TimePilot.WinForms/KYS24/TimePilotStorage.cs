@@ -90,6 +90,16 @@ namespace TimePilot.WinForms.KYS24
                     FOREIGN KEY (app_id) REFERENCES apps(id)
                 );
 
+                CREATE TABLE IF NOT EXISTS system_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    occurred_at TEXT NOT NULL,
+                    app_runtime_session_id INTEGER NULL,
+                    system_booted_at TEXT NULL,
+                    details TEXT NULL,
+                    FOREIGN KEY (app_runtime_session_id) REFERENCES app_runtime_sessions(id)
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_foreground_sessions_started_at
                     ON foreground_sessions(started_at);
 
@@ -104,6 +114,9 @@ namespace TimePilot.WinForms.KYS24
 
                 CREATE INDEX IF NOT EXISTS idx_process_runtime_sessions_process_id
                     ON process_runtime_sessions(process_id);
+
+                CREATE INDEX IF NOT EXISTS idx_system_events_occurred_at
+                    ON system_events(occurred_at);
                 """;
             command.ExecuteNonQuery();
 
@@ -371,6 +384,32 @@ namespace TimePilot.WinForms.KYS24
             EndProcessRuntimeSession(connection, sessionId, endedAt);
         }
 
+        public void RecordSystemEvent(
+            string eventType,
+            DateTimeOffset occurredAt,
+            DateTimeOffset systemBootedAt,
+            string? details)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO system_events (
+                    event_type,
+                    occurred_at,
+                    app_runtime_session_id,
+                    system_booted_at,
+                    details
+                )
+                VALUES ($eventType, $occurredAt, $appRuntimeSessionId, $systemBootedAt, $details);
+                """;
+            command.Parameters.AddWithValue("$eventType", eventType);
+            command.Parameters.AddWithValue("$occurredAt", FormatTimestamp(occurredAt));
+            command.Parameters.AddWithValue("$appRuntimeSessionId", (object?)runtimeSessionId ?? DBNull.Value);
+            command.Parameters.AddWithValue("$systemBootedAt", FormatTimestamp(systemBootedAt));
+            command.Parameters.AddWithValue("$details", (object?)details ?? DBNull.Value);
+            command.ExecuteNonQuery();
+        }
+
         public void ClearUsageData()
         {
             using var connection = OpenConnection();
@@ -379,6 +418,7 @@ namespace TimePilot.WinForms.KYS24
             foreach (var tableName in new[]
             {
                 "process_runtime_sessions",
+                "system_events",
                 "foreground_sessions",
                 "idle_sessions",
                 "app_runtime_sessions",
@@ -397,6 +437,7 @@ namespace TimePilot.WinForms.KYS24
                 DELETE FROM sqlite_sequence
                 WHERE name IN (
                     'process_runtime_sessions',
+                    'system_events',
                     'foreground_sessions',
                     'idle_sessions',
                     'app_runtime_sessions',
@@ -486,6 +527,36 @@ namespace TimePilot.WinForms.KYS24
             return sessions;
         }
 
+        public IReadOnlyList<SystemEventDiagnostic> GetRecentSystemEventDiagnostics(int limit)
+        {
+            if (limit <= 0)
+                return Array.Empty<SystemEventDiagnostic>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT occurred_at,
+                       event_type,
+                       details
+                FROM system_events
+                ORDER BY occurred_at DESC
+                LIMIT $limit;
+                """;
+            command.Parameters.AddWithValue("$limit", limit);
+
+            var events = new List<SystemEventDiagnostic>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                events.Add(new SystemEventDiagnostic(
+                    ParseTimestamp(reader.GetString(0)),
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2)));
+            }
+
+            return events;
+        }
+
         public IReadOnlyList<RawDataExportTable> GetRawDataExportTables()
         {
             return
@@ -548,6 +619,16 @@ namespace TimePilot.WinForms.KYS24
                         "tracking_scope",
                         "has_main_window",
                         "is_current_session_process"
+                    ]),
+                GetRawDataExportTable(
+                    "system_events",
+                    [
+                        "id",
+                        "event_type",
+                        "occurred_at",
+                        "app_runtime_session_id",
+                        "system_booted_at",
+                        "details"
                     ])
             ];
         }
