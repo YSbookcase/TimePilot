@@ -21,6 +21,7 @@
             mainMenuStrip = new MenuStrip();
             fileMenuItem = new ToolStripMenuItem();
             exportCsvMenuItem = new ToolStripMenuItem();
+            exportRawDataMenuItem = new ToolStripMenuItem();
             exitMenuItem = new ToolStripMenuItem();
             settingsMenuItem = new ToolStripMenuItem();
             preferencesMenuItem = new ToolStripMenuItem();
@@ -131,7 +132,7 @@
             // 
             // fileMenuItem
             // 
-            fileMenuItem.DropDownItems.AddRange(new ToolStripItem[] { exportCsvMenuItem, exitMenuItem });
+            fileMenuItem.DropDownItems.AddRange(new ToolStripItem[] { exportCsvMenuItem, exportRawDataMenuItem, exitMenuItem });
             fileMenuItem.Name = "fileMenuItem";
             fileMenuItem.Size = new Size(43, 20);
             fileMenuItem.Text = UiText.Main.FileMenu;
@@ -142,6 +143,13 @@
             exportCsvMenuItem.Size = new Size(180, 22);
             exportCsvMenuItem.Text = UiText.Main.ExportCsv;
             exportCsvMenuItem.Click += OnExportCsvMenuItemClick;
+            //
+            // exportRawDataMenuItem
+            //
+            exportRawDataMenuItem.Name = "exportRawDataMenuItem";
+            exportRawDataMenuItem.Size = new Size(180, 22);
+            exportRawDataMenuItem.Text = UiText.Main.ExportRawData;
+            exportRawDataMenuItem.Click += OnExportRawDataMenuItemClick;
             // 
             // exitMenuItem
             // 
@@ -1089,6 +1097,7 @@
         private MenuStrip mainMenuStrip;
         private ToolStripMenuItem fileMenuItem;
         private ToolStripMenuItem exportCsvMenuItem;
+        private ToolStripMenuItem exportRawDataMenuItem;
         private ToolStripMenuItem exitMenuItem;
         private ToolStripMenuItem settingsMenuItem;
         private ToolStripMenuItem preferencesMenuItem;
