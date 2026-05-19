@@ -46,6 +46,8 @@ namespace TimePilot.WinForms.KYS24
             public static string SummaryTab => current.Main.SummaryTab;
             public static string DetailTab => current.Main.DetailTab;
             public static string TimelineTab => current.Main.TimelineTab;
+            public static string WindowsRuntimeTrack => current.Main.WindowsRuntimeTrack;
+            public static string ActivityTimelineTrack => current.Main.ActivityTimelineTrack;
             public static string Period => current.Main.Period;
             public static string Date => current.Main.Date;
             public static string Calendar => current.Main.Calendar;
@@ -312,6 +314,8 @@ namespace TimePilot.WinForms.KYS24
                         SummaryTab: "요약",
                         DetailTab: "상세",
                         TimelineTab: "타임라인",
+                        WindowsRuntimeTrack: "Windows",
+                        ActivityTimelineTrack: "활동",
                         Period: "기간",
                         Date: "날짜",
                         Calendar: "달력",
@@ -533,6 +537,8 @@ namespace TimePilot.WinForms.KYS24
                         SummaryTab: "Summary",
                         DetailTab: "Details",
                         TimelineTab: "Timeline",
+                        WindowsRuntimeTrack: "Windows",
+                        ActivityTimelineTrack: "Activity",
                         Period: "Period",
                         Date: "Date",
                         Calendar: "Calendar",
@@ -753,6 +759,8 @@ namespace TimePilot.WinForms.KYS24
             string SummaryTab,
             string DetailTab,
             string TimelineTab,
+            string WindowsRuntimeTrack,
+            string ActivityTimelineTrack,
             string Period,
             string Date,
             string Calendar,

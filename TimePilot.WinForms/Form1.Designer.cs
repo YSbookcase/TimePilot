@@ -96,6 +96,7 @@
             timelineNextDateButton = new Button();
             timelineTodayButton = new Button();
             timelineDateStatusLabel = new Label();
+            timelineOverviewControl = new TimelineOverviewControl();
             timelineGrid = new BufferedDataGridView();
             timelineTypeColumn = new DataGridViewTextBoxColumn();
             timelineStartedAtColumn = new DataGridViewTextBoxColumn();
@@ -876,8 +877,9 @@
             runtimeSegmentProcessIdColumn.Width = 80;
             // 
             // timelineTab
-            // 
+            //
             timelineTab.Controls.Add(timelineGrid);
+            timelineTab.Controls.Add(timelineOverviewControl);
             timelineTab.Controls.Add(timelineDatePanel);
             timelineTab.Location = new Point(4, 24);
             timelineTab.Name = "timelineTab";
@@ -974,7 +976,15 @@
             timelineDateStatusLabel.Size = new Size(55, 15);
             timelineDateStatusLabel.TabIndex = 6;
             timelineDateStatusLabel.Text = UiText.Main.NotChecked;
-            // 
+            //
+            // timelineOverviewControl
+            //
+            timelineOverviewControl.Dock = DockStyle.Top;
+            timelineOverviewControl.Location = new Point(3, 39);
+            timelineOverviewControl.Name = "timelineOverviewControl";
+            timelineOverviewControl.Size = new Size(706, 132);
+            timelineOverviewControl.TabIndex = 2;
+            //
             // timelineGrid
             // 
             timelineGrid.AllowUserToAddRows = false;
@@ -987,14 +997,14 @@
             timelineGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             timelineGrid.Columns.AddRange(new DataGridViewColumn[] { timelineTypeColumn, timelineStartedAtColumn, timelineEndedAtColumn, timelineDurationColumn, timelineAppIconColumn, timelineDisplayNameColumn });
             timelineGrid.Dock = DockStyle.Fill;
-            timelineGrid.Location = new Point(3, 39);
+            timelineGrid.Location = new Point(3, 171);
             timelineGrid.MultiSelect = false;
             timelineGrid.Name = "timelineGrid";
             timelineGrid.ReadOnly = true;
             timelineGrid.RowHeadersVisible = false;
             timelineGrid.ScrollBars = ScrollBars.Both;
             timelineGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            timelineGrid.Size = new Size(706, 378);
+            timelineGrid.Size = new Size(706, 246);
             timelineGrid.TabIndex = 0;
             timelineGrid.ColumnHeaderMouseClick += OnTimelineGridColumnHeaderMouseClick;
             // 
@@ -1172,6 +1182,7 @@
         private Button timelineNextDateButton;
         private Button timelineTodayButton;
         private Label timelineDateStatusLabel;
+        private TimelineOverviewControl timelineOverviewControl;
         private DataGridView timelineGrid;
         private DataGridViewTextBoxColumn timelineTypeColumn;
         private DataGridViewTextBoxColumn timelineStartedAtColumn;
