@@ -447,6 +447,45 @@ namespace TimePilot.WinForms.KYS24
             return matchedCount >= requiredCount;
         }
 
+        public IReadOnlyList<AppRuntimeSessionDiagnostic> GetRecentRuntimeSessionDiagnostics(int limit)
+        {
+            if (limit <= 0)
+                return Array.Empty<AppRuntimeSessionDiagnostic>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT started_at,
+                       ended_at,
+                       last_heartbeat_at,
+                       duration_ms,
+                       shutdown_reason,
+                       system_booted_at,
+                       app_version
+                FROM app_runtime_sessions
+                WHERE ended_at IS NOT NULL
+                ORDER BY started_at DESC
+                LIMIT $limit;
+                """;
+            command.Parameters.AddWithValue("$limit", limit);
+
+            var sessions = new List<AppRuntimeSessionDiagnostic>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                sessions.Add(new AppRuntimeSessionDiagnostic(
+                    ParseTimestamp(reader.GetString(0)),
+                    reader.IsDBNull(1) ? null : ParseTimestamp(reader.GetString(1)),
+                    reader.IsDBNull(2) ? null : ParseTimestamp(reader.GetString(2)),
+                    reader.IsDBNull(3) ? null : reader.GetInt64(3),
+                    reader.IsDBNull(4) ? null : reader.GetString(4),
+                    reader.IsDBNull(5) ? null : ParseTimestamp(reader.GetString(5)),
+                    reader.IsDBNull(6) ? null : reader.GetString(6)));
+            }
+
+            return sessions;
+        }
+
         public IReadOnlyList<ProcessRuntimeSessionStartResult> ApplyProcessRuntimeSessionChanges(
             IReadOnlyList<ProcessRuntimeSessionStart> starts,
             IReadOnlyList<ProcessRuntimeSessionUpdate> updates,

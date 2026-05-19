@@ -108,6 +108,30 @@ namespace TimePilot.WinForms.KYS24
             public static string PerformancePrefix => current.Main.PerformancePrefix;
             public static string CsvFilter => current.Main.CsvFilter;
             public static string CsvExportTitle => current.Main.CsvExportTitle;
+            public static string RuntimeDiagnostics => current.Main.RuntimeDiagnostics;
+            public static string RuntimeDiagnosticsTitle => current.Main.RuntimeDiagnosticsTitle;
+            public static string RuntimeDiagnosticsNoHistory => current.Main.RuntimeDiagnosticsNoHistory;
+            public static string RuntimeDiagnosticsLastRun => current.Main.RuntimeDiagnosticsLastRun;
+            public static string RuntimeDiagnosticsStartedAt(string value) =>
+                current.Main.RuntimeDiagnosticsStartedAt(value);
+            public static string RuntimeDiagnosticsEndedAt(string value) =>
+                current.Main.RuntimeDiagnosticsEndedAt(value);
+            public static string RuntimeDiagnosticsDuration(string value) =>
+                current.Main.RuntimeDiagnosticsDuration(value);
+            public static string RuntimeDiagnosticsShutdownReason(string value) =>
+                current.Main.RuntimeDiagnosticsShutdownReason(value);
+            public static string RuntimeDiagnosticsRecentUnexpectedCount(int count, int total) =>
+                current.Main.RuntimeDiagnosticsRecentUnexpectedCount(count, total);
+            public static string RuntimeDiagnosticsHistory => current.Main.RuntimeDiagnosticsHistory;
+            public static string RuntimeDiagnosticsHistoryItem(string startedAt, string endedAt, string reason, string duration) =>
+                current.Main.RuntimeDiagnosticsHistoryItem(startedAt, endedAt, reason, duration);
+            public static string RuntimeDiagnosticsNote => current.Main.RuntimeDiagnosticsNote;
+            public static string ShutdownReasonNormal => current.Main.ShutdownReasonNormal;
+            public static string ShutdownReasonUnexpected => current.Main.ShutdownReasonUnexpected;
+            public static string ShutdownReasonSystemShutdown => current.Main.ShutdownReasonSystemShutdown;
+            public static string ShutdownReasonClearData => current.Main.ShutdownReasonClearData;
+            public static string ShutdownReasonRunning => current.Main.ShutdownReasonRunning;
+            public static string ShutdownReasonUnknown => current.Main.ShutdownReasonUnknown;
             public static string AboutTitle => current.Main.AboutTitle;
             public static string UsageRatioTooltip => current.Main.UsageRatioTooltip;
             public static string RuntimeLastObservedTooltip => current.Main.RuntimeLastObservedTooltip;
@@ -341,6 +365,24 @@ namespace TimePilot.WinForms.KYS24
                         PerformancePrefix: "성능: ",
                         CsvFilter: "CSV 파일 (*.csv)|*.csv",
                         CsvExportTitle: "CSV 내보내기",
+                        RuntimeDiagnostics: "실행 진단",
+                        RuntimeDiagnosticsTitle: "TimePilot 실행 진단",
+                        RuntimeDiagnosticsNoHistory: "아직 확인할 수 있는 이전 실행 기록이 없습니다.",
+                        RuntimeDiagnosticsLastRun: "최근 종료된 실행",
+                        RuntimeDiagnosticsStartedAt: value => $"시작: {value}",
+                        RuntimeDiagnosticsEndedAt: value => $"종료: {value}",
+                        RuntimeDiagnosticsDuration: value => $"실행 시간: {value}",
+                        RuntimeDiagnosticsShutdownReason: value => $"종료 이유: {value}",
+                        RuntimeDiagnosticsRecentUnexpectedCount: (count, total) => $"최근 {total}회 중 예상치 못한 종료: {count}회",
+                        RuntimeDiagnosticsHistory: "최근 실행 이력",
+                        RuntimeDiagnosticsHistoryItem: (startedAt, endedAt, reason, duration) => $"- {startedAt} ~ {endedAt} · {reason} · {duration}",
+                        RuntimeDiagnosticsNote: "Windows 종료/다시 시작으로 인한 종료는 비정상 종료가 아닙니다. 예상치 못한 종료가 반복되면 안전모드나 성능 문제 진단과 함께 확인하세요.",
+                        ShutdownReasonNormal: "정상 종료",
+                        ShutdownReasonUnexpected: "예상치 못한 종료",
+                        ShutdownReasonSystemShutdown: "Windows 종료 또는 다시 시작",
+                        ShutdownReasonClearData: "사용 기록 삭제 중 재시작",
+                        ShutdownReasonRunning: "실행 중",
+                        ShutdownReasonUnknown: "알 수 없음",
                         AboutTitle: "TimePilot 정보",
                         UsageRatioTooltip: "선택 기간 전체 활성 사용 시간 중 이 앱이 차지한 비율입니다.",
                         RuntimeLastObservedTooltip: "백그라운드 앱 추적이 실제로 마지막 관측한 시각입니다.",
@@ -534,6 +576,24 @@ namespace TimePilot.WinForms.KYS24
                         PerformancePrefix: "Performance: ",
                         CsvFilter: "CSV files (*.csv)|*.csv",
                         CsvExportTitle: "Export CSV",
+                        RuntimeDiagnostics: "Runtime diagnostics",
+                        RuntimeDiagnosticsTitle: "TimePilot runtime diagnostics",
+                        RuntimeDiagnosticsNoHistory: "No previous runtime history is available yet.",
+                        RuntimeDiagnosticsLastRun: "Most recent completed run",
+                        RuntimeDiagnosticsStartedAt: value => $"Started: {value}",
+                        RuntimeDiagnosticsEndedAt: value => $"Ended: {value}",
+                        RuntimeDiagnosticsDuration: value => $"Duration: {value}",
+                        RuntimeDiagnosticsShutdownReason: value => $"Shutdown reason: {value}",
+                        RuntimeDiagnosticsRecentUnexpectedCount: (count, total) => $"Unexpected exits in last {total} runs: {count}",
+                        RuntimeDiagnosticsHistory: "Recent run history",
+                        RuntimeDiagnosticsHistoryItem: (startedAt, endedAt, reason, duration) => $"- {startedAt} ~ {endedAt} · {reason} · {duration}",
+                        RuntimeDiagnosticsNote: "Windows shutdown or restart is not treated as an unexpected exit. If unexpected exits repeat, check safe mode and performance diagnostics together.",
+                        ShutdownReasonNormal: "Normal exit",
+                        ShutdownReasonUnexpected: "Unexpected exit",
+                        ShutdownReasonSystemShutdown: "Windows shutdown or restart",
+                        ShutdownReasonClearData: "Restarted while clearing usage data",
+                        ShutdownReasonRunning: "Running",
+                        ShutdownReasonUnknown: "Unknown",
                         AboutTitle: "About TimePilot",
                         UsageRatioTooltip: "The share of this app within total active usage time for the selected period.",
                         RuntimeLastObservedTooltip: "The last time background app tracking actually observed this app.",
@@ -719,6 +779,24 @@ namespace TimePilot.WinForms.KYS24
             string PerformancePrefix,
             string CsvFilter,
             string CsvExportTitle,
+            string RuntimeDiagnostics,
+            string RuntimeDiagnosticsTitle,
+            string RuntimeDiagnosticsNoHistory,
+            string RuntimeDiagnosticsLastRun,
+            Func<string, string> RuntimeDiagnosticsStartedAt,
+            Func<string, string> RuntimeDiagnosticsEndedAt,
+            Func<string, string> RuntimeDiagnosticsDuration,
+            Func<string, string> RuntimeDiagnosticsShutdownReason,
+            Func<int, int, string> RuntimeDiagnosticsRecentUnexpectedCount,
+            string RuntimeDiagnosticsHistory,
+            Func<string, string, string, string, string> RuntimeDiagnosticsHistoryItem,
+            string RuntimeDiagnosticsNote,
+            string ShutdownReasonNormal,
+            string ShutdownReasonUnexpected,
+            string ShutdownReasonSystemShutdown,
+            string ShutdownReasonClearData,
+            string ShutdownReasonRunning,
+            string ShutdownReasonUnknown,
             string AboutTitle,
             string UsageRatioTooltip,
             string RuntimeLastObservedTooltip,

@@ -25,6 +25,7 @@
             settingsMenuItem = new ToolStripMenuItem();
             preferencesMenuItem = new ToolStripMenuItem();
             helpMenuItem = new ToolStripMenuItem();
+            runtimeDiagnosticsMenuItem = new ToolStripMenuItem();
             aboutMenuItem = new ToolStripMenuItem();
             statusLabel = new Label();
             mainTabs = new TabControl();
@@ -164,15 +165,22 @@
             // 
             // helpMenuItem
             // 
-            helpMenuItem.DropDownItems.AddRange(new ToolStripItem[] { aboutMenuItem });
+            helpMenuItem.DropDownItems.AddRange(new ToolStripItem[] { runtimeDiagnosticsMenuItem, aboutMenuItem });
             helpMenuItem.Name = "helpMenuItem";
             helpMenuItem.Size = new Size(55, 20);
             helpMenuItem.Text = UiText.Main.HelpMenu;
+            //
+            // runtimeDiagnosticsMenuItem
+            //
+            runtimeDiagnosticsMenuItem.Name = "runtimeDiagnosticsMenuItem";
+            runtimeDiagnosticsMenuItem.Size = new Size(180, 22);
+            runtimeDiagnosticsMenuItem.Text = UiText.Main.RuntimeDiagnostics;
+            runtimeDiagnosticsMenuItem.Click += OnRuntimeDiagnosticsMenuItemClick;
             // 
             // aboutMenuItem
             // 
             aboutMenuItem.Name = "aboutMenuItem";
-            aboutMenuItem.Size = new Size(98, 22);
+            aboutMenuItem.Size = new Size(180, 22);
             aboutMenuItem.Text = UiText.Main.About;
             aboutMenuItem.Click += OnAboutMenuItemClick;
             // 
@@ -1072,6 +1080,7 @@
         private ToolStripMenuItem settingsMenuItem;
         private ToolStripMenuItem preferencesMenuItem;
         private ToolStripMenuItem helpMenuItem;
+        private ToolStripMenuItem runtimeDiagnosticsMenuItem;
         private ToolStripMenuItem aboutMenuItem;
         private Label statusLabel;
         private TabControl mainTabs;
