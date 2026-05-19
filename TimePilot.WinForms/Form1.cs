@@ -517,6 +517,7 @@ namespace TimePilot.WinForms
             settingsMenuItem.Text = UiText.Main.SettingsMenu;
             preferencesMenuItem.Text = UiText.Main.Preferences;
             helpMenuItem.Text = UiText.Main.HelpMenu;
+            runtimeDiagnosticsMenuItem.Text = UiText.Main.RuntimeDiagnostics;
             aboutMenuItem.Text = UiText.Main.About;
 
             summaryTab.Text = UiText.Main.SummaryTab;
@@ -1869,6 +1870,100 @@ namespace TimePilot.WinForms
                 UiText.Main.AboutTitle,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
+        }
+
+        private void OnRuntimeDiagnosticsMenuItemClick(object? sender, EventArgs e)
+        {
+            if (storage is null)
+                return;
+
+            var sessions = storage.GetRecentRuntimeSessionDiagnostics(10);
+            var message = BuildRuntimeDiagnosticsMessage(sessions);
+            CenteredMessageDialog.Show(
+                this,
+                message,
+                UiText.Main.RuntimeDiagnosticsTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private static string BuildRuntimeDiagnosticsMessage(IReadOnlyList<AppRuntimeSessionDiagnostic> sessions)
+        {
+            if (sessions.Count == 0)
+                return UiText.Main.RuntimeDiagnosticsNoHistory;
+
+            var lastSession = sessions[0];
+            var unexpectedCount = sessions.Count(x => IsShutdownReason(x, "unexpected"));
+            var lines = new List<string>
+            {
+                UiText.Main.RuntimeDiagnosticsLastRun,
+                UiText.Main.RuntimeDiagnosticsStartedAt(FormatDiagnosticDateTime(lastSession.StartedAt)),
+                UiText.Main.RuntimeDiagnosticsEndedAt(FormatDiagnosticDateTime(lastSession.EndedAt)),
+                UiText.Main.RuntimeDiagnosticsDuration(FormatDiagnosticDuration(lastSession)),
+                UiText.Main.RuntimeDiagnosticsShutdownReason(GetShutdownReasonText(lastSession.ShutdownReason)),
+                UiText.Main.RuntimeDiagnosticsRecentUnexpectedCount(unexpectedCount, sessions.Count),
+                string.Empty,
+                UiText.Main.RuntimeDiagnosticsHistory
+            };
+
+            foreach (var session in sessions.Take(5))
+            {
+                lines.Add(UiText.Main.RuntimeDiagnosticsHistoryItem(
+                    FormatDiagnosticDateTime(session.StartedAt),
+                    FormatDiagnosticDateTime(session.EndedAt),
+                    GetShutdownReasonText(session.ShutdownReason),
+                    FormatDiagnosticDuration(session)));
+            }
+
+            lines.AddRange(new[]
+            {
+                string.Empty,
+                UiText.Main.RuntimeDiagnosticsNote
+            });
+
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        private static bool IsShutdownReason(AppRuntimeSessionDiagnostic session, string reason)
+        {
+            return string.Equals(session.ShutdownReason, reason, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string GetShutdownReasonText(string? reason)
+        {
+            return reason?.ToLowerInvariant() switch
+            {
+                "normal" => UiText.Main.ShutdownReasonNormal,
+                "unexpected" => UiText.Main.ShutdownReasonUnexpected,
+                "system-shutdown" => UiText.Main.ShutdownReasonSystemShutdown,
+                "clear-data" => UiText.Main.ShutdownReasonClearData,
+                "running" => UiText.Main.ShutdownReasonRunning,
+                _ => UiText.Main.ShutdownReasonUnknown
+            };
+        }
+
+        private static string FormatDiagnosticDateTime(DateTimeOffset? timestamp)
+        {
+            return timestamp?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture)
+                ?? "-";
+        }
+
+        private static string FormatDiagnosticDuration(AppRuntimeSessionDiagnostic session)
+        {
+            var durationMs = session.DurationMs;
+            if (durationMs is null && session.EndedAt is { } endedAt)
+                durationMs = Math.Max(0, (long)(endedAt - session.StartedAt).TotalMilliseconds);
+
+            return durationMs is null ? "-" : FormatDiagnosticDuration(durationMs.Value);
+        }
+
+        private static string FormatDiagnosticDuration(long durationMs)
+        {
+            var duration = TimeSpan.FromMilliseconds(Math.Max(0, durationMs));
+            if (duration.TotalHours >= 1)
+                return $"{(int)duration.TotalHours:D2}:{duration.Minutes:D2}:{duration.Seconds:D2}";
+
+            return $"{duration.Minutes:D2}:{duration.Seconds:D2}";
         }
 
         private sealed record ViewRefreshSnapshot(
