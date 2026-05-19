@@ -16,7 +16,7 @@ This is not a backup and restore feature. Restorable backups should be handled s
 
 ## Privacy Notice
 
-The exported ZIP can include personal usage records for the full stored period, such as app names, process names, executable paths, usage times, and runtime segments.
+The exported ZIP can include personal usage records for the full stored period, such as app names, process names, executable paths, usage times, runtime segments, and Windows system events such as lock, unlock, suspend, and resume.
 
 Users should be careful when sharing or storing the exported file.
 
@@ -85,3 +85,14 @@ Process runtime sessions detected by background app tracking.
 - `tracking_scope`
 - `has_main_window`
 - `is_current_session_process`
+
+### `system_events.csv`
+
+Windows system events observed by TimePilot.
+
+- `id`
+- `event_type`
+- `occurred_at`
+- `app_runtime_session_id`
+- `system_booted_at`
+- `details`
