@@ -46,6 +46,7 @@
             dailyUsageTopAppTimeColumn = new DataGridViewTextBoxColumn();
             appIconColumn = new DataGridViewImageColumn();
             appNameColumn = new DataGridViewTextBoxColumn();
+            appCategoryColumn = new DataGridViewTextBoxColumn();
             firstStartedAtColumn = new DataGridViewTextBoxColumn();
             lastObservedAtColumn = new DataGridViewTextBoxColumn();
             activeUsageTimeColumn = new DataGridViewTextBoxColumn();
@@ -72,6 +73,7 @@
             runtimeGrid = new BufferedDataGridView();
             runtimeAppIconColumn = new DataGridViewImageColumn();
             runtimeAppNameColumn = new DataGridViewTextBoxColumn();
+            runtimeCategoryColumn = new DataGridViewTextBoxColumn();
             runtimeTrackingTypeColumn = new DataGridViewTextBoxColumn();
             runtimeFirstObservedAtColumn = new DataGridViewTextBoxColumn();
             runtimeLastObservedAtColumn = new DataGridViewTextBoxColumn();
@@ -316,7 +318,7 @@
             usageGrid.BackgroundColor = SystemColors.Window;
             usageGrid.BorderStyle = BorderStyle.None;
             usageGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            usageGrid.Columns.AddRange(new DataGridViewColumn[] { appIconColumn, appNameColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, usageRatioColumn, switchCountColumn });
+            usageGrid.Columns.AddRange(new DataGridViewColumn[] { appIconColumn, appNameColumn, appCategoryColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, usageRatioColumn, switchCountColumn });
             usageGrid.Dock = DockStyle.Fill;
             usageGrid.Location = new Point(3, 39);
             usageGrid.MultiSelect = false;
@@ -411,6 +413,16 @@
             appNameColumn.ReadOnly = true;
             appNameColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             appNameColumn.Width = 220;
+            //
+            // appCategoryColumn
+            //
+            appCategoryColumn.DataPropertyName = "CategoryText";
+            appCategoryColumn.HeaderText = UiText.Main.Category;
+            appCategoryColumn.MinimumWidth = 100;
+            appCategoryColumn.Name = "appCategoryColumn";
+            appCategoryColumn.ReadOnly = true;
+            appCategoryColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            appCategoryColumn.Width = 120;
             // 
             // firstStartedAtColumn
             // 
@@ -679,7 +691,7 @@
             runtimeGrid.BackgroundColor = SystemColors.Window;
             runtimeGrid.BorderStyle = BorderStyle.None;
             runtimeGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            runtimeGrid.Columns.AddRange(new DataGridViewColumn[] { runtimeAppIconColumn, runtimeAppNameColumn, runtimeTrackingTypeColumn, runtimeFirstObservedAtColumn, runtimeLastObservedAtColumn, runtimeDurationColumn, runtimeActiveUsageColumn, runtimeActualUsageRatioColumn, runtimeSessionCountColumn, runtimeStatusColumn });
+            runtimeGrid.Columns.AddRange(new DataGridViewColumn[] { runtimeAppIconColumn, runtimeAppNameColumn, runtimeCategoryColumn, runtimeTrackingTypeColumn, runtimeFirstObservedAtColumn, runtimeLastObservedAtColumn, runtimeDurationColumn, runtimeActiveUsageColumn, runtimeActualUsageRatioColumn, runtimeSessionCountColumn, runtimeStatusColumn });
             runtimeGrid.Dock = DockStyle.Fill;
             runtimeGrid.Location = new Point(0, 0);
             runtimeGrid.MultiSelect = false;
@@ -713,6 +725,16 @@
             runtimeAppNameColumn.ReadOnly = true;
             runtimeAppNameColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             runtimeAppNameColumn.Width = 220;
+            //
+            // runtimeCategoryColumn
+            //
+            runtimeCategoryColumn.DataPropertyName = "CategoryText";
+            runtimeCategoryColumn.HeaderText = UiText.Main.Category;
+            runtimeCategoryColumn.MinimumWidth = 100;
+            runtimeCategoryColumn.Name = "runtimeCategoryColumn";
+            runtimeCategoryColumn.ReadOnly = true;
+            runtimeCategoryColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeCategoryColumn.Width = 120;
             //
             // runtimeTrackingTypeColumn
             //
@@ -1213,6 +1235,7 @@
         private DataGridViewTextBoxColumn dailyUsageTopAppTimeColumn;
         private DataGridViewImageColumn appIconColumn;
         private DataGridViewTextBoxColumn appNameColumn;
+        private DataGridViewTextBoxColumn appCategoryColumn;
         private DataGridViewTextBoxColumn firstStartedAtColumn;
         private DataGridViewTextBoxColumn lastObservedAtColumn;
         private DataGridViewTextBoxColumn activeUsageTimeColumn;
@@ -1239,6 +1262,7 @@
         private DataGridView runtimeGrid;
         private DataGridViewImageColumn runtimeAppIconColumn;
         private DataGridViewTextBoxColumn runtimeAppNameColumn;
+        private DataGridViewTextBoxColumn runtimeCategoryColumn;
         private DataGridViewTextBoxColumn runtimeTrackingTypeColumn;
         private DataGridViewTextBoxColumn runtimeFirstObservedAtColumn;
         private DataGridViewTextBoxColumn runtimeLastObservedAtColumn;

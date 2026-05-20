@@ -3,9 +3,12 @@ using System.Globalization;
 namespace TimePilot.WinForms.KYS24
 {
     internal sealed record UsageSummaryRow(
+        long? AppId,
         string AppName,
         string ProcessName,
         string? ExecutablePath,
+        long? PrimaryCategoryId,
+        string? CategoryName,
         long ActiveUsageMs,
         double UsageRatio,
         int SwitchCount,
@@ -14,6 +17,10 @@ namespace TimePilot.WinForms.KYS24
         DateTimeOffset? LastObservedAt = null,
         bool ShowDateInTimestamps = false)
     {
+        public string CategoryText => string.IsNullOrWhiteSpace(CategoryName)
+            ? UiText.Main.Uncategorized
+            : CategoryName;
+
         public string ActiveUsageTimeText => FormatDuration(ActiveUsageMs);
 
         public string UsageRatioText => UsageRatio.ToString("P1", CultureInfo.CurrentCulture);

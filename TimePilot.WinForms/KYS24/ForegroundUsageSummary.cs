@@ -5,6 +5,8 @@ namespace TimePilot.WinForms.KYS24
         string AppName,
         string ProcessName,
         string? ExecutablePath,
+        long? PrimaryCategoryId,
+        string? CategoryName,
         long ActiveUsageMs,
         int SwitchCount,
         DateTimeOffset FirstStartedAt,
