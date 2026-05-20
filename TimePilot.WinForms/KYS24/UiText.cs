@@ -47,8 +47,14 @@ namespace TimePilot.WinForms.KYS24
             public static string DetailTab => current.Main.DetailTab;
             public static string TimelineTab => current.Main.TimelineTab;
             public static string WindowsRuntimeTrack => current.Main.WindowsRuntimeTrack;
+            public static string CategorySummaryTrack => current.Main.CategorySummaryTrack;
             public static string ActivityTimelineTrack => current.Main.ActivityTimelineTrack;
             public static string TimelineFullDay => current.Main.TimelineFullDay;
+            public static string TimelineCategoryBucket => current.Main.TimelineCategoryBucket;
+            public static string TimelineCategoryBucketMinutes(int minutes) =>
+                current.Main.TimelineCategoryBucketMinutes(minutes);
+            public static string TimelineCategoryBucketHours(int hours) =>
+                current.Main.TimelineCategoryBucketHours(hours);
             public static string TimelinePreviousView => current.Main.TimelinePreviousView;
             public static string TimelinePreviousRange => current.Main.TimelinePreviousRange;
             public static string TimelineNextRange => current.Main.TimelineNextRange;
@@ -83,6 +89,7 @@ namespace TimePilot.WinForms.KYS24
             public static string App => current.Main.App;
             public static string Category => current.Main.Category;
             public static string Uncategorized => current.Main.Uncategorized;
+            public static string Mixed => current.Main.Mixed;
             public static string SetCategory => current.Main.SetCategory;
             public static string CategoryUpdated(string appName, string categoryName) =>
                 current.Main.CategoryUpdated(appName, categoryName);
@@ -338,8 +345,12 @@ namespace TimePilot.WinForms.KYS24
                         DetailTab: "상세",
                         TimelineTab: "타임라인",
                         WindowsRuntimeTrack: "Windows",
+                        CategorySummaryTrack: "분류",
                         ActivityTimelineTrack: "활동",
                         TimelineFullDay: "전체 보기",
+                        TimelineCategoryBucket: "분류 단위",
+                        TimelineCategoryBucketMinutes: minutes => $"{minutes}분",
+                        TimelineCategoryBucketHours: hours => $"{hours}시간",
                         TimelinePreviousView: "이전 보기",
                         TimelinePreviousRange: "이전 구간",
                         TimelineNextRange: "다음 구간",
@@ -380,6 +391,7 @@ namespace TimePilot.WinForms.KYS24
                         App: "앱",
                         Category: "분류",
                         Uncategorized: "미분류",
+                        Mixed: "혼합",
                         SetCategory: "분류 지정",
                         CategoryUpdated: (appName, categoryName) => $"{appName} 분류를 {categoryName}(으)로 변경했습니다.",
                         Start: "시작",
@@ -582,8 +594,12 @@ namespace TimePilot.WinForms.KYS24
                         DetailTab: "Details",
                         TimelineTab: "Timeline",
                         WindowsRuntimeTrack: "Windows",
+                        CategorySummaryTrack: "Category",
                         ActivityTimelineTrack: "Activity",
                         TimelineFullDay: "Full day",
+                        TimelineCategoryBucket: "Category unit",
+                        TimelineCategoryBucketMinutes: minutes => $"{minutes} min",
+                        TimelineCategoryBucketHours: hours => hours == 1 ? "1 hour" : $"{hours} hours",
                         TimelinePreviousView: "Previous view",
                         TimelinePreviousRange: "Previous range",
                         TimelineNextRange: "Next range",
@@ -624,6 +640,7 @@ namespace TimePilot.WinForms.KYS24
                         App: "App",
                         Category: "Category",
                         Uncategorized: "Uncategorized",
+                        Mixed: "Mixed",
                         SetCategory: "Set category",
                         CategoryUpdated: (appName, categoryName) => $"Changed {appName} category to {categoryName}.",
                         Start: "Start",
@@ -825,8 +842,12 @@ namespace TimePilot.WinForms.KYS24
             string DetailTab,
             string TimelineTab,
             string WindowsRuntimeTrack,
+            string CategorySummaryTrack,
             string ActivityTimelineTrack,
             string TimelineFullDay,
+            string TimelineCategoryBucket,
+            Func<int, string> TimelineCategoryBucketMinutes,
+            Func<int, string> TimelineCategoryBucketHours,
             string TimelinePreviousView,
             string TimelinePreviousRange,
             string TimelineNextRange,
@@ -860,6 +881,7 @@ namespace TimePilot.WinForms.KYS24
             string App,
             string Category,
             string Uncategorized,
+            string Mixed,
             string SetCategory,
             Func<string, string, string> CategoryUpdated,
             string Start,

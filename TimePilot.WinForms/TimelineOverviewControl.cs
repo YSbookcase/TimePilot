@@ -12,6 +12,8 @@ namespace TimePilot.WinForms
         private static readonly Color UntrackedBorderColor = Color.FromArgb(211, 162, 92);
         private static readonly Color WindowsFillColor = Color.FromArgb(198, 225, 246);
         private static readonly Color WindowsBorderColor = Color.FromArgb(87, 137, 184);
+        private static readonly Color MixedFillColor = Color.FromArgb(216, 218, 224);
+        private static readonly Color MixedBorderColor = Color.FromArgb(132, 138, 150);
         private static readonly Color SelectionFillColor = Color.FromArgb(80, 47, 111, 172);
         private static readonly Color SelectionBorderColor = Color.FromArgb(47, 111, 172);
         private static readonly Color AxisColor = Color.FromArgb(190, 196, 204);
@@ -47,6 +49,7 @@ namespace TimePilot.WinForms
 
         private IReadOnlyList<ActivityTimelineRow> rows = Array.Empty<ActivityTimelineRow>();
         private IReadOnlyList<TimelineRange> windowsRuntimeRanges = Array.Empty<TimelineRange>();
+        private IReadOnlyList<CategoryTimelineSegment> categorySegments = Array.Empty<CategoryTimelineSegment>();
         private DateTime localDate = DateTime.Today;
         private TimeSpan viewStart = TimeSpan.Zero;
         private TimeSpan viewEnd = TimeSpan.FromDays(1);
@@ -74,18 +77,20 @@ namespace TimePilot.WinForms
         {
             DoubleBuffered = true;
             BackColor = Color.White;
-            MinimumSize = new Size(240, 124);
+            MinimumSize = new Size(240, 150);
         }
 
         public void SetTimeline(
             DateTime date,
             IReadOnlyList<ActivityTimelineRow> timelineRows,
-            IReadOnlyList<TimelineRange> windowsRanges)
+            IReadOnlyList<TimelineRange> windowsRanges,
+            IReadOnlyList<CategoryTimelineSegment> categoryTimelineSegments)
         {
             var dateChanged = date.Date != localDate;
             localDate = date.Date;
             rows = timelineRows.OrderBy(row => row.StartedAt).ToList();
             windowsRuntimeRanges = windowsRanges.OrderBy(range => range.StartedAt).ToList();
+            categorySegments = categoryTimelineSegments.OrderBy(segment => segment.StartedAt).ToList();
             hoverText = null;
             if (dateChanged)
             {
@@ -137,11 +142,14 @@ namespace TimePilot.WinForms
                 return;
 
             var windowsBounds = GetWindowsBounds(bounds);
+            var categoryBounds = GetCategoryBounds(bounds);
             var activityBounds = GetActivityBounds(bounds);
             DrawTrackLabel(graphics, UiText.Main.WindowsRuntimeTrack, windowsBounds);
+            DrawTrackLabel(graphics, UiText.Main.CategorySummaryTrack, categoryBounds);
             DrawTrackLabel(graphics, UiText.Main.ActivityTimelineTrack, activityBounds);
             DrawAxis(graphics, activityBounds);
             DrawWindowsRanges(graphics, windowsBounds);
+            DrawCategorySegments(graphics, categoryBounds);
             DrawActivityRows(graphics, activityBounds);
             DrawDragSelection(graphics, bounds);
 
@@ -219,14 +227,20 @@ namespace TimePilot.WinForms
 
         private Rectangle GetActivityBounds(Rectangle bounds)
         {
-            return new Rectangle(bounds.Left + 78, bounds.Top + 48, Math.Max(1, bounds.Width - 90), Math.Max(18, bounds.Height - 78));
+            return new Rectangle(bounds.Left + 78, bounds.Top + 72, Math.Max(1, bounds.Width - 90), Math.Max(18, bounds.Height - 102));
+        }
+
+        private Rectangle GetCategoryBounds(Rectangle bounds)
+        {
+            return new Rectangle(bounds.Left + 78, bounds.Top + 42, Math.Max(1, bounds.Width - 90), 22);
         }
 
         private Rectangle GetInteractiveBounds(Rectangle bounds)
         {
             var windowsBounds = GetWindowsBounds(bounds);
+            var categoryBounds = GetCategoryBounds(bounds);
             var activityBounds = GetActivityBounds(bounds);
-            return Rectangle.Union(windowsBounds, activityBounds);
+            return Rectangle.Union(Rectangle.Union(windowsBounds, categoryBounds), activityBounds);
         }
 
         private void DrawTrackLabel(Graphics graphics, string text, Rectangle trackBounds)
@@ -276,6 +290,35 @@ namespace TimePilot.WinForms
 
                 graphics.FillRectangle(fillBrush, segment);
                 graphics.DrawRectangle(borderPen, segment);
+            }
+        }
+
+        private void DrawCategorySegments(Graphics graphics, Rectangle categoryBounds)
+        {
+            using var emptyPen = new Pen(AxisColor);
+            graphics.DrawRectangle(emptyPen, categoryBounds);
+
+            foreach (var segment in categorySegments)
+            {
+                var bounds = GetRangeBounds(segment.StartedAt, segment.EndedAt, categoryBounds);
+                if (bounds.Width <= 0)
+                    continue;
+
+                using var fillBrush = new SolidBrush(GetCategoryFillColor(segment));
+                using var borderPen = new Pen(GetCategoryBorderColor(segment));
+                graphics.FillRectangle(fillBrush, bounds);
+                graphics.DrawRectangle(borderPen, bounds);
+
+                if (bounds.Width >= 58)
+                {
+                    TextRenderer.DrawText(
+                        graphics,
+                        segment.CategoryName,
+                        Font,
+                        bounds,
+                        TextColor,
+                        TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                }
             }
         }
 
@@ -361,7 +404,7 @@ namespace TimePilot.WinForms
 
         private string? FindHoverTextAt(Point point)
         {
-            return FindWindowsHoverTextAt(point) ?? FindActivityHoverTextAt(point);
+            return FindWindowsHoverTextAt(point) ?? FindCategoryHoverTextAt(point) ?? FindActivityHoverTextAt(point);
         }
 
         private string? FindWindowsHoverTextAt(Point point)
@@ -381,6 +424,26 @@ namespace TimePilot.WinForms
                 $"{FormatTime(range.StartedAt)}-{FormatTime(range.EndedAt)}",
                 FormatDuration(range.StartedAt, range.EndedAt),
                 UiText.Main.Runtime);
+        }
+
+        private string? FindCategoryHoverTextAt(Point point)
+        {
+            var timelineBounds = GetCategoryBounds(ClientRectangle);
+            var segment = categorySegments
+                .Select(item => new { Segment = item, Bounds = GetRangeBounds(item.StartedAt, item.EndedAt, timelineBounds) })
+                .LastOrDefault(x => x.Bounds.Contains(point))
+                ?.Segment;
+
+            if (segment is null)
+                return null;
+
+            return string.Join(
+                " | ",
+                UiText.Main.CategorySummaryTrack,
+                segment.CategoryName,
+                $"{FormatTime(segment.StartedAt)}-{FormatTime(segment.EndedAt)}",
+                FormatDuration(segment.StartedAt, segment.EndedAt),
+                segment.DetailText);
         }
 
         private string? FindActivityHoverTextAt(Point point)
@@ -450,6 +513,53 @@ namespace TimePilot.WinForms
                 return UntrackedBorderColor;
 
             return AppBorderPalette[GetAppPaletteIndex(row.DisplayName)];
+        }
+
+        private static Color GetCategoryFillColor(CategoryTimelineSegment segment)
+        {
+            if (segment.IsMixed)
+                return MixedFillColor;
+
+            return TryParseColor(segment.Color, out var color)
+                ? BlendWithWhite(color, 0.35)
+                : AppFillPalette[GetAppPaletteIndex(segment.CategoryName)];
+        }
+
+        private static Color GetCategoryBorderColor(CategoryTimelineSegment segment)
+        {
+            if (segment.IsMixed)
+                return MixedBorderColor;
+
+            return TryParseColor(segment.Color, out var color)
+                ? color
+                : AppBorderPalette[GetAppPaletteIndex(segment.CategoryName)];
+        }
+
+        private static bool TryParseColor(string? value, out Color color)
+        {
+            color = Color.Empty;
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            try
+            {
+                color = ColorTranslator.FromHtml(value);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static Color BlendWithWhite(Color color, double whiteRatio)
+        {
+            whiteRatio = Math.Clamp(whiteRatio, 0, 1);
+            var colorRatio = 1 - whiteRatio;
+            return Color.FromArgb(
+                (int)((color.R * colorRatio) + (255 * whiteRatio)),
+                (int)((color.G * colorRatio) + (255 * whiteRatio)),
+                (int)((color.B * colorRatio) + (255 * whiteRatio)));
         }
 
         private static DateTimeOffset Min(DateTimeOffset left, DateTimeOffset right)
