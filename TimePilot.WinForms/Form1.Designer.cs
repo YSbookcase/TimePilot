@@ -104,6 +104,8 @@
             timelineZoomPreviousButton = new Button();
             timelineZoomNextButton = new Button();
             timelineZoomResetButton = new Button();
+            timelineCategoryBucketLabel = new Label();
+            timelineCategoryBucketComboBox = new ComboBox();
             timelineOverviewControl = new TimelineOverviewControl();
             timelineGrid = new BufferedDataGridView();
             timelineTypeColumn = new DataGridViewTextBoxColumn();
@@ -1014,6 +1016,8 @@
             timelineZoomPanel.Controls.Add(timelineZoomPreviousButton);
             timelineZoomPanel.Controls.Add(timelineZoomNextButton);
             timelineZoomPanel.Controls.Add(timelineZoomResetButton);
+            timelineZoomPanel.Controls.Add(timelineCategoryBucketLabel);
+            timelineZoomPanel.Controls.Add(timelineCategoryBucketComboBox);
             timelineZoomPanel.Dock = DockStyle.Top;
             timelineZoomPanel.Location = new Point(3, 39);
             timelineZoomPanel.Name = "timelineZoomPanel";
@@ -1077,12 +1081,32 @@
             timelineZoomResetButton.UseVisualStyleBackColor = true;
             timelineZoomResetButton.Click += OnTimelineZoomResetButtonClick;
             //
+            // timelineCategoryBucketLabel
+            //
+            timelineCategoryBucketLabel.AutoSize = true;
+            timelineCategoryBucketLabel.Location = new Point(445, 10);
+            timelineCategoryBucketLabel.Margin = new Padding(8, 6, 4, 0);
+            timelineCategoryBucketLabel.Name = "timelineCategoryBucketLabel";
+            timelineCategoryBucketLabel.Size = new Size(59, 15);
+            timelineCategoryBucketLabel.TabIndex = 5;
+            timelineCategoryBucketLabel.Text = UiText.Main.TimelineCategoryBucket;
+            //
+            // timelineCategoryBucketComboBox
+            //
+            timelineCategoryBucketComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            timelineCategoryBucketComboBox.FormattingEnabled = true;
+            timelineCategoryBucketComboBox.Location = new Point(508, 7);
+            timelineCategoryBucketComboBox.Name = "timelineCategoryBucketComboBox";
+            timelineCategoryBucketComboBox.Size = new Size(86, 23);
+            timelineCategoryBucketComboBox.TabIndex = 6;
+            timelineCategoryBucketComboBox.SelectedIndexChanged += OnTimelineCategoryBucketComboBoxSelectedIndexChanged;
+            //
             // timelineOverviewControl
             //
             timelineOverviewControl.Dock = DockStyle.Top;
             timelineOverviewControl.Location = new Point(3, 71);
             timelineOverviewControl.Name = "timelineOverviewControl";
-            timelineOverviewControl.Size = new Size(706, 132);
+            timelineOverviewControl.Size = new Size(706, 156);
             timelineOverviewControl.TabIndex = 3;
             timelineOverviewControl.ViewRangeChanged += OnTimelineOverviewViewRangeChanged;
             //
@@ -1098,14 +1122,14 @@
             timelineGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             timelineGrid.Columns.AddRange(new DataGridViewColumn[] { timelineTypeColumn, timelineStartedAtColumn, timelineEndedAtColumn, timelineDurationColumn, timelineAppIconColumn, timelineDisplayNameColumn });
             timelineGrid.Dock = DockStyle.Fill;
-            timelineGrid.Location = new Point(3, 203);
+            timelineGrid.Location = new Point(3, 227);
             timelineGrid.MultiSelect = false;
             timelineGrid.Name = "timelineGrid";
             timelineGrid.ReadOnly = true;
             timelineGrid.RowHeadersVisible = false;
             timelineGrid.ScrollBars = ScrollBars.Both;
             timelineGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            timelineGrid.Size = new Size(706, 214);
+            timelineGrid.Size = new Size(706, 190);
             timelineGrid.TabIndex = 0;
             timelineGrid.ColumnHeaderMouseClick += OnTimelineGridColumnHeaderMouseClick;
             // 
@@ -1293,6 +1317,8 @@
         private Button timelineZoomPreviousButton;
         private Button timelineZoomNextButton;
         private Button timelineZoomResetButton;
+        private Label timelineCategoryBucketLabel;
+        private ComboBox timelineCategoryBucketComboBox;
         private TimelineOverviewControl timelineOverviewControl;
         private DataGridView timelineGrid;
         private DataGridViewTextBoxColumn timelineTypeColumn;

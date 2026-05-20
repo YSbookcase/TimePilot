@@ -949,6 +949,73 @@ namespace TimePilot.WinForms.KYS24
                 .ToList();
         }
 
+        public IReadOnlyList<CategoryTimelineSegment> GetCategoryTimelineSegmentsForDate(
+            DateTime localDate,
+            DateTimeOffset now,
+            TimeSpan bucketSize)
+        {
+            if (bucketSize <= TimeSpan.Zero)
+                bucketSize = TimeSpan.FromMinutes(30);
+
+            var (dayStart, dayEnd) = GetLocalDayRange(localDate);
+            if (dayEnd > now)
+                dayEnd = now;
+
+            if (dayEnd <= dayStart)
+                return Array.Empty<CategoryTimelineSegment>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    COALESCE(c.name, $uncategorized),
+                    c.color,
+                    fs.started_at,
+                    fs.ended_at,
+                    fs.last_observed_at
+                FROM foreground_sessions fs
+                INNER JOIN apps a ON a.id = fs.app_id
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
+                WHERE fs.started_at < $dayEnd
+                  AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $dayStart;
+                """;
+            command.Parameters.AddWithValue("$uncategorized", UiText.Main.Uncategorized);
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            var bucketCount = Math.Max(1, (int)Math.Ceiling(TimeSpan.FromDays(1).TotalMilliseconds / bucketSize.TotalMilliseconds));
+            var buckets = new Dictionary<int, Dictionary<string, CategoryBucketTotal>>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var categoryName = reader.GetString(0);
+                var color = reader.IsDBNull(1) ? null : reader.GetString(1);
+                var startedAt = ParseTimestamp(reader.GetString(2));
+                var endedAt = reader.IsDBNull(3)
+                    ? reader.IsDBNull(4) ? startedAt : ParseTimestamp(reader.GetString(4))
+                    : ParseTimestamp(reader.GetString(3));
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(endedAt, dayEnd);
+                if (effectiveEnd <= effectiveStart)
+                    continue;
+
+                AddCategoryBucketDurations(
+                    buckets,
+                    dayStart,
+                    bucketSize,
+                    bucketCount,
+                    categoryName,
+                    color,
+                    effectiveStart,
+                    effectiveEnd);
+            }
+
+            return buckets
+                .OrderBy(x => x.Key)
+                .Select(x => CreateCategoryTimelineSegment(dayStart, bucketSize, x.Key, x.Value))
+                .ToList();
+        }
+
         public bool HasActivityDataForDate(DateTime localDate, DateTimeOffset now)
         {
             var (dayStart, dayEnd) = GetLocalDayRange(localDate);
@@ -2097,6 +2164,80 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
+        private static void AddCategoryBucketDurations(
+            Dictionary<int, Dictionary<string, CategoryBucketTotal>> buckets,
+            DateTimeOffset dayStart,
+            TimeSpan bucketSize,
+            int bucketCount,
+            string categoryName,
+            string? color,
+            DateTimeOffset start,
+            DateTimeOffset end)
+        {
+            var cursor = start;
+            while (cursor < end)
+            {
+                var bucketIndex = (int)Math.Floor((cursor - dayStart).TotalMilliseconds / bucketSize.TotalMilliseconds);
+                bucketIndex = Math.Clamp(bucketIndex, 0, bucketCount - 1);
+                var bucketStart = dayStart + TimeSpan.FromTicks(bucketSize.Ticks * bucketIndex);
+                var bucketEnd = Min(bucketStart + bucketSize, dayStart.AddDays(1));
+                var segmentEnd = Min(end, bucketEnd);
+                var durationMs = Math.Max(0, (long)(segmentEnd - cursor).TotalMilliseconds);
+
+                if (durationMs > 0)
+                {
+                    if (!buckets.TryGetValue(bucketIndex, out var bucket))
+                    {
+                        bucket = new Dictionary<string, CategoryBucketTotal>(StringComparer.OrdinalIgnoreCase);
+                        buckets[bucketIndex] = bucket;
+                    }
+
+                    if (!bucket.TryGetValue(categoryName, out var total))
+                    {
+                        total = new CategoryBucketTotal(categoryName, color);
+                        bucket[categoryName] = total;
+                    }
+
+                    total.ActiveUsageMs += durationMs;
+                }
+
+                cursor = segmentEnd;
+            }
+        }
+
+        private static CategoryTimelineSegment CreateCategoryTimelineSegment(
+            DateTimeOffset dayStart,
+            TimeSpan bucketSize,
+            int bucketIndex,
+            IReadOnlyDictionary<string, CategoryBucketTotal> totals)
+        {
+            var startedAt = dayStart + TimeSpan.FromTicks(bucketSize.Ticks * bucketIndex);
+            var endedAt = Min(startedAt + bucketSize, dayStart.AddDays(1));
+            var totalMs = totals.Values.Sum(x => x.ActiveUsageMs);
+            var ordered = totals.Values
+                .OrderByDescending(x => x.ActiveUsageMs)
+                .ThenBy(x => x.CategoryName)
+                .ToList();
+            var top = ordered.First();
+            var isMixed = totalMs > 0 && ((double)top.ActiveUsageMs / totalMs) < 0.5;
+            var categoryName = isMixed ? UiText.Main.Mixed : top.CategoryName;
+            var color = isMixed ? null : top.Color;
+            var detailText = string.Join(
+                ", ",
+                ordered
+                    .Take(3)
+                    .Select(x => $"{x.CategoryName} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}"));
+
+            return new CategoryTimelineSegment(
+                startedAt,
+                endedAt,
+                categoryName,
+                color,
+                isMixed,
+                totalMs,
+                detailText);
+        }
+
         private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> MergeIntervals(
             IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> intervals)
         {
@@ -2171,6 +2312,21 @@ namespace TimePilot.WinForms.KYS24
             public long ActiveUsageMs { get; set; }
 
             public Dictionary<string, long> AppTotals { get; } = new(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private sealed class CategoryBucketTotal
+        {
+            public CategoryBucketTotal(string categoryName, string? color)
+            {
+                CategoryName = categoryName;
+                Color = color;
+            }
+
+            public string CategoryName { get; }
+
+            public string? Color { get; }
+
+            public long ActiveUsageMs { get; set; }
         }
 
         private sealed class ProcessRuntimeAggregation

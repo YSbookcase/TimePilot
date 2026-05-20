@@ -33,6 +33,7 @@ namespace TimePilot.WinForms
         private DateTime summaryPeriodOptionsDate = DateTime.Today;
         private DateTime selectedDetailDate = DateTime.Today;
         private DateTime selectedTimelineDate = DateTime.Today;
+        private int selectedTimelineCategoryBucketMinutes = 30;
         private SortOrder usageSortOrder = SortOrder.Descending;
         private SortOrder runtimeSortOrder = SortOrder.Descending;
         private SortOrder runtimeSegmentSortOrder = SortOrder.Descending;
@@ -73,6 +74,7 @@ namespace TimePilot.WinForms
             InitializeRecordedDateCalendar();
             InitializeSummaryPeriodSelector();
             InitializeDateSelectors();
+            InitializeTimelineCategoryBucketSelector();
             ApplyUiText();
 
             if (IsRunningInDesigner())
@@ -484,6 +486,29 @@ namespace TimePilot.WinForms
             UpdateDateNavigationButtons();
         }
 
+        private void InitializeTimelineCategoryBucketSelector()
+        {
+            RefreshTimelineCategoryBucketOptions();
+        }
+
+        private void RefreshTimelineCategoryBucketOptions()
+        {
+            var options = TimelineCategoryBucketOption.GetOptions();
+            var selectedIndex = Array.FindIndex(options.ToArray(), option => option.Minutes == selectedTimelineCategoryBucketMinutes);
+            timelineCategoryBucketComboBox.BeginUpdate();
+            try
+            {
+                timelineCategoryBucketComboBox.Items.Clear();
+                timelineCategoryBucketComboBox.Items.AddRange(options.Cast<object>().ToArray());
+                timelineCategoryBucketComboBox.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 1;
+                selectedTimelineCategoryBucketMinutes = ((TimelineCategoryBucketOption)timelineCategoryBucketComboBox.SelectedItem!).Minutes;
+            }
+            finally
+            {
+                timelineCategoryBucketComboBox.EndUpdate();
+            }
+        }
+
         private void InitializeRecordedDateCalendar()
         {
             runtimeCoverageSummaryToolTip.SetToolTip(
@@ -528,6 +553,25 @@ namespace TimePilot.WinForms
                 new[]
                 {
                     new TimelineRange(DateTimeOffset.Now.AddHours(-3), DateTimeOffset.Now)
+                },
+                new[]
+                {
+                    new CategoryTimelineSegment(
+                        DateTimeOffset.Now.AddHours(-3),
+                        DateTimeOffset.Now.AddHours(-2),
+                        "개발",
+                        "#2563EB",
+                        false,
+                        3_600_000,
+                        "개발 100%"),
+                    new CategoryTimelineSegment(
+                        DateTimeOffset.Now.AddHours(-2),
+                        DateTimeOffset.Now.AddHours(-1),
+                        UiText.Main.Mixed,
+                        null,
+                        true,
+                        3_600_000,
+                        "개발 45%, 자료조사/브라우징 40%")
                 });
         }
 
@@ -646,8 +690,10 @@ namespace TimePilot.WinForms
             timelineZoomPreviousButton.Text = UiText.Main.TimelinePreviousRange;
             timelineZoomNextButton.Text = UiText.Main.TimelineNextRange;
             timelineZoomResetButton.Text = UiText.Main.TimelineResetView;
+            timelineCategoryBucketLabel.Text = UiText.Main.TimelineCategoryBucket;
             timelineOverviewControl.Invalidate();
             UpdateTimelineZoomControls();
+            RefreshTimelineCategoryBucketOptions();
 
             dailyUsageDateColumn.HeaderText = UiText.Main.Date;
             dailyUsageActiveTimeColumn.HeaderText = UiText.Main.TotalActiveUsageTime;
@@ -794,6 +840,12 @@ namespace TimePilot.WinForms
                     var windowsRuntimeRanges = selectedTab == timelineTab
                         ? storage.GetWindowsRuntimeRangesForDate(timelineDate, observedAt)
                         : null;
+                    var categoryTimelineSegments = selectedTab == timelineTab
+                        ? storage.GetCategoryTimelineSegmentsForDate(
+                            timelineDate,
+                            observedAt,
+                            TimeSpan.FromMinutes(selectedTimelineCategoryBucketMinutes))
+                        : null;
                     var timelineDateHasData = selectedTab == timelineTab
                         ? storage.HasActivityDataForDate(timelineDate, observedAt)
                         : (bool?)null;
@@ -822,6 +874,7 @@ namespace TimePilot.WinForms
                         timelineDateHasData,
                         timelineRows,
                         windowsRuntimeRanges,
+                        categoryTimelineSegments,
                         runtimeRows,
                         detailSummaryAppIds,
                         runtimeSegmentRows,
@@ -860,7 +913,8 @@ namespace TimePilot.WinForms
                 timelineOverviewControl.SetTimeline(
                     selectedTimelineDate,
                     snapshot.TimelineRows,
-                    snapshot.WindowsRuntimeRanges ?? Array.Empty<TimelineRange>());
+                    snapshot.WindowsRuntimeRanges ?? Array.Empty<TimelineRange>(),
+                    snapshot.CategoryTimelineSegments ?? Array.Empty<CategoryTimelineSegment>());
                 SetGridDataSourcePreservingView(
                     timelineGrid,
                     AddIcons(SortTimelineRows(snapshot.TimelineRows)));
@@ -1329,6 +1383,16 @@ namespace TimePilot.WinForms
         private void OnTimelineZoomResetButtonClick(object? sender, EventArgs e)
         {
             timelineOverviewControl.ResetView();
+        }
+
+        private void OnTimelineCategoryBucketComboBoxSelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (timelineCategoryBucketComboBox.SelectedItem is not TimelineCategoryBucketOption option
+                || option.Minutes == selectedTimelineCategoryBucketMinutes)
+                return;
+
+            selectedTimelineCategoryBucketMinutes = option.Minutes;
+            RefreshViews(DateTimeOffset.UtcNow);
         }
 
         private void ApplyDetailDate(DateTime date)
@@ -2064,7 +2128,8 @@ namespace TimePilot.WinForms
                 timelineOverviewControl.SetTimeline(
                     selectedTimelineDate,
                     Array.Empty<ActivityTimelineRow>(),
-                    Array.Empty<TimelineRange>());
+                    Array.Empty<TimelineRange>(),
+                    Array.Empty<CategoryTimelineSegment>());
                 SetGridDataSourcePreservingView(timelineGrid, Array.Empty<ActivityTimelineRow>());
                 SetGridDataSourcePreservingView(runtimeGrid, Array.Empty<ProcessRuntimeSummaryRow>());
                 SetGridDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
@@ -2337,10 +2402,27 @@ namespace TimePilot.WinForms
             bool? TimelineDateHasData,
             IReadOnlyList<ActivityTimelineRow>? TimelineRows,
             IReadOnlyList<TimelineRange>? WindowsRuntimeRanges,
+            IReadOnlyList<CategoryTimelineSegment>? CategoryTimelineSegments,
             IReadOnlyList<ProcessRuntimeSummaryRow>? RuntimeRows,
             IReadOnlySet<long>? DetailSummaryAppIds,
             IReadOnlyList<ProcessRuntimeSegmentRow>? RuntimeSegmentRows,
             long ReadElapsedMs);
+
+        private sealed record TimelineCategoryBucketOption(string Label, int Minutes)
+        {
+            public override string ToString() => Label;
+
+            public static IReadOnlyList<TimelineCategoryBucketOption> GetOptions()
+            {
+                return
+                [
+                    new(UiText.Main.TimelineCategoryBucketMinutes(15), 15),
+                    new(UiText.Main.TimelineCategoryBucketMinutes(30), 30),
+                    new(UiText.Main.TimelineCategoryBucketHours(1), 60),
+                    new(UiText.Main.TimelineCategoryBucketHours(2), 120)
+                ];
+            }
+        }
 
     }
 }
