@@ -299,17 +299,18 @@ namespace TimePilot.WinForms
         {
             processRuntimeTrackingCheckBox.Checked = ProcessRuntimeTrackingEnabled;
 
-            processRuntimeScopeComboBox.DataSource = new List<ProcessRuntimeScopeOption>
+            var processRuntimeScopeOptions = new List<ProcessRuntimeScopeOption>
             {
                 new(UiText.Preferences.WindowedAppsScope, ProcessRuntimeTrackingScope.WindowedApps),
                 new(UiText.Preferences.UserProcessesScope, ProcessRuntimeTrackingScope.UserProcesses),
                 new(UiText.Preferences.AllProcessesScope, ProcessRuntimeTrackingScope.AllProcesses)
             };
+            processRuntimeScopeComboBox.DataSource = processRuntimeScopeOptions;
             processRuntimeScopeComboBox.DisplayMember = nameof(ProcessRuntimeScopeOption.Label);
             processRuntimeScopeComboBox.ValueMember = nameof(ProcessRuntimeScopeOption.Scope);
-            processRuntimeScopeComboBox.SelectedItem = processRuntimeScopeComboBox.Items
-                .Cast<ProcessRuntimeScopeOption>()
-                .First(option => option.Scope == ProcessRuntimeTrackingScope);
+            processRuntimeScopeComboBox.SelectedItem =
+                processRuntimeScopeOptions.FirstOrDefault(option => option.Scope == ProcessRuntimeTrackingScope)
+                ?? processRuntimeScopeOptions.First(option => option.Scope == AppSettings.DefaultProcessRuntimeTrackingScope);
 
             var processRuntimeIntervalOptions = GetProcessRuntimeIntervalOptions();
             processRuntimeIntervalComboBox.DataSource = processRuntimeIntervalOptions.ToList();

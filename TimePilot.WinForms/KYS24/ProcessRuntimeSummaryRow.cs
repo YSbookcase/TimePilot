@@ -7,6 +7,8 @@ namespace TimePilot.WinForms.KYS24
         string AppName,
         string ProcessName,
         string? ExecutablePath,
+        long? PrimaryCategoryId,
+        string? CategoryName,
         long RuntimeMs,
         long ActiveUsageMs,
         double? ActualUsageRatio,
@@ -19,6 +21,10 @@ namespace TimePilot.WinForms.KYS24
         DateTimeOffset? LastObservedAt = null,
         bool IsInCurrentTrackingScope = true)
     {
+        public string CategoryText => string.IsNullOrWhiteSpace(CategoryName)
+            ? UiText.Main.Uncategorized
+            : CategoryName;
+
         public string RuntimeText => FormatDuration(RuntimeMs);
 
         public string ActiveUsageTimeText => FormatDuration(ActiveUsageMs);

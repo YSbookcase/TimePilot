@@ -33,6 +33,16 @@ namespace TimePilot.WinForms.KYS24
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText = """
+                CREATE TABLE IF NOT EXISTS app_categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    color TEXT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    is_builtin INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS apps (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     process_name TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -40,8 +50,10 @@ namespace TimePilot.WinForms.KYS24
                     executable_path TEXT NULL,
                     first_seen_at TEXT NOT NULL,
                     last_seen_at TEXT NOT NULL,
+                    primary_category_id INTEGER NULL,
                     user_alias TEXT NULL,
-                    is_excluded INTEGER NOT NULL DEFAULT 0
+                    is_excluded INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY (primary_category_id) REFERENCES app_categories(id)
                 );
 
                 CREATE TABLE IF NOT EXISTS app_runtime_sessions (
@@ -117,6 +129,7 @@ namespace TimePilot.WinForms.KYS24
 
                 CREATE INDEX IF NOT EXISTS idx_system_events_occurred_at
                     ON system_events(occurred_at);
+
                 """;
             command.ExecuteNonQuery();
 
@@ -124,6 +137,7 @@ namespace TimePilot.WinForms.KYS24
             EnsureRuntimeSessionColumns(connection);
             EnsureForegroundSessionColumns(connection);
             EnsureProcessRuntimeSessionColumns(connection);
+            SeedDefaultAppCategories(connection, now);
             MarkUnexpectedRuntimeSessions(now, systemBootedAt);
             MarkUnexpectedProcessRuntimeSessions(now);
         }
@@ -557,10 +571,59 @@ namespace TimePilot.WinForms.KYS24
             return events;
         }
 
+        public IReadOnlyList<AppCategoryOption> GetAppCategoryOptions()
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT id, name, color, sort_order
+                FROM app_categories
+                ORDER BY sort_order, name COLLATE NOCASE;
+                """;
+
+            var categories = new List<AppCategoryOption>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                categories.Add(new AppCategoryOption(
+                    reader.GetInt64(0),
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2),
+                    reader.GetInt32(3)));
+            }
+
+            return categories;
+        }
+
+        public void SetAppPrimaryCategory(long appId, long? categoryId)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE apps
+                SET primary_category_id = $categoryId
+                WHERE id = $appId;
+                """;
+            command.Parameters.AddWithValue("$categoryId", (object?)categoryId ?? DBNull.Value);
+            command.Parameters.AddWithValue("$appId", appId);
+            command.ExecuteNonQuery();
+        }
+
         public IReadOnlyList<RawDataExportTable> GetRawDataExportTables()
         {
             return
             [
+                GetRawDataExportTable(
+                    "app_categories",
+                    [
+                        "id",
+                        "name",
+                        "color",
+                        "sort_order",
+                        "is_builtin",
+                        "created_at",
+                        "updated_at"
+                    ]),
                 GetRawDataExportTable(
                     "apps",
                     [
@@ -570,6 +633,7 @@ namespace TimePilot.WinForms.KYS24
                         "executable_path",
                         "first_seen_at",
                         "last_seen_at",
+                        "primary_category_id",
                         "user_alias",
                         "is_excluded"
                     ]),
@@ -736,11 +800,14 @@ namespace TimePilot.WinForms.KYS24
                     a.display_name,
                     a.process_name,
                     a.executable_path,
+                    a.primary_category_id,
+                    c.name,
                     fs.started_at,
                     fs.ended_at,
                     fs.last_observed_at
                 FROM foreground_sessions fs
                 INNER JOIN apps a ON a.id = fs.app_id
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
                 WHERE fs.started_at < $periodEnd
                   AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $periodStart;
                 """;
@@ -755,10 +822,12 @@ namespace TimePilot.WinForms.KYS24
                 var appName = reader.GetString(1);
                 var processName = reader.GetString(2);
                 var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
-                var startedAt = ParseTimestamp(reader.GetString(4));
-                var endedAt = reader.IsDBNull(5)
-                    ? reader.IsDBNull(6) ? startedAt : ParseTimestamp(reader.GetString(6))
-                    : ParseTimestamp(reader.GetString(5));
+                var primaryCategoryId = reader.IsDBNull(4) ? (long?)null : reader.GetInt64(4);
+                var categoryName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                var startedAt = ParseTimestamp(reader.GetString(6));
+                var endedAt = reader.IsDBNull(7)
+                    ? reader.IsDBNull(8) ? startedAt : ParseTimestamp(reader.GetString(8))
+                    : ParseTimestamp(reader.GetString(7));
                 var effectiveStart = Max(startedAt, periodStart);
                 var effectiveEnd = Min(endedAt, periodEnd);
                 var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
@@ -767,11 +836,21 @@ namespace TimePilot.WinForms.KYS24
 
                 if (!totals.TryGetValue(appId, out var aggregation))
                 {
-                    aggregation = new UsageAggregation(appId, appName, processName, effectiveStart, effectiveEnd, executablePath);
+                    aggregation = new UsageAggregation(
+                        appId,
+                        appName,
+                        processName,
+                        effectiveStart,
+                        effectiveEnd,
+                        executablePath,
+                        primaryCategoryId,
+                        categoryName);
                     totals[appId] = aggregation;
                 }
 
                 aggregation.ExecutablePath ??= executablePath;
+                aggregation.PrimaryCategoryId ??= primaryCategoryId;
+                aggregation.CategoryName ??= categoryName;
                 aggregation.ActiveUsageMs += durationMs;
                 aggregation.SwitchCount++;
                 aggregation.FirstStartedAt = Min(aggregation.FirstStartedAt, effectiveStart);
@@ -784,6 +863,8 @@ namespace TimePilot.WinForms.KYS24
                     x.Value.AppName,
                     x.Value.ProcessName,
                     x.Value.ExecutablePath,
+                    x.Value.PrimaryCategoryId,
+                    x.Value.CategoryName,
                     x.Value.ActiveUsageMs,
                     x.Value.SwitchCount,
                     x.Value.FirstStartedAt,
@@ -1186,6 +1267,8 @@ namespace TimePilot.WinForms.KYS24
                     a.display_name,
                     a.process_name,
                     a.executable_path,
+                    a.primary_category_id,
+                    c.name,
                     prs.started_at,
                     prs.ended_at,
                     prs.last_observed_at,
@@ -1193,6 +1276,7 @@ namespace TimePilot.WinForms.KYS24
                     prs.is_current_session_process
                 FROM process_runtime_sessions prs
                 INNER JOIN apps a ON a.id = prs.app_id
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
                 WHERE prs.started_at < $dayEnd
                   AND COALESCE(prs.ended_at, prs.last_observed_at, prs.started_at) > $dayStart;
                 """;
@@ -1207,15 +1291,17 @@ namespace TimePilot.WinForms.KYS24
                 var appName = reader.GetString(1);
                 var processName = reader.GetString(2);
                 var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
-                var startedAt = ParseTimestamp(reader.GetString(4));
-                var hasRunningSession = reader.IsDBNull(5);
-                var endedAt = hasRunningSession ? (DateTimeOffset?)null : ParseTimestamp(reader.GetString(5));
-                var lastObservedAt = reader.IsDBNull(6)
+                var primaryCategoryId = reader.IsDBNull(4) ? (long?)null : reader.GetInt64(4);
+                var categoryName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                var startedAt = ParseTimestamp(reader.GetString(6));
+                var hasRunningSession = reader.IsDBNull(7);
+                var endedAt = hasRunningSession ? (DateTimeOffset?)null : ParseTimestamp(reader.GetString(7));
+                var lastObservedAt = reader.IsDBNull(8)
                     ? endedAt ?? startedAt
-                    : ParseTimestamp(reader.GetString(6));
+                    : ParseTimestamp(reader.GetString(8));
                 var runtimeEnd = endedAt ?? now;
-                var hasMainWindow = !reader.IsDBNull(7) && reader.GetInt32(7) == 1;
-                var isCurrentSessionProcess = !reader.IsDBNull(8) && reader.GetInt32(8) == 1;
+                var hasMainWindow = !reader.IsDBNull(9) && reader.GetInt32(9) == 1;
+                var isCurrentSessionProcess = !reader.IsDBNull(10) && reader.GetInt32(10) == 1;
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(runtimeEnd, dayEnd);
                 var effectiveLastObservedAt = Min(Max(lastObservedAt, dayStart), dayEnd);
@@ -1229,11 +1315,15 @@ namespace TimePilot.WinForms.KYS24
                         processName,
                         effectiveStart,
                         effectiveLastObservedAt,
-                        executablePath);
+                        executablePath,
+                        primaryCategoryId,
+                        categoryName);
                     totals[appId] = aggregation;
                 }
 
                 aggregation.ExecutablePath ??= executablePath;
+                aggregation.PrimaryCategoryId ??= primaryCategoryId;
+                aggregation.CategoryName ??= categoryName;
                 aggregation.AddRuntimeInterval(effectiveStart, effectiveEnd);
                 aggregation.HasRunningSession |= hasRunningSession;
                 aggregation.HasMainWindow |= hasMainWindow;
@@ -1250,6 +1340,8 @@ namespace TimePilot.WinForms.KYS24
                     x.Value.AppName,
                     x.Value.ProcessName,
                     x.Value.ExecutablePath,
+                    x.Value.PrimaryCategoryId,
+                    x.Value.CategoryName,
                     x.Value.GetMergedRuntimeMs(),
                     x.Value.ActiveUsageMs,
                     x.Value.GetMergedRuntimeMs() > 0
@@ -1393,6 +1485,59 @@ namespace TimePilot.WinForms.KYS24
             {
                 using var command = connection.CreateCommand();
                 command.CommandText = "ALTER TABLE apps ADD COLUMN executable_path TEXT NULL;";
+                command.ExecuteNonQuery();
+            }
+
+            AddColumnIfMissing(connection, "apps", "primary_category_id", "INTEGER NULL");
+
+            using var indexCommand = connection.CreateCommand();
+            indexCommand.CommandText = """
+                CREATE INDEX IF NOT EXISTS idx_apps_primary_category_id
+                    ON apps(primary_category_id);
+                """;
+            indexCommand.ExecuteNonQuery();
+        }
+
+        private static void SeedDefaultAppCategories(SqliteConnection connection, DateTimeOffset now)
+        {
+            var timestamp = FormatTimestamp(now);
+            var categories = new (string Name, string Color, int SortOrder)[]
+            {
+                ("개발", "#2563EB", 10),
+                ("문서/글쓰기", "#7C3AED", 20),
+                ("자료조사/브라우징", "#0891B2", 30),
+                ("커뮤니케이션", "#DB2777", 40),
+                ("회의", "#F59E0B", 50),
+                ("창작", "#16A34A", 60),
+                ("게임", "#DC2626", 70),
+                ("미디어", "#EA580C", 80),
+                ("시스템", "#475569", 90),
+                ("백그라운드", "#64748B", 100)
+            };
+
+            foreach (var category in categories)
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = """
+                    INSERT INTO app_categories (
+                        name,
+                        color,
+                        sort_order,
+                        is_builtin,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES ($name, $color, $sortOrder, 1, $createdAt, $updatedAt)
+                    ON CONFLICT(name) DO UPDATE SET
+                        color = excluded.color,
+                        sort_order = excluded.sort_order,
+                        updated_at = excluded.updated_at;
+                    """;
+                command.Parameters.AddWithValue("$name", category.Name);
+                command.Parameters.AddWithValue("$color", category.Color);
+                command.Parameters.AddWithValue("$sortOrder", category.SortOrder);
+                command.Parameters.AddWithValue("$createdAt", timestamp);
+                command.Parameters.AddWithValue("$updatedAt", timestamp);
                 command.ExecuteNonQuery();
             }
         }
@@ -1980,7 +2125,15 @@ namespace TimePilot.WinForms.KYS24
 
         private sealed class UsageAggregation
         {
-            public UsageAggregation(long appId, string appName, string processName, DateTimeOffset firstStartedAt, DateTimeOffset lastObservedAt, string? executablePath)
+            public UsageAggregation(
+                long appId,
+                string appName,
+                string processName,
+                DateTimeOffset firstStartedAt,
+                DateTimeOffset lastObservedAt,
+                string? executablePath,
+                long? primaryCategoryId,
+                string? categoryName)
             {
                 AppId = appId;
                 AppName = appName;
@@ -1988,6 +2141,8 @@ namespace TimePilot.WinForms.KYS24
                 FirstStartedAt = firstStartedAt;
                 LastObservedAt = lastObservedAt;
                 ExecutablePath = executablePath;
+                PrimaryCategoryId = primaryCategoryId;
+                CategoryName = categoryName;
             }
 
             public long AppId { get; }
@@ -1999,6 +2154,10 @@ namespace TimePilot.WinForms.KYS24
             public long ActiveUsageMs { get; set; }
 
             public string? ExecutablePath { get; set; }
+
+            public long? PrimaryCategoryId { get; set; }
+
+            public string? CategoryName { get; set; }
 
             public int SwitchCount { get; set; }
 
@@ -2018,13 +2177,22 @@ namespace TimePilot.WinForms.KYS24
         {
             private readonly List<(DateTimeOffset Start, DateTimeOffset End)> runtimeIntervals = new();
 
-            public ProcessRuntimeAggregation(string appName, string processName, DateTimeOffset firstObservedAt, DateTimeOffset lastObservedAt, string? executablePath)
+            public ProcessRuntimeAggregation(
+                string appName,
+                string processName,
+                DateTimeOffset firstObservedAt,
+                DateTimeOffset lastObservedAt,
+                string? executablePath,
+                long? primaryCategoryId,
+                string? categoryName)
             {
                 AppName = appName;
                 ProcessName = processName;
                 FirstObservedAt = firstObservedAt;
                 LastObservedAt = lastObservedAt;
                 ExecutablePath = executablePath;
+                PrimaryCategoryId = primaryCategoryId;
+                CategoryName = categoryName;
             }
 
             public string AppName { get; }
@@ -2034,6 +2202,10 @@ namespace TimePilot.WinForms.KYS24
             public long ActiveUsageMs { get; set; }
 
             public string? ExecutablePath { get; set; }
+
+            public long? PrimaryCategoryId { get; set; }
+
+            public string? CategoryName { get; set; }
 
             public bool HasRunningSession { get; set; }
 

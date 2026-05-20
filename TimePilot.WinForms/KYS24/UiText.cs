@@ -81,6 +81,11 @@ namespace TimePilot.WinForms.KYS24
             public static string DetailFilterAllRecordsDescription => current.Main.DetailFilterAllRecordsDescription;
             public static string RunningOnly => current.Main.RunningOnly;
             public static string App => current.Main.App;
+            public static string Category => current.Main.Category;
+            public static string Uncategorized => current.Main.Uncategorized;
+            public static string SetCategory => current.Main.SetCategory;
+            public static string CategoryUpdated(string appName, string categoryName) =>
+                current.Main.CategoryUpdated(appName, categoryName);
             public static string Start => current.Main.Start;
             public static string End => current.Main.End;
             public static string Duration => current.Main.Duration;
@@ -185,6 +190,7 @@ namespace TimePilot.WinForms.KYS24
         {
             public static string Date => current.Csv.Date;
             public static string AppName => current.Csv.AppName;
+            public static string Category => current.Csv.Category;
             public static string ProcessName => current.Csv.ProcessName;
             public static string ActiveUsageTime => current.Csv.ActiveUsageTime;
             public static string OverallRatio => current.Csv.OverallRatio;
@@ -372,6 +378,10 @@ namespace TimePilot.WinForms.KYS24
                         DetailTrackingDisabledOpenPreferences: "환경 설정 열기",
                         RunningOnly: "실행 중만",
                         App: "앱",
+                        Category: "분류",
+                        Uncategorized: "미분류",
+                        SetCategory: "분류 지정",
+                        CategoryUpdated: (appName, categoryName) => $"{appName} 분류를 {categoryName}(으)로 변경했습니다.",
                         Start: "시작",
                         End: "종료",
                         Duration: "시간",
@@ -464,6 +474,7 @@ namespace TimePilot.WinForms.KYS24
                     new CsvText(
                         Date: "날짜",
                         AppName: "앱 이름",
+                        Category: "분류",
                         ProcessName: "프로세스 이름",
                         ActiveUsageTime: "활성 사용 시간",
                         OverallRatio: "전체 대비 비율",
@@ -611,6 +622,10 @@ namespace TimePilot.WinForms.KYS24
                         DetailTrackingDisabledOpenPreferences: "Open Preferences",
                         RunningOnly: "Running only",
                         App: "App",
+                        Category: "Category",
+                        Uncategorized: "Uncategorized",
+                        SetCategory: "Set category",
+                        CategoryUpdated: (appName, categoryName) => $"Changed {appName} category to {categoryName}.",
                         Start: "Start",
                         End: "End",
                         Duration: "Duration",
@@ -703,6 +718,7 @@ namespace TimePilot.WinForms.KYS24
                     new CsvText(
                         Date: "Date",
                         AppName: "App name",
+                        Category: "Category",
                         ProcessName: "Process name",
                         ActiveUsageTime: "Active usage time",
                         OverallRatio: "Overall ratio",
@@ -842,6 +858,10 @@ namespace TimePilot.WinForms.KYS24
             string DetailTrackingDisabledOpenPreferences,
             string RunningOnly,
             string App,
+            string Category,
+            string Uncategorized,
+            string SetCategory,
+            Func<string, string, string> CategoryUpdated,
             string Start,
             string End,
             string Duration,
@@ -935,6 +955,7 @@ namespace TimePilot.WinForms.KYS24
         private sealed record CsvText(
             string Date,
             string AppName,
+            string Category,
             string ProcessName,
             string ActiveUsageTime,
             string OverallRatio,

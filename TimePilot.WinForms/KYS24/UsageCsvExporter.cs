@@ -46,6 +46,7 @@ namespace TimePilot.WinForms.KYS24
                 [
                     UiText.Csv.Date,
                     UiText.Csv.AppName,
+                    UiText.Csv.Category,
                     UiText.Csv.ProcessName,
                     UiText.Csv.ActiveUsageTime,
                     UiText.Csv.OverallRatio,
@@ -57,6 +58,7 @@ namespace TimePilot.WinForms.KYS24
                 {
                     dateText,
                     row.AppName,
+                    row.CategoryText,
                     row.ProcessName,
                     row.ActiveUsageTimeText,
                     row.UsageRatioText,

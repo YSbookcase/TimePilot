@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using Microsoft.Win32;
 using TimePilot.WinForms.KYS24;
@@ -21,6 +22,7 @@ namespace TimePilot.WinForms
         private readonly List<Label> runtimeCoverageSummaryLabels = new();
         private readonly NotifyIcon trayIcon = new();
         private readonly ContextMenuStrip trayMenu = new();
+        private readonly ContextMenuStrip appCategoryMenu = new();
         private readonly bool startMinimizedToTray;
         private AppSettings settings = AppSettings.LoadDefault();
         private string usageSortProperty = nameof(UsageSummaryRow.ActiveUsageMs);
@@ -100,6 +102,9 @@ namespace TimePilot.WinForms
             usageGrid.CellMouseLeave += OnGridCellMouseLeave;
             runtimeGrid.CellMouseEnter += OnGridCellMouseEnter;
             runtimeGrid.CellMouseLeave += OnGridCellMouseLeave;
+            runtimeGrid.CellMouseDown += OnRuntimeGridCellMouseDown;
+            appCategoryMenu.Opening += OnAppCategoryMenuOpening;
+            runtimeGrid.ContextMenuStrip = appCategoryMenu;
             mainTabs.SelectedIndexChanged += OnMainTabsSelectedIndexChanged;
             sampleTimer.Interval = SampleIntervalMs;
             sampleTimer.Tick += OnSampleTick;
@@ -502,9 +507,9 @@ namespace TimePilot.WinForms
                 UiText.RuntimeCoverage.LongestMissing("00:04:12"));
             usageGrid.DataSource = AddIcons(new List<UsageSummaryRow>
             {
-                new("Microsoft Visual Studio", "devenv", null, 3_900_000, 0.54, 8, null, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now),
-                new("Google Chrome", "chrome", null, 1_680_000, 0.23, 15, null, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-12)),
-                new("File Explorer", "explorer", null, 900_000, 0.13, 4, null, DateTimeOffset.Now.AddMinutes(-45), DateTimeOffset.Now.AddMinutes(-5))
+                new(1, "Microsoft Visual Studio", "devenv", null, null, "개발", 3_900_000, 0.54, 8, null, DateTimeOffset.Now.AddHours(-2), DateTimeOffset.Now),
+                new(2, "Google Chrome", "chrome", null, null, "자료조사/브라우징", 1_680_000, 0.23, 15, null, DateTimeOffset.Now.AddHours(-1), DateTimeOffset.Now.AddMinutes(-12)),
+                new(3, "File Explorer", "explorer", null, null, null, 900_000, 0.13, 4, null, DateTimeOffset.Now.AddMinutes(-45), DateTimeOffset.Now.AddMinutes(-5))
             });
             dailyUsageTrendGrid.DataSource = new List<DailyUsageTrendRow>
             {
@@ -649,6 +654,7 @@ namespace TimePilot.WinForms
             dailyUsageTopAppColumn.HeaderText = UiText.Main.TopApp;
             dailyUsageTopAppTimeColumn.HeaderText = UiText.Main.TopAppTime;
             appNameColumn.HeaderText = UiText.Main.App;
+            appCategoryColumn.HeaderText = UiText.Main.Category;
             firstStartedAtColumn.HeaderText = UiText.Main.FirstStartedAt;
             lastObservedAtColumn.HeaderText = UiText.Main.LastObservedAt;
             activeUsageTimeColumn.HeaderText = UiText.Main.ActiveUsageTime;
@@ -657,6 +663,7 @@ namespace TimePilot.WinForms
             switchCountColumn.HeaderText = UiText.Main.SwitchCount;
 
             runtimeAppNameColumn.HeaderText = UiText.Main.App;
+            runtimeCategoryColumn.HeaderText = UiText.Main.Category;
             runtimeTrackingTypeColumn.HeaderText = UiText.Main.Type;
             runtimeTrackingTypeColumn.ToolTipText = UiText.Main.RuntimeTrackingTypeTooltip;
             runtimeFirstObservedAtColumn.HeaderText = UiText.Main.FirstObservedAt;
@@ -1087,6 +1094,7 @@ namespace TimePilot.WinForms
             IOrderedEnumerable<UsageSummaryRow> sortedRows = usageSortProperty switch
             {
                 nameof(UsageSummaryRow.AppName) => OrderUsageRows(rows, x => x.AppName),
+                nameof(UsageSummaryRow.CategoryText) => OrderUsageRows(rows, x => x.CategoryText),
                 nameof(UsageSummaryRow.FirstStartedAt) => OrderUsageRows(rows, x => x.FirstStartedAt),
                 nameof(UsageSummaryRow.LastObservedAt) => OrderUsageRows(rows, x => x.LastObservedAt),
                 nameof(UsageSummaryRow.UsageRatio) => OrderUsageRows(rows, x => x.UsageRatio),
@@ -1132,6 +1140,7 @@ namespace TimePilot.WinForms
             IOrderedEnumerable<ProcessRuntimeSummaryRow> sortedRows = runtimeSortProperty switch
             {
                 nameof(ProcessRuntimeSummaryRow.AppName) => OrderRuntimeRows(rows, x => x.AppName),
+                nameof(ProcessRuntimeSummaryRow.CategoryText) => OrderRuntimeRows(rows, x => x.CategoryText),
                 nameof(ProcessRuntimeSummaryRow.FirstObservedAt) => OrderRuntimeRows(rows, x => x.FirstObservedAt),
                 nameof(ProcessRuntimeSummaryRow.LastObservedAt) => OrderRuntimeRows(rows, x => x.LastObservedAt),
                 nameof(ProcessRuntimeSummaryRow.ActiveUsageMs) => OrderRuntimeRows(rows, x => x.ActiveUsageMs),
@@ -1513,6 +1522,69 @@ namespace TimePilot.WinForms
             RefreshRuntimeSegments(DateTimeOffset.UtcNow);
         }
 
+        private void OnRuntimeGridCellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Right || e.RowIndex < 0)
+                return;
+
+            runtimeGrid.ClearSelection();
+            runtimeGrid.Rows[e.RowIndex].Selected = true;
+            if (e.ColumnIndex >= 0)
+                runtimeGrid.CurrentCell = runtimeGrid.Rows[e.RowIndex].Cells[e.ColumnIndex];
+        }
+
+        private void OnAppCategoryMenuOpening(object? sender, CancelEventArgs e)
+        {
+            appCategoryMenu.Items.Clear();
+
+            if (storage is null || runtimeGrid.CurrentRow?.DataBoundItem is not ProcessRuntimeSummaryRow row)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            var categories = storage.GetAppCategoryOptions();
+            var setCategoryMenuItem = new ToolStripMenuItem(UiText.Main.SetCategory);
+
+            var uncategorizedItem = new ToolStripMenuItem(UiText.Main.Uncategorized)
+            {
+                Checked = row.PrimaryCategoryId is null,
+                Tag = (long?)null
+            };
+            uncategorizedItem.Click += (_, _) => SetSelectedRuntimeAppCategory(null);
+            setCategoryMenuItem.DropDownItems.Add(uncategorizedItem);
+
+            if (categories.Count > 0)
+                setCategoryMenuItem.DropDownItems.Add(new ToolStripSeparator());
+
+            foreach (var category in categories)
+            {
+                var categoryItem = new ToolStripMenuItem(category.Name)
+                {
+                    Checked = row.PrimaryCategoryId == category.Id,
+                    Tag = category.Id
+                };
+                categoryItem.Click += (_, _) => SetSelectedRuntimeAppCategory(category.Id);
+                setCategoryMenuItem.DropDownItems.Add(categoryItem);
+            }
+
+            appCategoryMenu.Items.Add(setCategoryMenuItem);
+        }
+
+        private void SetSelectedRuntimeAppCategory(long? categoryId)
+        {
+            if (storage is null || runtimeGrid.CurrentRow?.DataBoundItem is not ProcessRuntimeSummaryRow row)
+                return;
+
+            storage.SetAppPrimaryCategory(row.AppId, categoryId);
+            var categoryName = categoryId is null
+                ? UiText.Main.Uncategorized
+                : storage.GetAppCategoryOptions().FirstOrDefault(x => x.Id == categoryId)?.Name ?? UiText.Main.Uncategorized;
+
+            SetStatusText(UiText.Main.CategoryUpdated(row.AppName, categoryName));
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
         private void OnRuntimeSegmentsGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
         {
             if (e.ColumnIndex < 0)
@@ -1596,6 +1668,7 @@ namespace TimePilot.WinForms
             return column.Name switch
             {
                 nameof(appNameColumn) => nameof(UsageSummaryRow.AppName),
+                nameof(appCategoryColumn) => nameof(UsageSummaryRow.CategoryText),
                 nameof(firstStartedAtColumn) => nameof(UsageSummaryRow.FirstStartedAt),
                 nameof(lastObservedAtColumn) => nameof(UsageSummaryRow.LastObservedAt),
                 nameof(activeUsageTimeColumn) => nameof(UsageSummaryRow.ActiveUsageMs),
@@ -1610,6 +1683,7 @@ namespace TimePilot.WinForms
             return column.Name switch
             {
                 nameof(runtimeAppNameColumn) => nameof(ProcessRuntimeSummaryRow.AppName),
+                nameof(runtimeCategoryColumn) => nameof(ProcessRuntimeSummaryRow.CategoryText),
                 nameof(runtimeTrackingTypeColumn) => nameof(ProcessRuntimeSummaryRow.TrackingTypeText),
                 nameof(runtimeFirstObservedAtColumn) => nameof(ProcessRuntimeSummaryRow.FirstObservedAt),
                 nameof(runtimeLastObservedAtColumn) => nameof(ProcessRuntimeSummaryRow.LastObservedAt),
