@@ -109,6 +109,7 @@
             timelineZoomPreviousButton = new Button();
             timelineZoomNextButton = new Button();
             timelineZoomResetButton = new Button();
+            timelineHelpButton = new Button();
             timelineCategoryBucketLabel = new Label();
             timelineCategoryBucketComboBox = new ComboBox();
             timelineZoomScrollBar = new HScrollBar();
@@ -1072,6 +1073,7 @@
             timelineZoomPanel.Controls.Add(timelineZoomPreviousButton);
             timelineZoomPanel.Controls.Add(timelineZoomNextButton);
             timelineZoomPanel.Controls.Add(timelineZoomResetButton);
+            timelineZoomPanel.Controls.Add(timelineHelpButton);
             timelineZoomPanel.Controls.Add(timelineCategoryBucketLabel);
             timelineZoomPanel.Controls.Add(timelineCategoryBucketComboBox);
             timelineZoomPanel.Dock = DockStyle.Top;
@@ -1147,24 +1149,34 @@
             timelineZoomResetButton.UseVisualStyleBackColor = true;
             timelineZoomResetButton.Click += OnTimelineZoomResetButtonClick;
             //
+            // timelineHelpButton
+            //
+            timelineHelpButton.Location = new Point(327, 7);
+            timelineHelpButton.Name = "timelineHelpButton";
+            timelineHelpButton.Size = new Size(28, 23);
+            timelineHelpButton.TabIndex = 6;
+            timelineHelpButton.Text = UiText.Main.TimelineHelp;
+            timelineHelpButton.UseVisualStyleBackColor = true;
+            timelineHelpButton.Click += OnTimelineHelpButtonClick;
+            //
             // timelineCategoryBucketLabel
             //
             timelineCategoryBucketLabel.AutoSize = true;
-            timelineCategoryBucketLabel.Location = new Point(327, 10);
+            timelineCategoryBucketLabel.Location = new Point(363, 10);
             timelineCategoryBucketLabel.Margin = new Padding(8, 6, 4, 0);
             timelineCategoryBucketLabel.Name = "timelineCategoryBucketLabel";
             timelineCategoryBucketLabel.Size = new Size(59, 15);
-            timelineCategoryBucketLabel.TabIndex = 6;
+            timelineCategoryBucketLabel.TabIndex = 7;
             timelineCategoryBucketLabel.Text = UiText.Main.TimelineCategoryBucket;
             //
             // timelineCategoryBucketComboBox
             //
             timelineCategoryBucketComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             timelineCategoryBucketComboBox.FormattingEnabled = true;
-            timelineCategoryBucketComboBox.Location = new Point(390, 7);
+            timelineCategoryBucketComboBox.Location = new Point(426, 7);
             timelineCategoryBucketComboBox.Name = "timelineCategoryBucketComboBox";
             timelineCategoryBucketComboBox.Size = new Size(86, 23);
-            timelineCategoryBucketComboBox.TabIndex = 7;
+            timelineCategoryBucketComboBox.TabIndex = 8;
             timelineCategoryBucketComboBox.SelectedIndexChanged += OnTimelineCategoryBucketComboBoxSelectedIndexChanged;
             //
             // timelineZoomScrollBar
@@ -1400,6 +1412,7 @@
         private Button timelineZoomPreviousButton;
         private Button timelineZoomNextButton;
         private Button timelineZoomResetButton;
+        private Button timelineHelpButton;
         private Label timelineCategoryBucketLabel;
         private ComboBox timelineCategoryBucketComboBox;
         private HScrollBar timelineZoomScrollBar;

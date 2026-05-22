@@ -14,6 +14,16 @@ namespace TimePilot.WinForms
             var messageLabel = new Label();
             var primaryButton = new Button();
             var secondaryButton = new Button();
+            const int messageWidth = 344;
+            const int minMessageHeight = 82;
+            const int maxMessageHeight = 360;
+            var measuredMessage = TextRenderer.MeasureText(
+                message,
+                messageLabel.Font,
+                new Size(messageWidth, int.MaxValue),
+                TextFormatFlags.WordBreak);
+            var messageHeight = Math.Clamp(measuredMessage.Height + 8, minMessageHeight, maxMessageHeight);
+            var buttonTop = 20 + messageHeight + 16;
 
             SuspendLayout();
 
@@ -25,16 +35,16 @@ namespace TimePilot.WinForms
 
             messageLabel.Location = new Point(68, 20);
             messageLabel.Name = "messageLabel";
-            messageLabel.Size = new Size(344, 82);
+            messageLabel.Size = new Size(messageWidth, messageHeight);
             messageLabel.Text = message;
 
             primaryButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            primaryButton.Location = new Point(256, 118);
+            primaryButton.Location = new Point(256, buttonTop);
             primaryButton.Name = "primaryButton";
             primaryButton.Size = new Size(75, 27);
 
             secondaryButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
-            secondaryButton.Location = new Point(337, 118);
+            secondaryButton.Location = new Point(337, buttonTop);
             secondaryButton.Name = "secondaryButton";
             secondaryButton.Size = new Size(75, 27);
 
@@ -57,7 +67,7 @@ namespace TimePilot.WinForms
 
             AcceptButton = primaryButton;
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(432, 165);
+            ClientSize = new Size(432, buttonTop + 47);
             Controls.Add(iconBox);
             Controls.Add(messageLabel);
             Controls.Add(primaryButton);
