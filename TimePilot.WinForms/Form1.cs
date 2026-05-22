@@ -114,6 +114,7 @@ namespace TimePilot.WinForms
             timelineGrid.RowPrePaint += OnTimelineGridRowPrePaint;
             timelineGrid.RowPostPaint += OnTimelineGridRowPostPaint;
             timelineZoomScrollBar.Scroll += OnTimelineZoomScrollBarScroll;
+            timelineOverviewControl.ActivitySegmentContextRequested += OnTimelineOverviewActivitySegmentContextRequested;
             runtimeGrid.CellMouseEnter += OnGridCellMouseEnter;
             runtimeGrid.CellMouseLeave += OnGridCellMouseLeave;
             runtimeGrid.CellMouseDown += OnRuntimeGridCellMouseDown;
@@ -781,7 +782,6 @@ namespace TimePilot.WinForms
             runtimeCoverageSummaryToolTip.SetToolTip(detailHelpButton, UiText.Main.DetailHelpTitle);
             runtimeCoverageSummaryToolTip.SetToolTip(detailDescriptionLabel, UiText.Main.DetailDescription);
             runtimeCoverageSummaryToolTip.SetToolTip(timelineCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
-            runtimeCoverageSummaryToolTip.SetToolTip(timelineOverviewControl, UiText.Main.TimelineZoomHelpTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(timelineHelpButton, UiText.Main.TimelineHelpTitle);
             RefreshDetailRuntimeFilterOptions();
             RefreshSummaryPeriodOptions(DateTime.Today);
@@ -1518,6 +1518,19 @@ namespace TimePilot.WinForms
                 || string.IsNullOrWhiteSpace(row.ProcessName))
                 return;
 
+            ShowTimelineActivityContextMenu(row, timelineGrid, timelineGrid.PointToClient(Cursor.Position));
+        }
+
+        private void OnTimelineOverviewActivitySegmentContextRequested(object? sender, TimelineActivitySegmentContextEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(e.Row.ProcessName))
+                return;
+
+            ShowTimelineActivityContextMenu(e.Row, timelineOverviewControl, e.Location);
+        }
+
+        private void ShowTimelineActivityContextMenu(ActivityTimelineRow row, Control owner, Point location)
+        {
             timelineGridMenu.Items.Clear();
             var highlightItem = new ToolStripMenuItem(UiText.Main.HighlightInTimeline);
             highlightItem.Click += (_, _) => HighlightTimelineRow(row);
@@ -1529,7 +1542,7 @@ namespace TimePilot.WinForms
                 timelineGridMenu.Items.Add(clearHighlightItem);
             }
 
-            timelineGridMenu.Show(timelineGrid, timelineGrid.PointToClient(Cursor.Position));
+            timelineGridMenu.Show(owner, location);
         }
 
         private void ClearTimelineHighlight()
