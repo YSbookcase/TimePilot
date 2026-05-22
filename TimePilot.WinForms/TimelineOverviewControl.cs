@@ -68,6 +68,8 @@ namespace TimePilot.WinForms
 
         public event EventHandler? ViewRangeChanged;
 
+        public event EventHandler<TimelineActivitySegmentContextEventArgs>? ActivitySegmentContextRequested;
+
         public bool IsZoomed => viewStart > TimeSpan.Zero || viewEnd < TimeSpan.FromDays(1);
 
         public bool CanGoBack => viewHistory.Count > 0;
@@ -204,6 +206,14 @@ namespace TimePilot.WinForms
         {
             base.OnMouseDown(e);
             Focus();
+
+            if (e.Button == MouseButtons.Right)
+            {
+                if (FindActivityRowAt(e.Location) is { } row)
+                    ActivitySegmentContextRequested?.Invoke(this, new TimelineActivitySegmentContextEventArgs(row, e.Location));
+
+                return;
+            }
 
             if (e.Button != MouseButtons.Left || !GetInteractiveBounds(ClientRectangle).Contains(e.Location))
                 return;
@@ -562,15 +572,20 @@ namespace TimePilot.WinForms
 
         private string? FindActivityHoverTextAt(Point point)
         {
-            var timelineBounds = GetActivityBounds(ClientRectangle);
-            var row = rows
-                .Select(row => new { Row = row, Bounds = GetSegmentBounds(row, timelineBounds) })
-                .LastOrDefault(x => x.Bounds.Contains(point))
-                ?.Row;
+            var row = FindActivityRowAt(point);
 
             return row is null
                 ? null
                 : $"{row.ActivityType} | {row.DisplayName} | {row.StartedAtText}-{row.EndedAtText} | {row.DurationText}";
+        }
+
+        private ActivityTimelineRow? FindActivityRowAt(Point point)
+        {
+            var timelineBounds = GetActivityBounds(ClientRectangle);
+            return rows
+                .Select(row => new { Row = row, Bounds = GetSegmentBounds(row, timelineBounds) })
+                .LastOrDefault(x => x.Bounds.Contains(point))
+                ?.Row;
         }
 
         private bool IsHighlighted(ActivityTimelineRow row)

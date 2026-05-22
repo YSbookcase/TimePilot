@@ -190,7 +190,6 @@ namespace TimePilot.WinForms.KYS24
             public static string RuntimeStatusTooltip => current.Main.RuntimeStatusTooltip;
             public static string RuntimeSegmentObservationTooltip => current.Main.RuntimeSegmentObservationTooltip;
             public static string RecordedDateCalendarTooltip => current.Main.RecordedDateCalendarTooltip;
-            public static string TimelineZoomHelpTooltip => current.Main.TimelineZoomHelpTooltip;
             public static string OpenWindow => current.Main.OpenWindow;
             public static string UsageDataCleared => current.Main.UsageDataCleared;
             public static string StartupPromptTitle => current.Main.StartupPromptTitle;
@@ -508,7 +507,6 @@ namespace TimePilot.WinForms.KYS24
                         RuntimeStatusTooltip: "현재 설정 기준으로 실행 중, 종료, 추적 범위 밖 상태를 표시합니다.",
                         RuntimeSegmentObservationTooltip: "해당 개별 감지 세션이 어떤 기준으로 관측되었는지 표시합니다. 같은 앱 안에서도 화면 앱과 사용자 프로세스가 섞일 수 있습니다.",
                         RecordedDateCalendarTooltip: "기록이 있는 날짜는 달력에서 굵게 표시됩니다.",
-                        TimelineZoomHelpTooltip: "드래그로 범위를 확대합니다.\nCtrl+휠: 마우스 위치 기준 확대/축소\nShift+휠: 좌우 이동\n←/→: 좌우 미세 이동\nEsc: 전체 보기",
                         OpenWindow: "창 열기",
                         UsageDataCleared: "사용 기록을 삭제했습니다.",
                         StartupPromptTitle: "TimePilot 자동 시작",
@@ -781,7 +779,6 @@ namespace TimePilot.WinForms.KYS24
                         RuntimeStatusTooltip: "Shows running, ended, or outside tracking scope based on the current settings.",
                         RuntimeSegmentObservationTooltip: "Shows how each individual detected session was observed. A single app can include both visible app and user process sessions.",
                         RecordedDateCalendarTooltip: "Dates with records are shown in bold on the calendar.",
-                        TimelineZoomHelpTooltip: "Drag to zoom into a range.\nCtrl+wheel: zoom around the pointer\nShift+wheel: pan left/right\nLeft/Right: fine pan\nEsc: full day",
                         OpenWindow: "Open window",
                         UsageDataCleared: "Usage records were deleted.",
                         StartupPromptTitle: "TimePilot startup",
@@ -1036,7 +1033,6 @@ namespace TimePilot.WinForms.KYS24
             string RuntimeStatusTooltip,
             string RuntimeSegmentObservationTooltip,
             string RecordedDateCalendarTooltip,
-            string TimelineZoomHelpTooltip,
             string OpenWindow,
             string UsageDataCleared,
             string StartupPromptTitle,
