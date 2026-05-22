@@ -14,6 +14,10 @@ namespace TimePilot.WinForms
         private static readonly Color WindowsBorderColor = Color.FromArgb(87, 137, 184);
         private static readonly Color MixedFillColor = Color.FromArgb(216, 218, 224);
         private static readonly Color MixedBorderColor = Color.FromArgb(132, 138, 150);
+        private static readonly Color DimOverlayColor = Color.FromArgb(220, 255, 255, 255);
+        private static readonly Color HighlightTintColor = Color.FromArgb(70, 28, 91, 170);
+        private static readonly Color HighlightBorderColor = Color.FromArgb(13, 61, 132);
+        private static readonly Color HighlightHatchColor = Color.FromArgb(170, 13, 61, 132);
         private static readonly Color SelectionFillColor = Color.FromArgb(80, 47, 111, 172);
         private static readonly Color SelectionBorderColor = Color.FromArgb(47, 111, 172);
         private static readonly Color AxisColor = Color.FromArgb(190, 196, 204);
@@ -50,6 +54,7 @@ namespace TimePilot.WinForms
         private IReadOnlyList<ActivityTimelineRow> rows = Array.Empty<ActivityTimelineRow>();
         private IReadOnlyList<TimelineRange> windowsRuntimeRanges = Array.Empty<TimelineRange>();
         private IReadOnlyList<CategoryTimelineSegment> categorySegments = Array.Empty<CategoryTimelineSegment>();
+        private string? highlightedProcessName;
         private DateTime localDate = DateTime.Today;
         private TimeSpan viewStart = TimeSpan.Zero;
         private TimeSpan viewEnd = TimeSpan.FromDays(1);
@@ -72,6 +77,10 @@ namespace TimePilot.WinForms
         public string ViewRangeText => IsZoomed
             ? $"{FormatTimeOfDay(viewStart)}-{FormatTimeOfDay(viewEnd)} ({FormatRangeDuration(viewEnd - viewStart)})"
             : UiText.Main.TimelineFullDay;
+
+        public double ViewStartRatio => viewStart.TotalMilliseconds / TimeSpan.FromDays(1).TotalMilliseconds;
+
+        public double ViewWidthRatio => (viewEnd - viewStart).TotalMilliseconds / TimeSpan.FromDays(1).TotalMilliseconds;
 
         public TimelineOverviewControl()
         {
@@ -101,6 +110,13 @@ namespace TimePilot.WinForms
             Invalidate();
         }
 
+        public void SetHighlightedProcessName(string? processName)
+        {
+            highlightedProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName;
+            hoverText = null;
+            Invalidate();
+        }
+
         public void GoBack()
         {
             if (viewHistory.Count == 0)
@@ -127,6 +143,30 @@ namespace TimePilot.WinForms
         public void PanNext()
         {
             Pan(0.5);
+        }
+
+        public void ZoomIn()
+        {
+            Zoom(0.5);
+        }
+
+        public void ZoomOut()
+        {
+            Zoom(2);
+        }
+
+        public void SetViewStartRatio(double ratio)
+        {
+            if (!IsZoomed)
+                return;
+
+            var width = viewEnd - viewStart;
+            var maxStart = TimeSpan.FromDays(1) - width;
+            var nextStart = TimeSpan.FromTicks((long)(TimeSpan.FromDays(1).Ticks * Math.Clamp(ratio, 0, 1)));
+            if (nextStart > maxStart)
+                nextStart = maxStart;
+
+            SetViewRange(nextStart, nextStart + width, addHistory: false);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -382,6 +422,27 @@ namespace TimePilot.WinForms
             using var borderPen = new Pen(GetBorderColor(row));
             graphics.FillRectangle(fillBrush, segment);
             graphics.DrawRectangle(borderPen, segment);
+
+            if (highlightedProcessName is null || IsHighlighted(row))
+            {
+                if (IsHighlighted(row))
+                {
+                    using var tintBrush = new SolidBrush(HighlightTintColor);
+                    using var hatchBrush = new System.Drawing.Drawing2D.HatchBrush(
+                        System.Drawing.Drawing2D.HatchStyle.ForwardDiagonal,
+                        HighlightHatchColor,
+                        Color.Transparent);
+                    using var highlightPen = new Pen(HighlightBorderColor, 4);
+                    graphics.FillRectangle(tintBrush, segment);
+                    graphics.FillRectangle(hatchBrush, segment);
+                    graphics.DrawRectangle(highlightPen, segment);
+                }
+
+                return;
+            }
+
+            using var overlayBrush = new SolidBrush(DimOverlayColor);
+            graphics.FillRectangle(overlayBrush, segment);
         }
 
         private void DrawDragSelection(Graphics graphics, Rectangle bounds)
@@ -457,6 +518,12 @@ namespace TimePilot.WinForms
             return row is null
                 ? null
                 : $"{row.ActivityType} | {row.DisplayName} | {row.StartedAtText}-{row.EndedAtText} | {row.DurationText}";
+        }
+
+        private bool IsHighlighted(ActivityTimelineRow row)
+        {
+            return highlightedProcessName is not null
+                && string.Equals(row.ProcessName, highlightedProcessName, StringComparison.OrdinalIgnoreCase);
         }
 
         private void DrawHoverInfo(Graphics graphics, string text, Rectangle bounds)
@@ -612,6 +679,34 @@ namespace TimePilot.WinForms
                 return;
 
             SetViewRange(nextStart, nextEnd, addHistory: false);
+        }
+
+        private void Zoom(double factor)
+        {
+            var currentWidth = viewEnd - viewStart;
+            var nextWidth = TimeSpan.FromTicks((long)(currentWidth.Ticks * factor));
+            if (nextWidth < MinimumViewRange)
+                nextWidth = MinimumViewRange;
+            if (nextWidth > TimeSpan.FromDays(1))
+                nextWidth = TimeSpan.FromDays(1);
+            if (nextWidth == currentWidth)
+                return;
+
+            var center = viewStart + TimeSpan.FromTicks(currentWidth.Ticks / 2);
+            var nextStart = center - TimeSpan.FromTicks(nextWidth.Ticks / 2);
+            var nextEnd = nextStart + nextWidth;
+            if (nextStart < TimeSpan.Zero)
+            {
+                nextStart = TimeSpan.Zero;
+                nextEnd = nextWidth;
+            }
+            else if (nextEnd > TimeSpan.FromDays(1))
+            {
+                nextEnd = TimeSpan.FromDays(1);
+                nextStart = nextEnd - nextWidth;
+            }
+
+            SetViewRange(nextStart, nextEnd, addHistory: true);
         }
 
         private void SetViewRange(TimeSpan start, TimeSpan end, bool addHistory)

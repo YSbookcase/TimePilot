@@ -59,7 +59,17 @@ namespace TimePilot.WinForms.KYS24
             public static string TimelinePreviousRange => current.Main.TimelinePreviousRange;
             public static string TimelineNextRange => current.Main.TimelineNextRange;
             public static string TimelineResetView => current.Main.TimelineResetView;
+            public static string TimelineZoomOut => current.Main.TimelineZoomOut;
+            public static string TimelineZoomIn => current.Main.TimelineZoomIn;
+            public static string TimelinePanPrevious => current.Main.TimelinePanPrevious;
+            public static string TimelinePanNext => current.Main.TimelinePanNext;
             public static string TimelineViewRange(string value) => current.Main.TimelineViewRange(value);
+            public static string ShowInTimeline => current.Main.ShowInTimeline;
+            public static string HighlightInTimeline => current.Main.HighlightInTimeline;
+            public static string TimelineHighlightHint => current.Main.TimelineHighlightHint;
+            public static string SummaryTimelineHighlightHint => current.Main.SummaryTimelineHighlightHint;
+            public static string ClearTimelineHighlight => current.Main.ClearTimelineHighlight;
+            public static string TimelineHighlight(string appName) => current.Main.TimelineHighlight(appName);
             public static string Period => current.Main.Period;
             public static string Date => current.Main.Date;
             public static string Calendar => current.Main.Calendar;
@@ -354,8 +364,18 @@ namespace TimePilot.WinForms.KYS24
                         TimelinePreviousView: "이전 보기",
                         TimelinePreviousRange: "이전 구간",
                         TimelineNextRange: "다음 구간",
-                        TimelineResetView: "전체 보기",
+                        TimelineResetView: "전체",
+                        TimelineZoomOut: "-",
+                        TimelineZoomIn: "+",
+                        TimelinePanPrevious: "◀",
+                        TimelinePanNext: "▶",
                         TimelineViewRange: value => $"보기 범위: {value}",
+                        ShowInTimeline: "타임라인에서 보기",
+                        HighlightInTimeline: "타임라인에서 강조",
+                        TimelineHighlightHint: "행을 우클릭해 앱 구간을 강조할 수 있습니다.",
+                        SummaryTimelineHighlightHint: "앱 행을 우클릭해 타임라인에서 강조할 수 있습니다.",
+                        ClearTimelineHighlight: "해제",
+                        TimelineHighlight: appName => $"강조: {appName}",
                         Period: "기간",
                         Date: "날짜",
                         Calendar: "달력",
@@ -603,8 +623,18 @@ namespace TimePilot.WinForms.KYS24
                         TimelinePreviousView: "Previous view",
                         TimelinePreviousRange: "Previous range",
                         TimelineNextRange: "Next range",
-                        TimelineResetView: "Full day",
+                        TimelineResetView: "Full",
+                        TimelineZoomOut: "-",
+                        TimelineZoomIn: "+",
+                        TimelinePanPrevious: "◀",
+                        TimelinePanNext: "▶",
                         TimelineViewRange: value => $"View range: {value}",
+                        ShowInTimeline: "Show in timeline",
+                        HighlightInTimeline: "Highlight in timeline",
+                        TimelineHighlightHint: "Right-click a row to highlight app segments.",
+                        SummaryTimelineHighlightHint: "Right-click an app row to highlight it in the timeline.",
+                        ClearTimelineHighlight: "Clear",
+                        TimelineHighlight: appName => $"Highlight: {appName}",
                         Period: "Period",
                         Date: "Date",
                         Calendar: "Calendar",
@@ -852,7 +882,17 @@ namespace TimePilot.WinForms.KYS24
             string TimelinePreviousRange,
             string TimelineNextRange,
             string TimelineResetView,
+            string TimelineZoomOut,
+            string TimelineZoomIn,
+            string TimelinePanPrevious,
+            string TimelinePanNext,
             Func<string, string> TimelineViewRange,
+            string ShowInTimeline,
+            string HighlightInTimeline,
+            string TimelineHighlightHint,
+            string SummaryTimelineHighlightHint,
+            string ClearTimelineHighlight,
+            Func<string, string> TimelineHighlight,
             string Period,
             string Date,
             string Calendar,

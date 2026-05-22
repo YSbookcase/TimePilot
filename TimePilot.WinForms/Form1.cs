@@ -23,6 +23,8 @@ namespace TimePilot.WinForms
         private readonly NotifyIcon trayIcon = new();
         private readonly ContextMenuStrip trayMenu = new();
         private readonly ContextMenuStrip appCategoryMenu = new();
+        private readonly ContextMenuStrip usageGridMenu = new();
+        private readonly ContextMenuStrip timelineGridMenu = new();
         private readonly bool startMinimizedToTray;
         private AppSettings settings = AppSettings.LoadDefault();
         private string usageSortProperty = nameof(UsageSummaryRow.ActiveUsageMs);
@@ -41,6 +43,7 @@ namespace TimePilot.WinForms
         private DetailRuntimeFilter selectedDetailRuntimeFilter = DetailRuntimeFilter.SummaryApps;
         private bool showRunningRuntimeOnly;
         private bool isRefreshingRuntimeGrid;
+        private bool isSelectingRuntimeGridRow;
         private bool isUpdatingDetailRuntimeFilterOptions;
         private bool isExplicitExitRequested;
         private volatile bool isViewRefreshRunning;
@@ -61,7 +64,11 @@ namespace TimePilot.WinForms
         private bool processRuntimeSafeModeActivated;
         private bool isInitializingSummaryPeriodSelector;
         private bool isInitializingDateSelectors;
+        private bool isUpdatingTimelineScrollBar;
         private bool systemEventHandlersRegistered;
+        private string? highlightedTimelineProcessName;
+        private string? highlightedTimelineAppName;
+        private Font? timelineHighlightedRowFont;
         private Form? recordedDatePickerPopupForm;
 
         public Form1(bool startMinimizedToTray = false)
@@ -102,11 +109,14 @@ namespace TimePilot.WinForms
             ConfigureTrayIcon();
             usageGrid.CellMouseEnter += OnGridCellMouseEnter;
             usageGrid.CellMouseLeave += OnGridCellMouseLeave;
+            usageGrid.CellMouseDown += OnUsageGridCellMouseDown;
+            timelineGrid.CellMouseDown += OnTimelineGridCellMouseDown;
+            timelineGrid.RowPrePaint += OnTimelineGridRowPrePaint;
+            timelineGrid.RowPostPaint += OnTimelineGridRowPostPaint;
+            timelineZoomScrollBar.Scroll += OnTimelineZoomScrollBarScroll;
             runtimeGrid.CellMouseEnter += OnGridCellMouseEnter;
             runtimeGrid.CellMouseLeave += OnGridCellMouseLeave;
             runtimeGrid.CellMouseDown += OnRuntimeGridCellMouseDown;
-            appCategoryMenu.Opening += OnAppCategoryMenuOpening;
-            runtimeGrid.ContextMenuStrip = appCategoryMenu;
             mainTabs.SelectedIndexChanged += OnMainTabsSelectedIndexChanged;
             sampleTimer.Interval = SampleIntervalMs;
             sampleTimer.Tick += OnSampleTick;
@@ -164,6 +174,7 @@ namespace TimePilot.WinForms
             appIconCache.Dispose();
             CloseRecordedDatePickerDropDown();
             headerToolTipForm.Dispose();
+            timelineHighlightedRowFont?.Dispose();
             trayIcon.Visible = false;
             trayIcon.Dispose();
             trayMenu.Dispose();
@@ -470,6 +481,9 @@ namespace TimePilot.WinForms
             isInitializingDateSelectors = true;
             try
             {
+                ConfigureDatePickerFormat(summarySpecificDatePicker);
+                ConfigureDatePickerFormat(detailDatePicker);
+                ConfigureDatePickerFormat(timelineDatePicker);
                 var today = DateTime.Today;
                 selectedDetailDate = today;
                 selectedTimelineDate = today;
@@ -484,6 +498,12 @@ namespace TimePilot.WinForms
             }
 
             UpdateDateNavigationButtons();
+        }
+
+        private static void ConfigureDatePickerFormat(DateTimePicker picker)
+        {
+            picker.Format = DateTimePickerFormat.Custom;
+            picker.CustomFormat = "yyyy-MM-dd (ddd)";
         }
 
         private void InitializeTimelineCategoryBucketSelector()
@@ -686,13 +706,17 @@ namespace TimePilot.WinForms
             timelineDateLabel.Text = UiText.Main.Date;
             timelineCalendarButton.Text = UiText.Main.Calendar;
             timelineTodayButton.Text = UiText.Main.Today;
-            timelineZoomBackButton.Text = UiText.Main.TimelinePreviousView;
-            timelineZoomPreviousButton.Text = UiText.Main.TimelinePreviousRange;
-            timelineZoomNextButton.Text = UiText.Main.TimelineNextRange;
+            timelineHighlightClearButton.Text = UiText.Main.ClearTimelineHighlight;
+            timelineHighlightHintLabel.Text = UiText.Main.TimelineHighlightHint;
+            timelineZoomOutButton.Text = UiText.Main.TimelineZoomOut;
+            timelineZoomInButton.Text = UiText.Main.TimelineZoomIn;
+            timelineZoomPreviousButton.Text = UiText.Main.TimelinePanPrevious;
+            timelineZoomNextButton.Text = UiText.Main.TimelinePanNext;
             timelineZoomResetButton.Text = UiText.Main.TimelineResetView;
             timelineCategoryBucketLabel.Text = UiText.Main.TimelineCategoryBucket;
             timelineOverviewControl.Invalidate();
             UpdateTimelineZoomControls();
+            UpdateTimelineHighlightUi();
             RefreshTimelineCategoryBucketOptions();
 
             dailyUsageDateColumn.HeaderText = UiText.Main.Date;
@@ -707,6 +731,7 @@ namespace TimePilot.WinForms
             usageRatioColumn.HeaderText = UiText.Main.ActiveRatio;
             usageRatioColumn.ToolTipText = UiText.Main.UsageRatioTooltip;
             switchCountColumn.HeaderText = UiText.Main.SwitchCount;
+            summaryHighlightHintLabel.Text = UiText.Main.SummaryTimelineHighlightHint;
 
             runtimeAppNameColumn.HeaderText = UiText.Main.App;
             runtimeCategoryColumn.HeaderText = UiText.Main.Category;
@@ -915,6 +940,7 @@ namespace TimePilot.WinForms
                     snapshot.TimelineRows,
                     snapshot.WindowsRuntimeRanges ?? Array.Empty<TimelineRange>(),
                     snapshot.CategoryTimelineSegments ?? Array.Empty<CategoryTimelineSegment>());
+                timelineOverviewControl.SetHighlightedProcessName(highlightedTimelineProcessName);
                 SetGridDataSourcePreservingView(
                     timelineGrid,
                     AddIcons(SortTimelineRows(snapshot.TimelineRows)));
@@ -926,14 +952,16 @@ namespace TimePilot.WinForms
                 isRefreshingRuntimeGrid = true;
                 try
                 {
+                    var appIdToRestoreOnApply = selectedRuntimeAppId ?? appIdToRestore;
                     var runtimeRows = ApplyCurrentTrackingScope(snapshot.RuntimeRows);
                     SetGridDataSourcePreservingView(
                         runtimeGrid,
                         AddIcons(SortRuntimeSummaryRows(FilterRuntimeSummaryRows(
                             runtimeRows,
-                            snapshot.DetailSummaryAppIds))));
+                            snapshot.DetailSummaryAppIds))),
+                        preserveSelection: false);
                     RestoreRuntimeSelection(
-                        appIdToRestore,
+                        appIdToRestoreOnApply,
                         GetFirstDisplayedColumnIndex(runtimeGrid),
                         runtimeHorizontalOffset);
                 }
@@ -1270,6 +1298,61 @@ namespace TimePilot.WinForms
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
+        private void OnUsageGridCellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Right || e.RowIndex < 0)
+                return;
+
+            if (SelectGridRow<UsageSummaryRow>(usageGrid, e.RowIndex, e.ColumnIndex) is not { } row)
+                return;
+
+            usageGridMenu.Items.Clear();
+            var showInTimelineItem = new ToolStripMenuItem(UiText.Main.ShowInTimeline);
+            showInTimelineItem.Click += (_, _) => HighlightUsageRowInTimeline(row);
+            usageGridMenu.Items.Add(showInTimelineItem);
+            usageGridMenu.Show(usageGrid, usageGrid.PointToClient(Cursor.Position));
+        }
+
+        private void HighlightUsageRowInTimeline(UsageSummaryRow? row)
+        {
+            if (row is null || string.IsNullOrWhiteSpace(row.ProcessName))
+                return;
+
+            highlightedTimelineProcessName = row.ProcessName;
+            highlightedTimelineAppName = row.AppName;
+            selectedTimelineDate = GetTimelineDateForSummarySelection(row);
+            SetDatePickerValue(timelineDatePicker, selectedTimelineDate);
+            mainTabs.SelectedTab = timelineTab;
+            timelineOverviewControl.SetHighlightedProcessName(highlightedTimelineProcessName);
+            UpdateTimelineHighlightUi();
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void HighlightTimelineRow(ActivityTimelineRow? row)
+        {
+            if (row is null || string.IsNullOrWhiteSpace(row.ProcessName))
+                return;
+
+            highlightedTimelineProcessName = row.ProcessName;
+            highlightedTimelineAppName = row.DisplayName;
+            timelineOverviewControl.SetHighlightedProcessName(highlightedTimelineProcessName);
+            UpdateTimelineHighlightUi();
+            timelineGrid.Invalidate();
+        }
+
+        private DateTime GetTimelineDateForSummarySelection(UsageSummaryRow row)
+        {
+            if (selectedSummaryPeriod == SummaryPeriod.SpecificDate)
+                return selectedSummarySpecificDate;
+
+            if (selectedSummaryPeriod == SummaryPeriod.Today)
+                return DateTime.Today;
+
+            return row.LastObservedAt?.ToLocalTime().DateTime.Date
+                ?? row.FirstStartedAt?.ToLocalTime().DateTime.Date
+                ?? selectedTimelineDate;
+        }
+
         private void OnGridCellMouseEnter(object? sender, DataGridViewCellEventArgs e)
         {
             if (e.RowIndex != -1 || sender is not DataGridView grid)
@@ -1365,9 +1448,14 @@ namespace TimePilot.WinForms
             UpdateTimelineZoomControls();
         }
 
-        private void OnTimelineZoomBackButtonClick(object? sender, EventArgs e)
+        private void OnTimelineZoomOutButtonClick(object? sender, EventArgs e)
         {
-            timelineOverviewControl.GoBack();
+            timelineOverviewControl.ZoomOut();
+        }
+
+        private void OnTimelineZoomInButtonClick(object? sender, EventArgs e)
+        {
+            timelineOverviewControl.ZoomIn();
         }
 
         private void OnTimelineZoomPreviousButtonClick(object? sender, EventArgs e)
@@ -1385,6 +1473,19 @@ namespace TimePilot.WinForms
             timelineOverviewControl.ResetView();
         }
 
+        private void OnTimelineZoomScrollBarScroll(object? sender, ScrollEventArgs e)
+        {
+            if (isUpdatingTimelineScrollBar)
+                return;
+
+            timelineOverviewControl.SetViewStartRatio(e.NewValue / 1000d);
+        }
+
+        private void OnTimelineHighlightClearButtonClick(object? sender, EventArgs e)
+        {
+            ClearTimelineHighlight();
+        }
+
         private void OnTimelineCategoryBucketComboBoxSelectedIndexChanged(object? sender, EventArgs e)
         {
             if (timelineCategoryBucketComboBox.SelectedItem is not TimelineCategoryBucketOption option
@@ -1393,6 +1494,38 @@ namespace TimePilot.WinForms
 
             selectedTimelineCategoryBucketMinutes = option.Minutes;
             RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void OnTimelineGridCellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Right || e.RowIndex < 0)
+                return;
+
+            if (SelectGridRow<ActivityTimelineRow>(timelineGrid, e.RowIndex, e.ColumnIndex) is not { } row
+                || string.IsNullOrWhiteSpace(row.ProcessName))
+                return;
+
+            timelineGridMenu.Items.Clear();
+            var highlightItem = new ToolStripMenuItem(UiText.Main.HighlightInTimeline);
+            highlightItem.Click += (_, _) => HighlightTimelineRow(row);
+            timelineGridMenu.Items.Add(highlightItem);
+            if (string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase))
+            {
+                var clearHighlightItem = new ToolStripMenuItem(UiText.Main.ClearTimelineHighlight);
+                clearHighlightItem.Click += (_, _) => ClearTimelineHighlight();
+                timelineGridMenu.Items.Add(clearHighlightItem);
+            }
+
+            timelineGridMenu.Show(timelineGrid, timelineGrid.PointToClient(Cursor.Position));
+        }
+
+        private void ClearTimelineHighlight()
+        {
+            highlightedTimelineProcessName = null;
+            highlightedTimelineAppName = null;
+            timelineOverviewControl.SetHighlightedProcessName(null);
+            UpdateTimelineHighlightUi();
+            timelineGrid.Invalidate();
         }
 
         private void ApplyDetailDate(DateTime date)
@@ -1425,12 +1558,22 @@ namespace TimePilot.WinForms
             isInitializingDateSelectors = true;
             try
             {
+                EnsureDatePickerRangeIncludes(picker, date);
                 picker.Value = date;
             }
             finally
             {
                 isInitializingDateSelectors = false;
             }
+        }
+
+        private static void EnsureDatePickerRangeIncludes(DateTimePicker picker, DateTime date)
+        {
+            var normalizedDate = date.Date;
+            if (picker.MaxDate.Date < normalizedDate)
+                picker.MaxDate = normalizedDate;
+            if (picker.MinDate.Date > normalizedDate)
+                picker.MinDate = normalizedDate;
         }
 
         private void ShowRecordedDateCalendar(Control anchor, DateTime selectedDate, Action<DateTime> applyDate)
@@ -1502,10 +1645,141 @@ namespace TimePilot.WinForms
         private void UpdateTimelineZoomControls()
         {
             timelineZoomRangeLabel.Text = UiText.Main.TimelineViewRange(timelineOverviewControl.ViewRangeText);
-            timelineZoomBackButton.Enabled = timelineOverviewControl.CanGoBack;
+            timelineZoomOutButton.Enabled = timelineOverviewControl.IsZoomed;
+            timelineZoomInButton.Enabled = true;
             timelineZoomPreviousButton.Enabled = timelineOverviewControl.CanPanPrevious;
             timelineZoomNextButton.Enabled = timelineOverviewControl.CanPanNext;
             timelineZoomResetButton.Enabled = timelineOverviewControl.IsZoomed;
+            UpdateTimelineZoomScrollBar();
+        }
+
+        private void UpdateTimelineZoomScrollBar()
+        {
+            isUpdatingTimelineScrollBar = true;
+            try
+            {
+                const int scale = 1000;
+                var width = Math.Clamp((int)Math.Round(timelineOverviewControl.ViewWidthRatio * scale), 1, scale);
+                var maxValue = Math.Max(0, scale - width);
+                var value = Math.Clamp((int)Math.Round(timelineOverviewControl.ViewStartRatio * scale), 0, maxValue);
+
+                timelineZoomScrollBar.Visible = timelineOverviewControl.IsZoomed;
+                timelineZoomScrollBar.Enabled = timelineOverviewControl.IsZoomed;
+                timelineZoomScrollBar.Minimum = 0;
+                timelineZoomScrollBar.Maximum = scale;
+                timelineZoomScrollBar.LargeChange = width;
+                timelineZoomScrollBar.SmallChange = Math.Max(1, width / 10);
+                timelineZoomScrollBar.Value = value;
+            }
+            finally
+            {
+                isUpdatingTimelineScrollBar = false;
+            }
+        }
+
+        private void UpdateTimelineHighlightUi()
+        {
+            var hasHighlight = !string.IsNullOrWhiteSpace(highlightedTimelineProcessName);
+            timelineHighlightLabel.Visible = hasHighlight;
+            timelineHighlightClearButton.Visible = hasHighlight;
+            timelineHighlightHintLabel.Visible = !hasHighlight;
+            timelineHighlightLabel.Text = hasHighlight
+                ? UiText.Main.TimelineHighlight(highlightedTimelineAppName ?? highlightedTimelineProcessName!)
+                : "";
+        }
+
+        private void OnTimelineGridRowPrePaint(object? sender, DataGridViewRowPrePaintEventArgs e)
+        {
+            if (e.RowIndex < 0
+                || e.RowIndex >= timelineGrid.Rows.Count)
+                return;
+
+            var gridRow = timelineGrid.Rows[e.RowIndex];
+            if (highlightedTimelineProcessName is null)
+            {
+                gridRow.DefaultCellStyle.ForeColor = SystemColors.WindowText;
+                gridRow.DefaultCellStyle.BackColor = SystemColors.Window;
+                gridRow.DefaultCellStyle.SelectionForeColor = SystemColors.HighlightText;
+                gridRow.DefaultCellStyle.SelectionBackColor = SystemColors.Highlight;
+                gridRow.DefaultCellStyle.Font = null;
+                return;
+            }
+
+            if (timelineGrid.Rows[e.RowIndex].DataBoundItem is not ActivityTimelineRow row)
+                return;
+
+            var isHighlighted = string.Equals(
+                row.ProcessName,
+                highlightedTimelineProcessName,
+                StringComparison.OrdinalIgnoreCase);
+            gridRow.DefaultCellStyle.ForeColor = isHighlighted
+                ? SystemColors.WindowText
+                : SystemColors.GrayText;
+            gridRow.DefaultCellStyle.BackColor = isHighlighted
+                ? Color.FromArgb(218, 235, 255)
+                : SystemColors.Window;
+            gridRow.DefaultCellStyle.SelectionForeColor = isHighlighted
+                ? SystemColors.WindowText
+                : SystemColors.GrayText;
+            gridRow.DefaultCellStyle.SelectionBackColor = isHighlighted
+                ? Color.FromArgb(198, 224, 255)
+                : Color.FromArgb(245, 245, 245);
+            gridRow.DefaultCellStyle.Font = isHighlighted
+                ? GetTimelineHighlightedRowFont()
+                : null;
+        }
+
+        private void OnTimelineGridRowPostPaint(object? sender, DataGridViewRowPostPaintEventArgs e)
+        {
+            if (highlightedTimelineProcessName is null
+                || e.RowIndex < 0
+                || e.RowIndex >= timelineGrid.Rows.Count
+                || timelineGrid.Rows[e.RowIndex].DataBoundItem is not ActivityTimelineRow row
+                || !string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var bounds = GetVisibleTimelineRowCellsBounds(e.RowIndex);
+            if (bounds.IsEmpty)
+                return;
+
+            var stripeBounds = new Rectangle(bounds.Left, bounds.Top + 1, 5, Math.Max(1, bounds.Height - 2));
+            using var stripeBrush = new SolidBrush(Color.FromArgb(28, 91, 170));
+            using var borderPen = new Pen(Color.FromArgb(28, 91, 170));
+            e.Graphics.FillRectangle(stripeBrush, stripeBounds);
+            e.Graphics.DrawRectangle(borderPen, bounds.Left, bounds.Top, bounds.Width - 1, bounds.Height - 1);
+        }
+
+        private Rectangle GetVisibleTimelineRowCellsBounds(int rowIndex)
+        {
+            Rectangle bounds = Rectangle.Empty;
+            foreach (DataGridViewColumn column in timelineGrid.Columns)
+            {
+                if (!column.Visible)
+                    continue;
+
+                var cellBounds = timelineGrid.GetCellDisplayRectangle(column.Index, rowIndex, cutOverflow: true);
+                if (cellBounds.IsEmpty)
+                    continue;
+
+                bounds = bounds.IsEmpty
+                    ? cellBounds
+                    : Rectangle.Union(bounds, cellBounds);
+            }
+
+            return Rectangle.Intersect(bounds, timelineGrid.ClientRectangle);
+        }
+
+        private Font GetTimelineHighlightedRowFont()
+        {
+            if (timelineHighlightedRowFont is null
+                || !string.Equals(timelineHighlightedRowFont.Name, timelineGrid.Font.Name, StringComparison.Ordinal)
+                || Math.Abs(timelineHighlightedRowFont.Size - timelineGrid.Font.Size) > 0.01f)
+            {
+                timelineHighlightedRowFont?.Dispose();
+                timelineHighlightedRowFont = new Font(timelineGrid.Font, FontStyle.Bold);
+            }
+
+            return timelineHighlightedRowFont;
         }
 
         private void OnSummaryPeriodComboBoxSelectedIndexChanged(object? sender, EventArgs e)
@@ -1542,6 +1816,7 @@ namespace TimePilot.WinForms
                 isInitializingSummaryPeriodSelector = true;
                 try
                 {
+                    EnsureDatePickerRangeIncludes(summarySpecificDatePicker, selectedSummarySpecificDate);
                     summarySpecificDatePicker.Value = selectedSummarySpecificDate;
                 }
                 finally
@@ -1579,7 +1854,7 @@ namespace TimePilot.WinForms
 
         private void OnRuntimeGridSelectionChanged(object? sender, EventArgs e)
         {
-            if (isRefreshingRuntimeGrid)
+            if (isRefreshingRuntimeGrid || isSelectingRuntimeGridRow)
                 return;
 
             selectedRuntimeAppId = GetSelectedRuntimeAppId();
@@ -1591,21 +1866,18 @@ namespace TimePilot.WinForms
             if (e.Button != MouseButtons.Right || e.RowIndex < 0)
                 return;
 
-            runtimeGrid.ClearSelection();
-            runtimeGrid.Rows[e.RowIndex].Selected = true;
-            if (e.ColumnIndex >= 0)
-                runtimeGrid.CurrentCell = runtimeGrid.Rows[e.RowIndex].Cells[e.ColumnIndex];
+            if (SelectRuntimeGridRow(e.RowIndex, e.ColumnIndex, refreshSegments: false) is not { } row)
+                return;
+
+            ShowRuntimeCategoryMenu(row, runtimeGrid.PointToClient(Cursor.Position));
         }
 
-        private void OnAppCategoryMenuOpening(object? sender, CancelEventArgs e)
+        private void ShowRuntimeCategoryMenu(ProcessRuntimeSummaryRow row, Point location)
         {
             appCategoryMenu.Items.Clear();
 
-            if (storage is null || runtimeGrid.CurrentRow?.DataBoundItem is not ProcessRuntimeSummaryRow row)
-            {
-                e.Cancel = true;
+            if (storage is null)
                 return;
-            }
 
             var categories = storage.GetAppCategoryOptions();
             var setCategoryMenuItem = new ToolStripMenuItem(UiText.Main.SetCategory);
@@ -1615,7 +1887,7 @@ namespace TimePilot.WinForms
                 Checked = row.PrimaryCategoryId is null,
                 Tag = (long?)null
             };
-            uncategorizedItem.Click += (_, _) => SetSelectedRuntimeAppCategory(null);
+            uncategorizedItem.Click += (_, _) => SetRuntimeAppCategory(row.AppId, row.AppName, null);
             setCategoryMenuItem.DropDownItems.Add(uncategorizedItem);
 
             if (categories.Count > 0)
@@ -1628,24 +1900,26 @@ namespace TimePilot.WinForms
                     Checked = row.PrimaryCategoryId == category.Id,
                     Tag = category.Id
                 };
-                categoryItem.Click += (_, _) => SetSelectedRuntimeAppCategory(category.Id);
+                categoryItem.Click += (_, _) => SetRuntimeAppCategory(row.AppId, row.AppName, category.Id);
                 setCategoryMenuItem.DropDownItems.Add(categoryItem);
             }
 
             appCategoryMenu.Items.Add(setCategoryMenuItem);
+            appCategoryMenu.Show(runtimeGrid, location);
         }
 
-        private void SetSelectedRuntimeAppCategory(long? categoryId)
+        private void SetRuntimeAppCategory(long appId, string appName, long? categoryId)
         {
-            if (storage is null || runtimeGrid.CurrentRow?.DataBoundItem is not ProcessRuntimeSummaryRow row)
+            if (storage is null)
                 return;
 
-            storage.SetAppPrimaryCategory(row.AppId, categoryId);
+            storage.SetAppPrimaryCategory(appId, categoryId);
             var categoryName = categoryId is null
                 ? UiText.Main.Uncategorized
                 : storage.GetAppCategoryOptions().FirstOrDefault(x => x.Id == categoryId)?.Name ?? UiText.Main.Uncategorized;
 
-            SetStatusText(UiText.Main.CategoryUpdated(row.AppName, categoryName));
+            selectedRuntimeAppId = appId;
+            SetStatusText(UiText.Main.CategoryUpdated(appName, categoryName));
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
@@ -1902,6 +2176,54 @@ namespace TimePilot.WinForms
             return (runtimeGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSummaryRow)?.AppId;
         }
 
+        private static T? SelectGridRow<T>(DataGridView grid, int rowIndex, int columnIndex)
+            where T : class
+        {
+            if (rowIndex < 0
+                || rowIndex >= grid.Rows.Count
+                || grid.Rows[rowIndex].DataBoundItem is not T row)
+                return null;
+
+            grid.ClearSelection();
+            var targetColumnIndex = columnIndex >= 0
+                ? columnIndex
+                : GetFirstDisplayedColumnIndex(grid);
+            targetColumnIndex = Math.Clamp(targetColumnIndex, 0, grid.Columns.Count - 1);
+            grid.CurrentCell = grid.Rows[rowIndex].Cells[targetColumnIndex];
+            grid.Rows[rowIndex].Selected = true;
+            return row;
+        }
+
+        private ProcessRuntimeSummaryRow? SelectRuntimeGridRow(int rowIndex, int columnIndex, bool refreshSegments = true)
+        {
+            if (rowIndex < 0
+                || rowIndex >= runtimeGrid.Rows.Count
+                || runtimeGrid.Rows[rowIndex].DataBoundItem is not ProcessRuntimeSummaryRow row)
+                return null;
+
+            isSelectingRuntimeGridRow = true;
+            try
+            {
+                runtimeGrid.ClearSelection();
+                var targetColumnIndex = columnIndex >= 0
+                    ? columnIndex
+                    : GetFirstDisplayedColumnIndex(runtimeGrid);
+                targetColumnIndex = Math.Clamp(targetColumnIndex, 0, runtimeGrid.Columns.Count - 1);
+                runtimeGrid.CurrentCell = runtimeGrid.Rows[rowIndex].Cells[targetColumnIndex];
+                runtimeGrid.Rows[rowIndex].Selected = true;
+                selectedRuntimeAppId = row.AppId;
+            }
+            finally
+            {
+                isSelectingRuntimeGridRow = false;
+            }
+
+            if (refreshSegments)
+                RefreshRuntimeSegments(DateTimeOffset.UtcNow);
+
+            return row;
+        }
+
         private void RestoreRuntimeSelection(long? appId, int firstDisplayedColumnIndex, int horizontalScrollingOffset)
         {
             if (appId is null)
@@ -1931,7 +2253,10 @@ namespace TimePilot.WinForms
                 : SortOrder.Descending;
         }
 
-        private static void SetGridDataSourcePreservingView<T>(DataGridView grid, IReadOnlyList<T> rows)
+        private static void SetGridDataSourcePreservingView<T>(
+            DataGridView grid,
+            IReadOnlyList<T> rows,
+            bool preserveSelection = true)
         {
             var firstDisplayedRowIndex = GetFirstDisplayedRowIndex(grid);
             var firstDisplayedColumnIndex = GetFirstDisplayedColumnIndex(grid);
@@ -1949,7 +2274,7 @@ namespace TimePilot.WinForms
             TrySetFirstDisplayedColumnIndex(grid, restoredFirstColumnIndex);
             TrySetHorizontalScrollingOffset(grid, horizontalScrollingOffset);
 
-            if (selectedIndex < 0)
+            if (!preserveSelection || selectedIndex < 0)
                 return;
 
             var restoredSelectedIndex = Math.Min(selectedIndex, grid.Rows.Count - 1);

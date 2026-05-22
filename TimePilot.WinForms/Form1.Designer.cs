@@ -36,6 +36,7 @@
             summaryPeriodComboBox = new ComboBox();
             summarySpecificDatePicker = new DateTimePicker();
             summarySpecificDateCalendarButton = new Button();
+            summaryHighlightHintLabel = new Label();
             runtimeCoverageSummaryPanel = new FlowLayoutPanel();
             runtimeCoverageSummaryToolTip = new ToolTip(components);
             usageGrid = new BufferedDataGridView();
@@ -98,14 +99,19 @@
             timelineNextDateButton = new Button();
             timelineTodayButton = new Button();
             timelineDateStatusLabel = new Label();
+            timelineHighlightHintLabel = new Label();
+            timelineHighlightLabel = new Label();
+            timelineHighlightClearButton = new Button();
             timelineZoomPanel = new FlowLayoutPanel();
             timelineZoomRangeLabel = new Label();
-            timelineZoomBackButton = new Button();
+            timelineZoomOutButton = new Button();
+            timelineZoomInButton = new Button();
             timelineZoomPreviousButton = new Button();
             timelineZoomNextButton = new Button();
             timelineZoomResetButton = new Button();
             timelineCategoryBucketLabel = new Label();
             timelineCategoryBucketComboBox = new ComboBox();
+            timelineZoomScrollBar = new HScrollBar();
             timelineOverviewControl = new TimelineOverviewControl();
             timelineGrid = new BufferedDataGridView();
             timelineTypeColumn = new DataGridViewTextBoxColumn();
@@ -247,6 +253,7 @@
             summaryPeriodPanel.Controls.Add(summaryPeriodComboBox);
             summaryPeriodPanel.Controls.Add(summarySpecificDatePicker);
             summaryPeriodPanel.Controls.Add(summarySpecificDateCalendarButton);
+            summaryPeriodPanel.Controls.Add(summaryHighlightHintLabel);
             summaryPeriodPanel.Dock = DockStyle.Top;
             summaryPeriodPanel.Location = new Point(3, 3);
             summaryPeriodPanel.Name = "summaryPeriodPanel";
@@ -296,7 +303,18 @@
             summarySpecificDateCalendarButton.UseVisualStyleBackColor = true;
             summarySpecificDateCalendarButton.Visible = false;
             summarySpecificDateCalendarButton.Click += OnSummarySpecificDateCalendarButtonClick;
-            // 
+            //
+            // summaryHighlightHintLabel
+            //
+            summaryHighlightHintLabel.AutoSize = true;
+            summaryHighlightHintLabel.ForeColor = SystemColors.GrayText;
+            summaryHighlightHintLabel.Location = new Point(458, 10);
+            summaryHighlightHintLabel.Margin = new Padding(8, 6, 4, 0);
+            summaryHighlightHintLabel.Name = "summaryHighlightHintLabel";
+            summaryHighlightHintLabel.Size = new Size(0, 15);
+            summaryHighlightHintLabel.TabIndex = 4;
+            summaryHighlightHintLabel.Text = UiText.Main.SummaryTimelineHighlightHint;
+            //
             // runtimeCoverageSummaryPanel
             // 
             runtimeCoverageSummaryPanel.Dock = DockStyle.Top;
@@ -911,6 +929,7 @@
             //
             timelineTab.Controls.Add(timelineGrid);
             timelineTab.Controls.Add(timelineOverviewControl);
+            timelineTab.Controls.Add(timelineZoomScrollBar);
             timelineTab.Controls.Add(timelineZoomPanel);
             timelineTab.Controls.Add(timelineDatePanel);
             timelineTab.Location = new Point(4, 24);
@@ -930,6 +949,9 @@
             timelineDatePanel.Controls.Add(timelineNextDateButton);
             timelineDatePanel.Controls.Add(timelineTodayButton);
             timelineDatePanel.Controls.Add(timelineDateStatusLabel);
+            timelineDatePanel.Controls.Add(timelineHighlightHintLabel);
+            timelineDatePanel.Controls.Add(timelineHighlightLabel);
+            timelineDatePanel.Controls.Add(timelineHighlightClearButton);
             timelineDatePanel.Dock = DockStyle.Top;
             timelineDatePanel.Location = new Point(3, 3);
             timelineDatePanel.Name = "timelineDatePanel";
@@ -1009,10 +1031,44 @@
             timelineDateStatusLabel.TabIndex = 6;
             timelineDateStatusLabel.Text = UiText.Main.NotChecked;
             //
+            // timelineHighlightHintLabel
+            //
+            timelineHighlightHintLabel.AutoSize = true;
+            timelineHighlightHintLabel.ForeColor = SystemColors.GrayText;
+            timelineHighlightHintLabel.Location = new Point(427, 10);
+            timelineHighlightHintLabel.Margin = new Padding(8, 6, 4, 0);
+            timelineHighlightHintLabel.Name = "timelineHighlightHintLabel";
+            timelineHighlightHintLabel.Size = new Size(0, 15);
+            timelineHighlightHintLabel.TabIndex = 7;
+            timelineHighlightHintLabel.Text = UiText.Main.TimelineHighlightHint;
+            //
+            // timelineHighlightLabel
+            //
+            timelineHighlightLabel.AutoSize = true;
+            timelineHighlightLabel.ForeColor = SystemColors.Highlight;
+            timelineHighlightLabel.Location = new Point(435, 10);
+            timelineHighlightLabel.Margin = new Padding(8, 6, 4, 0);
+            timelineHighlightLabel.Name = "timelineHighlightLabel";
+            timelineHighlightLabel.Size = new Size(0, 15);
+            timelineHighlightLabel.TabIndex = 8;
+            timelineHighlightLabel.Visible = false;
+            //
+            // timelineHighlightClearButton
+            //
+            timelineHighlightClearButton.Location = new Point(435, 7);
+            timelineHighlightClearButton.Name = "timelineHighlightClearButton";
+            timelineHighlightClearButton.Size = new Size(52, 23);
+            timelineHighlightClearButton.TabIndex = 9;
+            timelineHighlightClearButton.Text = UiText.Main.ClearTimelineHighlight;
+            timelineHighlightClearButton.UseVisualStyleBackColor = true;
+            timelineHighlightClearButton.Visible = false;
+            timelineHighlightClearButton.Click += OnTimelineHighlightClearButtonClick;
+            //
             // timelineZoomPanel
             //
             timelineZoomPanel.Controls.Add(timelineZoomRangeLabel);
-            timelineZoomPanel.Controls.Add(timelineZoomBackButton);
+            timelineZoomPanel.Controls.Add(timelineZoomOutButton);
+            timelineZoomPanel.Controls.Add(timelineZoomInButton);
             timelineZoomPanel.Controls.Add(timelineZoomPreviousButton);
             timelineZoomPanel.Controls.Add(timelineZoomNextButton);
             timelineZoomPanel.Controls.Add(timelineZoomResetButton);
@@ -1037,46 +1093,56 @@
             timelineZoomRangeLabel.TabIndex = 0;
             timelineZoomRangeLabel.Text = UiText.Main.TimelineViewRange(UiText.Main.TimelineFullDay);
             //
-            // timelineZoomBackButton
+            // timelineZoomOutButton
             //
-            timelineZoomBackButton.Enabled = false;
-            timelineZoomBackButton.Location = new Point(117, 7);
-            timelineZoomBackButton.Name = "timelineZoomBackButton";
-            timelineZoomBackButton.Size = new Size(76, 23);
-            timelineZoomBackButton.TabIndex = 1;
-            timelineZoomBackButton.Text = UiText.Main.TimelinePreviousView;
-            timelineZoomBackButton.UseVisualStyleBackColor = true;
-            timelineZoomBackButton.Click += OnTimelineZoomBackButtonClick;
+            timelineZoomOutButton.Enabled = false;
+            timelineZoomOutButton.Location = new Point(117, 7);
+            timelineZoomOutButton.Name = "timelineZoomOutButton";
+            timelineZoomOutButton.Size = new Size(32, 23);
+            timelineZoomOutButton.TabIndex = 1;
+            timelineZoomOutButton.Text = UiText.Main.TimelineZoomOut;
+            timelineZoomOutButton.UseVisualStyleBackColor = true;
+            timelineZoomOutButton.Click += OnTimelineZoomOutButtonClick;
+            //
+            // timelineZoomInButton
+            //
+            timelineZoomInButton.Location = new Point(155, 7);
+            timelineZoomInButton.Name = "timelineZoomInButton";
+            timelineZoomInButton.Size = new Size(32, 23);
+            timelineZoomInButton.TabIndex = 2;
+            timelineZoomInButton.Text = UiText.Main.TimelineZoomIn;
+            timelineZoomInButton.UseVisualStyleBackColor = true;
+            timelineZoomInButton.Click += OnTimelineZoomInButtonClick;
             //
             // timelineZoomPreviousButton
             //
             timelineZoomPreviousButton.Enabled = false;
-            timelineZoomPreviousButton.Location = new Point(199, 7);
+            timelineZoomPreviousButton.Location = new Point(193, 7);
             timelineZoomPreviousButton.Name = "timelineZoomPreviousButton";
-            timelineZoomPreviousButton.Size = new Size(76, 23);
-            timelineZoomPreviousButton.TabIndex = 2;
-            timelineZoomPreviousButton.Text = UiText.Main.TimelinePreviousRange;
+            timelineZoomPreviousButton.Size = new Size(32, 23);
+            timelineZoomPreviousButton.TabIndex = 3;
+            timelineZoomPreviousButton.Text = UiText.Main.TimelinePanPrevious;
             timelineZoomPreviousButton.UseVisualStyleBackColor = true;
             timelineZoomPreviousButton.Click += OnTimelineZoomPreviousButtonClick;
             //
             // timelineZoomNextButton
             //
             timelineZoomNextButton.Enabled = false;
-            timelineZoomNextButton.Location = new Point(281, 7);
+            timelineZoomNextButton.Location = new Point(231, 7);
             timelineZoomNextButton.Name = "timelineZoomNextButton";
-            timelineZoomNextButton.Size = new Size(76, 23);
-            timelineZoomNextButton.TabIndex = 3;
-            timelineZoomNextButton.Text = UiText.Main.TimelineNextRange;
+            timelineZoomNextButton.Size = new Size(32, 23);
+            timelineZoomNextButton.TabIndex = 4;
+            timelineZoomNextButton.Text = UiText.Main.TimelinePanNext;
             timelineZoomNextButton.UseVisualStyleBackColor = true;
             timelineZoomNextButton.Click += OnTimelineZoomNextButtonClick;
             //
             // timelineZoomResetButton
             //
             timelineZoomResetButton.Enabled = false;
-            timelineZoomResetButton.Location = new Point(363, 7);
+            timelineZoomResetButton.Location = new Point(269, 7);
             timelineZoomResetButton.Name = "timelineZoomResetButton";
-            timelineZoomResetButton.Size = new Size(76, 23);
-            timelineZoomResetButton.TabIndex = 4;
+            timelineZoomResetButton.Size = new Size(52, 23);
+            timelineZoomResetButton.TabIndex = 5;
             timelineZoomResetButton.Text = UiText.Main.TimelineResetView;
             timelineZoomResetButton.UseVisualStyleBackColor = true;
             timelineZoomResetButton.Click += OnTimelineZoomResetButtonClick;
@@ -1084,30 +1150,42 @@
             // timelineCategoryBucketLabel
             //
             timelineCategoryBucketLabel.AutoSize = true;
-            timelineCategoryBucketLabel.Location = new Point(445, 10);
+            timelineCategoryBucketLabel.Location = new Point(327, 10);
             timelineCategoryBucketLabel.Margin = new Padding(8, 6, 4, 0);
             timelineCategoryBucketLabel.Name = "timelineCategoryBucketLabel";
             timelineCategoryBucketLabel.Size = new Size(59, 15);
-            timelineCategoryBucketLabel.TabIndex = 5;
+            timelineCategoryBucketLabel.TabIndex = 6;
             timelineCategoryBucketLabel.Text = UiText.Main.TimelineCategoryBucket;
             //
             // timelineCategoryBucketComboBox
             //
             timelineCategoryBucketComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             timelineCategoryBucketComboBox.FormattingEnabled = true;
-            timelineCategoryBucketComboBox.Location = new Point(508, 7);
+            timelineCategoryBucketComboBox.Location = new Point(390, 7);
             timelineCategoryBucketComboBox.Name = "timelineCategoryBucketComboBox";
             timelineCategoryBucketComboBox.Size = new Size(86, 23);
-            timelineCategoryBucketComboBox.TabIndex = 6;
+            timelineCategoryBucketComboBox.TabIndex = 7;
             timelineCategoryBucketComboBox.SelectedIndexChanged += OnTimelineCategoryBucketComboBoxSelectedIndexChanged;
+            //
+            // timelineZoomScrollBar
+            //
+            timelineZoomScrollBar.Dock = DockStyle.Top;
+            timelineZoomScrollBar.Enabled = false;
+            timelineZoomScrollBar.LargeChange = 1000;
+            timelineZoomScrollBar.Location = new Point(3, 71);
+            timelineZoomScrollBar.Maximum = 1000;
+            timelineZoomScrollBar.Name = "timelineZoomScrollBar";
+            timelineZoomScrollBar.Size = new Size(706, 17);
+            timelineZoomScrollBar.TabIndex = 4;
+            timelineZoomScrollBar.Visible = false;
             //
             // timelineOverviewControl
             //
             timelineOverviewControl.Dock = DockStyle.Top;
-            timelineOverviewControl.Location = new Point(3, 71);
+            timelineOverviewControl.Location = new Point(3, 88);
             timelineOverviewControl.Name = "timelineOverviewControl";
             timelineOverviewControl.Size = new Size(706, 156);
-            timelineOverviewControl.TabIndex = 3;
+            timelineOverviewControl.TabIndex = 5;
             timelineOverviewControl.ViewRangeChanged += OnTimelineOverviewViewRangeChanged;
             //
             // timelineGrid
@@ -1122,14 +1200,14 @@
             timelineGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             timelineGrid.Columns.AddRange(new DataGridViewColumn[] { timelineTypeColumn, timelineStartedAtColumn, timelineEndedAtColumn, timelineDurationColumn, timelineAppIconColumn, timelineDisplayNameColumn });
             timelineGrid.Dock = DockStyle.Fill;
-            timelineGrid.Location = new Point(3, 227);
+            timelineGrid.Location = new Point(3, 244);
             timelineGrid.MultiSelect = false;
             timelineGrid.Name = "timelineGrid";
             timelineGrid.ReadOnly = true;
             timelineGrid.RowHeadersVisible = false;
             timelineGrid.ScrollBars = ScrollBars.Both;
             timelineGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            timelineGrid.Size = new Size(706, 190);
+            timelineGrid.Size = new Size(706, 173);
             timelineGrid.TabIndex = 0;
             timelineGrid.ColumnHeaderMouseClick += OnTimelineGridColumnHeaderMouseClick;
             // 
@@ -1249,6 +1327,7 @@
         private ComboBox summaryPeriodComboBox;
         private DateTimePicker summarySpecificDatePicker;
         private Button summarySpecificDateCalendarButton;
+        private Label summaryHighlightHintLabel;
         private FlowLayoutPanel runtimeCoverageSummaryPanel;
         private ToolTip runtimeCoverageSummaryToolTip;
         private DataGridView usageGrid;
@@ -1311,14 +1390,19 @@
         private Button timelineNextDateButton;
         private Button timelineTodayButton;
         private Label timelineDateStatusLabel;
+        private Label timelineHighlightHintLabel;
+        private Label timelineHighlightLabel;
+        private Button timelineHighlightClearButton;
         private FlowLayoutPanel timelineZoomPanel;
         private Label timelineZoomRangeLabel;
-        private Button timelineZoomBackButton;
+        private Button timelineZoomOutButton;
+        private Button timelineZoomInButton;
         private Button timelineZoomPreviousButton;
         private Button timelineZoomNextButton;
         private Button timelineZoomResetButton;
         private Label timelineCategoryBucketLabel;
         private ComboBox timelineCategoryBucketComboBox;
+        private HScrollBar timelineZoomScrollBar;
         private TimelineOverviewControl timelineOverviewControl;
         private DataGridView timelineGrid;
         private DataGridViewTextBoxColumn timelineTypeColumn;
