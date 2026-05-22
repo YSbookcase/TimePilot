@@ -112,6 +112,8 @@
             timelineHelpButton = new Button();
             timelineCategoryBucketLabel = new Label();
             timelineCategoryBucketComboBox = new ComboBox();
+            timelineHighlightSummaryPanel = new FlowLayoutPanel();
+            timelineHighlightSummaryLabel = new Label();
             timelineZoomScrollBar = new HScrollBar();
             timelineOverviewControl = new TimelineOverviewControl();
             timelineGrid = new BufferedDataGridView();
@@ -931,6 +933,7 @@
             timelineTab.Controls.Add(timelineGrid);
             timelineTab.Controls.Add(timelineOverviewControl);
             timelineTab.Controls.Add(timelineZoomScrollBar);
+            timelineTab.Controls.Add(timelineHighlightSummaryPanel);
             timelineTab.Controls.Add(timelineZoomPanel);
             timelineTab.Controls.Add(timelineDatePanel);
             timelineTab.Location = new Point(4, 24);
@@ -1179,6 +1182,28 @@
             timelineCategoryBucketComboBox.TabIndex = 8;
             timelineCategoryBucketComboBox.SelectedIndexChanged += OnTimelineCategoryBucketComboBoxSelectedIndexChanged;
             //
+            // timelineHighlightSummaryPanel
+            //
+            timelineHighlightSummaryPanel.Controls.Add(timelineHighlightSummaryLabel);
+            timelineHighlightSummaryPanel.Dock = DockStyle.Top;
+            timelineHighlightSummaryPanel.Location = new Point(3, 71);
+            timelineHighlightSummaryPanel.Name = "timelineHighlightSummaryPanel";
+            timelineHighlightSummaryPanel.Padding = new Padding(8, 4, 8, 2);
+            timelineHighlightSummaryPanel.Size = new Size(706, 30);
+            timelineHighlightSummaryPanel.TabIndex = 3;
+            timelineHighlightSummaryPanel.Visible = false;
+            timelineHighlightSummaryPanel.WrapContents = false;
+            //
+            // timelineHighlightSummaryLabel
+            //
+            timelineHighlightSummaryLabel.AutoSize = true;
+            timelineHighlightSummaryLabel.ForeColor = SystemColors.ControlText;
+            timelineHighlightSummaryLabel.Location = new Point(11, 10);
+            timelineHighlightSummaryLabel.Margin = new Padding(0, 6, 4, 0);
+            timelineHighlightSummaryLabel.Name = "timelineHighlightSummaryLabel";
+            timelineHighlightSummaryLabel.Size = new Size(0, 15);
+            timelineHighlightSummaryLabel.TabIndex = 0;
+            //
             // timelineZoomScrollBar
             //
             timelineZoomScrollBar.Dock = DockStyle.Top;
@@ -1415,6 +1440,8 @@
         private Button timelineHelpButton;
         private Label timelineCategoryBucketLabel;
         private ComboBox timelineCategoryBucketComboBox;
+        private FlowLayoutPanel timelineHighlightSummaryPanel;
+        private Label timelineHighlightSummaryLabel;
         private HScrollBar timelineZoomScrollBar;
         private TimelineOverviewControl timelineOverviewControl;
         private DataGridView timelineGrid;
