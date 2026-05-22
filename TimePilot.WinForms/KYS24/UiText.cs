@@ -73,6 +73,14 @@ namespace TimePilot.WinForms.KYS24
             public static string SummaryTimelineHighlightHint => current.Main.SummaryTimelineHighlightHint;
             public static string ClearTimelineHighlight => current.Main.ClearTimelineHighlight;
             public static string TimelineHighlight(string appName) => current.Main.TimelineHighlight(appName);
+            public static string TimelineHighlightSummary(
+                string activeUsage,
+                double usageRatio,
+                int switchCount,
+                int segmentCount,
+                string longestSegment) =>
+                current.Main.TimelineHighlightSummary(activeUsage, usageRatio, switchCount, segmentCount, longestSegment);
+            public static string TimelineHighlightSummaryTooltip => current.Main.TimelineHighlightSummaryTooltip;
             public static string Period => current.Main.Period;
             public static string Date => current.Main.Date;
             public static string Calendar => current.Main.Calendar;
@@ -392,6 +400,14 @@ namespace TimePilot.WinForms.KYS24
                         SummaryTimelineHighlightHint: "앱 행을 우클릭해 타임라인에서 강조할 수 있습니다.",
                         ClearTimelineHighlight: "해제",
                         TimelineHighlight: appName => $"강조: {appName}",
+                        TimelineHighlightSummary: (activeUsage, usageRatio, switchCount, segmentCount, longestSegment) =>
+                            $"강조 앱 요약: 활성 시간 {activeUsage} · 전체 활성 시간 대비 {usageRatio.ToString("P1", CultureInfo.CurrentCulture)} · 전환 횟수 {switchCount:N0} · 타임라인 구간 {segmentCount:N0} · 최장 연속 사용 {longestSegment}",
+                        TimelineHighlightSummaryTooltip:
+                            "이 요약은 현재 타임라인에서 강조 중인 앱의 선택 날짜 기준 데이터입니다.\n"
+                            + "활성 시간은 유휴 시간을 제외한 foreground 사용 시간입니다.\n"
+                            + "전체 활성 시간 대비는 선택 날짜의 전체 활성 사용 시간 중 강조 앱의 활성 사용 시간이 차지하는 비율입니다.\n"
+                            + "타임라인 구간과 최장 연속 사용은 타임라인에 표시되는 해당 앱의 활동 구간 기준입니다.\n"
+                            + "유휴 시간 분석은 별도 요약 지표로 확장할 예정입니다.",
                         Period: "기간",
                         Date: "날짜",
                         Calendar: "달력",
@@ -664,6 +680,14 @@ namespace TimePilot.WinForms.KYS24
                         SummaryTimelineHighlightHint: "Right-click an app row to highlight it in the timeline.",
                         ClearTimelineHighlight: "Clear",
                         TimelineHighlight: appName => $"Highlight: {appName}",
+                        TimelineHighlightSummary: (activeUsage, usageRatio, switchCount, segmentCount, longestSegment) =>
+                            $"Highlighted app summary: active time {activeUsage} · share of total active time {usageRatio.ToString("P1", CultureInfo.CurrentCulture)} · switches {switchCount:N0} · timeline segments {segmentCount:N0} · longest continuous use {longestSegment}",
+                        TimelineHighlightSummaryTooltip:
+                            "This summary is based on the selected date for the app currently highlighted in the timeline.\n"
+                            + "Active time is foreground usage time excluding idle time.\n"
+                            + "Share of total active time means the highlighted app's active time divided by the selected date's total active usage time.\n"
+                            + "Timeline segments and longest continuous use are based on the activity segments shown in the timeline.\n"
+                            + "Idle-time analysis will be added as a separate summary metric later.",
                         Period: "Period",
                         Date: "Date",
                         Calendar: "Calendar",
@@ -925,6 +949,8 @@ namespace TimePilot.WinForms.KYS24
             string SummaryTimelineHighlightHint,
             string ClearTimelineHighlight,
             Func<string, string> TimelineHighlight,
+            Func<string, double, int, int, string, string> TimelineHighlightSummary,
+            string TimelineHighlightSummaryTooltip,
             string Period,
             string Date,
             string Calendar,

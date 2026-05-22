@@ -68,6 +68,8 @@ namespace TimePilot.WinForms
         private bool systemEventHandlersRegistered;
         private string? highlightedTimelineProcessName;
         private string? highlightedTimelineAppName;
+        private IReadOnlyList<ForegroundUsageSummary> currentTimelineForegroundUsage = Array.Empty<ForegroundUsageSummary>();
+        private IReadOnlyList<ActivityTimelineRow> currentTimelineRows = Array.Empty<ActivityTimelineRow>();
         private Font? timelineHighlightedRowFont;
         private Form? recordedDatePickerPopupForm;
 
@@ -783,6 +785,8 @@ namespace TimePilot.WinForms
             runtimeCoverageSummaryToolTip.SetToolTip(detailDescriptionLabel, UiText.Main.DetailDescription);
             runtimeCoverageSummaryToolTip.SetToolTip(timelineCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(timelineHelpButton, UiText.Main.TimelineHelpTitle);
+            runtimeCoverageSummaryToolTip.SetToolTip(timelineHighlightSummaryPanel, UiText.Main.TimelineHighlightSummaryTooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(timelineHighlightSummaryLabel, UiText.Main.TimelineHighlightSummaryTooltip);
             RefreshDetailRuntimeFilterOptions();
             RefreshSummaryPeriodOptions(DateTime.Today);
             UpdateDetailTrackingDisabledBanner();
@@ -874,6 +878,9 @@ namespace TimePilot.WinForms
                             observedAt,
                             TimeSpan.FromMinutes(selectedTimelineCategoryBucketMinutes))
                         : null;
+                    var timelineForegroundUsage = selectedTab == timelineTab
+                        ? storage.GetForegroundUsageForDate(timelineDate)
+                        : null;
                     var timelineDateHasData = selectedTab == timelineTab
                         ? storage.HasActivityDataForDate(timelineDate, observedAt)
                         : (bool?)null;
@@ -903,6 +910,7 @@ namespace TimePilot.WinForms
                         timelineRows,
                         windowsRuntimeRanges,
                         categoryTimelineSegments,
+                        timelineForegroundUsage,
                         runtimeRows,
                         detailSummaryAppIds,
                         runtimeSegmentRows,
@@ -937,6 +945,8 @@ namespace TimePilot.WinForms
 
             if (snapshot.TimelineRows is not null)
             {
+                currentTimelineRows = snapshot.TimelineRows;
+                currentTimelineForegroundUsage = snapshot.TimelineForegroundUsage ?? Array.Empty<ForegroundUsageSummary>();
                 SetDateStatus(timelineDateStatusLabel, snapshot.TimelineDateHasData);
                 timelineOverviewControl.SetTimeline(
                     selectedTimelineDate,
@@ -947,6 +957,7 @@ namespace TimePilot.WinForms
                 SetGridDataSourcePreservingView(
                     timelineGrid,
                     AddIcons(SortTimelineRows(snapshot.TimelineRows)));
+                UpdateTimelineHighlightUi();
             }
 
             if (snapshot.RuntimeRows is not null)
@@ -1712,6 +1723,46 @@ namespace TimePilot.WinForms
             timelineHighlightLabel.Text = hasHighlight
                 ? UiText.Main.TimelineHighlight(highlightedTimelineAppName ?? highlightedTimelineProcessName!)
                 : "";
+            UpdateTimelineHighlightSummary();
+        }
+
+        private void UpdateTimelineHighlightSummary()
+        {
+            if (string.IsNullOrWhiteSpace(highlightedTimelineProcessName))
+            {
+                timelineHighlightSummaryPanel.Visible = false;
+                timelineHighlightSummaryLabel.Text = "";
+                return;
+            }
+
+            var usage = currentTimelineForegroundUsage.FirstOrDefault(x =>
+                string.Equals(x.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase));
+            var highlightedRows = currentTimelineRows
+                .Where(x => string.Equals(x.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (usage is null && highlightedRows.Count == 0)
+            {
+                timelineHighlightSummaryPanel.Visible = false;
+                timelineHighlightSummaryLabel.Text = "";
+                return;
+            }
+
+            var activeUsageMs = usage?.ActiveUsageMs ?? 0;
+            var totalActiveUsageMs = currentTimelineForegroundUsage.Sum(x => x.ActiveUsageMs);
+            var usageRatio = activeUsageMs > 0 && totalActiveUsageMs > 0
+                ? (double)activeUsageMs / totalActiveUsageMs
+                : 0;
+            var switchCount = usage?.SwitchCount ?? 0;
+            var segmentCount = highlightedRows.Count;
+            var longestSegmentMs = highlightedRows.Count == 0 ? 0 : highlightedRows.Max(x => x.DurationMs);
+
+            timelineHighlightSummaryLabel.Text = UiText.Main.TimelineHighlightSummary(
+                FormatDiagnosticDuration(activeUsageMs),
+                usageRatio,
+                switchCount,
+                segmentCount,
+                FormatDiagnosticDuration(longestSegmentMs));
+            timelineHighlightSummaryPanel.Visible = true;
         }
 
         private void OnTimelineGridRowPrePaint(object? sender, DataGridViewRowPrePaintEventArgs e)
@@ -2754,6 +2805,7 @@ namespace TimePilot.WinForms
             IReadOnlyList<ActivityTimelineRow>? TimelineRows,
             IReadOnlyList<TimelineRange>? WindowsRuntimeRanges,
             IReadOnlyList<CategoryTimelineSegment>? CategoryTimelineSegments,
+            IReadOnlyList<ForegroundUsageSummary>? TimelineForegroundUsage,
             IReadOnlyList<ProcessRuntimeSummaryRow>? RuntimeRows,
             IReadOnlySet<long>? DetailSummaryAppIds,
             IReadOnlyList<ProcessRuntimeSegmentRow>? RuntimeSegmentRows,
