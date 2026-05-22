@@ -1927,6 +1927,7 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 SELECT
                     a.display_name,
+                    a.process_name,
                     a.executable_path,
                     fs.started_at,
                     fs.ended_at,
@@ -1943,17 +1944,18 @@ namespace TimePilot.WinForms.KYS24
             while (reader.Read())
             {
                 var appName = reader.GetString(0);
-                var executablePath = reader.IsDBNull(1) ? null : reader.GetString(1);
-                var startedAt = ParseTimestamp(reader.GetString(2));
-                DateTimeOffset? endedAt = reader.IsDBNull(3) ? null : ParseTimestamp(reader.GetString(3));
+                var processName = reader.GetString(1);
+                var executablePath = reader.IsDBNull(2) ? null : reader.GetString(2);
+                var startedAt = ParseTimestamp(reader.GetString(3));
+                DateTimeOffset? endedAt = reader.IsDBNull(4) ? null : ParseTimestamp(reader.GetString(4));
                 var observedEnd = endedAt
-                    ?? (reader.IsDBNull(4) ? startedAt : ParseTimestamp(reader.GetString(4)));
+                    ?? (reader.IsDBNull(5) ? startedAt : ParseTimestamp(reader.GetString(5)));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(observedEnd, dayEnd);
                 DateTimeOffset? displayEnd = IsCurrentTimelineSession(endedAt, observedEnd, dayEnd, now)
                     ? null
                     : effectiveEnd;
-                AddTimelineRow(rows, UiText.Main.Active, effectiveStart, displayEnd, effectiveEnd, appName, executablePath);
+                AddTimelineRow(rows, UiText.Main.Active, effectiveStart, displayEnd, effectiveEnd, appName, executablePath, processName);
             }
         }
 
@@ -1968,6 +1970,7 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 SELECT
                     COALESCE(a.display_name, 'Idle'),
+                    a.process_name,
                     a.executable_path,
                     i.started_at,
                     i.ended_at
@@ -1984,9 +1987,10 @@ namespace TimePilot.WinForms.KYS24
             while (reader.Read())
             {
                 var foregroundAppName = reader.GetString(0);
-                var executablePath = reader.IsDBNull(1) ? null : reader.GetString(1);
-                var startedAt = ParseTimestamp(reader.GetString(2));
-                DateTimeOffset? endedAt = reader.IsDBNull(3) ? null : ParseTimestamp(reader.GetString(3));
+                var processName = reader.IsDBNull(1) ? "" : reader.GetString(1);
+                var executablePath = reader.IsDBNull(2) ? null : reader.GetString(2);
+                var startedAt = ParseTimestamp(reader.GetString(3));
+                DateTimeOffset? endedAt = reader.IsDBNull(4) ? null : ParseTimestamp(reader.GetString(4));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(endedAt ?? now, dayEnd);
                 DateTimeOffset? displayEnd = IsCurrentTimelineSession(endedAt, effectiveEnd, dayEnd, now)
@@ -1999,7 +2003,8 @@ namespace TimePilot.WinForms.KYS24
                     displayEnd,
                     effectiveEnd,
                     foregroundAppName,
-                    executablePath);
+                    executablePath,
+                    processName);
             }
         }
 
@@ -2025,7 +2030,8 @@ namespace TimePilot.WinForms.KYS24
             DateTimeOffset? displayEnd,
             DateTimeOffset effectiveEnd,
             string displayName,
-            string? executablePath)
+            string? executablePath,
+            string processName = "")
         {
             var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
             if (durationMs <= 0)
@@ -2037,7 +2043,8 @@ namespace TimePilot.WinForms.KYS24
                 displayEnd,
                 durationMs,
                 displayName,
-                executablePath));
+                executablePath,
+                ProcessName: processName));
         }
 
         private static void AddActiveUsageToRuntimeAggregations(
