@@ -63,6 +63,9 @@ namespace TimePilot.WinForms.KYS24
             public static string TimelineZoomIn => current.Main.TimelineZoomIn;
             public static string TimelinePanPrevious => current.Main.TimelinePanPrevious;
             public static string TimelinePanNext => current.Main.TimelinePanNext;
+            public static string TimelineHelp => current.Main.TimelineHelp;
+            public static string TimelineHelpTitle => current.Main.TimelineHelpTitle;
+            public static string TimelineHelpMessage => current.Main.TimelineHelpMessage;
             public static string TimelineViewRange(string value) => current.Main.TimelineViewRange(value);
             public static string ShowInTimeline => current.Main.ShowInTimeline;
             public static string HighlightInTimeline => current.Main.HighlightInTimeline;
@@ -187,6 +190,7 @@ namespace TimePilot.WinForms.KYS24
             public static string RuntimeStatusTooltip => current.Main.RuntimeStatusTooltip;
             public static string RuntimeSegmentObservationTooltip => current.Main.RuntimeSegmentObservationTooltip;
             public static string RecordedDateCalendarTooltip => current.Main.RecordedDateCalendarTooltip;
+            public static string TimelineZoomHelpTooltip => current.Main.TimelineZoomHelpTooltip;
             public static string OpenWindow => current.Main.OpenWindow;
             public static string UsageDataCleared => current.Main.UsageDataCleared;
             public static string StartupPromptTitle => current.Main.StartupPromptTitle;
@@ -369,6 +373,19 @@ namespace TimePilot.WinForms.KYS24
                         TimelineZoomIn: "+",
                         TimelinePanPrevious: "◀",
                         TimelinePanNext: "▶",
+                        TimelineHelp: "?",
+                        TimelineHelpTitle: "타임라인 도움말",
+                        TimelineHelpMessage:
+                            "타임라인 그래프 조작\n\n"
+                            + "- 드래그: 선택한 시간 범위를 확대합니다.\n"
+                            + "- + / -: 현재 보기의 가운데를 기준으로 확대/축소합니다.\n"
+                            + "- ◀ / ▶: 확대된 보기에서 좌우로 이동합니다.\n"
+                            + "- 스크롤바: 확대된 보기에서 원하는 위치로 이동합니다.\n"
+                            + "- Ctrl+휠: 마우스 위치를 기준으로 확대/축소합니다.\n"
+                            + "- Shift+휠: 좌우로 이동합니다.\n"
+                            + "- ← / →: 좌우로 이동합니다.\n"
+                            + "- Esc: 전체 보기로 돌아갑니다.\n\n"
+                            + "표 형태의 목록에서는 Shift+휠로 좌우 이동할 수 있습니다.",
                         TimelineViewRange: value => $"보기 범위: {value}",
                         ShowInTimeline: "타임라인에서 보기",
                         HighlightInTimeline: "타임라인에서 강조",
@@ -491,6 +508,7 @@ namespace TimePilot.WinForms.KYS24
                         RuntimeStatusTooltip: "현재 설정 기준으로 실행 중, 종료, 추적 범위 밖 상태를 표시합니다.",
                         RuntimeSegmentObservationTooltip: "해당 개별 감지 세션이 어떤 기준으로 관측되었는지 표시합니다. 같은 앱 안에서도 화면 앱과 사용자 프로세스가 섞일 수 있습니다.",
                         RecordedDateCalendarTooltip: "기록이 있는 날짜는 달력에서 굵게 표시됩니다.",
+                        TimelineZoomHelpTooltip: "드래그로 범위를 확대합니다.\nCtrl+휠: 마우스 위치 기준 확대/축소\nShift+휠: 좌우 이동\n←/→: 좌우 미세 이동\nEsc: 전체 보기",
                         OpenWindow: "창 열기",
                         UsageDataCleared: "사용 기록을 삭제했습니다.",
                         StartupPromptTitle: "TimePilot 자동 시작",
@@ -628,6 +646,19 @@ namespace TimePilot.WinForms.KYS24
                         TimelineZoomIn: "+",
                         TimelinePanPrevious: "◀",
                         TimelinePanNext: "▶",
+                        TimelineHelp: "?",
+                        TimelineHelpTitle: "Timeline Help",
+                        TimelineHelpMessage:
+                            "Timeline chart controls\n\n"
+                            + "- Drag: zoom into the selected time range.\n"
+                            + "- + / -: zoom around the center of the current view.\n"
+                            + "- Left / Right buttons: pan within the zoomed view.\n"
+                            + "- Scrollbar: move through the zoomed view.\n"
+                            + "- Ctrl+wheel: zoom around the pointer.\n"
+                            + "- Shift+wheel: pan left/right.\n"
+                            + "- Left / Right keys: pan left/right.\n"
+                            + "- Esc: return to the full day.\n\n"
+                            + "In table lists, Shift+wheel scrolls left/right.",
                         TimelineViewRange: value => $"View range: {value}",
                         ShowInTimeline: "Show in timeline",
                         HighlightInTimeline: "Highlight in timeline",
@@ -750,6 +781,7 @@ namespace TimePilot.WinForms.KYS24
                         RuntimeStatusTooltip: "Shows running, ended, or outside tracking scope based on the current settings.",
                         RuntimeSegmentObservationTooltip: "Shows how each individual detected session was observed. A single app can include both visible app and user process sessions.",
                         RecordedDateCalendarTooltip: "Dates with records are shown in bold on the calendar.",
+                        TimelineZoomHelpTooltip: "Drag to zoom into a range.\nCtrl+wheel: zoom around the pointer\nShift+wheel: pan left/right\nLeft/Right: fine pan\nEsc: full day",
                         OpenWindow: "Open window",
                         UsageDataCleared: "Usage records were deleted.",
                         StartupPromptTitle: "TimePilot startup",
@@ -886,6 +918,9 @@ namespace TimePilot.WinForms.KYS24
             string TimelineZoomIn,
             string TimelinePanPrevious,
             string TimelinePanNext,
+            string TimelineHelp,
+            string TimelineHelpTitle,
+            string TimelineHelpMessage,
             Func<string, string> TimelineViewRange,
             string ShowInTimeline,
             string HighlightInTimeline,
@@ -1001,6 +1036,7 @@ namespace TimePilot.WinForms.KYS24
             string RuntimeStatusTooltip,
             string RuntimeSegmentObservationTooltip,
             string RecordedDateCalendarTooltip,
+            string TimelineZoomHelpTooltip,
             string OpenWindow,
             string UsageDataCleared,
             string StartupPromptTitle,

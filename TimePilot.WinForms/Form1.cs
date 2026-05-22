@@ -713,6 +713,7 @@ namespace TimePilot.WinForms
             timelineZoomPreviousButton.Text = UiText.Main.TimelinePanPrevious;
             timelineZoomNextButton.Text = UiText.Main.TimelinePanNext;
             timelineZoomResetButton.Text = UiText.Main.TimelineResetView;
+            timelineHelpButton.Text = UiText.Main.TimelineHelp;
             timelineCategoryBucketLabel.Text = UiText.Main.TimelineCategoryBucket;
             timelineOverviewControl.Invalidate();
             UpdateTimelineZoomControls();
@@ -780,6 +781,8 @@ namespace TimePilot.WinForms
             runtimeCoverageSummaryToolTip.SetToolTip(detailHelpButton, UiText.Main.DetailHelpTitle);
             runtimeCoverageSummaryToolTip.SetToolTip(detailDescriptionLabel, UiText.Main.DetailDescription);
             runtimeCoverageSummaryToolTip.SetToolTip(timelineCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(timelineOverviewControl, UiText.Main.TimelineZoomHelpTooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(timelineHelpButton, UiText.Main.TimelineHelpTitle);
             RefreshDetailRuntimeFilterOptions();
             RefreshSummaryPeriodOptions(DateTime.Today);
             UpdateDetailTrackingDisabledBanner();
@@ -1471,6 +1474,16 @@ namespace TimePilot.WinForms
         private void OnTimelineZoomResetButtonClick(object? sender, EventArgs e)
         {
             timelineOverviewControl.ResetView();
+        }
+
+        private void OnTimelineHelpButtonClick(object? sender, EventArgs e)
+        {
+            CenteredMessageDialog.Show(
+                this,
+                UiText.Main.TimelineHelpMessage,
+                UiText.Main.TimelineHelpTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
         }
 
         private void OnTimelineZoomScrollBarScroll(object? sender, ScrollEventArgs e)

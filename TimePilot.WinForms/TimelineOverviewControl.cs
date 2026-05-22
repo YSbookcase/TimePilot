@@ -50,6 +50,8 @@ namespace TimePilot.WinForms
         ];
         private static readonly TimeSpan MinimumViewRange = TimeSpan.FromMinutes(5);
         private const int MinimumDragPixels = 8;
+        private const double WheelZoomInFactor = 0.8;
+        private const double WheelZoomOutFactor = 1.25;
 
         private IReadOnlyList<ActivityTimelineRow> rows = Array.Empty<ActivityTimelineRow>();
         private IReadOnlyList<TimelineRange> windowsRuntimeRanges = Array.Empty<TimelineRange>();
@@ -87,6 +89,7 @@ namespace TimePilot.WinForms
             DoubleBuffered = true;
             BackColor = Color.White;
             MinimumSize = new Size(240, 150);
+            TabStop = true;
         }
 
         public void SetTimeline(
@@ -137,22 +140,22 @@ namespace TimePilot.WinForms
 
         public void PanPrevious()
         {
-            Pan(-0.5);
+            Pan(-GetFinePanRatio());
         }
 
         public void PanNext()
         {
-            Pan(0.5);
+            Pan(GetFinePanRatio());
         }
 
         public void ZoomIn()
         {
-            Zoom(0.5);
+            Zoom(0.5, centerRatio: 0.5);
         }
 
         public void ZoomOut()
         {
-            Zoom(2);
+            Zoom(2, centerRatio: 0.5);
         }
 
         public void SetViewStartRatio(double ratio)
@@ -200,6 +203,7 @@ namespace TimePilot.WinForms
         protected override void OnMouseDown(MouseEventArgs e)
         {
             base.OnMouseDown(e);
+            Focus();
 
             if (e.Button != MouseButtons.Left || !GetInteractiveBounds(ClientRectangle).Contains(e.Location))
                 return;
@@ -258,6 +262,55 @@ namespace TimePilot.WinForms
 
             hoverText = null;
             Invalidate();
+        }
+
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {
+            if ((ModifierKeys & Keys.Control) == Keys.Control)
+            {
+                var interactiveBounds = GetInteractiveBounds(ClientRectangle);
+                var centerRatio = interactiveBounds.Contains(e.Location)
+                    ? Math.Clamp((e.X - interactiveBounds.Left) / (double)Math.Max(1, interactiveBounds.Width), 0, 1)
+                    : 0.5;
+                Zoom(e.Delta > 0 ? WheelZoomInFactor : WheelZoomOutFactor, centerRatio);
+                return;
+            }
+
+            if ((ModifierKeys & Keys.Shift) == Keys.Shift)
+            {
+                Pan(e.Delta > 0 ? -GetFinePanRatio() : GetFinePanRatio());
+                return;
+            }
+
+            base.OnMouseWheel(e);
+        }
+
+        protected override bool IsInputKey(Keys keyData)
+        {
+            var key = keyData & Keys.KeyCode;
+            return key is Keys.Left or Keys.Right or Keys.Escape
+                || base.IsInputKey(keyData);
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+
+            switch (e.KeyCode)
+            {
+                case Keys.Left:
+                    Pan(-GetFinePanRatio());
+                    e.Handled = true;
+                    break;
+                case Keys.Right:
+                    Pan(GetFinePanRatio());
+                    e.Handled = true;
+                    break;
+                case Keys.Escape:
+                    ResetView();
+                    e.Handled = true;
+                    break;
+            }
         }
 
         private Rectangle GetWindowsBounds(Rectangle bounds)
@@ -681,7 +734,7 @@ namespace TimePilot.WinForms
             SetViewRange(nextStart, nextEnd, addHistory: false);
         }
 
-        private void Zoom(double factor)
+        private void Zoom(double factor, double centerRatio)
         {
             var currentWidth = viewEnd - viewStart;
             var nextWidth = TimeSpan.FromTicks((long)(currentWidth.Ticks * factor));
@@ -692,8 +745,9 @@ namespace TimePilot.WinForms
             if (nextWidth == currentWidth)
                 return;
 
-            var center = viewStart + TimeSpan.FromTicks(currentWidth.Ticks / 2);
-            var nextStart = center - TimeSpan.FromTicks(nextWidth.Ticks / 2);
+            centerRatio = Math.Clamp(centerRatio, 0, 1);
+            var center = viewStart + TimeSpan.FromTicks((long)(currentWidth.Ticks * centerRatio));
+            var nextStart = center - TimeSpan.FromTicks((long)(nextWidth.Ticks * centerRatio));
             var nextEnd = nextStart + nextWidth;
             if (nextStart < TimeSpan.Zero)
             {
@@ -707,6 +761,19 @@ namespace TimePilot.WinForms
             }
 
             SetViewRange(nextStart, nextEnd, addHistory: true);
+        }
+
+        private double GetFinePanRatio()
+        {
+            var width = viewEnd - viewStart;
+            if (width <= TimeSpan.FromHours(1))
+                return 0.1;
+            if (width <= TimeSpan.FromHours(3))
+                return 0.15;
+            if (width <= TimeSpan.FromHours(8))
+                return 0.25;
+
+            return 0.5;
         }
 
         private void SetViewRange(TimeSpan start, TimeSpan end, bool addHistory)
