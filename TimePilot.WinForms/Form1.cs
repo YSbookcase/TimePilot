@@ -2942,6 +2942,7 @@ namespace TimePilot.WinForms
                 return;
 
             using var form = new AppCategoryManagementForm(storage, settings.UiLanguage);
+            form.Icon = Icon;
             if (form.ShowDialog(this) == DialogResult.OK && form.CategoriesChanged)
                 RefreshViews(DateTimeOffset.UtcNow);
         }
