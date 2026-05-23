@@ -25,6 +25,7 @@
             exitMenuItem = new ToolStripMenuItem();
             settingsMenuItem = new ToolStripMenuItem();
             preferencesMenuItem = new ToolStripMenuItem();
+            resetTableSortMenuItem = new ToolStripMenuItem();
             helpMenuItem = new ToolStripMenuItem();
             runtimeDiagnosticsMenuItem = new ToolStripMenuItem();
             aboutMenuItem = new ToolStripMenuItem();
@@ -190,7 +191,7 @@
             // 
             // settingsMenuItem
             // 
-            settingsMenuItem.DropDownItems.AddRange(new ToolStripItem[] { preferencesMenuItem });
+            settingsMenuItem.DropDownItems.AddRange(new ToolStripItem[] { preferencesMenuItem, resetTableSortMenuItem });
             settingsMenuItem.Name = "settingsMenuItem";
             settingsMenuItem.Size = new Size(43, 20);
             settingsMenuItem.Text = UiText.Main.SettingsMenu;
@@ -202,6 +203,13 @@
             preferencesMenuItem.Text = UiText.Main.Preferences;
             preferencesMenuItem.Click += OnPreferencesMenuItemClick;
             // 
+            // resetTableSortMenuItem
+            //
+            resetTableSortMenuItem.Name = "resetTableSortMenuItem";
+            resetTableSortMenuItem.Size = new Size(180, 22);
+            resetTableSortMenuItem.Text = "화면 정렬 초기화";
+            resetTableSortMenuItem.Click += OnResetTableSortMenuItemClick;
+            //
             // helpMenuItem
             // 
             helpMenuItem.DropDownItems.AddRange(new ToolStripItem[] { runtimeDiagnosticsMenuItem, aboutMenuItem });
@@ -407,6 +415,7 @@
             // 
             dailyUsageTrendGrid.AllowUserToAddRows = false;
             dailyUsageTrendGrid.AllowUserToDeleteRows = false;
+            dailyUsageTrendGrid.AllowUserToOrderColumns = true;
             dailyUsageTrendGrid.AllowUserToResizeRows = false;
             dailyUsageTrendGrid.AutoGenerateColumns = false;
             dailyUsageTrendGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
@@ -921,6 +930,7 @@
             //
             runtimeSegmentsGrid.AllowUserToAddRows = false;
             runtimeSegmentsGrid.AllowUserToDeleteRows = false;
+            runtimeSegmentsGrid.AllowUserToOrderColumns = true;
             runtimeSegmentsGrid.AllowUserToResizeRows = false;
             runtimeSegmentsGrid.AutoGenerateColumns = false;
             runtimeSegmentsGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
@@ -1301,6 +1311,7 @@
             // 
             timelineGrid.AllowUserToAddRows = false;
             timelineGrid.AllowUserToDeleteRows = false;
+            timelineGrid.AllowUserToOrderColumns = true;
             timelineGrid.AllowUserToResizeRows = false;
             timelineGrid.AutoGenerateColumns = false;
             timelineGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
@@ -1429,6 +1440,7 @@
         private ToolStripMenuItem exitMenuItem;
         private ToolStripMenuItem settingsMenuItem;
         private ToolStripMenuItem preferencesMenuItem;
+        private ToolStripMenuItem resetTableSortMenuItem;
         private ToolStripMenuItem helpMenuItem;
         private ToolStripMenuItem runtimeDiagnosticsMenuItem;
         private ToolStripMenuItem aboutMenuItem;

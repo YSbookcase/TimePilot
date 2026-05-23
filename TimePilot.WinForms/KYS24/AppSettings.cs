@@ -65,6 +65,28 @@ namespace TimePilot.WinForms.KYS24
 
         public bool WindowMaximized { get; set; }
 
+        public string? UsageSortProperty { get; set; }
+
+        public bool? UsageSortDescending { get; set; }
+
+        public string? DailyUsageTrendSortProperty { get; set; }
+
+        public bool? DailyUsageTrendSortDescending { get; set; }
+
+        public string? TimelineSortProperty { get; set; }
+
+        public bool? TimelineSortDescending { get; set; }
+
+        public string? RuntimeSortProperty { get; set; }
+
+        public bool? RuntimeSortDescending { get; set; }
+
+        public string? RuntimeSegmentSortProperty { get; set; }
+
+        public bool? RuntimeSegmentSortDescending { get; set; }
+
+        public Dictionary<string, List<TableColumnLayout>> TableColumnLayouts { get; set; } = new();
+
         public bool IsCurrentProcessRuntimeRiskAccepted =>
             !IsDangerousProcessRuntimeTracking(
                 ProcessRuntimeTrackingEnabled,
@@ -107,6 +129,17 @@ namespace TimePilot.WinForms.KYS24
                 settings.WindowWidth = NormalizeNullableWindowSize(persisted?.WindowWidth);
                 settings.WindowHeight = NormalizeNullableWindowSize(persisted?.WindowHeight);
                 settings.WindowMaximized = persisted?.WindowMaximized ?? false;
+                settings.UsageSortProperty = NormalizeNullableText(persisted?.UsageSortProperty);
+                settings.UsageSortDescending = persisted?.UsageSortDescending;
+                settings.DailyUsageTrendSortProperty = NormalizeNullableText(persisted?.DailyUsageTrendSortProperty);
+                settings.DailyUsageTrendSortDescending = persisted?.DailyUsageTrendSortDescending;
+                settings.TimelineSortProperty = NormalizeNullableText(persisted?.TimelineSortProperty);
+                settings.TimelineSortDescending = persisted?.TimelineSortDescending;
+                settings.RuntimeSortProperty = NormalizeNullableText(persisted?.RuntimeSortProperty);
+                settings.RuntimeSortDescending = persisted?.RuntimeSortDescending;
+                settings.RuntimeSegmentSortProperty = NormalizeNullableText(persisted?.RuntimeSegmentSortProperty);
+                settings.RuntimeSegmentSortDescending = persisted?.RuntimeSegmentSortDescending;
+                settings.TableColumnLayouts = NormalizeTableColumnLayouts(persisted?.TableColumnLayouts);
             }
             catch
             {
@@ -126,6 +159,17 @@ namespace TimePilot.WinForms.KYS24
                 settings.WindowWidth = null;
                 settings.WindowHeight = null;
                 settings.WindowMaximized = false;
+                settings.UsageSortProperty = null;
+                settings.UsageSortDescending = null;
+                settings.DailyUsageTrendSortProperty = null;
+                settings.DailyUsageTrendSortDescending = null;
+                settings.TimelineSortProperty = null;
+                settings.TimelineSortDescending = null;
+                settings.RuntimeSortProperty = null;
+                settings.RuntimeSortDescending = null;
+                settings.RuntimeSegmentSortProperty = null;
+                settings.RuntimeSegmentSortDescending = null;
+                settings.TableColumnLayouts = new Dictionary<string, List<TableColumnLayout>>();
             }
 
             return settings;
@@ -155,7 +199,18 @@ namespace TimePilot.WinForms.KYS24
                 WindowTop = NormalizeNullableWindowCoordinate(WindowTop),
                 WindowWidth = NormalizeNullableWindowSize(WindowWidth),
                 WindowHeight = NormalizeNullableWindowSize(WindowHeight),
-                WindowMaximized = WindowMaximized
+                WindowMaximized = WindowMaximized,
+                UsageSortProperty = NormalizeNullableText(UsageSortProperty),
+                UsageSortDescending = UsageSortDescending,
+                DailyUsageTrendSortProperty = NormalizeNullableText(DailyUsageTrendSortProperty),
+                DailyUsageTrendSortDescending = DailyUsageTrendSortDescending,
+                TimelineSortProperty = NormalizeNullableText(TimelineSortProperty),
+                TimelineSortDescending = TimelineSortDescending,
+                RuntimeSortProperty = NormalizeNullableText(RuntimeSortProperty),
+                RuntimeSortDescending = RuntimeSortDescending,
+                RuntimeSegmentSortProperty = NormalizeNullableText(RuntimeSegmentSortProperty),
+                RuntimeSegmentSortDescending = RuntimeSegmentSortDescending,
+                TableColumnLayouts = NormalizeTableColumnLayouts(TableColumnLayouts)
             };
             IdleThresholdMinutes = persisted.IdleThresholdMinutes;
             StartWithWindows = persisted.StartWithWindows;
@@ -174,6 +229,17 @@ namespace TimePilot.WinForms.KYS24
             WindowWidth = persisted.WindowWidth;
             WindowHeight = persisted.WindowHeight;
             WindowMaximized = persisted.WindowMaximized;
+            UsageSortProperty = persisted.UsageSortProperty;
+            UsageSortDescending = persisted.UsageSortDescending;
+            DailyUsageTrendSortProperty = persisted.DailyUsageTrendSortProperty;
+            DailyUsageTrendSortDescending = persisted.DailyUsageTrendSortDescending;
+            TimelineSortProperty = persisted.TimelineSortProperty;
+            TimelineSortDescending = persisted.TimelineSortDescending;
+            RuntimeSortProperty = persisted.RuntimeSortProperty;
+            RuntimeSortDescending = persisted.RuntimeSortDescending;
+            RuntimeSegmentSortProperty = persisted.RuntimeSegmentSortProperty;
+            RuntimeSegmentSortDescending = persisted.RuntimeSegmentSortDescending;
+            TableColumnLayouts = persisted.TableColumnLayouts;
 
             File.WriteAllText(
                 settingsPath,
@@ -257,6 +323,22 @@ namespace TimePilot.WinForms.KYS24
             Save();
         }
 
+        public void ResetTableSortStates()
+        {
+            UsageSortProperty = null;
+            UsageSortDescending = null;
+            DailyUsageTrendSortProperty = null;
+            DailyUsageTrendSortDescending = null;
+            TimelineSortProperty = null;
+            TimelineSortDescending = null;
+            RuntimeSortProperty = null;
+            RuntimeSortDescending = null;
+            RuntimeSegmentSortProperty = null;
+            RuntimeSegmentSortDescending = null;
+            TableColumnLayouts.Clear();
+            Save();
+        }
+
         private static int NormalizeIdleThresholdMinutes(int? minutes)
         {
             return Math.Clamp(
@@ -309,6 +391,36 @@ namespace TimePilot.WinForms.KYS24
         private static int? NormalizeNullableWindowSize(int? value)
         {
             return value is null ? null : Math.Clamp(value.Value, 1, 100000);
+        }
+
+        private static string? NormalizeNullableText(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        private static Dictionary<string, List<TableColumnLayout>> NormalizeTableColumnLayouts(
+            Dictionary<string, List<TableColumnLayout>>? layouts)
+        {
+            if (layouts is null || layouts.Count == 0)
+                return new Dictionary<string, List<TableColumnLayout>>();
+
+            return layouts
+                .Where(x => !string.IsNullOrWhiteSpace(x.Key) && x.Value.Count > 0)
+                .ToDictionary(
+                    x => x.Key.Trim(),
+                    x => x.Value
+                        .Where(column => !string.IsNullOrWhiteSpace(column.Name))
+                        .Select(column => new TableColumnLayout
+                        {
+                            Name = column.Name.Trim(),
+                            DisplayIndex = Math.Clamp(column.DisplayIndex, 0, 1000),
+                            Width = Math.Clamp(column.Width, 1, 10000)
+                        })
+                        .GroupBy(column => column.Name, StringComparer.Ordinal)
+                        .Select(group => group.First())
+                        .OrderBy(column => column.DisplayIndex)
+                        .ToList(),
+                    StringComparer.Ordinal);
         }
 
         public static bool IsDangerousProcessRuntimeTracking(
@@ -375,6 +487,37 @@ namespace TimePilot.WinForms.KYS24
             public int? WindowHeight { get; set; }
 
             public bool WindowMaximized { get; set; }
+
+            public string? UsageSortProperty { get; set; }
+
+            public bool? UsageSortDescending { get; set; }
+
+            public string? DailyUsageTrendSortProperty { get; set; }
+
+            public bool? DailyUsageTrendSortDescending { get; set; }
+
+            public string? TimelineSortProperty { get; set; }
+
+            public bool? TimelineSortDescending { get; set; }
+
+            public string? RuntimeSortProperty { get; set; }
+
+            public bool? RuntimeSortDescending { get; set; }
+
+            public string? RuntimeSegmentSortProperty { get; set; }
+
+            public bool? RuntimeSegmentSortDescending { get; set; }
+
+            public Dictionary<string, List<TableColumnLayout>> TableColumnLayouts { get; set; } = new();
+        }
+
+        public sealed class TableColumnLayout
+        {
+            public string Name { get; set; } = string.Empty;
+
+            public int DisplayIndex { get; set; }
+
+            public int Width { get; set; }
         }
     }
 }
