@@ -609,6 +609,29 @@ namespace TimePilot.WinForms
             SetRuntimeCoverageSummaryParts(summary.SummaryParts);
         }
 
+        private void SetSummaryIdleAnalysis(
+            IReadOnlyList<ForegroundUsageSummary> foregroundUsage,
+            IdleUsageSummary? idleUsage)
+        {
+            var activeMs = foregroundUsage.Sum(x => x.ActiveUsageMs);
+            var idleMs = idleUsage?.IdleMs ?? 0;
+            var totalMs = activeMs + idleMs;
+            if (totalMs <= 0)
+            {
+                summaryIdleAnalysisPanel.Visible = false;
+                summaryIdleAnalysisLabel.Text = "";
+                return;
+            }
+
+            var inputActivityRatio = (double)activeMs / totalMs;
+            summaryIdleAnalysisLabel.Text = UiText.Main.SummaryIdleAnalysis(
+                FormatDiagnosticDuration(activeMs),
+                FormatDiagnosticDuration(idleMs),
+                inputActivityRatio,
+                settings.IdleThresholdMinutes);
+            summaryIdleAnalysisPanel.Visible = true;
+        }
+
         private void SetRuntimeCoverageSummaryParts(params string[] parts)
         {
             SetRuntimeCoverageSummaryParts((IEnumerable<string>)parts);
@@ -787,6 +810,8 @@ namespace TimePilot.WinForms
             runtimeCoverageSummaryToolTip.SetToolTip(timelineHelpButton, UiText.Main.TimelineHelpTitle);
             runtimeCoverageSummaryToolTip.SetToolTip(timelineHighlightSummaryPanel, UiText.Main.TimelineHighlightSummaryTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(timelineHighlightSummaryLabel, UiText.Main.TimelineHighlightSummaryTooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(summaryIdleAnalysisPanel, UiText.Main.SummaryIdleAnalysisTooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(summaryIdleAnalysisLabel, UiText.Main.SummaryIdleAnalysisTooltip);
             RefreshDetailRuntimeFilterOptions();
             RefreshSummaryPeriodOptions(DateTime.Today);
             UpdateDetailTrackingDisabledBanner();
@@ -868,6 +893,9 @@ namespace TimePilot.WinForms
                     var dailyUsageTrendRows = selectedTab == summaryTab
                         ? storage.GetDailyUsageTrendForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
                         : null;
+                    var idleUsage = selectedTab == summaryTab
+                        ? storage.GetIdleUsageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
+                        : null;
                     var timelineRows = selectedTab == timelineTab
                         ? storage.GetActivityTimelineForDate(timelineDate, observedAt)
                         : null;
@@ -906,6 +934,7 @@ namespace TimePilot.WinForms
                     return new ViewRefreshSnapshot(
                         foregroundUsage,
                         dailyUsageTrendRows,
+                        idleUsage,
                         null,
                         summaryPeriodRange.ShowDateInTimestamps,
                         detailDateHasData,
@@ -936,6 +965,7 @@ namespace TimePilot.WinForms
             if (snapshot.ForegroundUsage is not null)
             {
                 SetRuntimeCoverageSummary(snapshot.RuntimeCoverage);
+                SetSummaryIdleAnalysis(snapshot.ForegroundUsage, snapshot.IdleUsage);
                 SetGridDataSourcePreservingView(
                     usageGrid,
                     AddIcons(SortUsageSummaryRows(UsageSummaryRowBuilder.FromForegroundUsage(
@@ -2807,6 +2837,7 @@ namespace TimePilot.WinForms
         private sealed record ViewRefreshSnapshot(
             IReadOnlyList<ForegroundUsageSummary>? ForegroundUsage,
             IReadOnlyList<DailyUsageTrendRow>? DailyUsageTrendRows,
+            IdleUsageSummary? IdleUsage,
             RuntimeCoverageSummary? RuntimeCoverage,
             bool ShowDateInUsageTimestamps,
             bool? DetailDateHasData,

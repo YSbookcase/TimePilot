@@ -873,6 +873,38 @@ namespace TimePilot.WinForms.KYS24
                 .ToList();
         }
 
+        public IdleUsageSummary GetIdleUsageForPeriod(DateTimeOffset periodStart, DateTimeOffset periodEnd)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    started_at,
+                    ended_at
+                FROM idle_sessions
+                WHERE started_at < $periodEnd
+                  AND COALESCE(ended_at, $periodEnd) > $periodStart;
+                """;
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
+
+            long idleMs = 0;
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = ParseTimestamp(reader.GetString(0));
+                var endedAt = reader.IsDBNull(1) ? periodEnd : ParseTimestamp(reader.GetString(1));
+                var effectiveStart = Max(startedAt, periodStart);
+                var effectiveEnd = Min(endedAt, periodEnd);
+                if (effectiveEnd <= effectiveStart)
+                    continue;
+
+                idleMs += Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+            }
+
+            return new IdleUsageSummary(idleMs);
+        }
+
         public IReadOnlyList<DailyUsageTrendRow> GetDailyUsageTrendForPeriod(
             DateTimeOffset periodStart,
             DateTimeOffset periodEnd)

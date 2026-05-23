@@ -38,6 +38,8 @@
             summarySpecificDateCalendarButton = new Button();
             summaryHighlightHintLabel = new Label();
             runtimeCoverageSummaryPanel = new FlowLayoutPanel();
+            summaryIdleAnalysisPanel = new FlowLayoutPanel();
+            summaryIdleAnalysisLabel = new Label();
             runtimeCoverageSummaryToolTip = new ToolTip(components);
             usageGrid = new BufferedDataGridView();
             dailyUsageTrendGrid = new BufferedDataGridView();
@@ -240,6 +242,7 @@
             // 
             summaryTab.Controls.Add(usageGrid);
             summaryTab.Controls.Add(dailyUsageTrendGrid);
+            summaryTab.Controls.Add(summaryIdleAnalysisPanel);
             summaryTab.Controls.Add(runtimeCoverageSummaryPanel);
             summaryTab.Controls.Add(summaryPeriodPanel);
             summaryTab.Location = new Point(4, 24);
@@ -330,6 +333,28 @@
             runtimeCoverageSummaryPanel.WrapContents = true;
             runtimeCoverageSummaryToolTip.SetToolTip(runtimeCoverageSummaryPanel, "");
             // 
+            // summaryIdleAnalysisPanel
+            //
+            summaryIdleAnalysisPanel.Controls.Add(summaryIdleAnalysisLabel);
+            summaryIdleAnalysisPanel.Dock = DockStyle.Top;
+            summaryIdleAnalysisPanel.Location = new Point(3, 87);
+            summaryIdleAnalysisPanel.Name = "summaryIdleAnalysisPanel";
+            summaryIdleAnalysisPanel.Padding = new Padding(8, 4, 8, 4);
+            summaryIdleAnalysisPanel.Size = new Size(706, 32);
+            summaryIdleAnalysisPanel.TabIndex = 4;
+            summaryIdleAnalysisPanel.Visible = false;
+            summaryIdleAnalysisPanel.WrapContents = true;
+            //
+            // summaryIdleAnalysisLabel
+            //
+            summaryIdleAnalysisLabel.AutoSize = true;
+            summaryIdleAnalysisLabel.ForeColor = SystemColors.ControlText;
+            summaryIdleAnalysisLabel.Location = new Point(11, 10);
+            summaryIdleAnalysisLabel.Margin = new Padding(0, 6, 4, 0);
+            summaryIdleAnalysisLabel.Name = "summaryIdleAnalysisLabel";
+            summaryIdleAnalysisLabel.Size = new Size(0, 15);
+            summaryIdleAnalysisLabel.TabIndex = 0;
+            //
             // usageGrid
             // 
             usageGrid.AllowUserToAddRows = false;
@@ -1366,6 +1391,8 @@
         private Button summarySpecificDateCalendarButton;
         private Label summaryHighlightHintLabel;
         private FlowLayoutPanel runtimeCoverageSummaryPanel;
+        private FlowLayoutPanel summaryIdleAnalysisPanel;
+        private Label summaryIdleAnalysisLabel;
         private ToolTip runtimeCoverageSummaryToolTip;
         private DataGridView usageGrid;
         private DataGridView dailyUsageTrendGrid;
