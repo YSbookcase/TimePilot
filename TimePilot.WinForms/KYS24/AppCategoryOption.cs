@@ -4,5 +4,6 @@ namespace TimePilot.WinForms.KYS24
         long Id,
         string Name,
         string? Color,
-        int SortOrder);
+        int SortOrder,
+        bool IsBuiltin);
 }

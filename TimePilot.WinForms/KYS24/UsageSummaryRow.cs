@@ -52,7 +52,7 @@ namespace TimePilot.WinForms.KYS24
 
         public string CategoryText => string.IsNullOrWhiteSpace(CategoryName)
             ? UiText.Main.Uncategorized
-            : CategoryName;
+            : AppCategoryDisplay.GetDisplayName(CategoryName);
 
         public string ActiveUsageTimeText => FormatDuration(ActiveUsageMs);
 

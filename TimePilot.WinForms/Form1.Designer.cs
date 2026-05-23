@@ -25,6 +25,7 @@
             exitMenuItem = new ToolStripMenuItem();
             settingsMenuItem = new ToolStripMenuItem();
             preferencesMenuItem = new ToolStripMenuItem();
+            appCategoryManagementMenuItem = new ToolStripMenuItem();
             resetTableSortMenuItem = new ToolStripMenuItem();
             helpMenuItem = new ToolStripMenuItem();
             runtimeDiagnosticsMenuItem = new ToolStripMenuItem();
@@ -191,7 +192,7 @@
             // 
             // settingsMenuItem
             // 
-            settingsMenuItem.DropDownItems.AddRange(new ToolStripItem[] { preferencesMenuItem, resetTableSortMenuItem });
+            settingsMenuItem.DropDownItems.AddRange(new ToolStripItem[] { preferencesMenuItem, appCategoryManagementMenuItem, resetTableSortMenuItem });
             settingsMenuItem.Name = "settingsMenuItem";
             settingsMenuItem.Size = new Size(43, 20);
             settingsMenuItem.Text = UiText.Main.SettingsMenu;
@@ -203,6 +204,13 @@
             preferencesMenuItem.Text = UiText.Main.Preferences;
             preferencesMenuItem.Click += OnPreferencesMenuItemClick;
             // 
+            // appCategoryManagementMenuItem
+            //
+            appCategoryManagementMenuItem.Name = "appCategoryManagementMenuItem";
+            appCategoryManagementMenuItem.Size = new Size(180, 22);
+            appCategoryManagementMenuItem.Text = "앱 분류 관리...";
+            appCategoryManagementMenuItem.Click += OnAppCategoryManagementMenuItemClick;
+            //
             // resetTableSortMenuItem
             //
             resetTableSortMenuItem.Name = "resetTableSortMenuItem";
@@ -1440,6 +1448,7 @@
         private ToolStripMenuItem exitMenuItem;
         private ToolStripMenuItem settingsMenuItem;
         private ToolStripMenuItem preferencesMenuItem;
+        private ToolStripMenuItem appCategoryManagementMenuItem;
         private ToolStripMenuItem resetTableSortMenuItem;
         private ToolStripMenuItem helpMenuItem;
         private ToolStripMenuItem runtimeDiagnosticsMenuItem;
