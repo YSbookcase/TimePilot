@@ -11,6 +11,7 @@ namespace TimePilot.WinForms.KYS24
         string? CategoryName,
         long RuntimeMs,
         long ActiveUsageMs,
+        long IdleRecordedMs,
         double? ActualUsageRatio,
         int RuntimeSegmentCount,
         bool HasRunningSession,
@@ -28,6 +29,8 @@ namespace TimePilot.WinForms.KYS24
         public string RuntimeText => FormatDuration(RuntimeMs);
 
         public string ActiveUsageTimeText => FormatDuration(ActiveUsageMs);
+
+        public string IdleRecordedTimeText => FormatDuration(IdleRecordedMs);
 
         public string ActualUsageRatioText => ActualUsageRatio is null
             ? "-"

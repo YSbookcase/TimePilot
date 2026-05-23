@@ -8,6 +8,7 @@ namespace TimePilot.WinForms.KYS24
         long? PrimaryCategoryId,
         string? CategoryName,
         long ActiveUsageMs,
+        long IdleRecordedMs,
         int SwitchCount,
         DateTimeOffset FirstStartedAt,
         DateTimeOffset LastObservedAt);

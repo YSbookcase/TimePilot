@@ -41,6 +41,7 @@
             summaryIdleAnalysisPanel = new FlowLayoutPanel();
             summaryIdleAnalysisLabel = new Label();
             runtimeCoverageSummaryToolTip = new ToolTip(components);
+            summarySplitContainer = new SplitContainer();
             usageGrid = new BufferedDataGridView();
             dailyUsageTrendGrid = new BufferedDataGridView();
             dailyUsageDateColumn = new DataGridViewTextBoxColumn();
@@ -53,6 +54,7 @@
             firstStartedAtColumn = new DataGridViewTextBoxColumn();
             lastObservedAtColumn = new DataGridViewTextBoxColumn();
             activeUsageTimeColumn = new DataGridViewTextBoxColumn();
+            idleRecordedTimeColumn = new DataGridViewTextBoxColumn();
             usageRatioColumn = new DataGridViewTextBoxColumn();
             switchCountColumn = new DataGridViewTextBoxColumn();
             detailTab = new TabPage();
@@ -82,6 +84,7 @@
             runtimeLastObservedAtColumn = new DataGridViewTextBoxColumn();
             runtimeDurationColumn = new DataGridViewTextBoxColumn();
             runtimeActiveUsageColumn = new DataGridViewTextBoxColumn();
+            runtimeIdleRecordedColumn = new DataGridViewTextBoxColumn();
             runtimeActualUsageRatioColumn = new DataGridViewTextBoxColumn();
             runtimeSessionCountColumn = new DataGridViewTextBoxColumn();
             runtimeStatusColumn = new DataGridViewTextBoxColumn();
@@ -128,6 +131,10 @@
             mainMenuStrip.SuspendLayout();
             mainTabs.SuspendLayout();
             summaryTab.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)summarySplitContainer).BeginInit();
+            summarySplitContainer.Panel1.SuspendLayout();
+            summarySplitContainer.Panel2.SuspendLayout();
+            summarySplitContainer.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)usageGrid).BeginInit();
             ((System.ComponentModel.ISupportInitialize)dailyUsageTrendGrid).BeginInit();
             detailTab.SuspendLayout();
@@ -240,8 +247,7 @@
             // 
             // summaryTab
             // 
-            summaryTab.Controls.Add(usageGrid);
-            summaryTab.Controls.Add(dailyUsageTrendGrid);
+            summaryTab.Controls.Add(summarySplitContainer);
             summaryTab.Controls.Add(summaryIdleAnalysisPanel);
             summaryTab.Controls.Add(runtimeCoverageSummaryPanel);
             summaryTab.Controls.Add(summaryPeriodPanel);
@@ -355,6 +361,24 @@
             summaryIdleAnalysisLabel.Size = new Size(0, 15);
             summaryIdleAnalysisLabel.TabIndex = 0;
             //
+            // summarySplitContainer
+            //
+            summarySplitContainer.Dock = DockStyle.Fill;
+            summarySplitContainer.Location = new Point(3, 119);
+            summarySplitContainer.Name = "summarySplitContainer";
+            summarySplitContainer.Orientation = Orientation.Horizontal;
+            //
+            // summarySplitContainer.Panel1
+            //
+            summarySplitContainer.Panel1.Controls.Add(usageGrid);
+            //
+            // summarySplitContainer.Panel2
+            //
+            summarySplitContainer.Panel2.Controls.Add(dailyUsageTrendGrid);
+            summarySplitContainer.Size = new Size(706, 298);
+            summarySplitContainer.SplitterDistance = 166;
+            summarySplitContainer.TabIndex = 5;
+            //
             // usageGrid
             // 
             usageGrid.AllowUserToAddRows = false;
@@ -366,16 +390,16 @@
             usageGrid.BackgroundColor = SystemColors.Window;
             usageGrid.BorderStyle = BorderStyle.None;
             usageGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            usageGrid.Columns.AddRange(new DataGridViewColumn[] { appIconColumn, appNameColumn, appCategoryColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, usageRatioColumn, switchCountColumn });
+            usageGrid.Columns.AddRange(new DataGridViewColumn[] { appIconColumn, appNameColumn, appCategoryColumn, firstStartedAtColumn, lastObservedAtColumn, activeUsageTimeColumn, idleRecordedTimeColumn, usageRatioColumn, switchCountColumn });
             usageGrid.Dock = DockStyle.Fill;
-            usageGrid.Location = new Point(3, 39);
+            usageGrid.Location = new Point(0, 0);
             usageGrid.MultiSelect = false;
             usageGrid.Name = "usageGrid";
             usageGrid.ReadOnly = true;
             usageGrid.RowHeadersVisible = false;
             usageGrid.ScrollBars = ScrollBars.Both;
             usageGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            usageGrid.Size = new Size(706, 378);
+            usageGrid.Size = new Size(706, 166);
             usageGrid.TabIndex = 1;
             usageGrid.ColumnHeaderMouseClick += OnUsageGridColumnHeaderMouseClick;
             // 
@@ -390,8 +414,8 @@
             dailyUsageTrendGrid.BorderStyle = BorderStyle.None;
             dailyUsageTrendGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dailyUsageTrendGrid.Columns.AddRange(new DataGridViewColumn[] { dailyUsageDateColumn, dailyUsageActiveTimeColumn, dailyUsageTopAppColumn, dailyUsageTopAppTimeColumn });
-            dailyUsageTrendGrid.Dock = DockStyle.Bottom;
-            dailyUsageTrendGrid.Location = new Point(3, 289);
+            dailyUsageTrendGrid.Dock = DockStyle.Fill;
+            dailyUsageTrendGrid.Location = new Point(0, 0);
             dailyUsageTrendGrid.MultiSelect = false;
             dailyUsageTrendGrid.Name = "dailyUsageTrendGrid";
             dailyUsageTrendGrid.ReadOnly = true;
@@ -400,6 +424,7 @@
             dailyUsageTrendGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             dailyUsageTrendGrid.Size = new Size(706, 128);
             dailyUsageTrendGrid.TabIndex = 4;
+            dailyUsageTrendGrid.ColumnHeaderMouseClick += OnDailyUsageTrendGridColumnHeaderMouseClick;
             // 
             // dailyUsageDateColumn
             // 
@@ -408,7 +433,7 @@
             dailyUsageDateColumn.MinimumWidth = 110;
             dailyUsageDateColumn.Name = "dailyUsageDateColumn";
             dailyUsageDateColumn.ReadOnly = true;
-            dailyUsageDateColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            dailyUsageDateColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             dailyUsageDateColumn.Width = 120;
             // 
             // dailyUsageActiveTimeColumn
@@ -418,7 +443,7 @@
             dailyUsageActiveTimeColumn.MinimumWidth = 130;
             dailyUsageActiveTimeColumn.Name = "dailyUsageActiveTimeColumn";
             dailyUsageActiveTimeColumn.ReadOnly = true;
-            dailyUsageActiveTimeColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            dailyUsageActiveTimeColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             dailyUsageActiveTimeColumn.Width = 150;
             // 
             // dailyUsageTopAppColumn
@@ -428,7 +453,7 @@
             dailyUsageTopAppColumn.MinimumWidth = 180;
             dailyUsageTopAppColumn.Name = "dailyUsageTopAppColumn";
             dailyUsageTopAppColumn.ReadOnly = true;
-            dailyUsageTopAppColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            dailyUsageTopAppColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             dailyUsageTopAppColumn.Width = 220;
             // 
             // dailyUsageTopAppTimeColumn
@@ -438,7 +463,7 @@
             dailyUsageTopAppTimeColumn.MinimumWidth = 120;
             dailyUsageTopAppTimeColumn.Name = "dailyUsageTopAppTimeColumn";
             dailyUsageTopAppTimeColumn.ReadOnly = true;
-            dailyUsageTopAppTimeColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            dailyUsageTopAppTimeColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             dailyUsageTopAppTimeColumn.Width = 130;
             // 
             // appIconColumn
@@ -501,7 +526,18 @@
             activeUsageTimeColumn.ReadOnly = true;
             activeUsageTimeColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             activeUsageTimeColumn.Width = 130;
-            // 
+            //
+            // idleRecordedTimeColumn
+            //
+            idleRecordedTimeColumn.DataPropertyName = "IdleRecordedTimeText";
+            idleRecordedTimeColumn.HeaderText = UiText.Main.IdleRecordedTime;
+            idleRecordedTimeColumn.MinimumWidth = 120;
+            idleRecordedTimeColumn.Name = "idleRecordedTimeColumn";
+            idleRecordedTimeColumn.ReadOnly = true;
+            idleRecordedTimeColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            idleRecordedTimeColumn.ToolTipText = UiText.Main.IdleRecordedTimeTooltip;
+            idleRecordedTimeColumn.Width = 130;
+            //
             // usageRatioColumn
             // 
             usageRatioColumn.DataPropertyName = "UsageRatioText";
@@ -739,7 +775,7 @@
             runtimeGrid.BackgroundColor = SystemColors.Window;
             runtimeGrid.BorderStyle = BorderStyle.None;
             runtimeGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            runtimeGrid.Columns.AddRange(new DataGridViewColumn[] { runtimeAppIconColumn, runtimeAppNameColumn, runtimeCategoryColumn, runtimeTrackingTypeColumn, runtimeFirstObservedAtColumn, runtimeLastObservedAtColumn, runtimeDurationColumn, runtimeActiveUsageColumn, runtimeActualUsageRatioColumn, runtimeSessionCountColumn, runtimeStatusColumn });
+            runtimeGrid.Columns.AddRange(new DataGridViewColumn[] { runtimeAppIconColumn, runtimeAppNameColumn, runtimeCategoryColumn, runtimeTrackingTypeColumn, runtimeFirstObservedAtColumn, runtimeLastObservedAtColumn, runtimeDurationColumn, runtimeActiveUsageColumn, runtimeIdleRecordedColumn, runtimeActualUsageRatioColumn, runtimeSessionCountColumn, runtimeStatusColumn });
             runtimeGrid.Dock = DockStyle.Fill;
             runtimeGrid.Location = new Point(0, 0);
             runtimeGrid.MultiSelect = false;
@@ -836,6 +872,17 @@
             runtimeActiveUsageColumn.ReadOnly = true;
             runtimeActiveUsageColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             runtimeActiveUsageColumn.Width = 130;
+            //
+            // runtimeIdleRecordedColumn
+            //
+            runtimeIdleRecordedColumn.DataPropertyName = "IdleRecordedTimeText";
+            runtimeIdleRecordedColumn.HeaderText = UiText.Main.IdleRecordedTime;
+            runtimeIdleRecordedColumn.MinimumWidth = 120;
+            runtimeIdleRecordedColumn.Name = "runtimeIdleRecordedColumn";
+            runtimeIdleRecordedColumn.ReadOnly = true;
+            runtimeIdleRecordedColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            runtimeIdleRecordedColumn.ToolTipText = UiText.Main.IdleRecordedTimeTooltip;
+            runtimeIdleRecordedColumn.Width = 130;
             //
             // runtimeActualUsageRatioColumn
             //
@@ -1280,7 +1327,7 @@
             timelineTypeColumn.MinimumWidth = 80;
             timelineTypeColumn.Name = "timelineTypeColumn";
             timelineTypeColumn.ReadOnly = true;
-            timelineTypeColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            timelineTypeColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             timelineTypeColumn.Width = 90;
             // 
             // timelineStartedAtColumn
@@ -1300,7 +1347,7 @@
             timelineEndedAtColumn.MinimumWidth = 90;
             timelineEndedAtColumn.Name = "timelineEndedAtColumn";
             timelineEndedAtColumn.ReadOnly = true;
-            timelineEndedAtColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            timelineEndedAtColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             timelineEndedAtColumn.Width = 100;
             // 
             // timelineDurationColumn
@@ -1310,7 +1357,7 @@
             timelineDurationColumn.MinimumWidth = 100;
             timelineDurationColumn.Name = "timelineDurationColumn";
             timelineDurationColumn.ReadOnly = true;
-            timelineDurationColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            timelineDurationColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             timelineDurationColumn.Width = 110;
             // 
             // timelineAppIconColumn
@@ -1331,7 +1378,7 @@
             timelineDisplayNameColumn.MinimumWidth = 220;
             timelineDisplayNameColumn.Name = "timelineDisplayNameColumn";
             timelineDisplayNameColumn.ReadOnly = true;
-            timelineDisplayNameColumn.SortMode = DataGridViewColumnSortMode.NotSortable;
+            timelineDisplayNameColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             timelineDisplayNameColumn.Width = 260;
             // 
             // Form1
@@ -1349,6 +1396,10 @@
             mainMenuStrip.PerformLayout();
             mainTabs.ResumeLayout(false);
             summaryTab.ResumeLayout(false);
+            summarySplitContainer.Panel1.ResumeLayout(false);
+            summarySplitContainer.Panel2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)summarySplitContainer).EndInit();
+            summarySplitContainer.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)usageGrid).EndInit();
             ((System.ComponentModel.ISupportInitialize)dailyUsageTrendGrid).EndInit();
             detailTab.ResumeLayout(false);
@@ -1394,6 +1445,7 @@
         private FlowLayoutPanel summaryIdleAnalysisPanel;
         private Label summaryIdleAnalysisLabel;
         private ToolTip runtimeCoverageSummaryToolTip;
+        private SplitContainer summarySplitContainer;
         private DataGridView usageGrid;
         private DataGridView dailyUsageTrendGrid;
         private DataGridViewTextBoxColumn dailyUsageDateColumn;
@@ -1406,6 +1458,7 @@
         private DataGridViewTextBoxColumn firstStartedAtColumn;
         private DataGridViewTextBoxColumn lastObservedAtColumn;
         private DataGridViewTextBoxColumn activeUsageTimeColumn;
+        private DataGridViewTextBoxColumn idleRecordedTimeColumn;
         private DataGridViewTextBoxColumn usageRatioColumn;
         private DataGridViewTextBoxColumn switchCountColumn;
         private TabPage detailTab;
@@ -1435,6 +1488,7 @@
         private DataGridViewTextBoxColumn runtimeLastObservedAtColumn;
         private DataGridViewTextBoxColumn runtimeDurationColumn;
         private DataGridViewTextBoxColumn runtimeActiveUsageColumn;
+        private DataGridViewTextBoxColumn runtimeIdleRecordedColumn;
         private DataGridViewTextBoxColumn runtimeActualUsageRatioColumn;
         private DataGridViewTextBoxColumn runtimeSessionCountColumn;
         private DataGridViewTextBoxColumn runtimeStatusColumn;

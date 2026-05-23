@@ -18,6 +18,7 @@ namespace TimePilot.WinForms.KYS24
                     null,
                     null,
                     x.Value,
+                    0,
                     (double)x.Value / totalMs,
                     0))
                 .ToList();
@@ -41,6 +42,7 @@ namespace TimePilot.WinForms.KYS24
                     x.PrimaryCategoryId,
                     x.CategoryName,
                     x.ActiveUsageMs,
+                    x.IdleRecordedMs,
                     (double)x.ActiveUsageMs / totalMs,
                     x.SwitchCount,
                     null,

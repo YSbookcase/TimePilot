@@ -136,6 +136,8 @@ namespace TimePilot.WinForms.KYS24
             public static string FirstObservedAt => current.Main.FirstObservedAt;
             public static string LastObservedAt => current.Main.LastObservedAt;
             public static string ActiveUsageTime => current.Main.ActiveUsageTime;
+            public static string IdleRecordedTime => current.Main.IdleRecordedTime;
+            public static string IdleRecordedTimeTooltip => current.Main.IdleRecordedTimeTooltip;
             public static string ActiveRatio => current.Main.ActiveRatio;
             public static string SwitchCount => current.Main.SwitchCount;
             public static string TotalActiveUsageTime => current.Main.TotalActiveUsageTime;
@@ -482,6 +484,8 @@ namespace TimePilot.WinForms.KYS24
                         FirstObservedAt: "첫 감지",
                         LastObservedAt: "마지막 감지",
                         ActiveUsageTime: "활성 사용 시간",
+                        IdleRecordedTime: "유휴 기록 시간",
+                        IdleRecordedTimeTooltip: "마지막 입력 이후 설정한 유휴 기준 시간이 지난 뒤부터 TimePilot이 유휴로 기록한 시간입니다. 읽기, 영상 시청, 대기, 자리 비움이 포함될 수 있습니다. 유휴 기준에 도달하기 전의 입력 없음 시간은 포함되지 않습니다.",
                         ActiveRatio: "활성 비중",
                         SwitchCount: "전환 횟수",
                         TotalActiveUsageTime: "총 활성 사용 시간",
@@ -776,6 +780,8 @@ namespace TimePilot.WinForms.KYS24
                         FirstObservedAt: "First observed",
                         LastObservedAt: "Last observed",
                         ActiveUsageTime: "Active usage time",
+                        IdleRecordedTime: "Idle recorded time",
+                        IdleRecordedTimeTooltip: "TimePilot records this time after no keyboard or mouse input has occurred for at least the configured idle threshold. It can include reading, watching video, waiting, or being away. Time before the idle threshold is reached is not included.",
                         ActiveRatio: "Active ratio",
                         SwitchCount: "Switches",
                         TotalActiveUsageTime: "Total active usage",
@@ -1038,6 +1044,8 @@ namespace TimePilot.WinForms.KYS24
             string FirstObservedAt,
             string LastObservedAt,
             string ActiveUsageTime,
+            string IdleRecordedTime,
+            string IdleRecordedTimeTooltip,
             string ActiveRatio,
             string SwitchCount,
             string TotalActiveUsageTime,

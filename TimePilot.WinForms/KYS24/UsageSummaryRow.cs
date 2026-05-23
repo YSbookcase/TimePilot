@@ -10,6 +10,7 @@ namespace TimePilot.WinForms.KYS24
         long? PrimaryCategoryId,
         string? CategoryName,
         long ActiveUsageMs,
+        long IdleRecordedMs,
         double UsageRatio,
         int SwitchCount,
         Image? AppIcon = null,
@@ -17,11 +18,45 @@ namespace TimePilot.WinForms.KYS24
         DateTimeOffset? LastObservedAt = null,
         bool ShowDateInTimestamps = false)
     {
+        public UsageSummaryRow(
+            long? appId,
+            string appName,
+            string processName,
+            string? executablePath,
+            long? primaryCategoryId,
+            string? categoryName,
+            long activeUsageMs,
+            double usageRatio,
+            int switchCount,
+            Image? appIcon = null,
+            DateTimeOffset? firstStartedAt = null,
+            DateTimeOffset? lastObservedAt = null,
+            bool showDateInTimestamps = false)
+            : this(
+                appId,
+                appName,
+                processName,
+                executablePath,
+                primaryCategoryId,
+                categoryName,
+                activeUsageMs,
+                0,
+                usageRatio,
+                switchCount,
+                appIcon,
+                firstStartedAt,
+                lastObservedAt,
+                showDateInTimestamps)
+        {
+        }
+
         public string CategoryText => string.IsNullOrWhiteSpace(CategoryName)
             ? UiText.Main.Uncategorized
             : CategoryName;
 
         public string ActiveUsageTimeText => FormatDuration(ActiveUsageMs);
+
+        public string IdleRecordedTimeText => FormatDuration(IdleRecordedMs);
 
         public string UsageRatioText => UsageRatio.ToString("P1", CultureInfo.CurrentCulture);
 

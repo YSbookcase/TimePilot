@@ -857,6 +857,8 @@ namespace TimePilot.WinForms.KYS24
                 aggregation.LastObservedAt = Max(aggregation.LastObservedAt, effectiveEnd);
             }
 
+            AddIdleRecordedTimeToUsageAggregations(connection, totals, periodStart, periodEnd, DateTimeOffset.Now);
+
             return totals
                 .Select(x => new ForegroundUsageSummary(
                     x.Value.AppId,
@@ -866,6 +868,7 @@ namespace TimePilot.WinForms.KYS24
                     x.Value.PrimaryCategoryId,
                     x.Value.CategoryName,
                     x.Value.ActiveUsageMs,
+                    x.Value.IdleRecordedMs,
                     x.Value.SwitchCount,
                     x.Value.FirstStartedAt,
                     x.Value.LastObservedAt))
@@ -1443,6 +1446,7 @@ namespace TimePilot.WinForms.KYS24
             }
 
             AddActiveUsageToRuntimeAggregations(connection, totals, dayStart, dayEnd);
+            AddIdleRecordedTimeToRuntimeAggregations(connection, totals, dayStart, dayEnd, now);
 
             return totals
                 .Select(x => new ProcessRuntimeSummaryRow(
@@ -1454,6 +1458,7 @@ namespace TimePilot.WinForms.KYS24
                     x.Value.CategoryName,
                     x.Value.GetMergedRuntimeMs(),
                     x.Value.ActiveUsageMs,
+                    x.Value.IdleRecordedMs,
                     x.Value.GetMergedRuntimeMs() > 0
                         ? Math.Min(1, (double)x.Value.ActiveUsageMs / x.Value.GetMergedRuntimeMs())
                         : null,
@@ -2131,6 +2136,88 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
+        private static void AddIdleRecordedTimeToUsageAggregations(
+            SqliteConnection connection,
+            Dictionary<long, UsageAggregation> totals,
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd,
+            DateTimeOffset now)
+        {
+            if (totals.Count == 0)
+                return;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    i.foreground_app_id,
+                    i.started_at,
+                    i.ended_at
+                FROM idle_sessions i
+                WHERE i.foreground_app_id IS NOT NULL
+                  AND i.started_at < $periodEnd
+                  AND COALESCE(i.ended_at, $now) > $periodStart;
+                """;
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var appId = reader.GetInt64(0);
+                if (!totals.TryGetValue(appId, out var aggregation))
+                    continue;
+
+                var startedAt = ParseTimestamp(reader.GetString(1));
+                var endedAt = reader.IsDBNull(2) ? now : ParseTimestamp(reader.GetString(2));
+                var effectiveStart = Max(startedAt, periodStart);
+                var effectiveEnd = Min(endedAt, periodEnd);
+                var idleRecordedMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+                aggregation.IdleRecordedMs += idleRecordedMs;
+            }
+        }
+
+        private static void AddIdleRecordedTimeToRuntimeAggregations(
+            SqliteConnection connection,
+            Dictionary<long, ProcessRuntimeAggregation> totals,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd,
+            DateTimeOffset now)
+        {
+            if (totals.Count == 0)
+                return;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    i.foreground_app_id,
+                    i.started_at,
+                    i.ended_at
+                FROM idle_sessions i
+                WHERE i.foreground_app_id IS NOT NULL
+                  AND i.started_at < $dayEnd
+                  AND COALESCE(i.ended_at, $now) > $dayStart;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var appId = reader.GetInt64(0);
+                if (!totals.TryGetValue(appId, out var aggregation))
+                    continue;
+
+                var startedAt = ParseTimestamp(reader.GetString(1));
+                var endedAt = reader.IsDBNull(2) ? now : ParseTimestamp(reader.GetString(2));
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(endedAt, dayEnd);
+                var idleRecordedMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+                aggregation.IdleRecordedMs += idleRecordedMs;
+            }
+        }
+
         private SqliteConnection OpenConnection()
         {
             var connection = new SqliteConnection(connectionString);
@@ -2269,21 +2356,23 @@ namespace TimePilot.WinForms.KYS24
                 .ThenBy(x => x.CategoryName)
                 .ToList();
             var top = ordered.First();
-            var isMixed = totalMs > 0 && ((double)top.ActiveUsageMs / totalMs) < 0.5;
-            var categoryName = isMixed ? UiText.Main.Mixed : top.CategoryName;
-            var color = isMixed ? null : top.Color;
+            var topShare = (double)top.ActiveUsageMs / Math.Max(1, totalMs);
+            var isDistributed = topShare < 0.5;
+            var detailParts = ordered
+                .Take(3)
+                .Select(x => $"{x.CategoryName} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}");
             var detailText = string.Join(
                 ", ",
-                ordered
-                    .Take(3)
-                    .Select(x => $"{x.CategoryName} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}"));
+                isDistributed
+                    ? detailParts.Prepend(UiText.Main.TimelineCategoryDistributed)
+                    : detailParts);
 
             return new CategoryTimelineSegment(
                 startedAt,
                 endedAt,
-                categoryName,
-                color,
-                isMixed,
+                top.CategoryName,
+                top.Color,
+                isDistributed,
                 totalMs,
                 detailText);
         }
@@ -2377,6 +2466,8 @@ namespace TimePilot.WinForms.KYS24
 
             public long ActiveUsageMs { get; set; }
 
+            public long IdleRecordedMs { get; set; }
+
             public string? ExecutablePath { get; set; }
 
             public long? PrimaryCategoryId { get; set; }
@@ -2439,6 +2530,8 @@ namespace TimePilot.WinForms.KYS24
             public string ProcessName { get; }
 
             public long ActiveUsageMs { get; set; }
+
+            public long IdleRecordedMs { get; set; }
 
             public string? ExecutablePath { get; set; }
 
