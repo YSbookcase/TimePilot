@@ -26,6 +26,7 @@ namespace TimePilot.WinForms
         private readonly ContextMenuStrip usageGridMenu = new();
         private readonly ContextMenuStrip timelineGridMenu = new();
         private readonly bool startMinimizedToTray;
+        private Dictionary<string, List<AppSettings.TableColumnLayout>> defaultTableColumnLayouts = new();
         private AppSettings settings = AppSettings.LoadDefault();
         private string usageSortProperty = nameof(UsageSummaryRow.ActiveUsageMs);
         private string dailyUsageTrendSortProperty = nameof(DailyUsageTrendRow.Date);
@@ -68,6 +69,7 @@ namespace TimePilot.WinForms
         private bool isInitializingSummaryPeriodSelector;
         private bool isInitializingDateSelectors;
         private bool isUpdatingTimelineScrollBar;
+        private bool isApplyingTableColumnLayouts;
         private bool systemEventHandlersRegistered;
         private string? highlightedTimelineProcessName;
         private string? highlightedTimelineAppName;
@@ -82,7 +84,11 @@ namespace TimePilot.WinForms
 
             UiText.UseLanguage(settings.UiLanguage);
             InitializeComponent();
+            defaultTableColumnLayouts = CaptureTableColumnLayouts();
             ApplySavedWindowPlacement();
+            ApplySavedTableSortState();
+            ApplySavedTableColumnLayouts();
+            RegisterTableColumnLayoutPersistence();
             InitializeRecordedDateCalendar();
             InitializeSummaryPeriodSelector();
             InitializeDateSelectors();
@@ -231,6 +237,152 @@ namespace TimePilot.WinForms
                 return;
 
             settings.SetWindowPlacement(normalBounds, WindowState == FormWindowState.Maximized);
+        }
+
+        private void ApplySavedTableSortState()
+        {
+            usageSortProperty = NormalizeUsageSortProperty(settings.UsageSortProperty);
+            usageSortOrder = GetSavedSortOrder(settings.UsageSortDescending, SortOrder.Descending);
+            dailyUsageTrendSortProperty = NormalizeDailyUsageTrendSortProperty(settings.DailyUsageTrendSortProperty);
+            dailyUsageTrendSortOrder = GetSavedSortOrder(settings.DailyUsageTrendSortDescending, SortOrder.Descending);
+            timelineSortProperty = NormalizeTimelineSortProperty(settings.TimelineSortProperty);
+            timelineSortOrder = GetSavedSortOrder(settings.TimelineSortDescending, SortOrder.Descending);
+            runtimeSortProperty = NormalizeRuntimeSortProperty(settings.RuntimeSortProperty);
+            runtimeSortOrder = GetSavedSortOrder(settings.RuntimeSortDescending, SortOrder.Descending);
+            runtimeSegmentSortProperty = NormalizeRuntimeSegmentSortProperty(settings.RuntimeSegmentSortProperty);
+            runtimeSegmentSortOrder = GetSavedSortOrder(settings.RuntimeSegmentSortDescending, SortOrder.Descending);
+        }
+
+        private void SaveTableSortState()
+        {
+            settings.UsageSortProperty = usageSortProperty;
+            settings.UsageSortDescending = usageSortOrder == SortOrder.Descending;
+            settings.DailyUsageTrendSortProperty = dailyUsageTrendSortProperty;
+            settings.DailyUsageTrendSortDescending = dailyUsageTrendSortOrder == SortOrder.Descending;
+            settings.TimelineSortProperty = timelineSortProperty;
+            settings.TimelineSortDescending = timelineSortOrder == SortOrder.Descending;
+            settings.RuntimeSortProperty = runtimeSortProperty;
+            settings.RuntimeSortDescending = runtimeSortOrder == SortOrder.Descending;
+            settings.RuntimeSegmentSortProperty = runtimeSegmentSortProperty;
+            settings.RuntimeSegmentSortDescending = runtimeSegmentSortOrder == SortOrder.Descending;
+            settings.Save();
+        }
+
+        private void RegisterTableColumnLayoutPersistence()
+        {
+            foreach (var grid in GetLayoutPersistedGrids())
+            {
+                grid.ColumnDisplayIndexChanged += OnTableColumnLayoutChanged;
+                grid.ColumnWidthChanged += OnTableColumnLayoutChanged;
+            }
+        }
+
+        private void ApplySavedTableColumnLayouts()
+        {
+            ApplyTableColumnLayouts(settings.TableColumnLayouts);
+        }
+
+        private void ApplyTableColumnLayouts(
+            IReadOnlyDictionary<string, List<AppSettings.TableColumnLayout>> layouts)
+        {
+            isApplyingTableColumnLayouts = true;
+            try
+            {
+                foreach (var grid in GetLayoutPersistedGrids())
+                {
+                    if (layouts.TryGetValue(grid.Name, out var layout))
+                        ApplyTableColumnLayout(grid, layout);
+                }
+            }
+            finally
+            {
+                isApplyingTableColumnLayouts = false;
+            }
+        }
+
+        private static void ApplyTableColumnLayout(
+            DataGridView grid,
+            IReadOnlyList<AppSettings.TableColumnLayout> layout)
+        {
+            foreach (var columnLayout in layout.OrderBy(x => x.DisplayIndex))
+            {
+                if (!grid.Columns.Contains(columnLayout.Name))
+                    continue;
+
+                var column = grid.Columns[columnLayout.Name];
+                column.Width = Math.Clamp(columnLayout.Width, column.MinimumWidth, 10000);
+                column.DisplayIndex = Math.Clamp(columnLayout.DisplayIndex, 0, grid.Columns.Count - 1);
+            }
+        }
+
+        private Dictionary<string, List<AppSettings.TableColumnLayout>> CaptureTableColumnLayouts()
+        {
+            return GetLayoutPersistedGrids()
+                .ToDictionary(
+                    grid => grid.Name,
+                    CaptureTableColumnLayout,
+                    StringComparer.Ordinal);
+        }
+
+        private static List<AppSettings.TableColumnLayout> CaptureTableColumnLayout(DataGridView grid)
+        {
+            return grid.Columns
+                .Cast<DataGridViewColumn>()
+                .Select(column => new AppSettings.TableColumnLayout
+                {
+                    Name = column.Name,
+                    DisplayIndex = column.DisplayIndex,
+                    Width = column.Width
+                })
+                .OrderBy(column => column.DisplayIndex)
+                .ToList();
+        }
+
+        private IEnumerable<DataGridView> GetLayoutPersistedGrids()
+        {
+            yield return usageGrid;
+            yield return dailyUsageTrendGrid;
+            yield return timelineGrid;
+            yield return runtimeGrid;
+            yield return runtimeSegmentsGrid;
+        }
+
+        private void SaveTableColumnLayouts()
+        {
+            settings.TableColumnLayouts = CaptureTableColumnLayouts();
+            settings.Save();
+        }
+
+        private void OnTableColumnLayoutChanged(object? sender, DataGridViewColumnEventArgs e)
+        {
+            if (isApplyingTableColumnLayouts)
+                return;
+
+            SaveTableColumnLayouts();
+        }
+
+        private void ResetTableSortState()
+        {
+            settings.ResetTableSortStates();
+            ApplySavedTableSortState();
+            ApplyTableColumnLayouts(defaultTableColumnLayouts);
+            UpdateSortGlyphs();
+            RefreshViews(DateTimeOffset.UtcNow);
+            SetStatusText(GetTableSortResetStatusText());
+        }
+
+        private string GetResetTableSortMenuText()
+        {
+            return settings.UiLanguage == UiLanguage.English
+                ? "Reset table sorting"
+                : "화면 정렬 초기화";
+        }
+
+        private string GetTableSortResetStatusText()
+        {
+            return settings.UiLanguage == UiLanguage.English
+                ? "Table sorting has been reset to defaults."
+                : "화면 정렬을 기본값으로 되돌렸습니다.";
         }
 
         private static bool IsWindowBoundsVisible(Rectangle bounds)
@@ -724,6 +876,7 @@ namespace TimePilot.WinForms
             exitMenuItem.Text = UiText.Main.Exit;
             settingsMenuItem.Text = UiText.Main.SettingsMenu;
             preferencesMenuItem.Text = UiText.Main.Preferences;
+            resetTableSortMenuItem.Text = GetResetTableSortMenuText();
             helpMenuItem.Text = UiText.Main.HelpMenu;
             runtimeDiagnosticsMenuItem.Text = UiText.Main.RuntimeDiagnostics;
             aboutMenuItem.Text = UiText.Main.About;
@@ -1404,6 +1557,7 @@ namespace TimePilot.WinForms
                 ? ToggleSortOrder(usageSortOrder)
                 : SortOrder.Descending;
             usageSortProperty = propertyName;
+            SaveTableSortState();
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
@@ -1420,6 +1574,7 @@ namespace TimePilot.WinForms
                 ? ToggleSortOrder(dailyUsageTrendSortOrder)
                 : SortOrder.Descending;
             dailyUsageTrendSortProperty = propertyName;
+            SaveTableSortState();
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
@@ -1511,6 +1666,7 @@ namespace TimePilot.WinForms
                 ? ToggleSortOrder(timelineSortOrder)
                 : SortOrder.Descending;
             timelineSortProperty = propertyName;
+            SaveTableSortState();
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
@@ -2057,6 +2213,7 @@ namespace TimePilot.WinForms
                 ? ToggleSortOrder(runtimeSortOrder)
                 : SortOrder.Descending;
             runtimeSortProperty = propertyName;
+            SaveTableSortState();
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
@@ -2144,6 +2301,7 @@ namespace TimePilot.WinForms
                 ? ToggleSortOrder(runtimeSegmentSortOrder)
                 : SortOrder.Descending;
             runtimeSegmentSortProperty = propertyName;
+            SaveTableSortState();
             RefreshRuntimeSegments(DateTimeOffset.UtcNow);
             UpdateSortGlyphs();
         }
@@ -2519,6 +2677,82 @@ namespace TimePilot.WinForms
                 : SortOrder.Descending;
         }
 
+        private static SortOrder GetSavedSortOrder(bool? descending, SortOrder defaultSortOrder)
+        {
+            return descending is null
+                ? defaultSortOrder
+                : descending.Value ? SortOrder.Descending : SortOrder.Ascending;
+        }
+
+        private static string NormalizeUsageSortProperty(string? value)
+        {
+            return value switch
+            {
+                nameof(UsageSummaryRow.AppName) => value,
+                nameof(UsageSummaryRow.CategoryText) => value,
+                nameof(UsageSummaryRow.FirstStartedAt) => value,
+                nameof(UsageSummaryRow.LastObservedAt) => value,
+                nameof(UsageSummaryRow.IdleRecordedMs) => value,
+                nameof(UsageSummaryRow.UsageRatio) => value,
+                nameof(UsageSummaryRow.SwitchCount) => value,
+                _ => nameof(UsageSummaryRow.ActiveUsageMs)
+            };
+        }
+
+        private static string NormalizeDailyUsageTrendSortProperty(string? value)
+        {
+            return value switch
+            {
+                nameof(DailyUsageTrendRow.ActiveUsageMs) => value,
+                nameof(DailyUsageTrendRow.TopAppName) => value,
+                nameof(DailyUsageTrendRow.TopAppUsageMs) => value,
+                _ => nameof(DailyUsageTrendRow.Date)
+            };
+        }
+
+        private static string NormalizeTimelineSortProperty(string? value)
+        {
+            return value switch
+            {
+                nameof(ActivityTimelineRow.ActivityType) => value,
+                nameof(ActivityTimelineRow.EndedAt) => value,
+                nameof(ActivityTimelineRow.DurationMs) => value,
+                nameof(ActivityTimelineRow.DisplayName) => value,
+                _ => nameof(ActivityTimelineRow.StartedAt)
+            };
+        }
+
+        private static string NormalizeRuntimeSortProperty(string? value)
+        {
+            return value switch
+            {
+                nameof(ProcessRuntimeSummaryRow.AppName) => value,
+                nameof(ProcessRuntimeSummaryRow.CategoryText) => value,
+                nameof(ProcessRuntimeSummaryRow.TrackingTypeText) => value,
+                nameof(ProcessRuntimeSummaryRow.FirstObservedAt) => value,
+                nameof(ProcessRuntimeSummaryRow.LastObservedAt) => value,
+                nameof(ProcessRuntimeSummaryRow.ActiveUsageMs) => value,
+                nameof(ProcessRuntimeSummaryRow.IdleRecordedMs) => value,
+                nameof(ProcessRuntimeSummaryRow.ActualUsageRatio) => value,
+                nameof(ProcessRuntimeSummaryRow.RuntimeSegmentCount) => value,
+                nameof(ProcessRuntimeSummaryRow.StatusText) => value,
+                _ => nameof(ProcessRuntimeSummaryRow.RuntimeMs)
+            };
+        }
+
+        private static string NormalizeRuntimeSegmentSortProperty(string? value)
+        {
+            return value switch
+            {
+                nameof(ProcessRuntimeSegmentRow.EndedAt) => value,
+                nameof(ProcessRuntimeSegmentRow.DurationMs) => value,
+                nameof(ProcessRuntimeSegmentRow.IsRunning) => value,
+                nameof(ProcessRuntimeSegmentRow.ObservationTypeText) => value,
+                nameof(ProcessRuntimeSegmentRow.ProcessId) => value,
+                _ => nameof(ProcessRuntimeSegmentRow.StartedAt)
+            };
+        }
+
         private static void SetGridDataSourcePreservingView<T>(
             DataGridView grid,
             IReadOnlyList<T> rows,
@@ -2635,6 +2869,11 @@ namespace TimePilot.WinForms
         private void OnPreferencesMenuItemClick(object? sender, EventArgs e)
         {
             ShowPreferencesDialog();
+        }
+
+        private void OnResetTableSortMenuItemClick(object? sender, EventArgs e)
+        {
+            ResetTableSortState();
         }
 
         private void ShowPreferencesDialog()
