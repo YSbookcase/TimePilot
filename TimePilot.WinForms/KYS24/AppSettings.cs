@@ -438,7 +438,7 @@ namespace TimePilot.WinForms.KYS24
             return scope switch
             {
                 ProcessRuntimeTrackingScope.AllProcesses =>
-                    normalizedSeconds <= DangerousAllProcessesSampleIntervalSeconds,
+                    normalizedSeconds < DangerousAllProcessesSampleIntervalSeconds,
                 ProcessRuntimeTrackingScope.UserProcesses =>
                     normalizedSeconds <= DangerousUserProcessesSampleIntervalSeconds,
                 _ => false

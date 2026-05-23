@@ -137,6 +137,7 @@ namespace TimePilot.WinForms.KYS24
             EnsureRuntimeSessionColumns(connection);
             EnsureForegroundSessionColumns(connection);
             EnsureProcessRuntimeSessionColumns(connection);
+            RenameBuiltinAppCategoriesToCanonical(connection, now);
             SeedDefaultAppCategories(connection, now);
             MarkUnexpectedRuntimeSessions(now, systemBootedAt);
             MarkUnexpectedProcessRuntimeSessions(now);
@@ -576,7 +577,7 @@ namespace TimePilot.WinForms.KYS24
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText = """
-                SELECT id, name, color, sort_order
+                SELECT id, name, color, sort_order, is_builtin
                 FROM app_categories
                 ORDER BY sort_order, name COLLATE NOCASE;
                 """;
@@ -589,7 +590,8 @@ namespace TimePilot.WinForms.KYS24
                     reader.GetInt64(0),
                     reader.GetString(1),
                     reader.IsDBNull(2) ? null : reader.GetString(2),
-                    reader.GetInt32(3)));
+                    reader.GetInt32(3),
+                    reader.GetInt32(4) != 0));
             }
 
             return categories;
@@ -607,6 +609,74 @@ namespace TimePilot.WinForms.KYS24
             command.Parameters.AddWithValue("$categoryId", (object?)categoryId ?? DBNull.Value);
             command.Parameters.AddWithValue("$appId", appId);
             command.ExecuteNonQuery();
+        }
+
+        public IReadOnlyList<AppCategoryManagementRow> GetAppCategoryManagementRows(DateTimeOffset now)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    a.id,
+                    a.display_name,
+                    a.process_name,
+                    a.executable_path,
+                    a.primary_category_id,
+                    c.name,
+                    f.total_active_ms,
+                    f.switch_count,
+                    f.last_observed_at,
+                    r.total_runtime_ms,
+                    r.segment_count,
+                    r.last_observed_at
+                FROM apps a
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
+                LEFT JOIN (
+                    SELECT
+                        app_id,
+                        SUM(MAX(0, CAST((julianday(COALESCE(ended_at, last_observed_at, started_at)) - julianday(started_at)) * 86400000 AS INTEGER))) AS total_active_ms,
+                        COUNT(*) AS switch_count,
+                        MAX(COALESCE(ended_at, last_observed_at, started_at)) AS last_observed_at
+                    FROM foreground_sessions
+                    GROUP BY app_id
+                ) f ON f.app_id = a.id
+                LEFT JOIN (
+                    SELECT
+                        app_id,
+                        SUM(MAX(0, CAST((julianday(COALESCE(ended_at, last_observed_at, started_at)) - julianday(started_at)) * 86400000 AS INTEGER))) AS total_runtime_ms,
+                        COUNT(*) AS segment_count,
+                        MAX(COALESCE(ended_at, last_observed_at, started_at)) AS last_observed_at
+                    FROM process_runtime_sessions
+                    GROUP BY app_id
+                ) r ON r.app_id = a.id
+                ORDER BY COALESCE(f.last_observed_at, r.last_observed_at, '') DESC,
+                         a.display_name COLLATE NOCASE;
+                """;
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            var rows = new List<AppCategoryManagementRow>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var foregroundLastObservedAt = reader.IsDBNull(8) ? (DateTimeOffset?)null : ParseTimestamp(reader.GetString(8));
+                var runtimeLastObservedAt = reader.IsDBNull(11) ? (DateTimeOffset?)null : ParseTimestamp(reader.GetString(11));
+                var lastObservedAt = MaxNullable(foregroundLastObservedAt, runtimeLastObservedAt);
+
+                rows.Add(new AppCategoryManagementRow(
+                    reader.GetInt64(0),
+                    reader.GetString(1),
+                    reader.GetString(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.IsDBNull(4) ? (long?)null : reader.GetInt64(4),
+                    reader.IsDBNull(5) ? null : reader.GetString(5),
+                    lastObservedAt,
+                    reader.IsDBNull(6) ? 0 : reader.GetInt64(6),
+                    reader.IsDBNull(9) ? 0 : reader.GetInt64(9),
+                    reader.IsDBNull(7) ? 0 : Convert.ToInt32(reader.GetInt64(7)),
+                    reader.IsDBNull(10) ? 0 : Convert.ToInt32(reader.GetInt64(10))));
+            }
+
+            return rows;
         }
 
         public IReadOnlyList<RawDataExportTable> GetRawDataExportTables()
@@ -1616,21 +1686,7 @@ namespace TimePilot.WinForms.KYS24
         private static void SeedDefaultAppCategories(SqliteConnection connection, DateTimeOffset now)
         {
             var timestamp = FormatTimestamp(now);
-            var categories = new (string Name, string Color, int SortOrder)[]
-            {
-                ("개발", "#2563EB", 10),
-                ("문서/글쓰기", "#7C3AED", 20),
-                ("자료조사/브라우징", "#0891B2", 30),
-                ("커뮤니케이션", "#DB2777", 40),
-                ("회의", "#F59E0B", 50),
-                ("창작", "#16A34A", 60),
-                ("게임", "#DC2626", 70),
-                ("미디어", "#EA580C", 80),
-                ("시스템", "#475569", 90),
-                ("백그라운드", "#64748B", 100)
-            };
-
-            foreach (var category in categories)
+            foreach (var category in AppCategoryDisplay.BuiltinCategories)
             {
                 using var command = connection.CreateCommand();
                 command.CommandText = """
@@ -1646,12 +1702,41 @@ namespace TimePilot.WinForms.KYS24
                     ON CONFLICT(name) DO UPDATE SET
                         color = excluded.color,
                         sort_order = excluded.sort_order,
-                        updated_at = excluded.updated_at;
+                        updated_at = excluded.updated_at
+                    WHERE app_categories.is_builtin = 1;
                     """;
-                command.Parameters.AddWithValue("$name", category.Name);
+                command.Parameters.AddWithValue("$name", category.CanonicalName);
                 command.Parameters.AddWithValue("$color", category.Color);
                 command.Parameters.AddWithValue("$sortOrder", category.SortOrder);
                 command.Parameters.AddWithValue("$createdAt", timestamp);
+                command.Parameters.AddWithValue("$updatedAt", timestamp);
+                command.ExecuteNonQuery();
+            }
+        }
+
+        private static void RenameBuiltinAppCategoriesToCanonical(SqliteConnection connection, DateTimeOffset now)
+        {
+            var timestamp = FormatTimestamp(now);
+            foreach (var category in AppCategoryDisplay.BuiltinCategories)
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = """
+                    UPDATE app_categories
+                    SET name = $canonicalName,
+                        color = $color,
+                        updated_at = $updatedAt
+                    WHERE is_builtin = 1
+                      AND sort_order = $sortOrder
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM app_categories existing
+                          WHERE existing.name = $canonicalName
+                            AND existing.id <> app_categories.id
+                      );
+                    """;
+                command.Parameters.AddWithValue("$canonicalName", category.CanonicalName);
+                command.Parameters.AddWithValue("$color", category.Color);
+                command.Parameters.AddWithValue("$sortOrder", category.SortOrder);
                 command.Parameters.AddWithValue("$updatedAt", timestamp);
                 command.ExecuteNonQuery();
             }
@@ -2245,6 +2330,17 @@ namespace TimePilot.WinForms.KYS24
             return left >= right ? left : right;
         }
 
+        private static DateTimeOffset? MaxNullable(DateTimeOffset? left, DateTimeOffset? right)
+        {
+            return (left, right) switch
+            {
+                ({ } leftValue, { } rightValue) => Max(leftValue, rightValue),
+                ({ } leftValue, null) => leftValue,
+                (null, { } rightValue) => rightValue,
+                _ => null
+            };
+        }
+
         private static (DateTimeOffset Start, DateTimeOffset End) GetLocalDayRange(DateTime localDate)
         {
             var dayStartDate = localDate.Date;
@@ -2360,7 +2456,7 @@ namespace TimePilot.WinForms.KYS24
             var isDistributed = topShare < 0.5;
             var detailParts = ordered
                 .Take(3)
-                .Select(x => $"{x.CategoryName} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}");
+                .Select(x => $"{AppCategoryDisplay.GetDisplayName(x.CategoryName)} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}");
             var detailText = string.Join(
                 ", ",
                 isDistributed
@@ -2370,7 +2466,7 @@ namespace TimePilot.WinForms.KYS24
             return new CategoryTimelineSegment(
                 startedAt,
                 endedAt,
-                top.CategoryName,
+                AppCategoryDisplay.GetDisplayName(top.CategoryName),
                 top.Color,
                 isDistributed,
                 totalMs,
@@ -2390,7 +2486,8 @@ namespace TimePilot.WinForms.KYS24
             var top = ordered.First();
             var topShare = (double)top.ActiveUsageMs / Math.Max(1, totalMs);
             var isDistributed = topShare < 0.5;
-            var categoryName = UiText.Main.TimelineOverallCategoryLabel(top.CategoryName, topShare, isDistributed);
+            var topCategoryName = AppCategoryDisplay.GetDisplayName(top.CategoryName);
+            var categoryName = UiText.Main.TimelineOverallCategoryLabel(topCategoryName, topShare, isDistributed);
             var detailText = string.Join(
                 " | ",
                 UiText.Main.TimelineCategoryRecordedActiveBasis,
@@ -2398,7 +2495,7 @@ namespace TimePilot.WinForms.KYS24
                     ", ",
                     ordered
                         .Take(4)
-                        .Select(x => $"{x.CategoryName} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}")));
+                        .Select(x => $"{AppCategoryDisplay.GetDisplayName(x.CategoryName)} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}")));
 
             return new CategoryTimelineSegment(
                 dayStart,

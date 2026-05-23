@@ -385,6 +385,13 @@ namespace TimePilot.WinForms
                 : "화면 정렬을 기본값으로 되돌렸습니다.";
         }
 
+        private string GetAppCategoryManagementMenuText()
+        {
+            return settings.UiLanguage == UiLanguage.English
+                ? "App Categories..."
+                : "앱 분류 관리...";
+        }
+
         private static bool IsWindowBoundsVisible(Rectangle bounds)
         {
             return Screen.AllScreens.Any(screen => screen.WorkingArea.IntersectsWith(bounds));
@@ -876,6 +883,7 @@ namespace TimePilot.WinForms
             exitMenuItem.Text = UiText.Main.Exit;
             settingsMenuItem.Text = UiText.Main.SettingsMenu;
             preferencesMenuItem.Text = UiText.Main.Preferences;
+            appCategoryManagementMenuItem.Text = GetAppCategoryManagementMenuText();
             resetTableSortMenuItem.Text = GetResetTableSortMenuText();
             helpMenuItem.Text = UiText.Main.HelpMenu;
             runtimeDiagnosticsMenuItem.Text = UiText.Main.RuntimeDiagnostics;
@@ -1590,6 +1598,7 @@ namespace TimePilot.WinForms
             var showInTimelineItem = new ToolStripMenuItem(UiText.Main.ShowInTimeline);
             showInTimelineItem.Click += (_, _) => HighlightUsageRowInTimeline(row);
             usageGridMenu.Items.Add(showInTimelineItem);
+            usageGridMenu.Items.Add(CreateSearchWebMenuItem(row.AppName, row.ProcessName));
             usageGridMenu.Show(usageGrid, usageGrid.PointToClient(Cursor.Position));
         }
 
@@ -1833,6 +1842,7 @@ namespace TimePilot.WinForms
             var highlightItem = new ToolStripMenuItem(UiText.Main.HighlightInTimeline);
             highlightItem.Click += (_, _) => HighlightTimelineRow(row);
             timelineGridMenu.Items.Add(highlightItem);
+            timelineGridMenu.Items.Add(CreateSearchWebMenuItem(row.DisplayName, row.ProcessName));
             if (string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase))
             {
                 var clearHighlightItem = new ToolStripMenuItem(UiText.Main.ClearTimelineHighlight);
@@ -2260,7 +2270,7 @@ namespace TimePilot.WinForms
 
             foreach (var category in categories)
             {
-                var categoryItem = new ToolStripMenuItem(category.Name)
+                var categoryItem = new ToolStripMenuItem(AppCategoryDisplay.GetDisplayName(category))
                 {
                     Checked = row.PrimaryCategoryId == category.Id,
                     Tag = category.Id
@@ -2270,7 +2280,54 @@ namespace TimePilot.WinForms
             }
 
             appCategoryMenu.Items.Add(setCategoryMenuItem);
+            appCategoryMenu.Items.Add(CreateSearchWebMenuItem(row.AppName, row.ProcessName));
             appCategoryMenu.Show(runtimeGrid, location);
+        }
+
+        private ToolStripMenuItem CreateSearchWebMenuItem(string appName, string processName)
+        {
+            var item = new ToolStripMenuItem(settings.UiLanguage == UiLanguage.English ? "Search web" : "웹에서 검색");
+            item.Click += (_, _) => OpenAppWebSearch(appName, processName);
+            return item;
+        }
+
+        private void OpenAppWebSearch(string appName, string processName)
+        {
+            var query = BuildAppWebSearchQuery(appName, processName);
+            if (string.IsNullOrWhiteSpace(query))
+                return;
+
+            if (settings.UiLanguage != UiLanguage.English)
+                query += " 이란";
+
+            var url = "https://www.google.com/search?q=" + Uri.EscapeDataString(query);
+            try
+            {
+                Process.Start(new ProcessStartInfo(url)
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                MessageBox.Show(
+                    this,
+                    settings.UiLanguage == UiLanguage.English ? "Unable to open the browser." : "브라우저를 열 수 없습니다.",
+                    UiText.AppName,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+        }
+
+        private static string BuildAppWebSearchQuery(string appName, string processName)
+        {
+            var parts = new[] { appName, processName }
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value!.Trim())
+                .Distinct(StringComparer.CurrentCultureIgnoreCase)
+                .Take(2);
+
+            return string.Join(" ", parts);
         }
 
         private void SetRuntimeAppCategory(long appId, string appName, long? categoryId)
@@ -2279,9 +2336,12 @@ namespace TimePilot.WinForms
                 return;
 
             storage.SetAppPrimaryCategory(appId, categoryId);
-            var categoryName = categoryId is null
+            var category = categoryId is null
+                ? null
+                : storage.GetAppCategoryOptions().FirstOrDefault(x => x.Id == categoryId);
+            var categoryName = category is null
                 ? UiText.Main.Uncategorized
-                : storage.GetAppCategoryOptions().FirstOrDefault(x => x.Id == categoryId)?.Name ?? UiText.Main.Uncategorized;
+                : AppCategoryDisplay.GetDisplayName(category);
 
             selectedRuntimeAppId = appId;
             SetStatusText(UiText.Main.CategoryUpdated(appName, categoryName));
@@ -2874,6 +2934,17 @@ namespace TimePilot.WinForms
         private void OnResetTableSortMenuItemClick(object? sender, EventArgs e)
         {
             ResetTableSortState();
+        }
+
+        private void OnAppCategoryManagementMenuItemClick(object? sender, EventArgs e)
+        {
+            if (storage is null)
+                return;
+
+            using var form = new AppCategoryManagementForm(storage, settings.UiLanguage);
+            form.Icon = Icon;
+            if (form.ShowDialog(this) == DialogResult.OK && form.CategoriesChanged)
+                RefreshViews(DateTimeOffset.UtcNow);
         }
 
         private void ShowPreferencesDialog()
