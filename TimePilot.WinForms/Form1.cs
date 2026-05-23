@@ -28,6 +28,8 @@ namespace TimePilot.WinForms
         private readonly bool startMinimizedToTray;
         private AppSettings settings = AppSettings.LoadDefault();
         private string usageSortProperty = nameof(UsageSummaryRow.ActiveUsageMs);
+        private string dailyUsageTrendSortProperty = nameof(DailyUsageTrendRow.Date);
+        private string timelineSortProperty = nameof(ActivityTimelineRow.StartedAt);
         private string runtimeSortProperty = nameof(ProcessRuntimeSummaryRow.RuntimeMs);
         private string runtimeSegmentSortProperty = nameof(ProcessRuntimeSegmentRow.StartedAt);
         private SummaryPeriod selectedSummaryPeriod = SummaryPeriod.Today;
@@ -37,9 +39,10 @@ namespace TimePilot.WinForms
         private DateTime selectedTimelineDate = DateTime.Today;
         private int selectedTimelineCategoryBucketMinutes = 30;
         private SortOrder usageSortOrder = SortOrder.Descending;
+        private SortOrder dailyUsageTrendSortOrder = SortOrder.Descending;
+        private SortOrder timelineSortOrder = SortOrder.Descending;
         private SortOrder runtimeSortOrder = SortOrder.Descending;
         private SortOrder runtimeSegmentSortOrder = SortOrder.Descending;
-        private bool showRecentTimelineFirst = true;
         private DetailRuntimeFilter selectedDetailRuntimeFilter = DetailRuntimeFilter.SummaryApps;
         private bool showRunningRuntimeOnly;
         private bool isRefreshingRuntimeGrid;
@@ -410,7 +413,6 @@ namespace TimePilot.WinForms
 
         private void RefreshDetailRuntimeFilterOptions()
         {
-            var selectedIndex = (int)selectedDetailRuntimeFilter;
             isUpdatingDetailRuntimeFilterOptions = true;
             detailRuntimeFilterComboBox.BeginUpdate();
             try
@@ -424,16 +426,27 @@ namespace TimePilot.WinForms
                     UiText.Main.DetailFilterUserProcesses,
                     UiText.Main.DetailFilterAllRecords
                 });
-                detailRuntimeFilterComboBox.SelectedIndex = Math.Clamp(
-                    selectedIndex,
-                    0,
-                    detailRuntimeFilterComboBox.Items.Count - 1);
+                SyncDetailRuntimeFilterComboBoxSelection();
             }
             finally
             {
                 detailRuntimeFilterComboBox.EndUpdate();
                 isUpdatingDetailRuntimeFilterOptions = false;
             }
+        }
+
+        private void SyncDetailRuntimeFilterComboBoxSelection()
+        {
+            if (detailRuntimeFilterComboBox.Items.Count == 0)
+                return;
+
+            var selectedIndex = Math.Clamp(
+                (int)selectedDetailRuntimeFilter,
+                0,
+                detailRuntimeFilterComboBox.Items.Count - 1);
+
+            if (detailRuntimeFilterComboBox.SelectedIndex != selectedIndex)
+                detailRuntimeFilterComboBox.SelectedIndex = selectedIndex;
         }
 
         private void RefreshSummaryPeriodOptions(DateTime today)
@@ -590,8 +603,8 @@ namespace TimePilot.WinForms
                     new CategoryTimelineSegment(
                         DateTimeOffset.Now.AddHours(-2),
                         DateTimeOffset.Now.AddHours(-1),
-                        UiText.Main.Mixed,
-                        null,
+                        "개발",
+                        "#2563EB",
                         true,
                         3_600_000,
                         "개발 45%, 자료조사/브라우징 40%")
@@ -755,6 +768,8 @@ namespace TimePilot.WinForms
             firstStartedAtColumn.HeaderText = UiText.Main.FirstStartedAt;
             lastObservedAtColumn.HeaderText = UiText.Main.LastObservedAt;
             activeUsageTimeColumn.HeaderText = UiText.Main.ActiveUsageTime;
+            idleRecordedTimeColumn.HeaderText = UiText.Main.IdleRecordedTime;
+            idleRecordedTimeColumn.ToolTipText = UiText.Main.IdleRecordedTimeTooltip;
             usageRatioColumn.HeaderText = UiText.Main.ActiveRatio;
             usageRatioColumn.ToolTipText = UiText.Main.UsageRatioTooltip;
             switchCountColumn.HeaderText = UiText.Main.SwitchCount;
@@ -770,6 +785,8 @@ namespace TimePilot.WinForms
             runtimeDurationColumn.HeaderText = UiText.Main.Runtime;
             runtimeDurationColumn.ToolTipText = UiText.Main.RuntimeDurationTooltip;
             runtimeActiveUsageColumn.HeaderText = UiText.Main.ActiveUsageTime;
+            runtimeIdleRecordedColumn.HeaderText = UiText.Main.IdleRecordedTime;
+            runtimeIdleRecordedColumn.ToolTipText = UiText.Main.IdleRecordedTimeTooltip;
             runtimeActualUsageRatioColumn.HeaderText = UiText.Main.ActualUsageRatio;
             runtimeActualUsageRatioColumn.ToolTipText = UiText.Main.RuntimeActualUsageRatioTooltip;
             runtimeSessionCountColumn.HeaderText = UiText.Main.RuntimeSegmentCount;
@@ -973,7 +990,7 @@ namespace TimePilot.WinForms
                         snapshot.ShowDateInUsageTimestamps))));
                 SetGridDataSourcePreservingView(
                     dailyUsageTrendGrid,
-                    snapshot.DailyUsageTrendRows ?? Array.Empty<DailyUsageTrendRow>());
+                    SortDailyUsageTrendRows(snapshot.DailyUsageTrendRows ?? Array.Empty<DailyUsageTrendRow>()));
             }
 
             if (snapshot.TimelineRows is not null)
@@ -1228,6 +1245,7 @@ namespace TimePilot.WinForms
                 nameof(UsageSummaryRow.FirstStartedAt) => OrderUsageRows(rows, x => x.FirstStartedAt),
                 nameof(UsageSummaryRow.LastObservedAt) => OrderUsageRows(rows, x => x.LastObservedAt),
                 nameof(UsageSummaryRow.UsageRatio) => OrderUsageRows(rows, x => x.UsageRatio),
+                nameof(UsageSummaryRow.IdleRecordedMs) => OrderUsageRows(rows, x => x.IdleRecordedMs),
                 nameof(UsageSummaryRow.SwitchCount) => OrderUsageRows(rows, x => x.SwitchCount),
                 _ => OrderUsageRows(rows, x => x.ActiveUsageMs)
             };
@@ -1237,11 +1255,35 @@ namespace TimePilot.WinForms
                 .ToList();
         }
 
+        private IReadOnlyList<DailyUsageTrendRow> SortDailyUsageTrendRows(IReadOnlyList<DailyUsageTrendRow> rows)
+        {
+            IOrderedEnumerable<DailyUsageTrendRow> sortedRows = dailyUsageTrendSortProperty switch
+            {
+                nameof(DailyUsageTrendRow.ActiveUsageMs) => OrderDailyUsageTrendRows(rows, x => x.ActiveUsageMs),
+                nameof(DailyUsageTrendRow.TopAppName) => OrderDailyUsageTrendRows(rows, x => x.TopAppName),
+                nameof(DailyUsageTrendRow.TopAppUsageMs) => OrderDailyUsageTrendRows(rows, x => x.TopAppUsageMs),
+                _ => OrderDailyUsageTrendRows(rows, x => x.Date)
+            };
+
+            return sortedRows
+                .ThenByDescending(x => x.Date)
+                .ToList();
+        }
+
         private IReadOnlyList<ActivityTimelineRow> SortTimelineRows(IReadOnlyList<ActivityTimelineRow> rows)
         {
-            return showRecentTimelineFirst
-                ? rows.OrderByDescending(x => x.StartedAt).ToList()
-                : rows.OrderBy(x => x.StartedAt).ToList();
+            IOrderedEnumerable<ActivityTimelineRow> sortedRows = timelineSortProperty switch
+            {
+                nameof(ActivityTimelineRow.ActivityType) => OrderTimelineRows(rows, x => x.ActivityType),
+                nameof(ActivityTimelineRow.EndedAt) => OrderTimelineRows(rows, x => x.EndedAt),
+                nameof(ActivityTimelineRow.DurationMs) => OrderTimelineRows(rows, x => x.DurationMs),
+                nameof(ActivityTimelineRow.DisplayName) => OrderTimelineRows(rows, x => x.DisplayName),
+                _ => OrderTimelineRows(rows, x => x.StartedAt)
+            };
+
+            return sortedRows
+                .ThenByDescending(x => x.StartedAt)
+                .ToList();
         }
 
         private IReadOnlyList<ProcessRuntimeSummaryRow> FilterRuntimeSummaryRows(
@@ -1274,6 +1316,7 @@ namespace TimePilot.WinForms
                 nameof(ProcessRuntimeSummaryRow.FirstObservedAt) => OrderRuntimeRows(rows, x => x.FirstObservedAt),
                 nameof(ProcessRuntimeSummaryRow.LastObservedAt) => OrderRuntimeRows(rows, x => x.LastObservedAt),
                 nameof(ProcessRuntimeSummaryRow.ActiveUsageMs) => OrderRuntimeRows(rows, x => x.ActiveUsageMs),
+                nameof(ProcessRuntimeSummaryRow.IdleRecordedMs) => OrderRuntimeRows(rows, x => x.IdleRecordedMs),
                 nameof(ProcessRuntimeSummaryRow.ActualUsageRatio) => OrderRuntimeRows(rows, x => x.ActualUsageRatio ?? -1),
                 nameof(ProcessRuntimeSummaryRow.RuntimeSegmentCount) => OrderRuntimeRows(rows, x => x.RuntimeSegmentCount),
                 nameof(ProcessRuntimeSummaryRow.TrackingTypeText) => OrderRuntimeRows(rows, x => x.TrackingTypeText),
@@ -1312,6 +1355,24 @@ namespace TimePilot.WinForms
                 : rows.OrderByDescending(keySelector);
         }
 
+        private IOrderedEnumerable<DailyUsageTrendRow> OrderDailyUsageTrendRows<TKey>(
+            IReadOnlyList<DailyUsageTrendRow> rows,
+            Func<DailyUsageTrendRow, TKey> keySelector)
+        {
+            return dailyUsageTrendSortOrder == SortOrder.Ascending
+                ? rows.OrderBy(keySelector)
+                : rows.OrderByDescending(keySelector);
+        }
+
+        private IOrderedEnumerable<ActivityTimelineRow> OrderTimelineRows<TKey>(
+            IReadOnlyList<ActivityTimelineRow> rows,
+            Func<ActivityTimelineRow, TKey> keySelector)
+        {
+            return timelineSortOrder == SortOrder.Ascending
+                ? rows.OrderBy(keySelector)
+                : rows.OrderByDescending(keySelector);
+        }
+
         private IOrderedEnumerable<ProcessRuntimeSummaryRow> OrderRuntimeRows<TKey>(
             IReadOnlyList<ProcessRuntimeSummaryRow> rows,
             Func<ProcessRuntimeSummaryRow, TKey> keySelector)
@@ -1343,6 +1404,22 @@ namespace TimePilot.WinForms
                 ? ToggleSortOrder(usageSortOrder)
                 : SortOrder.Descending;
             usageSortProperty = propertyName;
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void OnDailyUsageTrendGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.ColumnIndex < 0)
+                return;
+
+            var propertyName = GetDailyUsageTrendSortPropertyName(dailyUsageTrendGrid.Columns[e.ColumnIndex]);
+            if (propertyName is null)
+                return;
+
+            dailyUsageTrendSortOrder = string.Equals(dailyUsageTrendSortProperty, propertyName, StringComparison.Ordinal)
+                ? ToggleSortOrder(dailyUsageTrendSortOrder)
+                : SortOrder.Descending;
+            dailyUsageTrendSortProperty = propertyName;
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
@@ -1423,15 +1500,35 @@ namespace TimePilot.WinForms
 
         private void OnTimelineGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
         {
-            if (e.ColumnIndex < 0 || timelineGrid.Columns[e.ColumnIndex] != timelineStartedAtColumn)
+            if (e.ColumnIndex < 0)
                 return;
 
-            showRecentTimelineFirst = !showRecentTimelineFirst;
+            var propertyName = GetTimelineSortPropertyName(timelineGrid.Columns[e.ColumnIndex]);
+            if (propertyName is null)
+                return;
+
+            timelineSortOrder = string.Equals(timelineSortProperty, propertyName, StringComparison.Ordinal)
+                ? ToggleSortOrder(timelineSortOrder)
+                : SortOrder.Descending;
+            timelineSortProperty = propertyName;
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
         private void OnMainTabsSelectedIndexChanged(object? sender, EventArgs e)
         {
+            if (mainTabs.SelectedTab == detailTab)
+            {
+                isUpdatingDetailRuntimeFilterOptions = true;
+                try
+                {
+                    SyncDetailRuntimeFilterComboBoxSelection();
+                }
+                finally
+                {
+                    isUpdatingDetailRuntimeFilterOptions = false;
+                }
+            }
+
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
@@ -2062,6 +2159,21 @@ namespace TimePilot.WinForms
             if (isUpdatingDetailRuntimeFilterOptions || detailRuntimeFilterComboBox.SelectedIndex < 0)
                 return;
 
+            if (mainTabs.SelectedTab != detailTab)
+            {
+                isUpdatingDetailRuntimeFilterOptions = true;
+                try
+                {
+                    SyncDetailRuntimeFilterComboBoxSelection();
+                }
+                finally
+                {
+                    isUpdatingDetailRuntimeFilterOptions = false;
+                }
+
+                return;
+            }
+
             selectedDetailRuntimeFilter = (DetailRuntimeFilter)detailRuntimeFilterComboBox.SelectedIndex;
             RefreshViews(DateTimeOffset.UtcNow);
         }
@@ -2121,8 +2233,34 @@ namespace TimePilot.WinForms
                 nameof(firstStartedAtColumn) => nameof(UsageSummaryRow.FirstStartedAt),
                 nameof(lastObservedAtColumn) => nameof(UsageSummaryRow.LastObservedAt),
                 nameof(activeUsageTimeColumn) => nameof(UsageSummaryRow.ActiveUsageMs),
+                nameof(idleRecordedTimeColumn) => nameof(UsageSummaryRow.IdleRecordedMs),
                 nameof(usageRatioColumn) => nameof(UsageSummaryRow.UsageRatio),
                 nameof(switchCountColumn) => nameof(UsageSummaryRow.SwitchCount),
+                _ => null
+            };
+        }
+
+        private string? GetDailyUsageTrendSortPropertyName(DataGridViewColumn column)
+        {
+            return column.Name switch
+            {
+                nameof(dailyUsageDateColumn) => nameof(DailyUsageTrendRow.Date),
+                nameof(dailyUsageActiveTimeColumn) => nameof(DailyUsageTrendRow.ActiveUsageMs),
+                nameof(dailyUsageTopAppColumn) => nameof(DailyUsageTrendRow.TopAppName),
+                nameof(dailyUsageTopAppTimeColumn) => nameof(DailyUsageTrendRow.TopAppUsageMs),
+                _ => null
+            };
+        }
+
+        private string? GetTimelineSortPropertyName(DataGridViewColumn column)
+        {
+            return column.Name switch
+            {
+                nameof(timelineTypeColumn) => nameof(ActivityTimelineRow.ActivityType),
+                nameof(timelineStartedAtColumn) => nameof(ActivityTimelineRow.StartedAt),
+                nameof(timelineEndedAtColumn) => nameof(ActivityTimelineRow.EndedAt),
+                nameof(timelineDurationColumn) => nameof(ActivityTimelineRow.DurationMs),
+                nameof(timelineDisplayNameColumn) => nameof(ActivityTimelineRow.DisplayName),
                 _ => null
             };
         }
@@ -2138,6 +2276,7 @@ namespace TimePilot.WinForms
                 nameof(runtimeLastObservedAtColumn) => nameof(ProcessRuntimeSummaryRow.LastObservedAt),
                 nameof(runtimeDurationColumn) => nameof(ProcessRuntimeSummaryRow.RuntimeMs),
                 nameof(runtimeActiveUsageColumn) => nameof(ProcessRuntimeSummaryRow.ActiveUsageMs),
+                nameof(runtimeIdleRecordedColumn) => nameof(ProcessRuntimeSummaryRow.IdleRecordedMs),
                 nameof(runtimeActualUsageRatioColumn) => nameof(ProcessRuntimeSummaryRow.ActualUsageRatio),
                 nameof(runtimeSessionCountColumn) => nameof(ProcessRuntimeSummaryRow.RuntimeSegmentCount),
                 nameof(runtimeStatusColumn) => nameof(ProcessRuntimeSummaryRow.StatusText),
@@ -2178,14 +2317,19 @@ namespace TimePilot.WinForms
                     : SortOrder.None;
             }
 
-            foreach (DataGridViewColumn column in timelineGrid.Columns)
+            foreach (DataGridViewColumn column in dailyUsageTrendGrid.Columns)
             {
-                column.HeaderCell.SortGlyphDirection = SortOrder.None;
+                column.HeaderCell.SortGlyphDirection = GetDailyUsageTrendSortPropertyName(column) == dailyUsageTrendSortProperty
+                    ? dailyUsageTrendSortOrder
+                    : SortOrder.None;
             }
 
-            timelineStartedAtColumn.HeaderCell.SortGlyphDirection = showRecentTimelineFirst
-                ? SortOrder.Descending
-                : SortOrder.Ascending;
+            foreach (DataGridViewColumn column in timelineGrid.Columns)
+            {
+                column.HeaderCell.SortGlyphDirection = GetTimelineSortPropertyName(column) == timelineSortProperty
+                    ? timelineSortOrder
+                    : SortOrder.None;
+            }
 
             foreach (DataGridViewColumn column in runtimeGrid.Columns)
             {
@@ -2257,11 +2401,17 @@ namespace TimePilot.WinForms
             if (grid == usageGrid && column == usageRatioColumn)
                 return UiText.Main.UsageRatioTooltip;
 
+            if (grid == usageGrid && column == idleRecordedTimeColumn)
+                return UiText.Main.IdleRecordedTimeTooltip;
+
             if (grid == runtimeGrid && column == runtimeLastObservedAtColumn)
                 return UiText.Main.RuntimeLastObservedTooltip;
 
             if (grid == runtimeGrid && column == runtimeDurationColumn)
                 return UiText.Main.RuntimeDurationTooltip;
+
+            if (grid == runtimeGrid && column == runtimeIdleRecordedColumn)
+                return UiText.Main.IdleRecordedTimeTooltip;
 
             if (grid == runtimeGrid && column == runtimeActualUsageRatioColumn)
                 return UiText.Main.RuntimeActualUsageRatioTooltip;

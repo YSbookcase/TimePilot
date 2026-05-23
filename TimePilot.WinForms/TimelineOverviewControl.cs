@@ -12,8 +12,6 @@ namespace TimePilot.WinForms
         private static readonly Color UntrackedBorderColor = Color.FromArgb(211, 162, 92);
         private static readonly Color WindowsFillColor = Color.FromArgb(198, 225, 246);
         private static readonly Color WindowsBorderColor = Color.FromArgb(87, 137, 184);
-        private static readonly Color MixedFillColor = Color.FromArgb(216, 218, 224);
-        private static readonly Color MixedBorderColor = Color.FromArgb(132, 138, 150);
         private static readonly Color DimOverlayColor = Color.FromArgb(220, 255, 255, 255);
         private static readonly Color HighlightTintColor = Color.FromArgb(70, 28, 91, 170);
         private static readonly Color HighlightBorderColor = Color.FromArgb(13, 61, 132);
@@ -652,9 +650,6 @@ namespace TimePilot.WinForms
 
         private static Color GetCategoryFillColor(CategoryTimelineSegment segment)
         {
-            if (segment.IsMixed)
-                return MixedFillColor;
-
             return TryParseColor(segment.Color, out var color)
                 ? BlendWithWhite(color, 0.35)
                 : AppFillPalette[GetAppPaletteIndex(segment.CategoryName)];
@@ -662,9 +657,6 @@ namespace TimePilot.WinForms
 
         private static Color GetCategoryBorderColor(CategoryTimelineSegment segment)
         {
-            if (segment.IsMixed)
-                return MixedBorderColor;
-
             return TryParseColor(segment.Color, out var color)
                 ? color
                 : AppBorderPalette[GetAppPaletteIndex(segment.CategoryName)];
