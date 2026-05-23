@@ -952,9 +952,10 @@ namespace TimePilot.WinForms.KYS24
         public IReadOnlyList<CategoryTimelineSegment> GetCategoryTimelineSegmentsForDate(
             DateTime localDate,
             DateTimeOffset now,
-            TimeSpan bucketSize)
+            TimeSpan bucketSize,
+            bool wholeDay = false)
         {
-            if (bucketSize <= TimeSpan.Zero)
+            if (bucketSize <= TimeSpan.Zero && !wholeDay)
                 bucketSize = TimeSpan.FromMinutes(30);
 
             var (dayStart, dayEnd) = GetLocalDayRange(localDate);
@@ -963,6 +964,9 @@ namespace TimePilot.WinForms.KYS24
 
             if (dayEnd <= dayStart)
                 return Array.Empty<CategoryTimelineSegment>();
+
+            if (wholeDay)
+                bucketSize = TimeSpan.FromDays(1);
 
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
@@ -1008,6 +1012,13 @@ namespace TimePilot.WinForms.KYS24
                     color,
                     effectiveStart,
                     effectiveEnd);
+            }
+
+            if (wholeDay)
+            {
+                return buckets.TryGetValue(0, out var totals)
+                    ? [CreateWholeDayCategoryTimelineSegment(dayStart, dayEnd, totals)]
+                    : Array.Empty<CategoryTimelineSegment>();
             }
 
             return buckets
@@ -2241,6 +2252,39 @@ namespace TimePilot.WinForms.KYS24
                 categoryName,
                 color,
                 isMixed,
+                totalMs,
+                detailText);
+        }
+
+        private static CategoryTimelineSegment CreateWholeDayCategoryTimelineSegment(
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd,
+            IReadOnlyDictionary<string, CategoryBucketTotal> totals)
+        {
+            var totalMs = totals.Values.Sum(x => x.ActiveUsageMs);
+            var ordered = totals.Values
+                .OrderByDescending(x => x.ActiveUsageMs)
+                .ThenBy(x => x.CategoryName)
+                .ToList();
+            var top = ordered.First();
+            var topShare = (double)top.ActiveUsageMs / Math.Max(1, totalMs);
+            var isDistributed = topShare < 0.5;
+            var categoryName = UiText.Main.TimelineOverallCategoryLabel(top.CategoryName, topShare, isDistributed);
+            var detailText = string.Join(
+                " | ",
+                UiText.Main.TimelineCategoryRecordedActiveBasis,
+                string.Join(
+                    ", ",
+                    ordered
+                        .Take(4)
+                        .Select(x => $"{x.CategoryName} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}")));
+
+            return new CategoryTimelineSegment(
+                dayStart,
+                dayEnd,
+                categoryName,
+                top.Color,
+                isDistributed,
                 totalMs,
                 detailText);
         }

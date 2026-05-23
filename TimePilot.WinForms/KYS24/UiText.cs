@@ -51,10 +51,15 @@ namespace TimePilot.WinForms.KYS24
             public static string ActivityTimelineTrack => current.Main.ActivityTimelineTrack;
             public static string TimelineFullDay => current.Main.TimelineFullDay;
             public static string TimelineCategoryBucket => current.Main.TimelineCategoryBucket;
+            public static string TimelineCategoryBucketAll => current.Main.TimelineCategoryBucketAll;
             public static string TimelineCategoryBucketMinutes(int minutes) =>
                 current.Main.TimelineCategoryBucketMinutes(minutes);
             public static string TimelineCategoryBucketHours(int hours) =>
                 current.Main.TimelineCategoryBucketHours(hours);
+            public static string TimelineCategoryRecordedActiveBasis => current.Main.TimelineCategoryRecordedActiveBasis;
+            public static string TimelineCategoryDistributed => current.Main.TimelineCategoryDistributed;
+            public static string TimelineOverallCategoryLabel(string categoryName, double share, bool isDistributed) =>
+                current.Main.TimelineOverallCategoryLabel(categoryName, share, isDistributed);
             public static string TimelinePreviousView => current.Main.TimelinePreviousView;
             public static string TimelinePreviousRange => current.Main.TimelinePreviousRange;
             public static string TimelineNextRange => current.Main.TimelineNextRange;
@@ -370,8 +375,15 @@ namespace TimePilot.WinForms.KYS24
                         ActivityTimelineTrack: "활동",
                         TimelineFullDay: "전체 보기",
                         TimelineCategoryBucket: "분류 단위",
+                        TimelineCategoryBucketAll: "전체",
                         TimelineCategoryBucketMinutes: minutes => $"{minutes}분",
                         TimelineCategoryBucketHours: hours => $"{hours}시간",
+                        TimelineCategoryRecordedActiveBasis: "기록된 활성 사용 시간 기준",
+                        TimelineCategoryDistributed: "분산됨",
+                        TimelineOverallCategoryLabel: (categoryName, share, isDistributed) =>
+                            isDistributed
+                                ? $"{categoryName} {share.ToString("P0", CultureInfo.CurrentCulture)} · 분산됨"
+                                : $"{categoryName} {share.ToString("P0", CultureInfo.CurrentCulture)}",
                         TimelinePreviousView: "이전 보기",
                         TimelinePreviousRange: "이전 구간",
                         TimelineNextRange: "다음 구간",
@@ -650,8 +662,15 @@ namespace TimePilot.WinForms.KYS24
                         ActivityTimelineTrack: "Activity",
                         TimelineFullDay: "Full day",
                         TimelineCategoryBucket: "Category unit",
+                        TimelineCategoryBucketAll: "All",
                         TimelineCategoryBucketMinutes: minutes => $"{minutes} min",
                         TimelineCategoryBucketHours: hours => hours == 1 ? "1 hour" : $"{hours} hours",
+                        TimelineCategoryRecordedActiveBasis: "Recorded active time basis",
+                        TimelineCategoryDistributed: "distributed",
+                        TimelineOverallCategoryLabel: (categoryName, share, isDistributed) =>
+                            isDistributed
+                                ? $"{categoryName} {share.ToString("P0", CultureInfo.CurrentCulture)} · distributed"
+                                : $"{categoryName} {share.ToString("P0", CultureInfo.CurrentCulture)}",
                         TimelinePreviousView: "Previous view",
                         TimelinePreviousRange: "Previous range",
                         TimelineNextRange: "Next range",
@@ -929,8 +948,12 @@ namespace TimePilot.WinForms.KYS24
             string ActivityTimelineTrack,
             string TimelineFullDay,
             string TimelineCategoryBucket,
+            string TimelineCategoryBucketAll,
             Func<int, string> TimelineCategoryBucketMinutes,
             Func<int, string> TimelineCategoryBucketHours,
+            string TimelineCategoryRecordedActiveBasis,
+            string TimelineCategoryDistributed,
+            Func<string, double, bool, string> TimelineOverallCategoryLabel,
             string TimelinePreviousView,
             string TimelinePreviousRange,
             string TimelineNextRange,
