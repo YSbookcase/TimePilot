@@ -844,6 +844,8 @@ namespace TimePilot.WinForms
 
             var totalStopwatch = Stopwatch.StartNew();
             var appIdToRestore = selectedRuntimeAppId ?? GetSelectedRuntimeAppId();
+            var runtimeFirstDisplayedRowIndex = GetFirstDisplayedRowIndex(runtimeGrid);
+            var runtimeFirstDisplayedColumnIndex = GetFirstDisplayedColumnIndex(runtimeGrid);
             var runtimeHorizontalOffset = GetHorizontalScrollingOffset(runtimeGrid);
             var selectedTab = mainTabs.SelectedTab;
             RefreshSummaryPeriodOptionsIfDateChanged(observedAt);
@@ -876,7 +878,8 @@ namespace TimePilot.WinForms
                         ? storage.GetCategoryTimelineSegmentsForDate(
                             timelineDate,
                             observedAt,
-                            TimeSpan.FromMinutes(selectedTimelineCategoryBucketMinutes))
+                            TimeSpan.FromMinutes(selectedTimelineCategoryBucketMinutes),
+                            selectedTimelineCategoryBucketMinutes == 0)
                         : null;
                     var timelineForegroundUsage = selectedTab == timelineTab
                         ? storage.GetForegroundUsageForDate(timelineDate)
@@ -976,7 +979,8 @@ namespace TimePilot.WinForms
                         preserveSelection: false);
                     RestoreRuntimeSelection(
                         appIdToRestoreOnApply,
-                        GetFirstDisplayedColumnIndex(runtimeGrid),
+                        runtimeFirstDisplayedRowIndex,
+                        runtimeFirstDisplayedColumnIndex,
                         runtimeHorizontalOffset);
                 }
                 finally
@@ -2301,7 +2305,11 @@ namespace TimePilot.WinForms
             return row;
         }
 
-        private void RestoreRuntimeSelection(long? appId, int firstDisplayedColumnIndex, int horizontalScrollingOffset)
+        private void RestoreRuntimeSelection(
+            long? appId,
+            int firstDisplayedRowIndex,
+            int firstDisplayedColumnIndex,
+            int horizontalScrollingOffset)
         {
             if (appId is null)
                 return;
@@ -2317,6 +2325,7 @@ namespace TimePilot.WinForms
                     Math.Max(firstDisplayedColumnIndex, 0),
                     runtimeGrid.Columns.Count - 1);
                 runtimeGrid.CurrentCell = row.Cells[currentCellIndex];
+                TrySetFirstDisplayedRowIndex(runtimeGrid, firstDisplayedRowIndex);
                 TrySetFirstDisplayedColumnIndex(runtimeGrid, firstDisplayedColumnIndex);
                 TrySetHorizontalScrollingOffset(runtimeGrid, horizontalScrollingOffset);
                 return;
@@ -2819,6 +2828,7 @@ namespace TimePilot.WinForms
             {
                 return
                 [
+                    new(UiText.Main.TimelineCategoryBucketAll, 0),
                     new(UiText.Main.TimelineCategoryBucketMinutes(15), 15),
                     new(UiText.Main.TimelineCategoryBucketMinutes(30), 30),
                     new(UiText.Main.TimelineCategoryBucketHours(1), 60),
