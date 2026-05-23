@@ -76,6 +76,13 @@ namespace TimePilot.WinForms.KYS24
             public static string HighlightInTimeline => current.Main.HighlightInTimeline;
             public static string TimelineHighlightHint => current.Main.TimelineHighlightHint;
             public static string SummaryTimelineHighlightHint => current.Main.SummaryTimelineHighlightHint;
+            public static string SummaryIdleAnalysis(
+                string activeUsage,
+                string idleUsage,
+                double inputActivityRatio,
+                int idleThresholdMinutes) =>
+                current.Main.SummaryIdleAnalysis(activeUsage, idleUsage, inputActivityRatio, idleThresholdMinutes);
+            public static string SummaryIdleAnalysisTooltip => current.Main.SummaryIdleAnalysisTooltip;
             public static string ClearTimelineHighlight => current.Main.ClearTimelineHighlight;
             public static string TimelineHighlight(string appName) => current.Main.TimelineHighlight(appName);
             public static string TimelineHighlightSummary(
@@ -410,6 +417,13 @@ namespace TimePilot.WinForms.KYS24
                         HighlightInTimeline: "타임라인에서 강조",
                         TimelineHighlightHint: "행을 우클릭해 앱 구간을 강조할 수 있습니다.",
                         SummaryTimelineHighlightHint: "앱 행을 우클릭해 타임라인에서 강조할 수 있습니다.",
+                        SummaryIdleAnalysis: (activeUsage, idleUsage, inputActivityRatio, idleThresholdMinutes) =>
+                            $"입력 활동 요약: 활성 시간 {activeUsage} · 유휴 시간 {idleUsage} · 입력 활동 비율 {inputActivityRatio.ToString("P1", CultureInfo.CurrentCulture)} · 현재 유휴 기준 {idleThresholdMinutes:N0}분",
+                        SummaryIdleAnalysisTooltip:
+                            "유휴 시간은 설정한 기준 이상 키보드/마우스 입력이 없었던 시간입니다.\n"
+                            + "자리 비움뿐 아니라 읽기, 영상 시청, 대기 상태도 포함될 수 있습니다.\n"
+                            + "입력 활동 비율은 활성 시간 / (활성 시간 + 유휴 시간)입니다.\n"
+                            + "현재 유휴 기준은 환경 설정의 현재 값이며, 과거에 다른 기준으로 기록된 구간은 후속 작업에서 별도 기준 저장을 검토합니다.",
                         ClearTimelineHighlight: "해제",
                         TimelineHighlight: appName => $"강조: {appName}",
                         TimelineHighlightSummary: (activeUsage, usageRatio, switchCount, segmentCount, longestSegment) =>
@@ -697,6 +711,13 @@ namespace TimePilot.WinForms.KYS24
                         HighlightInTimeline: "Highlight in timeline",
                         TimelineHighlightHint: "Right-click a row to highlight app segments.",
                         SummaryTimelineHighlightHint: "Right-click an app row to highlight it in the timeline.",
+                        SummaryIdleAnalysis: (activeUsage, idleUsage, inputActivityRatio, idleThresholdMinutes) =>
+                            $"Input activity summary: active time {activeUsage} · idle time {idleUsage} · input activity ratio {inputActivityRatio.ToString("P1", CultureInfo.CurrentCulture)} · current idle threshold {idleThresholdMinutes:N0} min",
+                        SummaryIdleAnalysisTooltip:
+                            "Idle time is time with no keyboard or mouse input for at least the configured threshold.\n"
+                            + "It can include being away, reading, watching video, waiting, or thinking.\n"
+                            + "Input activity ratio is active time / (active time + idle time).\n"
+                            + "The current idle threshold uses the current Preferences value; storing historical thresholds is tracked separately.",
                         ClearTimelineHighlight: "Clear",
                         TimelineHighlight: appName => $"Highlight: {appName}",
                         TimelineHighlightSummary: (activeUsage, usageRatio, switchCount, segmentCount, longestSegment) =>
@@ -970,6 +991,8 @@ namespace TimePilot.WinForms.KYS24
             string HighlightInTimeline,
             string TimelineHighlightHint,
             string SummaryTimelineHighlightHint,
+            Func<string, string, double, int, string> SummaryIdleAnalysis,
+            string SummaryIdleAnalysisTooltip,
             string ClearTimelineHighlight,
             Func<string, string> TimelineHighlight,
             Func<string, double, int, int, string, string> TimelineHighlightSummary,
