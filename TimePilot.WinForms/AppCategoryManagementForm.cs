@@ -28,8 +28,16 @@ namespace TimePilot.WinForms
         private IReadOnlyList<AppCategoryManagementRow> visibleRows = Array.Empty<AppCategoryManagementRow>();
         private string sortProperty = nameof(AppCategoryManagementRow.LastObservedAt);
         private SortOrder sortOrder = SortOrder.Descending;
-        private long? rowToRestoreAfterFilter;
+        private IReadOnlySet<long> rowsToRestoreAfterFilter = new HashSet<long>();
         private CategoryChangeUndo? lastCategoryChange;
+        private IReadOnlySet<long>? pendingRightClickSelectionAppIds;
+        private IReadOnlyList<AppCategoryManagementRow>? contextMenuRows;
+        private IReadOnlySet<long> lastStableMultiSelectionAppIds = new HashSet<long>();
+        private IReadOnlySet<long> visualSelectionAppIds = new HashSet<long>();
+        private int pendingRightClickRowIndex = -1;
+        private int pendingRightClickColumnIndex = -1;
+        private bool isRightClickInProgress;
+        private int? selectionAnchorRowIndex;
 
         public AppCategoryManagementForm(TimePilotStorage storage, UiLanguage language)
         {
@@ -144,15 +152,23 @@ namespace TimePilot.WinForms
             appsGrid.BorderStyle = BorderStyle.None;
             appsGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             appsGrid.Dock = DockStyle.Fill;
-            appsGrid.MultiSelect = false;
+            appsGrid.MultiSelect = true;
             appsGrid.ReadOnly = true;
             appsGrid.RowHeadersVisible = false;
             appsGrid.ScrollBars = ScrollBars.Both;
             appsGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             appsGrid.DataSource = appsBindingSource;
             appsGrid.ColumnHeaderMouseClick += OnAppsGridColumnHeaderMouseClick;
+            appsGrid.MouseDown += OnAppsGridMouseDown;
+            appsGrid.MouseUp += OnAppsGridMouseUp;
             appsGrid.CellMouseDown += OnAppsGridCellMouseDown;
-            appsGrid.CellDoubleClick += OnAppsGridCellDoubleClick;
+            appsGrid.SelectionChanged += OnAppsGridSelectionChanged;
+            appsGrid.RowPrePaint += OnAppsGridRowPrePaint;
+            categoryMenu.Closed += (_, _) =>
+            {
+                visualSelectionAppIds = GetSelectedRows().Select(row => row.AppId).ToHashSet();
+                appsGrid.Invalidate();
+            };
             appsGrid.Columns.AddRange(
                 CreateIconColumn(),
                 CreateTextColumn(nameof(AppCategoryManagementRow.AppName), IsEnglish ? "App" : "앱", 180),
@@ -580,19 +596,15 @@ namespace TimePilot.WinForms
 
         private void OnApplyCategoryButtonClick(object? sender, EventArgs e)
         {
-            if (appsGrid.CurrentRow?.DataBoundItem is not AppCategoryManagementRow row
-                || assignCategoryComboBox.SelectedItem is not CategorySelectionOption option)
+            if (assignCategoryComboBox.SelectedItem is not CategorySelectionOption option)
                 return;
 
-            SetCategory(row, option.Id);
+            SetSelectedCategories(option.Id);
         }
 
         private void OnClearCategoryButtonClick(object? sender, EventArgs e)
         {
-            if (appsGrid.CurrentRow?.DataBoundItem is not AppCategoryManagementRow row)
-                return;
-
-            SetCategory(row, null);
+            SetSelectedCategories(null);
         }
 
         private void OnSearchWebButtonClick(object? sender, EventArgs e)
@@ -622,7 +634,7 @@ namespace TimePilot.WinForms
             }
             catch
             {
-                MessageBox.Show(
+                CenteredMessageDialog.Show(
                     this,
                     IsEnglish ? "Unable to open the browser." : "브라우저를 열 수 없습니다.",
                     Text,
@@ -648,23 +660,54 @@ namespace TimePilot.WinForms
             return string.Join(" ", parts);
         }
 
+        private void SetSelectedCategories(long? categoryId)
+        {
+            var rows = GetSelectedRows();
+            if (rows.Count == 0)
+                return;
+
+            SetCategories(rows, categoryId);
+        }
+
         private void SetCategory(AppCategoryManagementRow row, long? categoryId, bool recordUndo = true)
         {
-            if (row.PrimaryCategoryId == categoryId)
+            SetCategories([row], categoryId, recordUndo);
+        }
+
+        private void SetCategories(
+            IReadOnlyList<AppCategoryManagementRow> rows,
+            long? categoryId,
+            bool recordUndo = true)
+        {
+            var rowsToChange = rows
+                .Where(row => row.PrimaryCategoryId != categoryId)
+                .GroupBy(row => row.AppId)
+                .Select(group => group.First())
+                .ToList();
+            if (rowsToChange.Count == 0)
+                return;
+
+            if (rowsToChange.Count > 1 && !ConfirmBulkCategoryChange(rowsToChange.Count, categoryId))
                 return;
 
             if (recordUndo)
-                lastCategoryChange = new CategoryChangeUndo(row.AppId, row.PrimaryCategoryId);
+            {
+                lastCategoryChange = new CategoryChangeUndo(
+                    rowsToChange
+                        .Select(row => new CategoryChangeUndoItem(row.AppId, row.PrimaryCategoryId))
+                        .ToList());
+            }
 
-            storage.SetAppPrimaryCategory(row.AppId, categoryId);
+            foreach (var row in rowsToChange)
+                storage.SetAppPrimaryCategory(row.AppId, categoryId);
             CategoriesChanged = true;
+            rowsToRestoreAfterFilter = rowsToChange.Select(row => row.AppId).ToHashSet();
+            allRows = AddIcons(storage.GetAppCategoryManagementRows(DateTimeOffset.UtcNow));
+            UpdateVisibleRows(rowsToRestoreAfterFilter);
             if (recordUndo)
                 statusLabel.Text = IsEnglish
-                    ? "Category changed. Press Ctrl+Z to undo the last change."
-                    : "분류를 변경했습니다. Ctrl+Z로 직전 변경 1회를 되돌릴 수 있습니다.";
-            rowToRestoreAfterFilter = row.AppId;
-            allRows = AddIcons(storage.GetAppCategoryManagementRows(DateTimeOffset.UtcNow));
-            UpdateVisibleRow(row.AppId);
+                    ? $"{rowsToChange.Count:N0} app category changed. Press Ctrl+Z to undo the last change."
+                    : $"{rowsToChange.Count:N0}개 앱의 분류를 변경했습니다. Ctrl+Z로 직전 변경 1회를 되돌릴 수 있습니다.";
         }
 
         private void UndoLastCategoryChange()
@@ -672,20 +715,47 @@ namespace TimePilot.WinForms
             if (lastCategoryChange is not { } undo)
                 return;
 
-            var row = allRows.FirstOrDefault(x => x.AppId == undo.AppId)
-                ?? visibleRows.FirstOrDefault(x => x.AppId == undo.AppId);
-            if (row is null)
+            if (undo.Items.Count == 0)
                 return;
 
             lastCategoryChange = null;
-            SetCategory(row, undo.PreviousCategoryId, recordUndo: false);
-            statusLabel.Text = IsEnglish ? "Category change undone." : "분류 변경을 되돌렸습니다.";
+            foreach (var item in undo.Items)
+                storage.SetAppPrimaryCategory(item.AppId, item.PreviousCategoryId);
+
+            CategoriesChanged = true;
+            rowsToRestoreAfterFilter = undo.Items.Select(item => item.AppId).ToHashSet();
+            allRows = AddIcons(storage.GetAppCategoryManagementRows(DateTimeOffset.UtcNow));
+            UpdateVisibleRows(rowsToRestoreAfterFilter);
+            statusLabel.Text = IsEnglish
+                ? $"{undo.Items.Count:N0} category change undone."
+                : $"{undo.Items.Count:N0}개 앱의 분류 변경을 되돌렸습니다.";
         }
 
-        private void UpdateVisibleRow(long appId)
+        private bool ConfirmBulkCategoryChange(int count, long? categoryId)
         {
-            var updatedRow = allRows.FirstOrDefault(x => x.AppId == appId);
-            if (updatedRow is null)
+            var categoryName = categoryId is null
+                ? NoCategoryText
+                : categories.FirstOrDefault(category => category.Id == categoryId) is { } category
+                    ? GetCategoryDisplayName(category)
+                    : NoCategoryText;
+            var message = IsEnglish
+                ? $"Change category for {count:N0} selected apps to {categoryName}?"
+                : $"선택한 {count:N0}개 앱의 분류를 {categoryName}(으)로 변경할까요?";
+
+            return CenteredMessageDialog.Show(
+                this,
+                message,
+                Text,
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) == DialogResult.Yes;
+        }
+
+        private void UpdateVisibleRows(IReadOnlySet<long> appIds)
+        {
+            var updatedRows = allRows
+                .Where(row => appIds.Contains(row.AppId))
+                .ToDictionary(row => row.AppId);
+            if (updatedRows.Count == 0)
             {
                 ApplyFilter();
                 return;
@@ -695,7 +765,7 @@ namespace TimePilot.WinForms
             var firstDisplayedColumnIndex = GetFirstDisplayedColumnIndex();
             var horizontalOffset = GetHorizontalScrollingOffset();
             visibleRows = visibleRows
-                .Select(row => row.AppId == appId ? updatedRow : row)
+                .Select(row => updatedRows.TryGetValue(row.AppId, out var updatedRow) ? updatedRow : row)
                 .ToList();
             appsBindingSource.DataSource = visibleRows;
             UpdateSortGlyphs();
@@ -705,16 +775,22 @@ namespace TimePilot.WinForms
 
         private void RestoreSelection(IReadOnlyList<AppCategoryManagementRow> rows)
         {
-            if (rowToRestoreAfterFilter is not { } appId)
+            if (rowsToRestoreAfterFilter.Count == 0)
                 return;
 
-            var rowIndex = rows.ToList().FindIndex(x => x.AppId == appId);
-            if (rowIndex < 0)
+            var rowIndexes = rows
+                .Select((row, index) => new { row, index })
+                .Where(x => rowsToRestoreAfterFilter.Contains(x.row.AppId))
+                .Select(x => x.index)
+                .ToList();
+            if (rowIndexes.Count == 0)
                 return;
 
             appsGrid.ClearSelection();
-            appsGrid.CurrentCell = appsGrid.Rows[rowIndex].Cells[0];
-            appsGrid.Rows[rowIndex].Selected = true;
+            foreach (var rowIndex in rowIndexes)
+                appsGrid.Rows[rowIndex].Selected = true;
+
+            appsGrid.CurrentCell = appsGrid.Rows[rowIndexes[0]].Cells[Math.Max(GetFirstDisplayedColumnIndex(), 0)];
         }
 
         private int GetFirstDisplayedRowIndex()
@@ -786,46 +862,266 @@ namespace TimePilot.WinForms
             }
         }
 
+        private void OnAppsGridMouseDown(object? sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Right)
+                return;
+
+            isRightClickInProgress = true;
+            pendingRightClickSelectionAppIds = null;
+            pendingRightClickRowIndex = -1;
+            pendingRightClickColumnIndex = -1;
+
+            var hit = appsGrid.HitTest(e.X, e.Y);
+            if (hit.Type != DataGridViewHitTestType.Cell || hit.RowIndex < 0)
+                return;
+
+            pendingRightClickRowIndex = hit.RowIndex;
+            pendingRightClickColumnIndex = hit.ColumnIndex;
+            if (appsGrid.Rows[hit.RowIndex].DataBoundItem is not AppCategoryManagementRow row)
+                return;
+
+            var currentSelectionAppIds = GetSelectedRows().Select(selectedRow => selectedRow.AppId).ToHashSet();
+            if (currentSelectionAppIds.Count > 1 && currentSelectionAppIds.Contains(row.AppId))
+            {
+                pendingRightClickSelectionAppIds = currentSelectionAppIds;
+                return;
+            }
+
+            if (lastStableMultiSelectionAppIds.Count > 1 && lastStableMultiSelectionAppIds.Contains(row.AppId))
+                pendingRightClickSelectionAppIds = lastStableMultiSelectionAppIds;
+        }
+
+        private void OnAppsGridMouseUp(object? sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Right)
+                return;
+
+            var hit = appsGrid.HitTest(e.X, e.Y);
+            if (hit.Type != DataGridViewHitTestType.Cell || hit.RowIndex < 0)
+            {
+                ClearPendingRightClickState();
+                isRightClickInProgress = false;
+                return;
+            }
+
+            RestorePendingRightClickSelectionOrSelectRow(hit.RowIndex, hit.ColumnIndex);
+            if (appsGrid.Rows[hit.RowIndex].DataBoundItem is AppCategoryManagementRow row)
+                ShowCategoryMenu(row, e.Location);
+            isRightClickInProgress = false;
+        }
+
         private void OnAppsGridCellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
         {
-            if (e.Button != MouseButtons.Right || e.RowIndex < 0)
+            if (e.RowIndex < 0 || e.Button != MouseButtons.Left)
                 return;
 
-            SelectGridRow(e.RowIndex, e.ColumnIndex);
-            if (appsGrid.Rows[e.RowIndex].DataBoundItem is AppCategoryManagementRow row)
-                ShowCategoryMenu(row, appsGrid.PointToClient(Cursor.Position));
+            var isCtrlPressed = (ModifierKeys & Keys.Control) == Keys.Control;
+            var isShiftPressed = (ModifierKeys & Keys.Shift) == Keys.Shift;
+            if (!isShiftPressed)
+            {
+                selectionAnchorRowIndex = e.RowIndex;
+                return;
+            }
+
+            if (!isCtrlPressed)
+                return;
+
+            var anchorRowIndex = selectionAnchorRowIndex ?? GetCurrentSelectedRowIndex() ?? e.RowIndex;
+            var selectedAppIds = GetSelectedRows()
+                .Select(row => row.AppId)
+                .ToHashSet();
+
+            BeginInvoke(new Action(() =>
+            {
+                SelectAdditionalRange(anchorRowIndex, e.RowIndex, e.ColumnIndex, selectedAppIds);
+                selectionAnchorRowIndex = e.RowIndex;
+            }));
         }
 
-        private void OnAppsGridCellDoubleClick(object? sender, DataGridViewCellEventArgs e)
+        private int? GetCurrentSelectedRowIndex()
         {
-            if (e.RowIndex < 0)
-                return;
-
-            SelectGridRow(e.RowIndex, e.ColumnIndex);
-            if (appsGrid.Rows[e.RowIndex].DataBoundItem is AppCategoryManagementRow row)
-                ShowCategoryMenu(row, appsGrid.GetCellDisplayRectangle(Math.Max(e.ColumnIndex, 0), e.RowIndex, true).Location);
+            return appsGrid.CurrentRow?.Index;
         }
 
-        private void SelectGridRow(int rowIndex, int columnIndex)
+        private void SelectAdditionalRange(
+            int anchorRowIndex,
+            int rowIndex,
+            int columnIndex,
+            IReadOnlySet<long> existingSelectionAppIds)
+        {
+            if (appsGrid.Rows.Count == 0)
+                return;
+
+            var appIds = existingSelectionAppIds.ToHashSet();
+            var start = Math.Clamp(Math.Min(anchorRowIndex, rowIndex), 0, appsGrid.Rows.Count - 1);
+            var end = Math.Clamp(Math.Max(anchorRowIndex, rowIndex), 0, appsGrid.Rows.Count - 1);
+            for (var index = start; index <= end; index++)
+            {
+                if (appsGrid.Rows[index].DataBoundItem is AppCategoryManagementRow row)
+                    appIds.Add(row.AppId);
+            }
+
+            RestoreSelectionByAppIds(appIds, rowIndex, columnIndex);
+            lastStableMultiSelectionAppIds = appIds.Count > 1 ? appIds : new HashSet<long>();
+            visualSelectionAppIds = appIds;
+            appsGrid.Invalidate();
+        }
+
+        private void RestorePendingRightClickSelectionOrSelectRow(int rowIndex, int columnIndex)
+        {
+            contextMenuRows = null;
+            if (pendingRightClickSelectionAppIds is { Count: > 1 } appIds
+                && rowIndex == pendingRightClickRowIndex)
+            {
+                RestoreSelectionByAppIds(appIds, rowIndex, pendingRightClickColumnIndex >= 0 ? pendingRightClickColumnIndex : columnIndex);
+                contextMenuRows = GetRowsByAppIds(appIds);
+            }
+            else
+            {
+                SelectGridRowsForRightClick(rowIndex, columnIndex);
+            }
+
+            ClearPendingRightClickState();
+        }
+
+        private void ClearPendingRightClickState()
+        {
+            pendingRightClickSelectionAppIds = null;
+            pendingRightClickRowIndex = -1;
+            pendingRightClickColumnIndex = -1;
+        }
+
+        private void OnAppsGridSelectionChanged(object? sender, EventArgs e)
+        {
+            if (!isRightClickInProgress)
+            {
+                var selectedAppIds = GetSelectedRows()
+                    .Select(row => row.AppId)
+                    .ToHashSet();
+                lastStableMultiSelectionAppIds = selectedAppIds.Count > 1
+                    ? selectedAppIds
+                    : new HashSet<long>();
+                visualSelectionAppIds = selectedAppIds;
+            }
+
+            UpdateSelectionStatus();
+            appsGrid.Invalidate();
+        }
+
+        private void OnAppsGridRowPrePaint(object? sender, DataGridViewRowPrePaintEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.RowIndex >= appsGrid.Rows.Count)
+                return;
+
+            var gridRow = appsGrid.Rows[e.RowIndex];
+            if (gridRow.DataBoundItem is not AppCategoryManagementRow row)
+                return;
+
+            var shouldShowVisualSelection = visualSelectionAppIds.Count > 1
+                && visualSelectionAppIds.Contains(row.AppId);
+            gridRow.DefaultCellStyle.SelectionForeColor = SystemColors.HighlightText;
+            gridRow.DefaultCellStyle.SelectionBackColor = SystemColors.Highlight;
+            gridRow.DefaultCellStyle.ForeColor = shouldShowVisualSelection
+                ? SystemColors.HighlightText
+                : SystemColors.WindowText;
+            gridRow.DefaultCellStyle.BackColor = shouldShowVisualSelection
+                ? SystemColors.Highlight
+                : SystemColors.Window;
+        }
+
+        private void SelectGridRowsForRightClick(int rowIndex, int columnIndex)
+        {
+            if (!appsGrid.Rows[rowIndex].Selected)
+                SelectSingleGridRow(rowIndex, columnIndex);
+            else if (appsGrid.SelectedRows.Count <= 1)
+                SetCurrentGridCell(rowIndex, columnIndex);
+        }
+
+        private void RestoreSelectionByAppIds(IReadOnlySet<long> appIds, int currentRowIndex, int columnIndex)
+        {
+            if (appIds.Count == 0 || appsGrid.Rows.Count == 0)
+                return;
+
+            var safeRowIndex = Math.Clamp(currentRowIndex, 0, appsGrid.Rows.Count - 1);
+            var safeColumnIndex = Math.Clamp(columnIndex >= 0 ? columnIndex : 0, 0, appsGrid.Columns.Count - 1);
+            appsGrid.CurrentCell = appsGrid.Rows[safeRowIndex].Cells[safeColumnIndex];
+            appsGrid.ClearSelection();
+            foreach (DataGridViewRow gridRow in appsGrid.Rows)
+            {
+                if (gridRow.DataBoundItem is AppCategoryManagementRow row && appIds.Contains(row.AppId))
+                    gridRow.Selected = true;
+            }
+
+            UpdateSelectionStatus();
+        }
+
+        private IReadOnlyList<AppCategoryManagementRow> GetRowsByAppIds(IReadOnlySet<long> appIds)
+        {
+            return visibleRows
+                .Where(row => appIds.Contains(row.AppId))
+                .ToList();
+        }
+
+        private void RestoreSelectionByAppIds(IReadOnlySet<long> appIds, long currentAppId)
+        {
+            if (appIds.Count == 0 || appsGrid.Rows.Count == 0)
+                return;
+
+            var currentRowIndex = 0;
+            var currentColumnIndex = GetFirstDisplayedColumnIndex();
+            for (var index = 0; index < appsGrid.Rows.Count; index++)
+            {
+                if (appsGrid.Rows[index].DataBoundItem is AppCategoryManagementRow row
+                    && row.AppId == currentAppId)
+                {
+                    currentRowIndex = index;
+                    break;
+                }
+            }
+
+            RestoreSelectionByAppIds(appIds, currentRowIndex, currentColumnIndex);
+        }
+
+        private void SelectSingleGridRow(int rowIndex, int columnIndex)
         {
             if (rowIndex < 0 || rowIndex >= appsGrid.Rows.Count)
                 return;
 
             appsGrid.ClearSelection();
+            SetCurrentGridCell(rowIndex, columnIndex);
+            appsGrid.Rows[rowIndex].Selected = true;
+            UpdateSelectionStatus();
+        }
+
+        private void SetCurrentGridCell(int rowIndex, int columnIndex)
+        {
+            if (rowIndex < 0 || rowIndex >= appsGrid.Rows.Count)
+                return;
+
             var targetColumnIndex = Math.Clamp(columnIndex >= 0 ? columnIndex : 0, 0, appsGrid.Columns.Count - 1);
             appsGrid.CurrentCell = appsGrid.Rows[rowIndex].Cells[targetColumnIndex];
-            appsGrid.Rows[rowIndex].Selected = true;
         }
 
         private void ShowCategoryMenu(AppCategoryManagementRow row, Point location)
         {
             categoryMenu.Items.Clear();
+            var selectedRows = GetSelectedRows();
+            if (contextMenuRows is { Count: > 0 } rowsForMenu)
+                selectedRows = rowsForMenu;
+            if (selectedRows.Count == 0)
+                selectedRows = [row];
+            visualSelectionAppIds = selectedRows.Select(row => row.AppId).ToHashSet();
+            appsGrid.Invalidate();
+            var isBulkSelection = selectedRows.Count > 1;
 
-            var clearItem = new ToolStripMenuItem(IsEnglish ? "Clear category" : "분류 해제")
+            var clearItem = new ToolStripMenuItem(isBulkSelection
+                ? IsEnglish ? "Clear selected categories" : "선택 항목 분류 해제"
+                : IsEnglish ? "Clear category" : "분류 해제")
             {
-                Checked = row.PrimaryCategoryId is null
+                Checked = !isBulkSelection && row.PrimaryCategoryId is null
             };
-            clearItem.Click += (_, _) => SetCategory(row, null);
+            clearItem.Click += (_, _) => SetCategories(selectedRows, null);
             categoryMenu.Items.Add(clearItem);
 
             if (categories.Count > 0)
@@ -835,9 +1131,9 @@ namespace TimePilot.WinForms
             {
                 var categoryItem = new ToolStripMenuItem(GetCategoryDisplayName(category))
                 {
-                    Checked = row.PrimaryCategoryId == category.Id
+                    Checked = !isBulkSelection && row.PrimaryCategoryId == category.Id
                 };
-                categoryItem.Click += (_, _) => SetCategory(row, category.Id);
+                categoryItem.Click += (_, _) => SetCategories(selectedRows, category.Id);
                 categoryMenu.Items.Add(categoryItem);
             }
 
@@ -847,6 +1143,37 @@ namespace TimePilot.WinForms
             categoryMenu.Items.Add(searchWebItem);
 
             categoryMenu.Show(appsGrid, location);
+            if (selectedRows.Count > 1)
+                BeginInvoke(new Action(() => RestoreSelectionByAppIds(selectedRows.Select(row => row.AppId).ToHashSet(), row.AppId)));
+            contextMenuRows = null;
+        }
+
+        private IReadOnlyList<AppCategoryManagementRow> GetSelectedRows()
+        {
+            var rows = appsGrid.SelectedRows
+                .Cast<DataGridViewRow>()
+                .Select(row => row.DataBoundItem)
+                .OfType<AppCategoryManagementRow>()
+                .OrderBy(row => visibleRows.ToList().FindIndex(x => x.AppId == row.AppId))
+                .ToList();
+
+            if (rows.Count > 0)
+                return rows;
+
+            return appsGrid.CurrentRow?.DataBoundItem is AppCategoryManagementRow currentRow
+                ? [currentRow]
+                : [];
+        }
+
+        private void UpdateSelectionStatus()
+        {
+            var selectedCount = appsGrid.SelectedRows.Count;
+            if (selectedCount > 1)
+            {
+                statusLabel.Text = IsEnglish
+                    ? $"{selectedCount:N0} apps selected."
+                    : $"{selectedCount:N0}개 앱을 선택했습니다.";
+            }
         }
 
         private sealed record CategorySelectionOption(long? Id, string Name)
@@ -857,6 +1184,8 @@ namespace TimePilot.WinForms
             }
         }
 
-        private sealed record CategoryChangeUndo(long AppId, long? PreviousCategoryId);
+        private sealed record CategoryChangeUndo(IReadOnlyList<CategoryChangeUndoItem> Items);
+
+        private sealed record CategoryChangeUndoItem(long AppId, long? PreviousCategoryId);
     }
 }
