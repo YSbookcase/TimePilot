@@ -39,7 +39,7 @@ namespace TimePilot.WinForms
         private DateTime selectedDetailDate = DateTime.Today;
         private DateTime selectedTimelineDate = DateTime.Today;
         private int selectedTimelineCategoryBucketMinutes = 30;
-        private TimelineActivityTypeHighlight selectedTimelineActivityTypeHighlight = TimelineActivityTypeHighlight.All;
+        private TimelineActivityTypeHighlight selectedTimelineActivityTypeHighlight = TimelineActivityTypeHighlight.None;
         private SortOrder usageSortOrder = SortOrder.Descending;
         private SortOrder dailyUsageTrendSortOrder = SortOrder.Descending;
         private SortOrder timelineSortOrder = SortOrder.Descending;
@@ -722,7 +722,7 @@ namespace TimePilot.WinForms
                 timelineTypeHighlightComboBox.Items.AddRange(options.Cast<object>().ToArray());
                 timelineTypeHighlightComboBox.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
                 selectedTimelineActivityTypeHighlight = ((TimelineActivityTypeHighlightOption)timelineTypeHighlightComboBox.SelectedItem!).Value;
-                timelineOverviewControl.SetHighlightedActivityType(GetTimelineHighlightedActivityTypeText());
+                ApplyTimelineActivityTypeHighlight();
             }
             finally
             {
@@ -1860,7 +1860,7 @@ namespace TimePilot.WinForms
                 return;
 
             selectedTimelineActivityTypeHighlight = option.Value;
-            timelineOverviewControl.SetHighlightedActivityType(GetTimelineHighlightedActivityTypeText());
+            ApplyTimelineActivityTypeHighlight();
             timelineGrid.Invalidate();
         }
 
@@ -2089,14 +2089,25 @@ namespace TimePilot.WinForms
             };
         }
 
+        private void ApplyTimelineActivityTypeHighlight()
+        {
+            timelineOverviewControl.SetWindowsHighlighted(selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows);
+            if (selectedTimelineActivityTypeHighlight != TimelineActivityTypeHighlight.Windows)
+                timelineOverviewControl.SetHighlightedActivityType(GetTimelineHighlightedActivityTypeText());
+        }
+
         private bool HasTimelineHighlight()
         {
             return !string.IsNullOrWhiteSpace(highlightedTimelineProcessName)
-                || selectedTimelineActivityTypeHighlight != TimelineActivityTypeHighlight.All;
+                || selectedTimelineActivityTypeHighlight != TimelineActivityTypeHighlight.None;
         }
 
         private bool IsTimelineRowHighlighted(ActivityTimelineRow row)
         {
+            if (selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows
+                && string.IsNullOrWhiteSpace(highlightedTimelineProcessName))
+                return false;
+
             var processMatches = string.IsNullOrWhiteSpace(highlightedTimelineProcessName)
                 || string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase);
             var typeText = GetTimelineHighlightedActivityTypeText();
@@ -3437,10 +3448,11 @@ namespace TimePilot.WinForms
             {
                 return
                 [
-                    new(UiText.Main.TimelineCategoryBucketAll, TimelineActivityTypeHighlight.All),
+                    new(UiText.Main.ClearTimelineHighlight, TimelineActivityTypeHighlight.None),
                     new(UiText.Main.Active, TimelineActivityTypeHighlight.Active),
                     new(UiText.Main.Idle, TimelineActivityTypeHighlight.Idle),
-                    new(UiText.Main.Untracked, TimelineActivityTypeHighlight.Untracked)
+                    new(UiText.Main.Untracked, TimelineActivityTypeHighlight.Untracked),
+                    new(UiText.Main.WindowsRuntimeTrack, TimelineActivityTypeHighlight.Windows)
                 ];
             }
         }
