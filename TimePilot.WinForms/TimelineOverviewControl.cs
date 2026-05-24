@@ -55,6 +55,7 @@ namespace TimePilot.WinForms
         private IReadOnlyList<TimelineRange> windowsRuntimeRanges = Array.Empty<TimelineRange>();
         private IReadOnlyList<CategoryTimelineSegment> categorySegments = Array.Empty<CategoryTimelineSegment>();
         private string? highlightedProcessName;
+        private string? highlightedActivityType;
         private DateTime localDate = DateTime.Today;
         private TimeSpan viewStart = TimeSpan.Zero;
         private TimeSpan viewEnd = TimeSpan.FromDays(1);
@@ -116,6 +117,13 @@ namespace TimePilot.WinForms
         public void SetHighlightedProcessName(string? processName)
         {
             highlightedProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName;
+            hoverText = null;
+            Invalidate();
+        }
+
+        public void SetHighlightedActivityType(string? activityType)
+        {
+            highlightedActivityType = string.IsNullOrWhiteSpace(activityType) ? null : activityType;
             hoverText = null;
             Invalidate();
         }
@@ -484,7 +492,7 @@ namespace TimePilot.WinForms
             graphics.FillRectangle(fillBrush, segment);
             graphics.DrawRectangle(borderPen, segment);
 
-            if (highlightedProcessName is null || IsHighlighted(row))
+            if (!HasHighlight || IsHighlighted(row))
             {
                 if (IsHighlighted(row))
                 {
@@ -588,9 +596,17 @@ namespace TimePilot.WinForms
 
         private bool IsHighlighted(ActivityTimelineRow row)
         {
-            return highlightedProcessName is not null
-                && string.Equals(row.ProcessName, highlightedProcessName, StringComparison.OrdinalIgnoreCase);
+            var processMatches = highlightedProcessName is null
+                || string.Equals(row.ProcessName, highlightedProcessName, StringComparison.OrdinalIgnoreCase);
+            var activityTypeMatches = highlightedActivityType is null
+                || string.Equals(row.ActivityType, highlightedActivityType, StringComparison.Ordinal)
+                || (string.Equals(highlightedActivityType, UiText.Main.Untracked, StringComparison.Ordinal)
+                    && string.Equals(row.ActivityType, UiText.Main.TimePilotUntracked, StringComparison.Ordinal));
+
+            return processMatches && activityTypeMatches;
         }
+
+        private bool HasHighlight => highlightedProcessName is not null || highlightedActivityType is not null;
 
         private void DrawHoverInfo(Graphics graphics, string text, Rectangle bounds)
         {
