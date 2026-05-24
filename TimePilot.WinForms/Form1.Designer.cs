@@ -130,6 +130,7 @@
             timelineDurationColumn = new DataGridViewTextBoxColumn();
             timelineAppIconColumn = new DataGridViewImageColumn();
             timelineDisplayNameColumn = new DataGridViewTextBoxColumn();
+            timelineCategoryColumn = new DataGridViewTextBoxColumn();
             mainMenuStrip.SuspendLayout();
             mainTabs.SuspendLayout();
             summaryTab.SuspendLayout();
@@ -1326,7 +1327,7 @@
             timelineGrid.BackgroundColor = SystemColors.Window;
             timelineGrid.BorderStyle = BorderStyle.None;
             timelineGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            timelineGrid.Columns.AddRange(new DataGridViewColumn[] { timelineTypeColumn, timelineStartedAtColumn, timelineEndedAtColumn, timelineDurationColumn, timelineAppIconColumn, timelineDisplayNameColumn });
+            timelineGrid.Columns.AddRange(new DataGridViewColumn[] { timelineTypeColumn, timelineStartedAtColumn, timelineEndedAtColumn, timelineDurationColumn, timelineAppIconColumn, timelineDisplayNameColumn, timelineCategoryColumn });
             timelineGrid.Dock = DockStyle.Fill;
             timelineGrid.Location = new Point(3, 244);
             timelineGrid.MultiSelect = false;
@@ -1399,6 +1400,16 @@
             timelineDisplayNameColumn.ReadOnly = true;
             timelineDisplayNameColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
             timelineDisplayNameColumn.Width = 260;
+            //
+            // timelineCategoryColumn
+            //
+            timelineCategoryColumn.DataPropertyName = "CategoryText";
+            timelineCategoryColumn.HeaderText = UiText.Main.Category;
+            timelineCategoryColumn.MinimumWidth = 100;
+            timelineCategoryColumn.Name = "timelineCategoryColumn";
+            timelineCategoryColumn.ReadOnly = true;
+            timelineCategoryColumn.SortMode = DataGridViewColumnSortMode.Programmatic;
+            timelineCategoryColumn.Width = 120;
             // 
             // Form1
             // 
@@ -1553,6 +1564,7 @@
         private DataGridViewTextBoxColumn timelineDurationColumn;
         private DataGridViewImageColumn timelineAppIconColumn;
         private DataGridViewTextBoxColumn timelineDisplayNameColumn;
+        private DataGridViewTextBoxColumn timelineCategoryColumn;
 
         #endregion
     }
