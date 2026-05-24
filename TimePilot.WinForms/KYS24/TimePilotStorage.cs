@@ -2120,13 +2120,17 @@ namespace TimePilot.WinForms.KYS24
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT
+                    a.id,
                     COALESCE(a.display_name, 'Idle'),
                     a.process_name,
                     a.executable_path,
+                    a.primary_category_id,
+                    c.name,
                     i.started_at,
                     i.ended_at
                 FROM idle_sessions i
                 LEFT JOIN apps a ON a.id = i.foreground_app_id
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
                 WHERE i.started_at < $dayEnd
                   AND COALESCE(i.ended_at, $now) > $dayStart;
                 """;
@@ -2137,11 +2141,14 @@ namespace TimePilot.WinForms.KYS24
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                var foregroundAppName = reader.GetString(0);
-                var processName = reader.IsDBNull(1) ? "" : reader.GetString(1);
-                var executablePath = reader.IsDBNull(2) ? null : reader.GetString(2);
-                var startedAt = ParseTimestamp(reader.GetString(3));
-                DateTimeOffset? endedAt = reader.IsDBNull(4) ? null : ParseTimestamp(reader.GetString(4));
+                long? appId = reader.IsDBNull(0) ? null : reader.GetInt64(0);
+                var foregroundAppName = reader.GetString(1);
+                var processName = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
+                long? primaryCategoryId = reader.IsDBNull(4) ? null : reader.GetInt64(4);
+                var categoryName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                var startedAt = ParseTimestamp(reader.GetString(6));
+                DateTimeOffset? endedAt = reader.IsDBNull(7) ? null : ParseTimestamp(reader.GetString(7));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(endedAt ?? now, dayEnd);
                 DateTimeOffset? displayEnd = IsCurrentTimelineSession(endedAt, effectiveEnd, dayEnd, now)
@@ -2155,7 +2162,10 @@ namespace TimePilot.WinForms.KYS24
                     effectiveEnd,
                     foregroundAppName,
                     executablePath,
-                    processName);
+                    processName,
+                    appId,
+                    primaryCategoryId,
+                    categoryName);
             }
         }
 
