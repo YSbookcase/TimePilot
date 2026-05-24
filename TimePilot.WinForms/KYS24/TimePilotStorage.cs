@@ -2059,14 +2059,18 @@ namespace TimePilot.WinForms.KYS24
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT
+                    a.id,
                     a.display_name,
                     a.process_name,
                     a.executable_path,
+                    a.primary_category_id,
+                    c.name,
                     fs.started_at,
                     fs.ended_at,
                     fs.last_observed_at
                 FROM foreground_sessions fs
                 INNER JOIN apps a ON a.id = fs.app_id
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
                 WHERE fs.started_at < $dayEnd
                   AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $dayStart;
                 """;
@@ -2076,19 +2080,33 @@ namespace TimePilot.WinForms.KYS24
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                var appName = reader.GetString(0);
-                var processName = reader.GetString(1);
-                var executablePath = reader.IsDBNull(2) ? null : reader.GetString(2);
-                var startedAt = ParseTimestamp(reader.GetString(3));
-                DateTimeOffset? endedAt = reader.IsDBNull(4) ? null : ParseTimestamp(reader.GetString(4));
+                var appId = reader.GetInt64(0);
+                var appName = reader.GetString(1);
+                var processName = reader.GetString(2);
+                var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
+                long? primaryCategoryId = reader.IsDBNull(4) ? null : reader.GetInt64(4);
+                var categoryName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                var startedAt = ParseTimestamp(reader.GetString(6));
+                DateTimeOffset? endedAt = reader.IsDBNull(7) ? null : ParseTimestamp(reader.GetString(7));
                 var observedEnd = endedAt
-                    ?? (reader.IsDBNull(5) ? startedAt : ParseTimestamp(reader.GetString(5)));
+                    ?? (reader.IsDBNull(8) ? startedAt : ParseTimestamp(reader.GetString(8)));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(observedEnd, dayEnd);
                 DateTimeOffset? displayEnd = IsCurrentTimelineSession(endedAt, observedEnd, dayEnd, now)
                     ? null
                     : effectiveEnd;
-                AddTimelineRow(rows, UiText.Main.Active, effectiveStart, displayEnd, effectiveEnd, appName, executablePath, processName);
+                AddTimelineRow(
+                    rows,
+                    UiText.Main.Active,
+                    effectiveStart,
+                    displayEnd,
+                    effectiveEnd,
+                    appName,
+                    executablePath,
+                    processName,
+                    appId,
+                    primaryCategoryId,
+                    categoryName);
             }
         }
 
@@ -2102,13 +2120,17 @@ namespace TimePilot.WinForms.KYS24
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT
+                    a.id,
                     COALESCE(a.display_name, 'Idle'),
                     a.process_name,
                     a.executable_path,
+                    a.primary_category_id,
+                    c.name,
                     i.started_at,
                     i.ended_at
                 FROM idle_sessions i
                 LEFT JOIN apps a ON a.id = i.foreground_app_id
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
                 WHERE i.started_at < $dayEnd
                   AND COALESCE(i.ended_at, $now) > $dayStart;
                 """;
@@ -2119,11 +2141,14 @@ namespace TimePilot.WinForms.KYS24
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                var foregroundAppName = reader.GetString(0);
-                var processName = reader.IsDBNull(1) ? "" : reader.GetString(1);
-                var executablePath = reader.IsDBNull(2) ? null : reader.GetString(2);
-                var startedAt = ParseTimestamp(reader.GetString(3));
-                DateTimeOffset? endedAt = reader.IsDBNull(4) ? null : ParseTimestamp(reader.GetString(4));
+                long? appId = reader.IsDBNull(0) ? null : reader.GetInt64(0);
+                var foregroundAppName = reader.GetString(1);
+                var processName = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
+                long? primaryCategoryId = reader.IsDBNull(4) ? null : reader.GetInt64(4);
+                var categoryName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                var startedAt = ParseTimestamp(reader.GetString(6));
+                DateTimeOffset? endedAt = reader.IsDBNull(7) ? null : ParseTimestamp(reader.GetString(7));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(endedAt ?? now, dayEnd);
                 DateTimeOffset? displayEnd = IsCurrentTimelineSession(endedAt, effectiveEnd, dayEnd, now)
@@ -2137,7 +2162,10 @@ namespace TimePilot.WinForms.KYS24
                     effectiveEnd,
                     foregroundAppName,
                     executablePath,
-                    processName);
+                    processName,
+                    appId,
+                    primaryCategoryId,
+                    categoryName);
             }
         }
 
@@ -2164,7 +2192,10 @@ namespace TimePilot.WinForms.KYS24
             DateTimeOffset effectiveEnd,
             string displayName,
             string? executablePath,
-            string processName = "")
+            string processName = "",
+            long? appId = null,
+            long? primaryCategoryId = null,
+            string? categoryName = null)
         {
             var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
             if (durationMs <= 0)
@@ -2177,7 +2208,10 @@ namespace TimePilot.WinForms.KYS24
                 durationMs,
                 displayName,
                 executablePath,
-                ProcessName: processName));
+                ProcessName: processName,
+                AppId: appId,
+                PrimaryCategoryId: primaryCategoryId,
+                CategoryName: categoryName));
         }
 
         private static void AddActiveUsageToRuntimeAggregations(

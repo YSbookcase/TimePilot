@@ -10,8 +10,15 @@ namespace TimePilot.WinForms.KYS24
         string DisplayName,
         string? ExecutablePath = null,
         Image? AppIcon = null,
-        string ProcessName = "")
+        string ProcessName = "",
+        long? AppId = null,
+        long? PrimaryCategoryId = null,
+        string? CategoryName = null)
     {
+        public string CategoryText => string.IsNullOrWhiteSpace(CategoryName)
+            ? UiText.Main.Uncategorized
+            : AppCategoryDisplay.GetDisplayName(CategoryName);
+
         public string StartedAtText => StartedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture);
 
         public string EndedAtText => EndedAt?.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture)

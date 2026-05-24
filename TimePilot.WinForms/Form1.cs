@@ -967,6 +967,7 @@ namespace TimePilot.WinForms
             timelineEndedAtColumn.HeaderText = UiText.Main.End;
             timelineDurationColumn.HeaderText = UiText.Main.Duration;
             timelineDisplayNameColumn.HeaderText = UiText.Main.App;
+            timelineCategoryColumn.HeaderText = UiText.Main.Category;
 
             if (trayMenu.Items.Count > 0)
             {
@@ -1439,6 +1440,7 @@ namespace TimePilot.WinForms
                 nameof(ActivityTimelineRow.EndedAt) => OrderTimelineRows(rows, x => x.EndedAt),
                 nameof(ActivityTimelineRow.DurationMs) => OrderTimelineRows(rows, x => x.DurationMs),
                 nameof(ActivityTimelineRow.DisplayName) => OrderTimelineRows(rows, x => x.DisplayName),
+                nameof(ActivityTimelineRow.CategoryText) => OrderTimelineRows(rows, x => x.CategoryText),
                 _ => OrderTimelineRows(rows, x => x.StartedAt)
             };
 
@@ -1598,6 +1600,13 @@ namespace TimePilot.WinForms
             var showInTimelineItem = new ToolStripMenuItem(UiText.Main.ShowInTimeline);
             showInTimelineItem.Click += (_, _) => HighlightUsageRowInTimeline(row);
             usageGridMenu.Items.Add(showInTimelineItem);
+            if (row.AppId is { } appId)
+            {
+                usageGridMenu.Items.Add(CreateSetCategoryMenuItem(
+                    row.PrimaryCategoryId,
+                    categoryId => SetAppCategory(appId, row.AppName, categoryId)));
+            }
+
             usageGridMenu.Items.Add(CreateSearchWebMenuItem(row.AppName, row.ProcessName));
             usageGridMenu.Show(usageGrid, usageGrid.PointToClient(Cursor.Position));
         }
@@ -1842,6 +1851,13 @@ namespace TimePilot.WinForms
             var highlightItem = new ToolStripMenuItem(UiText.Main.HighlightInTimeline);
             highlightItem.Click += (_, _) => HighlightTimelineRow(row);
             timelineGridMenu.Items.Add(highlightItem);
+            if (row.AppId is { } appId)
+            {
+                timelineGridMenu.Items.Add(CreateSetCategoryMenuItem(
+                    row.PrimaryCategoryId,
+                    categoryId => SetAppCategory(appId, row.DisplayName, categoryId)));
+            }
+
             timelineGridMenu.Items.Add(CreateSearchWebMenuItem(row.DisplayName, row.ProcessName));
             if (string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase))
             {
@@ -2250,21 +2266,29 @@ namespace TimePilot.WinForms
         private void ShowRuntimeCategoryMenu(ProcessRuntimeSummaryRow row, Point location)
         {
             appCategoryMenu.Items.Clear();
+            appCategoryMenu.Items.Add(CreateSetCategoryMenuItem(
+                row.PrimaryCategoryId,
+                categoryId => SetRuntimeAppCategory(row.AppId, row.AppName, categoryId)));
+            appCategoryMenu.Items.Add(CreateSearchWebMenuItem(row.AppName, row.ProcessName));
+            appCategoryMenu.Show(runtimeGrid, location);
+        }
 
-            if (storage is null)
-                return;
-
-            var categories = storage.GetAppCategoryOptions();
+        private ToolStripMenuItem CreateSetCategoryMenuItem(long? currentCategoryId, Action<long?> setCategory)
+        {
             var setCategoryMenuItem = new ToolStripMenuItem(UiText.Main.SetCategory);
 
             var uncategorizedItem = new ToolStripMenuItem(UiText.Main.Uncategorized)
             {
-                Checked = row.PrimaryCategoryId is null,
+                Checked = currentCategoryId is null,
                 Tag = (long?)null
             };
-            uncategorizedItem.Click += (_, _) => SetRuntimeAppCategory(row.AppId, row.AppName, null);
+            uncategorizedItem.Click += (_, _) => setCategory(null);
             setCategoryMenuItem.DropDownItems.Add(uncategorizedItem);
 
+            if (storage is null)
+                return setCategoryMenuItem;
+
+            var categories = storage.GetAppCategoryOptions();
             if (categories.Count > 0)
                 setCategoryMenuItem.DropDownItems.Add(new ToolStripSeparator());
 
@@ -2272,16 +2296,14 @@ namespace TimePilot.WinForms
             {
                 var categoryItem = new ToolStripMenuItem(AppCategoryDisplay.GetDisplayName(category))
                 {
-                    Checked = row.PrimaryCategoryId == category.Id,
+                    Checked = currentCategoryId == category.Id,
                     Tag = category.Id
                 };
-                categoryItem.Click += (_, _) => SetRuntimeAppCategory(row.AppId, row.AppName, category.Id);
+                categoryItem.Click += (_, _) => setCategory(category.Id);
                 setCategoryMenuItem.DropDownItems.Add(categoryItem);
             }
 
-            appCategoryMenu.Items.Add(setCategoryMenuItem);
-            appCategoryMenu.Items.Add(CreateSearchWebMenuItem(row.AppName, row.ProcessName));
-            appCategoryMenu.Show(runtimeGrid, location);
+            return setCategoryMenuItem;
         }
 
         private ToolStripMenuItem CreateSearchWebMenuItem(string appName, string processName)
@@ -2332,6 +2354,11 @@ namespace TimePilot.WinForms
 
         private void SetRuntimeAppCategory(long appId, string appName, long? categoryId)
         {
+            SetAppCategory(appId, appName, categoryId, selectRuntimeApp: true);
+        }
+
+        private void SetAppCategory(long appId, string appName, long? categoryId, bool selectRuntimeApp = false)
+        {
             if (storage is null)
                 return;
 
@@ -2343,7 +2370,9 @@ namespace TimePilot.WinForms
                 ? UiText.Main.Uncategorized
                 : AppCategoryDisplay.GetDisplayName(category);
 
-            selectedRuntimeAppId = appId;
+            if (selectRuntimeApp)
+                selectedRuntimeAppId = appId;
+
             SetStatusText(UiText.Main.CategoryUpdated(appName, categoryName));
             RefreshViews(DateTimeOffset.UtcNow);
         }
@@ -2479,6 +2508,7 @@ namespace TimePilot.WinForms
                 nameof(timelineEndedAtColumn) => nameof(ActivityTimelineRow.EndedAt),
                 nameof(timelineDurationColumn) => nameof(ActivityTimelineRow.DurationMs),
                 nameof(timelineDisplayNameColumn) => nameof(ActivityTimelineRow.DisplayName),
+                nameof(timelineCategoryColumn) => nameof(ActivityTimelineRow.CategoryText),
                 _ => null
             };
         }
@@ -2778,6 +2808,7 @@ namespace TimePilot.WinForms
                 nameof(ActivityTimelineRow.EndedAt) => value,
                 nameof(ActivityTimelineRow.DurationMs) => value,
                 nameof(ActivityTimelineRow.DisplayName) => value,
+                nameof(ActivityTimelineRow.CategoryText) => value,
                 _ => nameof(ActivityTimelineRow.StartedAt)
             };
         }
