@@ -12,6 +12,7 @@ namespace TimePilot.WinForms
         private static readonly Color UntrackedBorderColor = Color.FromArgb(211, 162, 92);
         private static readonly Color WindowsFillColor = Color.FromArgb(198, 225, 246);
         private static readonly Color WindowsBorderColor = Color.FromArgb(87, 137, 184);
+        private static readonly Color WindowsEventBorderColor = Color.FromArgb(77, 85, 99);
         private static readonly Color DimOverlayColor = Color.FromArgb(220, 255, 255, 255);
         private static readonly Color HighlightTintColor = Color.FromArgb(70, 28, 91, 170);
         private static readonly Color HighlightBorderColor = Color.FromArgb(13, 61, 132);
@@ -53,6 +54,7 @@ namespace TimePilot.WinForms
 
         private IReadOnlyList<ActivityTimelineRow> rows = Array.Empty<ActivityTimelineRow>();
         private IReadOnlyList<TimelineRange> windowsRuntimeRanges = Array.Empty<TimelineRange>();
+        private IReadOnlyList<SystemTimelineEvent> systemTimelineEvents = Array.Empty<SystemTimelineEvent>();
         private IReadOnlyList<CategoryTimelineSegment> categorySegments = Array.Empty<CategoryTimelineSegment>();
         private string? highlightedProcessName;
         private string? highlightedActivityType;
@@ -98,12 +100,14 @@ namespace TimePilot.WinForms
             DateTime date,
             IReadOnlyList<ActivityTimelineRow> timelineRows,
             IReadOnlyList<TimelineRange> windowsRanges,
+            IReadOnlyList<SystemTimelineEvent> systemEvents,
             IReadOnlyList<CategoryTimelineSegment> categoryTimelineSegments)
         {
             var dateChanged = date.Date != localDate;
             localDate = date.Date;
             rows = timelineRows.OrderBy(row => row.StartedAt).ToList();
             windowsRuntimeRanges = windowsRanges.OrderBy(range => range.StartedAt).ToList();
+            systemTimelineEvents = systemEvents.OrderBy(systemEvent => systemEvent.OccurredAt).ToList();
             categorySegments = categoryTimelineSegments.OrderBy(segment => segment.StartedAt).ToList();
             hoverText = null;
             if (dateChanged)
@@ -210,6 +214,7 @@ namespace TimePilot.WinForms
             DrawTrackLabel(graphics, UiText.Main.ActivityTimelineTrack, activityBounds);
             DrawAxis(graphics, activityBounds);
             DrawWindowsRanges(graphics, windowsBounds);
+            DrawSystemEvents(graphics, windowsBounds);
             DrawCategorySegments(graphics, categoryBounds);
             DrawActivityRows(graphics, activityBounds);
             DrawDragSelection(graphics, bounds);
@@ -425,6 +430,29 @@ namespace TimePilot.WinForms
             }
         }
 
+        private void DrawSystemEvents(Graphics graphics, Rectangle windowsBounds)
+        {
+            foreach (var systemEvent in systemTimelineEvents)
+            {
+                var x = GetTimeX(systemEvent.OccurredAt, windowsBounds);
+                if (x < windowsBounds.Left || x > windowsBounds.Right)
+                    continue;
+
+                var markerBounds = new Rectangle(x - 3, windowsBounds.Top + 2, 6, Math.Max(8, windowsBounds.Height - 4));
+                using var fillBrush = new SolidBrush(GetSystemEventColor(systemEvent.EventType));
+                using var borderPen = new Pen(WindowsEventBorderColor);
+                var points = new[]
+                {
+                    new Point(markerBounds.Left + markerBounds.Width / 2, markerBounds.Top),
+                    new Point(markerBounds.Right, markerBounds.Top + markerBounds.Height / 2),
+                    new Point(markerBounds.Left + markerBounds.Width / 2, markerBounds.Bottom),
+                    new Point(markerBounds.Left, markerBounds.Top + markerBounds.Height / 2)
+                };
+                graphics.FillPolygon(fillBrush, points);
+                graphics.DrawPolygon(borderPen, points);
+            }
+        }
+
         private void DrawCategorySegments(Graphics graphics, Rectangle categoryBounds)
         {
             using var emptyPen = new Pen(AxisColor);
@@ -508,6 +536,16 @@ namespace TimePilot.WinForms
             return new Rectangle(left, timelineBounds.Top + 4, width, Math.Max(10, timelineBounds.Height - 8));
         }
 
+        private int GetTimeX(DateTimeOffset value, Rectangle timelineBounds)
+        {
+            var dayStart = new DateTimeOffset(localDate, TimeZoneInfo.Local.GetUtcOffset(localDate));
+            var viewStartAt = dayStart + viewStart;
+            var viewEndAt = dayStart + viewEnd;
+            var viewDurationMs = Math.Max(1, (viewEndAt - viewStartAt).TotalMilliseconds);
+            var ratio = (value - viewStartAt).TotalMilliseconds / viewDurationMs;
+            return timelineBounds.Left + (int)Math.Round(timelineBounds.Width * ratio);
+        }
+
         private void DrawSegment(Graphics graphics, ActivityTimelineRow row, Rectangle segment)
         {
             using var fillBrush = new SolidBrush(GetFillColor(row));
@@ -560,7 +598,35 @@ namespace TimePilot.WinForms
 
         private string? FindHoverTextAt(Point point)
         {
-            return FindWindowsHoverTextAt(point) ?? FindCategoryHoverTextAt(point) ?? FindActivityHoverTextAt(point);
+            return FindSystemEventHoverTextAt(point)
+                ?? FindWindowsHoverTextAt(point)
+                ?? FindCategoryHoverTextAt(point)
+                ?? FindActivityHoverTextAt(point);
+        }
+
+        private string? FindSystemEventHoverTextAt(Point point)
+        {
+            var timelineBounds = GetWindowsBounds(ClientRectangle);
+            var systemEvent = systemTimelineEvents
+                .Select(item => new { Event = item, Bounds = GetSystemEventHitBounds(item, timelineBounds) })
+                .LastOrDefault(x => x.Bounds.Contains(point))
+                ?.Event;
+
+            if (systemEvent is null)
+                return null;
+
+            return string.Join(
+                " | ",
+                UiText.Main.WindowsRuntimeTrack,
+                GetSystemEventTypeText(systemEvent.EventType),
+                FormatTime(systemEvent.OccurredAt),
+                string.IsNullOrWhiteSpace(systemEvent.Details) ? "-" : systemEvent.Details);
+        }
+
+        private Rectangle GetSystemEventHitBounds(SystemTimelineEvent systemEvent, Rectangle timelineBounds)
+        {
+            var x = GetTimeX(systemEvent.OccurredAt, timelineBounds);
+            return new Rectangle(x - 12, timelineBounds.Top - 8, 24, timelineBounds.Height + 16);
         }
 
         private string? FindWindowsHoverTextAt(Point point)
@@ -708,6 +774,40 @@ namespace TimePilot.WinForms
             return TryParseColor(segment.Color, out var color)
                 ? color
                 : AppBorderPalette[GetAppPaletteIndex(segment.CategoryName)];
+        }
+
+        private static Color GetSystemEventColor(string eventType)
+        {
+            return eventType.ToLowerInvariant() switch
+            {
+                "lock" => Color.FromArgb(99, 102, 241),
+                "unlock" => Color.FromArgb(34, 197, 94),
+                "logon" => Color.FromArgb(14, 165, 233),
+                "logoff" => Color.FromArgb(234, 179, 8),
+                "suspend" => Color.FromArgb(168, 85, 247),
+                "resume" => Color.FromArgb(20, 184, 166),
+                "system-shutdown" => Color.FromArgb(239, 68, 68),
+                "timepilot-start" => Color.FromArgb(59, 130, 246),
+                "timepilot-exit" => Color.FromArgb(100, 116, 139),
+                _ => Color.FromArgb(107, 114, 128)
+            };
+        }
+
+        private static string GetSystemEventTypeText(string eventType)
+        {
+            return eventType.ToLowerInvariant() switch
+            {
+                "lock" => UiText.Main.SystemEventLock,
+                "unlock" => UiText.Main.SystemEventUnlock,
+                "logon" => UiText.Main.SystemEventLogon,
+                "logoff" => UiText.Main.SystemEventLogoff,
+                "suspend" => UiText.Main.SystemEventSuspend,
+                "resume" => UiText.Main.SystemEventResume,
+                "timepilot-start" => UiText.Main.SystemEventTimePilotStart,
+                "timepilot-exit" => UiText.Main.SystemEventTimePilotExit,
+                "system-shutdown" => UiText.Main.ShutdownReasonSystemShutdown,
+                _ => eventType
+            };
         }
 
         private static bool TryParseColor(string? value, out Color color)

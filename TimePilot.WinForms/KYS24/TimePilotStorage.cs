@@ -1446,6 +1446,45 @@ namespace TimePilot.WinForms.KYS24
                 .ToList();
         }
 
+        public IReadOnlyList<SystemTimelineEvent> GetSystemTimelineEventsForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var dayStart = new DateTimeOffset(localDate.Date, TimeZoneInfo.Local.GetUtcOffset(localDate.Date));
+            var dayEndDate = localDate.Date.AddDays(1);
+            var dayEnd = new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate));
+
+            if (dayEnd > now)
+                dayEnd = now;
+
+            if (dayEnd <= dayStart)
+                return Array.Empty<SystemTimelineEvent>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT occurred_at,
+                       event_type,
+                       details
+                FROM system_events
+                WHERE occurred_at >= $dayStart
+                  AND occurred_at < $dayEnd
+                ORDER BY occurred_at;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            var events = new List<SystemTimelineEvent>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                events.Add(new SystemTimelineEvent(
+                    ParseTimestamp(reader.GetString(0)),
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2)));
+            }
+
+            return events;
+        }
+
         private void AddUntrackedTimelineRows(
             SqliteConnection connection,
             List<ActivityTimelineRow> rows,

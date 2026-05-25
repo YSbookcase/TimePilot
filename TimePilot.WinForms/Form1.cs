@@ -40,6 +40,7 @@ namespace TimePilot.WinForms
         private DateTime selectedTimelineDate = DateTime.Today;
         private int selectedTimelineCategoryBucketMinutes = 30;
         private TimelineActivityTypeHighlight selectedTimelineActivityTypeHighlight = TimelineActivityTypeHighlight.None;
+        private TimelineSystemEventFilter selectedTimelineSystemEventFilter = TimelineSystemEventFilter.All;
         private SortOrder usageSortOrder = SortOrder.Descending;
         private SortOrder dailyUsageTrendSortOrder = SortOrder.Descending;
         private SortOrder timelineSortOrder = SortOrder.Descending;
@@ -78,6 +79,8 @@ namespace TimePilot.WinForms
         private IReadOnlyList<ActivityTimelineRow> currentTimelineRows = Array.Empty<ActivityTimelineRow>();
         private Font? timelineHighlightedRowFont;
         private Form? recordedDatePickerPopupForm;
+        private readonly Label timelineSystemEventFilterLabel = new();
+        private readonly ComboBox timelineSystemEventFilterComboBox = new();
 
         public Form1(bool startMinimizedToTray = false)
         {
@@ -95,6 +98,7 @@ namespace TimePilot.WinForms
             InitializeDateSelectors();
             InitializeTimelineCategoryBucketSelector();
             InitializeTimelineTypeHighlightSelector();
+            InitializeTimelineSystemEventFilterSelector();
             ApplyUiText();
 
             if (IsRunningInDesigner())
@@ -711,6 +715,20 @@ namespace TimePilot.WinForms
             RefreshTimelineTypeHighlightOptions();
         }
 
+        private void InitializeTimelineSystemEventFilterSelector()
+        {
+            timelineSystemEventFilterLabel.AutoSize = true;
+            timelineSystemEventFilterLabel.Margin = new Padding(12, 7, 3, 0);
+            timelineSystemEventFilterComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            timelineSystemEventFilterComboBox.Width = 112;
+            timelineSystemEventFilterComboBox.SelectedIndexChanged += OnTimelineSystemEventFilterComboBoxSelectedIndexChanged;
+            timelineZoomPanel.WrapContents = true;
+            timelineZoomPanel.Height = 64;
+            timelineZoomPanel.Controls.Add(timelineSystemEventFilterLabel);
+            timelineZoomPanel.Controls.Add(timelineSystemEventFilterComboBox);
+            RefreshTimelineSystemEventFilterOptions();
+        }
+
         private void RefreshTimelineTypeHighlightOptions()
         {
             var options = TimelineActivityTypeHighlightOption.GetOptions();
@@ -727,6 +745,24 @@ namespace TimePilot.WinForms
             finally
             {
                 timelineTypeHighlightComboBox.EndUpdate();
+            }
+        }
+
+        private void RefreshTimelineSystemEventFilterOptions()
+        {
+            var options = TimelineSystemEventFilterOption.GetOptions();
+            var selectedIndex = Array.FindIndex(options.ToArray(), option => option.Value == selectedTimelineSystemEventFilter);
+            timelineSystemEventFilterComboBox.BeginUpdate();
+            try
+            {
+                timelineSystemEventFilterComboBox.Items.Clear();
+                timelineSystemEventFilterComboBox.Items.AddRange(options.Cast<object>().ToArray());
+                timelineSystemEventFilterComboBox.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+                selectedTimelineSystemEventFilter = ((TimelineSystemEventFilterOption)timelineSystemEventFilterComboBox.SelectedItem!).Value;
+            }
+            finally
+            {
+                timelineSystemEventFilterComboBox.EndUpdate();
             }
         }
 
@@ -774,6 +810,11 @@ namespace TimePilot.WinForms
                 new[]
                 {
                     new TimelineRange(DateTimeOffset.Now.AddHours(-3), DateTimeOffset.Now)
+                },
+                new[]
+                {
+                    new SystemTimelineEvent(DateTimeOffset.Now.AddHours(-2.5), "timepilot-start", "Preview"),
+                    new SystemTimelineEvent(DateTimeOffset.Now.AddMinutes(-50), "lock", "Preview")
                 },
                 new[]
                 {
@@ -942,11 +983,13 @@ namespace TimePilot.WinForms
             timelineHelpButton.Text = UiText.Main.TimelineHelp;
             timelineCategoryBucketLabel.Text = UiText.Main.TimelineCategoryBucket;
             timelineTypeHighlightLabel.Text = settings.UiLanguage == UiLanguage.English ? "Highlight type" : "유형 강조";
+            timelineSystemEventFilterLabel.Text = settings.UiLanguage == UiLanguage.English ? "Windows event" : "Windows 이벤트";
             timelineOverviewControl.Invalidate();
             UpdateTimelineZoomControls();
             UpdateTimelineHighlightUi();
             RefreshTimelineCategoryBucketOptions();
             RefreshTimelineTypeHighlightOptions();
+            RefreshTimelineSystemEventFilterOptions();
 
             dailyUsageDateColumn.HeaderText = UiText.Main.Date;
             dailyUsageActiveTimeColumn.HeaderText = UiText.Main.TotalActiveUsageTime;
@@ -1109,6 +1152,9 @@ namespace TimePilot.WinForms
                     var windowsRuntimeRanges = selectedTab == timelineTab
                         ? storage.GetWindowsRuntimeRangesForDate(timelineDate, observedAt)
                         : null;
+                    var systemTimelineEvents = selectedTab == timelineTab
+                        ? storage.GetSystemTimelineEventsForDate(timelineDate, observedAt)
+                        : null;
                     var categoryTimelineSegments = selectedTab == timelineTab
                         ? storage.GetCategoryTimelineSegmentsForDate(
                             timelineDate,
@@ -1148,6 +1194,7 @@ namespace TimePilot.WinForms
                         timelineDateHasData,
                         timelineRows,
                         windowsRuntimeRanges,
+                        systemTimelineEvents,
                         categoryTimelineSegments,
                         timelineForegroundUsage,
                         runtimeRows,
@@ -1192,6 +1239,7 @@ namespace TimePilot.WinForms
                     selectedTimelineDate,
                     snapshot.TimelineRows,
                     snapshot.WindowsRuntimeRanges ?? Array.Empty<TimelineRange>(),
+                    FilterSystemTimelineEvents(snapshot.SystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>()),
                     snapshot.CategoryTimelineSegments ?? Array.Empty<CategoryTimelineSegment>());
                 timelineOverviewControl.SetHighlightedProcessName(highlightedTimelineProcessName);
                 SetGridDataSourcePreservingView(
@@ -1870,6 +1918,16 @@ namespace TimePilot.WinForms
             timelineGrid.Invalidate();
         }
 
+        private void OnTimelineSystemEventFilterComboBoxSelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (timelineSystemEventFilterComboBox.SelectedItem is not TimelineSystemEventFilterOption option
+                || option.Value == selectedTimelineSystemEventFilter)
+                return;
+
+            selectedTimelineSystemEventFilter = option.Value;
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
         private void OnTimelineTypeHighlightComboBoxDropDownClosed(object? sender, EventArgs e)
         {
             if (timelineTypeHighlightComboBox.SelectedItem is TimelineActivityTypeHighlightOption
@@ -2157,6 +2215,29 @@ namespace TimePilot.WinForms
             }
 
             return processMatches && typeMatches;
+        }
+
+        private IReadOnlyList<SystemTimelineEvent> FilterSystemTimelineEvents(IReadOnlyList<SystemTimelineEvent> events)
+        {
+            if (selectedTimelineSystemEventFilter == TimelineSystemEventFilter.All)
+                return events;
+
+            return events
+                .Where(systemEvent => MatchesTimelineSystemEventFilter(systemEvent.EventType, selectedTimelineSystemEventFilter))
+                .ToList();
+        }
+
+        private static bool MatchesTimelineSystemEventFilter(string eventType, TimelineSystemEventFilter filter)
+        {
+            var normalized = eventType.ToLowerInvariant();
+            return filter switch
+            {
+                TimelineSystemEventFilter.Lock => normalized is "lock" or "unlock" or "logon" or "logoff",
+                TimelineSystemEventFilter.Power => normalized is "suspend" or "resume" or "power-status-change" or "power-mode",
+                TimelineSystemEventFilter.Shutdown => normalized is "system-shutdown",
+                TimelineSystemEventFilter.TimePilot => normalized is "timepilot-start" or "timepilot-exit",
+                _ => true
+            };
         }
 
         private void UpdateTimelineHighlightSummary()
@@ -3180,6 +3261,7 @@ namespace TimePilot.WinForms
                     selectedTimelineDate,
                     Array.Empty<ActivityTimelineRow>(),
                     Array.Empty<TimelineRange>(),
+                    Array.Empty<SystemTimelineEvent>(),
                     Array.Empty<CategoryTimelineSegment>());
                 SetGridDataSourcePreservingView(timelineGrid, Array.Empty<ActivityTimelineRow>());
                 SetGridDataSourcePreservingView(runtimeGrid, Array.Empty<ProcessRuntimeSummaryRow>());
@@ -3454,6 +3536,7 @@ namespace TimePilot.WinForms
             bool? TimelineDateHasData,
             IReadOnlyList<ActivityTimelineRow>? TimelineRows,
             IReadOnlyList<TimelineRange>? WindowsRuntimeRanges,
+            IReadOnlyList<SystemTimelineEvent>? SystemTimelineEvents,
             IReadOnlyList<CategoryTimelineSegment>? CategoryTimelineSegments,
             IReadOnlyList<ForegroundUsageSummary>? TimelineForegroundUsage,
             IReadOnlyList<ProcessRuntimeSummaryRow>? RuntimeRows,
@@ -3491,6 +3574,24 @@ namespace TimePilot.WinForms
                     new(UiText.Main.Idle, TimelineActivityTypeHighlight.Idle),
                     new(UiText.Main.Untracked, TimelineActivityTypeHighlight.Untracked),
                     new(UiText.Main.WindowsRuntimeTrack, TimelineActivityTypeHighlight.Windows)
+                ];
+            }
+        }
+
+        private sealed record TimelineSystemEventFilterOption(string Label, TimelineSystemEventFilter Value)
+        {
+            public override string ToString() => Label;
+
+            public static IReadOnlyList<TimelineSystemEventFilterOption> GetOptions()
+            {
+                var isEnglish = UiText.CurrentLanguage == UiLanguage.English;
+                return
+                [
+                    new(isEnglish ? "All events" : "전체 이벤트", TimelineSystemEventFilter.All),
+                    new(isEnglish ? "Lock/logon" : "잠금/로그온", TimelineSystemEventFilter.Lock),
+                    new(isEnglish ? "Sleep/resume" : "절전/복귀", TimelineSystemEventFilter.Power),
+                    new(isEnglish ? "Shutdown" : "종료/재시작", TimelineSystemEventFilter.Shutdown),
+                    new(isEnglish ? "TimePilot" : "TimePilot", TimelineSystemEventFilter.TimePilot)
                 ];
             }
         }
