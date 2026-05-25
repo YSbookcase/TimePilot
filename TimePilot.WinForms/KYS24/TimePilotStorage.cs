@@ -1867,7 +1867,12 @@ namespace TimePilot.WinForms.KYS24
         public IReadOnlyList<ProcessRuntimeSegmentExportRow> GetProcessRuntimeSegmentExportsForDay(DateTimeOffset now)
         {
             var localDayStart = now.ToLocalTime().Date;
-            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
+            return GetProcessRuntimeSegmentExportsForDate(localDayStart, now);
+        }
+
+        public IReadOnlyList<ProcessRuntimeSegmentExportRow> GetProcessRuntimeSegmentExportsForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var dayStart = new DateTimeOffset(localDate.Date, TimeZoneInfo.Local.GetUtcOffset(localDate.Date));
             var dayEnd = dayStart.AddDays(1);
 
             using var connection = OpenConnection();
@@ -1875,6 +1880,7 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 SELECT
                     a.display_name,
+                    c.name,
                     a.process_name,
                     prs.started_at,
                     prs.ended_at,
@@ -1883,6 +1889,7 @@ namespace TimePilot.WinForms.KYS24
                     prs.is_current_session_process
                 FROM process_runtime_sessions prs
                 INNER JOIN apps a ON a.id = prs.app_id
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
                 WHERE prs.started_at < $dayEnd
                   AND COALESCE(prs.ended_at, prs.last_observed_at, prs.started_at) > $dayStart
                 ORDER BY prs.started_at DESC;
@@ -1895,24 +1902,31 @@ namespace TimePilot.WinForms.KYS24
             while (reader.Read())
             {
                 var appName = reader.GetString(0);
-                var processName = reader.GetString(1);
-                var startedAt = ParseTimestamp(reader.GetString(2));
-                DateTimeOffset? endedAt = reader.IsDBNull(3) ? null : ParseTimestamp(reader.GetString(3));
-                var observedEnd = endedAt ?? now;
+                var categoryName = reader.IsDBNull(1) ? null : reader.GetString(1);
+                var processName = reader.GetString(2);
+                var startedAt = ParseTimestamp(reader.GetString(3));
+                DateTimeOffset? endedAt = reader.IsDBNull(4) ? null : ParseTimestamp(reader.GetString(4));
+                var lastObservedAt = reader.IsDBNull(5) ? startedAt : ParseTimestamp(reader.GetString(5));
+                var observedEnd = endedAt ?? Min(lastObservedAt, now);
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(observedEnd, dayEnd);
                 var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
                 if (durationMs <= 0 && endedAt is not null)
                     continue;
 
+                DateTimeOffset? exportedEnd = endedAt is null && now < dayEnd && observedEnd == now
+                    ? null
+                    : effectiveEnd;
+
                 rows.Add(new ProcessRuntimeSegmentExportRow(
                     appName,
+                    categoryName,
                     processName,
                     effectiveStart,
-                    endedAt,
+                    exportedEnd,
                     durationMs,
-                    !reader.IsDBNull(5) && reader.GetInt32(5) == 1,
-                    !reader.IsDBNull(6) && reader.GetInt32(6) == 1));
+                    !reader.IsDBNull(6) && reader.GetInt32(6) == 1,
+                    !reader.IsDBNull(7) && reader.GetInt32(7) == 1));
             }
 
             return rows;
