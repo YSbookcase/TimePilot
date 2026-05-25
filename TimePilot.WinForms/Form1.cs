@@ -3302,11 +3302,17 @@ namespace TimePilot.WinForms
                 return;
 
             var now = DateTimeOffset.UtcNow;
+            var today = now.ToLocalTime().Date;
+            using var rangeDialog = new CsvExportRangeForm(today, settings.UiLanguage, GetRecordedDates);
+            if (rangeDialog.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            var rangeText = FormatCsvExportRangeForFileName(rangeDialog.StartDate, rangeDialog.EndDate);
             using var dialog = new SaveFileDialog
             {
                 AddExtension = true,
                 DefaultExt = "csv",
-                FileName = $"TimePilot-usage-{now.ToLocalTime():yyyy-MM-dd}.csv",
+                FileName = $"TimePilot-usage-{rangeText}.csv",
                 Filter = UiText.Main.CsvFilter,
                 OverwritePrompt = false,
                 Title = UiText.Main.CsvExportTitle
@@ -3318,7 +3324,7 @@ namespace TimePilot.WinForms
             try
             {
                 var exporter = new UsageCsvExporter(storage);
-                var exportedFiles = exporter.ExportToday(dialog.FileName, now);
+                var exportedFiles = exporter.ExportRange(dialog.FileName, rangeDialog.StartDate, rangeDialog.EndDate, now);
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.CsvExportCompleted(exportedFiles.Count, Path.GetDirectoryName(dialog.FileName)),
@@ -3335,6 +3341,13 @@ namespace TimePilot.WinForms
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
             }
+        }
+
+        private static string FormatCsvExportRangeForFileName(DateTime startDate, DateTime endDate)
+        {
+            return startDate.Date == endDate.Date
+                ? startDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
+                : $"{startDate:yyyy-MM-dd}_to_{endDate:yyyy-MM-dd}";
         }
 
         private void OnExportRawDataMenuItemClick(object? sender, EventArgs e)

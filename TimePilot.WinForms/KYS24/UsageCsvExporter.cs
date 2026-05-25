@@ -16,6 +16,12 @@ namespace TimePilot.WinForms.KYS24
 
         public IReadOnlyList<string> ExportToday(string baseFilePath, DateTimeOffset now)
         {
+            var today = now.ToLocalTime().Date;
+            return ExportRange(baseFilePath, today, today, now);
+        }
+
+        public IReadOnlyList<string> ExportRange(string baseFilePath, DateTime startDate, DateTime endDate, DateTimeOffset now)
+        {
             var directory = Path.GetDirectoryName(baseFilePath);
             if (string.IsNullOrWhiteSpace(directory))
                 directory = Environment.CurrentDirectory;
@@ -24,23 +30,25 @@ namespace TimePilot.WinForms.KYS24
 
             var baseName = Path.GetFileNameWithoutExtension(baseFilePath);
             if (string.IsNullOrWhiteSpace(baseName))
-                baseName = $"TimePilot-usage-{now.ToLocalTime():yyyy-MM-dd}";
+                baseName = $"TimePilot-usage-{FormatDateRangeForFileName(startDate, endDate)}";
 
             var summaryPath = Path.Combine(directory, $"{baseName}-summary.csv");
             var timelinePath = Path.Combine(directory, $"{baseName}-timeline.csv");
             var runtimeSegmentsPath = Path.Combine(directory, $"{baseName}-runtime-segments.csv");
 
-            ExportSummary(summaryPath, now);
-            ExportTimeline(timelinePath, now);
-            ExportRuntimeSegments(runtimeSegmentsPath, now);
+            ExportSummary(summaryPath, startDate, endDate);
+            ExportTimeline(timelinePath, startDate, endDate, now);
+            ExportRuntimeSegments(runtimeSegmentsPath, startDate, endDate, now);
 
             return [summaryPath, timelinePath, runtimeSegmentsPath];
         }
 
-        private void ExportSummary(string path, DateTimeOffset now)
+        private void ExportSummary(string path, DateTime startDate, DateTime endDate)
         {
-            var dateText = FormatDate(now);
-            var rows = UsageSummaryRowBuilder.FromForegroundUsage(storage.GetForegroundUsageForDay(now));
+            var dateText = FormatDateRange(startDate, endDate);
+            var periodStart = CreateLocalDateTimeOffset(startDate);
+            var periodEnd = CreateLocalDateTimeOffset(endDate.AddDays(1));
+            var rows = UsageSummaryRowBuilder.FromForegroundUsage(storage.GetForegroundUsageForPeriod(periodStart, periodEnd));
             WriteCsv(
                 path,
                 [
@@ -68,10 +76,10 @@ namespace TimePilot.WinForms.KYS24
                 }));
         }
 
-        private void ExportTimeline(string path, DateTimeOffset now)
+        private void ExportTimeline(string path, DateTime startDate, DateTime endDate, DateTimeOffset now)
         {
-            var dateText = FormatDate(now);
-            var rows = storage.GetActivityTimelineForDay(now)
+            var rows = EnumerateDates(startDate, endDate)
+                .SelectMany(date => storage.GetActivityTimelineForDate(date, now))
                 .OrderByDescending(row => row.StartedAt)
                 .ToList();
             WriteCsv(
@@ -89,7 +97,7 @@ namespace TimePilot.WinForms.KYS24
                 ],
                 rows.Select(row => new[]
                 {
-                    dateText,
+                    FormatDate(row.StartedAt),
                     FormatDateTime(row.StartedAt),
                     FormatDateTime(row.EndedAt),
                     FormatTime(row.StartedAt),
@@ -101,10 +109,10 @@ namespace TimePilot.WinForms.KYS24
                 }));
         }
 
-        private void ExportRuntimeSegments(string path, DateTimeOffset now)
+        private void ExportRuntimeSegments(string path, DateTime startDate, DateTime endDate, DateTimeOffset now)
         {
-            var dateText = FormatDate(now);
-            var rows = storage.GetProcessRuntimeSegmentExportsForDay(now)
+            var rows = EnumerateDates(startDate, endDate)
+                .SelectMany(date => storage.GetProcessRuntimeSegmentExportsForDate(date, now))
                 .OrderByDescending(row => row.StartedAt)
                 .ToList();
             WriteCsv(
@@ -112,25 +120,31 @@ namespace TimePilot.WinForms.KYS24
                 [
                     UiText.Csv.Date,
                     UiText.Csv.AppName,
-                    UiText.Csv.ProcessName,
+                    UiText.Csv.Category,
+                    UiText.Main.Type,
+                    UiText.Csv.Status,
+                    UiText.Csv.Runtime,
                     UiText.Csv.StartedAt,
                     UiText.Csv.EndedAt,
                     UiText.Csv.StartTime,
                     UiText.Csv.EndTime,
-                    UiText.Csv.Runtime,
-                    UiText.Csv.Status
+                    UiText.Csv.ProcessName,
                 ],
                 rows.Select(row => new[]
                 {
-                    dateText,
+                    FormatDate(row.StartedAt),
                     row.AppName,
-                    row.ProcessName,
+                    string.IsNullOrWhiteSpace(row.CategoryName)
+                        ? UiText.Main.Uncategorized
+                        : AppCategoryDisplay.GetDisplayName(row.CategoryName),
+                    GetRuntimeTrackingType(row),
+                    row.EndedAt is null ? UiText.Csv.Running : UiText.Csv.Ended,
+                    FormatDuration(row.DurationMs),
                     FormatDateTime(row.StartedAt),
                     FormatDateTime(row.EndedAt),
                     FormatTime(row.StartedAt),
                     FormatTime(row.EndedAt),
-                    FormatDuration(row.DurationMs),
-                    row.EndedAt is null ? UiText.Csv.Running : UiText.Csv.Ended
+                    row.ProcessName,
                 }));
         }
 
@@ -157,6 +171,39 @@ namespace TimePilot.WinForms.KYS24
         private static string FormatDate(DateTimeOffset timestamp)
         {
             return timestamp.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.CurrentCulture);
+        }
+
+        private static string GetRuntimeTrackingType(ProcessRuntimeSegmentExportRow row)
+        {
+            if (row.HasMainWindow)
+                return UiText.Main.WindowedApp;
+
+            return row.IsCurrentSessionProcess ? UiText.Main.UserProcess : UiText.Main.AllProcesses;
+        }
+
+        private static string FormatDateRange(DateTime startDate, DateTime endDate)
+        {
+            return startDate.Date == endDate.Date
+                ? startDate.ToString("yyyy-MM-dd", CultureInfo.CurrentCulture)
+                : $"{startDate:yyyy-MM-dd}~{endDate:yyyy-MM-dd}";
+        }
+
+        private static string FormatDateRangeForFileName(DateTime startDate, DateTime endDate)
+        {
+            return startDate.Date == endDate.Date
+                ? startDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                : $"{startDate:yyyy-MM-dd}_to_{endDate:yyyy-MM-dd}";
+        }
+
+        private static DateTimeOffset CreateLocalDateTimeOffset(DateTime localDate)
+        {
+            return new DateTimeOffset(localDate.Date, TimeZoneInfo.Local.GetUtcOffset(localDate.Date));
+        }
+
+        private static IEnumerable<DateTime> EnumerateDates(DateTime startDate, DateTime endDate)
+        {
+            for (var date = startDate.Date; date <= endDate.Date; date = date.AddDays(1))
+                yield return date;
         }
 
         private static string FormatTime(DateTimeOffset? timestamp)

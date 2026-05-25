@@ -2,6 +2,7 @@ namespace TimePilot.WinForms.KYS24
 {
     internal sealed record ProcessRuntimeSegmentExportRow(
         string AppName,
+        string? CategoryName,
         string ProcessName,
         DateTimeOffset StartedAt,
         DateTimeOffset? EndedAt,
