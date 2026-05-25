@@ -1840,7 +1840,7 @@ namespace TimePilot.WinForms
 
         private void OnTimelineHighlightClearButtonClick(object? sender, EventArgs e)
         {
-            ClearTimelineHighlight();
+            ClearTimelineHighlights(resetTypeHighlight: true);
         }
 
         private void OnTimelineCategoryBucketComboBoxSelectedIndexChanged(object? sender, EventArgs e)
@@ -1862,14 +1862,23 @@ namespace TimePilot.WinForms
             selectedTimelineActivityTypeHighlight = option.Value;
             if (selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.None)
             {
-                highlightedTimelineProcessName = null;
-                highlightedTimelineAppName = null;
-                timelineOverviewControl.SetHighlightedProcessName(null);
-                UpdateTimelineHighlightUi();
+                ClearTimelineHighlights(resetTypeHighlight: false);
+                return;
             }
 
             ApplyTimelineActivityTypeHighlight();
             timelineGrid.Invalidate();
+        }
+
+        private void OnTimelineTypeHighlightComboBoxDropDownClosed(object? sender, EventArgs e)
+        {
+            if (timelineTypeHighlightComboBox.SelectedItem is TimelineActivityTypeHighlightOption
+                {
+                    Value: TimelineActivityTypeHighlight.None
+                })
+            {
+                ClearTimelineHighlights(resetTypeHighlight: false);
+            }
         }
 
         private void OnTimelineGridCellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
@@ -1909,20 +1918,39 @@ namespace TimePilot.WinForms
             if (string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase))
             {
                 var clearHighlightItem = new ToolStripMenuItem(UiText.Main.ClearTimelineHighlight);
-                clearHighlightItem.Click += (_, _) => ClearTimelineHighlight();
+                clearHighlightItem.Click += (_, _) => ClearTimelineHighlights(resetTypeHighlight: true);
                 timelineGridMenu.Items.Add(clearHighlightItem);
             }
 
             timelineGridMenu.Show(owner, location);
         }
 
-        private void ClearTimelineHighlight()
+        private void ClearTimelineHighlights(bool resetTypeHighlight)
         {
             highlightedTimelineProcessName = null;
             highlightedTimelineAppName = null;
             timelineOverviewControl.SetHighlightedProcessName(null);
+            if (resetTypeHighlight)
+                SetTimelineTypeHighlight(TimelineActivityTypeHighlight.None);
+
+            ApplyTimelineActivityTypeHighlight();
+
             UpdateTimelineHighlightUi();
             timelineGrid.Invalidate();
+        }
+
+        private void SetTimelineTypeHighlight(TimelineActivityTypeHighlight value)
+        {
+            selectedTimelineActivityTypeHighlight = value;
+            for (var i = 0; i < timelineTypeHighlightComboBox.Items.Count; i++)
+            {
+                if (timelineTypeHighlightComboBox.Items[i] is TimelineActivityTypeHighlightOption option
+                    && option.Value == value)
+                {
+                    timelineTypeHighlightComboBox.SelectedIndex = i;
+                    break;
+                }
+            }
         }
 
         private void ApplyDetailDate(DateTime date)

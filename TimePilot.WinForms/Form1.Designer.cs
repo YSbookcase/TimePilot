@@ -1295,6 +1295,7 @@
             timelineTypeHighlightComboBox.Name = "timelineTypeHighlightComboBox";
             timelineTypeHighlightComboBox.Size = new Size(96, 23);
             timelineTypeHighlightComboBox.TabIndex = 10;
+            timelineTypeHighlightComboBox.DropDownClosed += OnTimelineTypeHighlightComboBoxDropDownClosed;
             timelineTypeHighlightComboBox.SelectedIndexChanged += OnTimelineTypeHighlightComboBoxSelectedIndexChanged;
             //
             // timelineHighlightSummaryPanel
