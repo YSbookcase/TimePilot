@@ -1860,6 +1860,14 @@ namespace TimePilot.WinForms
                 return;
 
             selectedTimelineActivityTypeHighlight = option.Value;
+            if (selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.None)
+            {
+                highlightedTimelineProcessName = null;
+                highlightedTimelineAppName = null;
+                timelineOverviewControl.SetHighlightedProcessName(null);
+                UpdateTimelineHighlightUi();
+            }
+
             ApplyTimelineActivityTypeHighlight();
             timelineGrid.Invalidate();
         }
