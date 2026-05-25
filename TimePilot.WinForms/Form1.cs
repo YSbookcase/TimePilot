@@ -813,6 +813,10 @@ namespace TimePilot.WinForms
                 },
                 new[]
                 {
+                    new SystemTimelineRange(DateTimeOffset.Now.AddHours(-1.5), DateTimeOffset.Now.AddHours(-1.25), SystemTimelineRangeType.LockSession)
+                },
+                new[]
+                {
                     new SystemTimelineEvent(DateTimeOffset.Now.AddHours(-2.5), "timepilot-start", "Preview"),
                     new SystemTimelineEvent(DateTimeOffset.Now.AddMinutes(-50), "lock", "Preview")
                 },
@@ -1155,6 +1159,9 @@ namespace TimePilot.WinForms
                     var systemTimelineEvents = selectedTab == timelineTab
                         ? storage.GetSystemTimelineEventsForDate(timelineDate, observedAt)
                         : null;
+                    var systemTimelineRanges = selectedTab == timelineTab
+                        ? storage.GetSystemTimelineRangesForDate(timelineDate, observedAt)
+                        : null;
                     var categoryTimelineSegments = selectedTab == timelineTab
                         ? storage.GetCategoryTimelineSegmentsForDate(
                             timelineDate,
@@ -1194,6 +1201,7 @@ namespace TimePilot.WinForms
                         timelineDateHasData,
                         timelineRows,
                         windowsRuntimeRanges,
+                        systemTimelineRanges,
                         systemTimelineEvents,
                         categoryTimelineSegments,
                         timelineForegroundUsage,
@@ -1239,6 +1247,7 @@ namespace TimePilot.WinForms
                     selectedTimelineDate,
                     snapshot.TimelineRows,
                     snapshot.WindowsRuntimeRanges ?? Array.Empty<TimelineRange>(),
+                    FilterSystemTimelineRanges(snapshot.SystemTimelineRanges ?? Array.Empty<SystemTimelineRange>()),
                     FilterSystemTimelineEvents(snapshot.SystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>()),
                     snapshot.CategoryTimelineSegments ?? Array.Empty<CategoryTimelineSegment>());
                 timelineOverviewControl.SetHighlightedProcessName(highlightedTimelineProcessName);
@@ -2225,6 +2234,17 @@ namespace TimePilot.WinForms
             return events
                 .Where(systemEvent => MatchesTimelineSystemEventFilter(systemEvent.EventType, selectedTimelineSystemEventFilter))
                 .ToList();
+        }
+
+        private IReadOnlyList<SystemTimelineRange> FilterSystemTimelineRanges(IReadOnlyList<SystemTimelineRange> ranges)
+        {
+            return selectedTimelineSystemEventFilter switch
+            {
+                TimelineSystemEventFilter.All => ranges,
+                TimelineSystemEventFilter.Lock => ranges.Where(range => range.RangeType == SystemTimelineRangeType.LockSession).ToList(),
+                TimelineSystemEventFilter.Power => ranges.Where(range => range.RangeType == SystemTimelineRangeType.SleepEstimate).ToList(),
+                _ => Array.Empty<SystemTimelineRange>()
+            };
         }
 
         private static bool MatchesTimelineSystemEventFilter(string eventType, TimelineSystemEventFilter filter)
@@ -3261,6 +3281,7 @@ namespace TimePilot.WinForms
                     selectedTimelineDate,
                     Array.Empty<ActivityTimelineRow>(),
                     Array.Empty<TimelineRange>(),
+                    Array.Empty<SystemTimelineRange>(),
                     Array.Empty<SystemTimelineEvent>(),
                     Array.Empty<CategoryTimelineSegment>());
                 SetGridDataSourcePreservingView(timelineGrid, Array.Empty<ActivityTimelineRow>());
@@ -3536,6 +3557,7 @@ namespace TimePilot.WinForms
             bool? TimelineDateHasData,
             IReadOnlyList<ActivityTimelineRow>? TimelineRows,
             IReadOnlyList<TimelineRange>? WindowsRuntimeRanges,
+            IReadOnlyList<SystemTimelineRange>? SystemTimelineRanges,
             IReadOnlyList<SystemTimelineEvent>? SystemTimelineEvents,
             IReadOnlyList<CategoryTimelineSegment>? CategoryTimelineSegments,
             IReadOnlyList<ForegroundUsageSummary>? TimelineForegroundUsage,

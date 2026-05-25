@@ -1485,6 +1485,87 @@ namespace TimePilot.WinForms.KYS24
             return events;
         }
 
+        public IReadOnlyList<SystemTimelineRange> GetSystemTimelineRangesForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var dayStart = new DateTimeOffset(localDate.Date, TimeZoneInfo.Local.GetUtcOffset(localDate.Date));
+            var dayEndDate = localDate.Date.AddDays(1);
+            var dayEnd = new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate));
+
+            if (dayEnd > now)
+                dayEnd = now;
+
+            if (dayEnd <= dayStart)
+                return Array.Empty<SystemTimelineRange>();
+
+            var lookbackStart = dayStart.AddDays(-1);
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT occurred_at,
+                       event_type
+                FROM system_events
+                WHERE occurred_at >= $lookbackStart
+                  AND occurred_at < $dayEnd
+                ORDER BY occurred_at;
+                """;
+            command.Parameters.AddWithValue("$lookbackStart", FormatTimestamp(lookbackStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            var ranges = new List<SystemTimelineRange>();
+            DateTimeOffset? sleepStartedAt = null;
+            DateTimeOffset? lockStartedAt = null;
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var occurredAt = ParseTimestamp(reader.GetString(0));
+                var eventType = reader.GetString(1).ToLowerInvariant();
+                switch (eventType)
+                {
+                    case "suspend":
+                        sleepStartedAt = occurredAt;
+                        break;
+                    case "resume":
+                        AddSystemTimelineRange(ranges, sleepStartedAt, occurredAt, dayStart, dayEnd, SystemTimelineRangeType.SleepEstimate);
+                        sleepStartedAt = null;
+                        break;
+                    case "lock":
+                        lockStartedAt = occurredAt;
+                        break;
+                    case "unlock":
+                    case "logon":
+                        AddSystemTimelineRange(ranges, lockStartedAt, occurredAt, dayStart, dayEnd, SystemTimelineRangeType.LockSession);
+                        lockStartedAt = null;
+                        break;
+                    case "logoff":
+                    case "system-shutdown":
+                        lockStartedAt = null;
+                        sleepStartedAt = null;
+                        break;
+                }
+            }
+
+            return ranges;
+        }
+
+        private static void AddSystemTimelineRange(
+            ICollection<SystemTimelineRange> ranges,
+            DateTimeOffset? startedAt,
+            DateTimeOffset endedAt,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd,
+            SystemTimelineRangeType rangeType)
+        {
+            if (startedAt is not { } start || endedAt <= start)
+                return;
+
+            var effectiveStart = Max(start, dayStart);
+            var effectiveEnd = Min(endedAt, dayEnd);
+            if (effectiveEnd <= effectiveStart)
+                return;
+
+            ranges.Add(new SystemTimelineRange(effectiveStart, effectiveEnd, rangeType));
+        }
+
         private void AddUntrackedTimelineRows(
             SqliteConnection connection,
             List<ActivityTimelineRow> rows,
