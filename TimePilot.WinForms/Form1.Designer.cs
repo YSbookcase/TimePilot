@@ -119,6 +119,8 @@
             timelineHelpButton = new Button();
             timelineCategoryBucketLabel = new Label();
             timelineCategoryBucketComboBox = new ComboBox();
+            timelineTypeHighlightLabel = new Label();
+            timelineTypeHighlightComboBox = new ComboBox();
             timelineHighlightSummaryPanel = new FlowLayoutPanel();
             timelineHighlightSummaryLabel = new Label();
             timelineZoomScrollBar = new HScrollBar();
@@ -1170,6 +1172,8 @@
             timelineZoomPanel.Controls.Add(timelineHelpButton);
             timelineZoomPanel.Controls.Add(timelineCategoryBucketLabel);
             timelineZoomPanel.Controls.Add(timelineCategoryBucketComboBox);
+            timelineZoomPanel.Controls.Add(timelineTypeHighlightLabel);
+            timelineZoomPanel.Controls.Add(timelineTypeHighlightComboBox);
             timelineZoomPanel.Dock = DockStyle.Top;
             timelineZoomPanel.Location = new Point(3, 39);
             timelineZoomPanel.Name = "timelineZoomPanel";
@@ -1272,6 +1276,27 @@
             timelineCategoryBucketComboBox.Size = new Size(86, 23);
             timelineCategoryBucketComboBox.TabIndex = 8;
             timelineCategoryBucketComboBox.SelectedIndexChanged += OnTimelineCategoryBucketComboBoxSelectedIndexChanged;
+            //
+            // timelineTypeHighlightLabel
+            //
+            timelineTypeHighlightLabel.AutoSize = true;
+            timelineTypeHighlightLabel.Location = new Point(520, 10);
+            timelineTypeHighlightLabel.Margin = new Padding(8, 6, 4, 0);
+            timelineTypeHighlightLabel.Name = "timelineTypeHighlightLabel";
+            timelineTypeHighlightLabel.Size = new Size(59, 15);
+            timelineTypeHighlightLabel.TabIndex = 9;
+            timelineTypeHighlightLabel.Text = "유형 강조";
+            //
+            // timelineTypeHighlightComboBox
+            //
+            timelineTypeHighlightComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            timelineTypeHighlightComboBox.FormattingEnabled = true;
+            timelineTypeHighlightComboBox.Location = new Point(583, 7);
+            timelineTypeHighlightComboBox.Name = "timelineTypeHighlightComboBox";
+            timelineTypeHighlightComboBox.Size = new Size(96, 23);
+            timelineTypeHighlightComboBox.TabIndex = 10;
+            timelineTypeHighlightComboBox.DropDownClosed += OnTimelineTypeHighlightComboBoxDropDownClosed;
+            timelineTypeHighlightComboBox.SelectedIndexChanged += OnTimelineTypeHighlightComboBoxSelectedIndexChanged;
             //
             // timelineHighlightSummaryPanel
             //
@@ -1553,6 +1578,8 @@
         private Button timelineHelpButton;
         private Label timelineCategoryBucketLabel;
         private ComboBox timelineCategoryBucketComboBox;
+        private Label timelineTypeHighlightLabel;
+        private ComboBox timelineTypeHighlightComboBox;
         private FlowLayoutPanel timelineHighlightSummaryPanel;
         private Label timelineHighlightSummaryLabel;
         private HScrollBar timelineZoomScrollBar;

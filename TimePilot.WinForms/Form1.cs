@@ -39,6 +39,7 @@ namespace TimePilot.WinForms
         private DateTime selectedDetailDate = DateTime.Today;
         private DateTime selectedTimelineDate = DateTime.Today;
         private int selectedTimelineCategoryBucketMinutes = 30;
+        private TimelineActivityTypeHighlight selectedTimelineActivityTypeHighlight = TimelineActivityTypeHighlight.None;
         private SortOrder usageSortOrder = SortOrder.Descending;
         private SortOrder dailyUsageTrendSortOrder = SortOrder.Descending;
         private SortOrder timelineSortOrder = SortOrder.Descending;
@@ -93,6 +94,7 @@ namespace TimePilot.WinForms
             InitializeSummaryPeriodSelector();
             InitializeDateSelectors();
             InitializeTimelineCategoryBucketSelector();
+            InitializeTimelineTypeHighlightSelector();
             ApplyUiText();
 
             if (IsRunningInDesigner())
@@ -704,6 +706,30 @@ namespace TimePilot.WinForms
             }
         }
 
+        private void InitializeTimelineTypeHighlightSelector()
+        {
+            RefreshTimelineTypeHighlightOptions();
+        }
+
+        private void RefreshTimelineTypeHighlightOptions()
+        {
+            var options = TimelineActivityTypeHighlightOption.GetOptions();
+            var selectedIndex = Array.FindIndex(options.ToArray(), option => option.Value == selectedTimelineActivityTypeHighlight);
+            timelineTypeHighlightComboBox.BeginUpdate();
+            try
+            {
+                timelineTypeHighlightComboBox.Items.Clear();
+                timelineTypeHighlightComboBox.Items.AddRange(options.Cast<object>().ToArray());
+                timelineTypeHighlightComboBox.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+                selectedTimelineActivityTypeHighlight = ((TimelineActivityTypeHighlightOption)timelineTypeHighlightComboBox.SelectedItem!).Value;
+                ApplyTimelineActivityTypeHighlight();
+            }
+            finally
+            {
+                timelineTypeHighlightComboBox.EndUpdate();
+            }
+        }
+
         private void InitializeRecordedDateCalendar()
         {
             runtimeCoverageSummaryToolTip.SetToolTip(
@@ -915,10 +941,12 @@ namespace TimePilot.WinForms
             timelineZoomResetButton.Text = UiText.Main.TimelineResetView;
             timelineHelpButton.Text = UiText.Main.TimelineHelp;
             timelineCategoryBucketLabel.Text = UiText.Main.TimelineCategoryBucket;
+            timelineTypeHighlightLabel.Text = settings.UiLanguage == UiLanguage.English ? "Highlight type" : "유형 강조";
             timelineOverviewControl.Invalidate();
             UpdateTimelineZoomControls();
             UpdateTimelineHighlightUi();
             RefreshTimelineCategoryBucketOptions();
+            RefreshTimelineTypeHighlightOptions();
 
             dailyUsageDateColumn.HeaderText = UiText.Main.Date;
             dailyUsageActiveTimeColumn.HeaderText = UiText.Main.TotalActiveUsageTime;
@@ -1812,7 +1840,7 @@ namespace TimePilot.WinForms
 
         private void OnTimelineHighlightClearButtonClick(object? sender, EventArgs e)
         {
-            ClearTimelineHighlight();
+            ClearTimelineHighlights(resetTypeHighlight: true);
         }
 
         private void OnTimelineCategoryBucketComboBoxSelectedIndexChanged(object? sender, EventArgs e)
@@ -1823,6 +1851,34 @@ namespace TimePilot.WinForms
 
             selectedTimelineCategoryBucketMinutes = option.Minutes;
             RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void OnTimelineTypeHighlightComboBoxSelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (timelineTypeHighlightComboBox.SelectedItem is not TimelineActivityTypeHighlightOption option
+                || option.Value == selectedTimelineActivityTypeHighlight)
+                return;
+
+            selectedTimelineActivityTypeHighlight = option.Value;
+            if (selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.None)
+            {
+                ClearTimelineHighlights(resetTypeHighlight: false);
+                return;
+            }
+
+            ApplyTimelineActivityTypeHighlight();
+            timelineGrid.Invalidate();
+        }
+
+        private void OnTimelineTypeHighlightComboBoxDropDownClosed(object? sender, EventArgs e)
+        {
+            if (timelineTypeHighlightComboBox.SelectedItem is TimelineActivityTypeHighlightOption
+                {
+                    Value: TimelineActivityTypeHighlight.None
+                })
+            {
+                ClearTimelineHighlights(resetTypeHighlight: false);
+            }
         }
 
         private void OnTimelineGridCellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
@@ -1862,20 +1918,39 @@ namespace TimePilot.WinForms
             if (string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase))
             {
                 var clearHighlightItem = new ToolStripMenuItem(UiText.Main.ClearTimelineHighlight);
-                clearHighlightItem.Click += (_, _) => ClearTimelineHighlight();
+                clearHighlightItem.Click += (_, _) => ClearTimelineHighlights(resetTypeHighlight: true);
                 timelineGridMenu.Items.Add(clearHighlightItem);
             }
 
             timelineGridMenu.Show(owner, location);
         }
 
-        private void ClearTimelineHighlight()
+        private void ClearTimelineHighlights(bool resetTypeHighlight)
         {
             highlightedTimelineProcessName = null;
             highlightedTimelineAppName = null;
             timelineOverviewControl.SetHighlightedProcessName(null);
+            if (resetTypeHighlight)
+                SetTimelineTypeHighlight(TimelineActivityTypeHighlight.None);
+
+            ApplyTimelineActivityTypeHighlight();
+
             UpdateTimelineHighlightUi();
             timelineGrid.Invalidate();
+        }
+
+        private void SetTimelineTypeHighlight(TimelineActivityTypeHighlight value)
+        {
+            selectedTimelineActivityTypeHighlight = value;
+            for (var i = 0; i < timelineTypeHighlightComboBox.Items.Count; i++)
+            {
+                if (timelineTypeHighlightComboBox.Items[i] is TimelineActivityTypeHighlightOption option
+                    && option.Value == value)
+                {
+                    timelineTypeHighlightComboBox.SelectedIndex = i;
+                    break;
+                }
+            }
         }
 
         private void ApplyDetailDate(DateTime date)
@@ -2039,6 +2114,51 @@ namespace TimePilot.WinForms
             UpdateTimelineHighlightSummary();
         }
 
+        private string? GetTimelineHighlightedActivityTypeText()
+        {
+            return selectedTimelineActivityTypeHighlight switch
+            {
+                TimelineActivityTypeHighlight.Active => UiText.Main.Active,
+                TimelineActivityTypeHighlight.Idle => UiText.Main.Idle,
+                TimelineActivityTypeHighlight.Untracked => UiText.Main.Untracked,
+                _ => null
+            };
+        }
+
+        private void ApplyTimelineActivityTypeHighlight()
+        {
+            timelineOverviewControl.SetWindowsHighlighted(selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows);
+            if (selectedTimelineActivityTypeHighlight != TimelineActivityTypeHighlight.Windows)
+                timelineOverviewControl.SetHighlightedActivityType(GetTimelineHighlightedActivityTypeText());
+        }
+
+        private bool HasTimelineHighlight()
+        {
+            return !string.IsNullOrWhiteSpace(highlightedTimelineProcessName)
+                || selectedTimelineActivityTypeHighlight != TimelineActivityTypeHighlight.None;
+        }
+
+        private bool IsTimelineRowHighlighted(ActivityTimelineRow row)
+        {
+            if (selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows
+                && string.IsNullOrWhiteSpace(highlightedTimelineProcessName))
+                return false;
+
+            var processMatches = string.IsNullOrWhiteSpace(highlightedTimelineProcessName)
+                || string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase);
+            var typeText = GetTimelineHighlightedActivityTypeText();
+            var typeMatches = typeText is null
+                || string.Equals(row.ActivityType, typeText, StringComparison.Ordinal);
+
+            if (selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Untracked)
+            {
+                typeMatches = string.Equals(row.ActivityType, UiText.Main.Untracked, StringComparison.Ordinal)
+                    || string.Equals(row.ActivityType, UiText.Main.TimePilotUntracked, StringComparison.Ordinal);
+            }
+
+            return processMatches && typeMatches;
+        }
+
         private void UpdateTimelineHighlightSummary()
         {
             if (string.IsNullOrWhiteSpace(highlightedTimelineProcessName))
@@ -2085,7 +2205,8 @@ namespace TimePilot.WinForms
                 return;
 
             var gridRow = timelineGrid.Rows[e.RowIndex];
-            if (highlightedTimelineProcessName is null)
+            if (!HasTimelineHighlight()
+                || selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows)
             {
                 gridRow.DefaultCellStyle.ForeColor = SystemColors.WindowText;
                 gridRow.DefaultCellStyle.BackColor = SystemColors.Window;
@@ -2098,10 +2219,7 @@ namespace TimePilot.WinForms
             if (timelineGrid.Rows[e.RowIndex].DataBoundItem is not ActivityTimelineRow row)
                 return;
 
-            var isHighlighted = string.Equals(
-                row.ProcessName,
-                highlightedTimelineProcessName,
-                StringComparison.OrdinalIgnoreCase);
+            var isHighlighted = IsTimelineRowHighlighted(row);
             gridRow.DefaultCellStyle.ForeColor = isHighlighted
                 ? SystemColors.WindowText
                 : SystemColors.GrayText;
@@ -2121,11 +2239,12 @@ namespace TimePilot.WinForms
 
         private void OnTimelineGridRowPostPaint(object? sender, DataGridViewRowPostPaintEventArgs e)
         {
-            if (highlightedTimelineProcessName is null
+            if (!HasTimelineHighlight()
+                || selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows
                 || e.RowIndex < 0
                 || e.RowIndex >= timelineGrid.Rows.Count
                 || timelineGrid.Rows[e.RowIndex].DataBoundItem is not ActivityTimelineRow row
-                || !string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase))
+                || !IsTimelineRowHighlighted(row))
                 return;
 
             var bounds = GetVisibleTimelineRowCellsBounds(e.RowIndex);
@@ -3355,6 +3474,23 @@ namespace TimePilot.WinForms
                     new(UiText.Main.TimelineCategoryBucketMinutes(30), 30),
                     new(UiText.Main.TimelineCategoryBucketHours(1), 60),
                     new(UiText.Main.TimelineCategoryBucketHours(2), 120)
+                ];
+            }
+        }
+
+        private sealed record TimelineActivityTypeHighlightOption(string Label, TimelineActivityTypeHighlight Value)
+        {
+            public override string ToString() => Label;
+
+            public static IReadOnlyList<TimelineActivityTypeHighlightOption> GetOptions()
+            {
+                return
+                [
+                    new(UiText.Main.ClearTimelineHighlight, TimelineActivityTypeHighlight.None),
+                    new(UiText.Main.Active, TimelineActivityTypeHighlight.Active),
+                    new(UiText.Main.Idle, TimelineActivityTypeHighlight.Idle),
+                    new(UiText.Main.Untracked, TimelineActivityTypeHighlight.Untracked),
+                    new(UiText.Main.WindowsRuntimeTrack, TimelineActivityTypeHighlight.Windows)
                 ];
             }
         }

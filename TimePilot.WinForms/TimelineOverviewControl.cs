@@ -55,6 +55,8 @@ namespace TimePilot.WinForms
         private IReadOnlyList<TimelineRange> windowsRuntimeRanges = Array.Empty<TimelineRange>();
         private IReadOnlyList<CategoryTimelineSegment> categorySegments = Array.Empty<CategoryTimelineSegment>();
         private string? highlightedProcessName;
+        private string? highlightedActivityType;
+        private bool isWindowsHighlighted;
         private DateTime localDate = DateTime.Today;
         private TimeSpan viewStart = TimeSpan.Zero;
         private TimeSpan viewEnd = TimeSpan.FromDays(1);
@@ -116,6 +118,22 @@ namespace TimePilot.WinForms
         public void SetHighlightedProcessName(string? processName)
         {
             highlightedProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName;
+            hoverText = null;
+            Invalidate();
+        }
+
+        public void SetHighlightedActivityType(string? activityType)
+        {
+            highlightedActivityType = string.IsNullOrWhiteSpace(activityType) ? null : activityType;
+            isWindowsHighlighted = false;
+            hoverText = null;
+            Invalidate();
+        }
+
+        public void SetWindowsHighlighted(bool isHighlighted)
+        {
+            highlightedActivityType = null;
+            isWindowsHighlighted = isHighlighted;
             hoverText = null;
             Invalidate();
         }
@@ -391,6 +409,19 @@ namespace TimePilot.WinForms
 
                 graphics.FillRectangle(fillBrush, segment);
                 graphics.DrawRectangle(borderPen, segment);
+
+                if (isWindowsHighlighted)
+                {
+                    using var tintBrush = new SolidBrush(HighlightTintColor);
+                    using var hatchBrush = new System.Drawing.Drawing2D.HatchBrush(
+                        System.Drawing.Drawing2D.HatchStyle.ForwardDiagonal,
+                        HighlightHatchColor,
+                        Color.Transparent);
+                    using var highlightPen = new Pen(HighlightBorderColor, 3);
+                    graphics.FillRectangle(tintBrush, segment);
+                    graphics.FillRectangle(hatchBrush, segment);
+                    graphics.DrawRectangle(highlightPen, segment);
+                }
             }
         }
 
@@ -484,7 +515,10 @@ namespace TimePilot.WinForms
             graphics.FillRectangle(fillBrush, segment);
             graphics.DrawRectangle(borderPen, segment);
 
-            if (highlightedProcessName is null || IsHighlighted(row))
+            if (isWindowsHighlighted && highlightedProcessName is null)
+                return;
+
+            if (!HasHighlight || IsHighlighted(row))
             {
                 if (IsHighlighted(row))
                 {
@@ -588,9 +622,23 @@ namespace TimePilot.WinForms
 
         private bool IsHighlighted(ActivityTimelineRow row)
         {
-            return highlightedProcessName is not null
-                && string.Equals(row.ProcessName, highlightedProcessName, StringComparison.OrdinalIgnoreCase);
+            if (!HasHighlight)
+                return false;
+
+            if (isWindowsHighlighted && highlightedProcessName is null)
+                return false;
+
+            var processMatches = highlightedProcessName is null
+                || string.Equals(row.ProcessName, highlightedProcessName, StringComparison.OrdinalIgnoreCase);
+            var activityTypeMatches = highlightedActivityType is null
+                || string.Equals(row.ActivityType, highlightedActivityType, StringComparison.Ordinal)
+                || (string.Equals(highlightedActivityType, UiText.Main.Untracked, StringComparison.Ordinal)
+                    && string.Equals(row.ActivityType, UiText.Main.TimePilotUntracked, StringComparison.Ordinal));
+
+            return processMatches && activityTypeMatches;
         }
+
+        private bool HasHighlight => highlightedProcessName is not null || highlightedActivityType is not null || isWindowsHighlighted;
 
         private void DrawHoverInfo(Graphics graphics, string text, Rectangle bounds)
         {
