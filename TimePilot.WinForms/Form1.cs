@@ -2205,7 +2205,8 @@ namespace TimePilot.WinForms
                 return;
 
             var gridRow = timelineGrid.Rows[e.RowIndex];
-            if (!HasTimelineHighlight())
+            if (!HasTimelineHighlight()
+                || selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows)
             {
                 gridRow.DefaultCellStyle.ForeColor = SystemColors.WindowText;
                 gridRow.DefaultCellStyle.BackColor = SystemColors.Window;
@@ -2239,6 +2240,7 @@ namespace TimePilot.WinForms
         private void OnTimelineGridRowPostPaint(object? sender, DataGridViewRowPostPaintEventArgs e)
         {
             if (!HasTimelineHighlight()
+                || selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows
                 || e.RowIndex < 0
                 || e.RowIndex >= timelineGrid.Rows.Count
                 || timelineGrid.Rows[e.RowIndex].DataBoundItem is not ActivityTimelineRow row
