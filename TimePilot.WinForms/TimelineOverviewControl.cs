@@ -626,6 +626,9 @@ namespace TimePilot.WinForms
 
         private bool IsHighlighted(ActivityTimelineRow row)
         {
+            if (!HasHighlight)
+                return false;
+
             if (isWindowsHighlighted && highlightedProcessName is null)
                 return false;
 
