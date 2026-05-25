@@ -13,6 +13,10 @@ namespace TimePilot.WinForms
         private static readonly Color WindowsFillColor = Color.FromArgb(198, 225, 246);
         private static readonly Color WindowsBorderColor = Color.FromArgb(87, 137, 184);
         private static readonly Color WindowsEventBorderColor = Color.FromArgb(77, 85, 99);
+        private static readonly Color SleepRangeFillColor = Color.FromArgb(130, 168, 85, 247);
+        private static readonly Color SleepRangeBorderColor = Color.FromArgb(126, 34, 206);
+        private static readonly Color LockRangeFillColor = Color.FromArgb(110, 99, 102, 241);
+        private static readonly Color LockRangeBorderColor = Color.FromArgb(67, 56, 202);
         private static readonly Color DimOverlayColor = Color.FromArgb(220, 255, 255, 255);
         private static readonly Color HighlightTintColor = Color.FromArgb(70, 28, 91, 170);
         private static readonly Color HighlightBorderColor = Color.FromArgb(13, 61, 132);
@@ -54,6 +58,7 @@ namespace TimePilot.WinForms
 
         private IReadOnlyList<ActivityTimelineRow> rows = Array.Empty<ActivityTimelineRow>();
         private IReadOnlyList<TimelineRange> windowsRuntimeRanges = Array.Empty<TimelineRange>();
+        private IReadOnlyList<SystemTimelineRange> systemTimelineRanges = Array.Empty<SystemTimelineRange>();
         private IReadOnlyList<SystemTimelineEvent> systemTimelineEvents = Array.Empty<SystemTimelineEvent>();
         private IReadOnlyList<CategoryTimelineSegment> categorySegments = Array.Empty<CategoryTimelineSegment>();
         private string? highlightedProcessName;
@@ -100,6 +105,7 @@ namespace TimePilot.WinForms
             DateTime date,
             IReadOnlyList<ActivityTimelineRow> timelineRows,
             IReadOnlyList<TimelineRange> windowsRanges,
+            IReadOnlyList<SystemTimelineRange> systemRanges,
             IReadOnlyList<SystemTimelineEvent> systemEvents,
             IReadOnlyList<CategoryTimelineSegment> categoryTimelineSegments)
         {
@@ -107,6 +113,7 @@ namespace TimePilot.WinForms
             localDate = date.Date;
             rows = timelineRows.OrderBy(row => row.StartedAt).ToList();
             windowsRuntimeRanges = windowsRanges.OrderBy(range => range.StartedAt).ToList();
+            systemTimelineRanges = systemRanges.OrderBy(range => range.StartedAt).ToList();
             systemTimelineEvents = systemEvents.OrderBy(systemEvent => systemEvent.OccurredAt).ToList();
             categorySegments = categoryTimelineSegments.OrderBy(segment => segment.StartedAt).ToList();
             hoverText = null;
@@ -214,6 +221,7 @@ namespace TimePilot.WinForms
             DrawTrackLabel(graphics, UiText.Main.ActivityTimelineTrack, activityBounds);
             DrawAxis(graphics, activityBounds);
             DrawWindowsRanges(graphics, windowsBounds);
+            DrawSystemRanges(graphics, windowsBounds);
             DrawSystemEvents(graphics, windowsBounds);
             DrawCategorySegments(graphics, categoryBounds);
             DrawActivityRows(graphics, activityBounds);
@@ -453,6 +461,22 @@ namespace TimePilot.WinForms
             }
         }
 
+        private void DrawSystemRanges(Graphics graphics, Rectangle windowsBounds)
+        {
+            foreach (var range in systemTimelineRanges)
+            {
+                var segment = GetRangeBounds(range.StartedAt, range.EndedAt, windowsBounds);
+                if (segment.Width <= 0)
+                    continue;
+
+                using var fillBrush = new SolidBrush(GetSystemRangeFillColor(range.RangeType));
+                using var borderPen = new Pen(GetSystemRangeBorderColor(range.RangeType), 2);
+                var rangeBounds = new Rectangle(segment.Left, windowsBounds.Top + 2, segment.Width, Math.Max(8, windowsBounds.Height - 4));
+                graphics.FillRectangle(fillBrush, rangeBounds);
+                graphics.DrawRectangle(borderPen, rangeBounds);
+            }
+        }
+
         private void DrawCategorySegments(Graphics graphics, Rectangle categoryBounds)
         {
             using var emptyPen = new Pen(AxisColor);
@@ -599,6 +623,7 @@ namespace TimePilot.WinForms
         private string? FindHoverTextAt(Point point)
         {
             return FindSystemEventHoverTextAt(point)
+                ?? FindSystemRangeHoverTextAt(point)
                 ?? FindWindowsHoverTextAt(point)
                 ?? FindCategoryHoverTextAt(point)
                 ?? FindActivityHoverTextAt(point);
@@ -621,6 +646,25 @@ namespace TimePilot.WinForms
                 GetSystemEventTypeText(systemEvent.EventType),
                 FormatTime(systemEvent.OccurredAt),
                 string.IsNullOrWhiteSpace(systemEvent.Details) ? "-" : systemEvent.Details);
+        }
+
+        private string? FindSystemRangeHoverTextAt(Point point)
+        {
+            var timelineBounds = GetWindowsBounds(ClientRectangle);
+            var range = systemTimelineRanges
+                .Select(item => new { Range = item, Bounds = GetRangeBounds(item.StartedAt, item.EndedAt, timelineBounds) })
+                .LastOrDefault(x => x.Bounds.Contains(point))
+                ?.Range;
+
+            if (range is null)
+                return null;
+
+            return string.Join(
+                " | ",
+                UiText.Main.WindowsRuntimeTrack,
+                GetSystemRangeTypeText(range.RangeType),
+                $"{FormatTime(range.StartedAt)}-{FormatTime(range.EndedAt)}",
+                FormatDuration(range.StartedAt, range.EndedAt));
         }
 
         private Rectangle GetSystemEventHitBounds(SystemTimelineEvent systemEvent, Rectangle timelineBounds)
@@ -790,6 +834,37 @@ namespace TimePilot.WinForms
                 "timepilot-start" => Color.FromArgb(59, 130, 246),
                 "timepilot-exit" => Color.FromArgb(100, 116, 139),
                 _ => Color.FromArgb(107, 114, 128)
+            };
+        }
+
+        private static Color GetSystemRangeFillColor(SystemTimelineRangeType rangeType)
+        {
+            return rangeType switch
+            {
+                SystemTimelineRangeType.SleepEstimate => SleepRangeFillColor,
+                SystemTimelineRangeType.LockSession => LockRangeFillColor,
+                _ => WindowsFillColor
+            };
+        }
+
+        private static Color GetSystemRangeBorderColor(SystemTimelineRangeType rangeType)
+        {
+            return rangeType switch
+            {
+                SystemTimelineRangeType.SleepEstimate => SleepRangeBorderColor,
+                SystemTimelineRangeType.LockSession => LockRangeBorderColor,
+                _ => WindowsBorderColor
+            };
+        }
+
+        private static string GetSystemRangeTypeText(SystemTimelineRangeType rangeType)
+        {
+            var isEnglish = UiText.CurrentLanguage == UiLanguage.English;
+            return rangeType switch
+            {
+                SystemTimelineRangeType.SleepEstimate => isEnglish ? "Sleep estimate" : "절전 추정 구간",
+                SystemTimelineRangeType.LockSession => isEnglish ? "Windows session locked" : "Windows 세션 잠금 구간",
+                _ => UiText.Main.WindowsRuntimeTrack
             };
         }
 
