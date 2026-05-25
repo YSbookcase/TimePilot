@@ -410,9 +410,6 @@ namespace TimePilot.WinForms
                 graphics.FillRectangle(fillBrush, segment);
                 graphics.DrawRectangle(borderPen, segment);
 
-                if (!HasHighlight)
-                    continue;
-
                 if (isWindowsHighlighted)
                 {
                     using var tintBrush = new SolidBrush(HighlightTintColor);
@@ -424,11 +421,7 @@ namespace TimePilot.WinForms
                     graphics.FillRectangle(tintBrush, segment);
                     graphics.FillRectangle(hatchBrush, segment);
                     graphics.DrawRectangle(highlightPen, segment);
-                    continue;
                 }
-
-                using var overlayBrush = new SolidBrush(DimOverlayColor);
-                graphics.FillRectangle(overlayBrush, segment);
             }
         }
 
@@ -521,6 +514,9 @@ namespace TimePilot.WinForms
             using var borderPen = new Pen(GetBorderColor(row));
             graphics.FillRectangle(fillBrush, segment);
             graphics.DrawRectangle(borderPen, segment);
+
+            if (isWindowsHighlighted && highlightedProcessName is null)
+                return;
 
             if (!HasHighlight || IsHighlighted(row))
             {
