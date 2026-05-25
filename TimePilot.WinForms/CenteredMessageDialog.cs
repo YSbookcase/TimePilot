@@ -57,6 +57,15 @@ namespace TimePilot.WinForms
                 CancelButton = secondaryButton;
                 Controls.Add(secondaryButton);
             }
+            else if (buttons == MessageBoxButtons.OKCancel)
+            {
+                primaryButton.DialogResult = DialogResult.OK;
+                primaryButton.Text = UiText.Common.Ok;
+                secondaryButton.DialogResult = DialogResult.Cancel;
+                secondaryButton.Text = UiText.Common.Cancel;
+                CancelButton = secondaryButton;
+                Controls.Add(secondaryButton);
+            }
             else
             {
                 primaryButton.DialogResult = DialogResult.OK;

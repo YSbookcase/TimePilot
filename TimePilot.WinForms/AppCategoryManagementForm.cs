@@ -285,6 +285,7 @@ namespace TimePilot.WinForms
         private void OnManageCategoriesButtonClick(object? sender, EventArgs e)
         {
             using var form = new AppCategoryEditorForm(storage, language);
+            form.Icon = Icon;
             form.ShowDialog(this);
             if (!form.CategoriesChanged)
                 return;

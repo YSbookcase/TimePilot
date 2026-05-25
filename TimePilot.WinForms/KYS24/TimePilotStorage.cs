@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Globalization;
 using Microsoft.Data.Sqlite;
 
@@ -636,6 +637,7 @@ namespace TimePilot.WinForms.KYS24
             var normalizedName = NormalizeAppCategoryName(name);
             var normalizedColor = NormalizeAppCategoryColor(color);
             using var connection = OpenConnection();
+            EnsureAppCategoryNameIsUnique(connection, normalizedName, null);
             var now = FormatTimestamp(DateTimeOffset.UtcNow);
             var sortOrder = GetNextCustomAppCategorySortOrder(connection);
 
@@ -665,6 +667,7 @@ namespace TimePilot.WinForms.KYS24
             var normalizedName = NormalizeAppCategoryName(name);
             var normalizedColor = NormalizeAppCategoryColor(color);
             using var connection = OpenConnection();
+            EnsureAppCategoryNameIsUnique(connection, normalizedName, categoryId);
             using var command = connection.CreateCommand();
             command.CommandText = """
                 UPDATE app_categories
@@ -675,6 +678,23 @@ namespace TimePilot.WinForms.KYS24
                   AND is_builtin = 0;
                 """;
             command.Parameters.AddWithValue("$name", normalizedName);
+            command.Parameters.AddWithValue("$color", (object?)normalizedColor ?? DBNull.Value);
+            command.Parameters.AddWithValue("$updatedAt", FormatTimestamp(DateTimeOffset.UtcNow));
+            command.Parameters.AddWithValue("$categoryId", categoryId);
+            command.ExecuteNonQuery();
+        }
+
+        public void UpdateAppCategoryColor(long categoryId, string? color)
+        {
+            var normalizedColor = NormalizeAppCategoryColor(color);
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE app_categories
+                SET color = $color,
+                    updated_at = $updatedAt
+                WHERE id = $categoryId;
+                """;
             command.Parameters.AddWithValue("$color", (object?)normalizedColor ?? DBNull.Value);
             command.Parameters.AddWithValue("$updatedAt", FormatTimestamp(DateTimeOffset.UtcNow));
             command.Parameters.AddWithValue("$categoryId", categoryId);
@@ -1822,7 +1842,6 @@ namespace TimePilot.WinForms.KYS24
                     )
                     VALUES ($name, $color, $sortOrder, 1, $createdAt, $updatedAt)
                     ON CONFLICT(name) DO UPDATE SET
-                        color = excluded.color,
                         sort_order = excluded.sort_order,
                         updated_at = excluded.updated_at
                     WHERE app_categories.is_builtin = 1;
@@ -1845,7 +1864,6 @@ namespace TimePilot.WinForms.KYS24
                 command.CommandText = """
                     UPDATE app_categories
                     SET name = $canonicalName,
-                        color = $color,
                         updated_at = $updatedAt
                     WHERE is_builtin = 1
                       AND sort_order = $sortOrder
@@ -1883,10 +1901,65 @@ namespace TimePilot.WinForms.KYS24
             return normalized;
         }
 
+        private static void EnsureAppCategoryNameIsUnique(SqliteConnection connection, string name, long? currentCategoryId)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT id, name, sort_order, is_builtin
+                FROM app_categories;
+                """;
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var categoryId = reader.GetInt64(0);
+                if (currentCategoryId.HasValue && categoryId == currentCategoryId.Value)
+                    continue;
+
+                var existingName = reader.GetString(1);
+                var sortOrder = reader.GetInt32(2);
+                var isBuiltin = reader.GetInt32(3) != 0;
+                if (IsSameAppCategoryName(name, existingName, sortOrder, isBuiltin))
+                    throw new InvalidOperationException("A category with the same display name already exists.");
+            }
+        }
+
+        private static bool IsSameAppCategoryName(string name, string existingName, int sortOrder, bool isBuiltin)
+        {
+            if (string.Equals(name, existingName, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            var displayName = AppCategoryDisplay.GetDisplayName(existingName, sortOrder);
+            if (string.Equals(name, displayName, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (!isBuiltin)
+                return false;
+
+            var builtinCategory = AppCategoryDisplay.BuiltinCategories.FirstOrDefault(x =>
+                x.SortOrder == sortOrder
+                || string.Equals(x.CanonicalName, existingName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(x.KoreanName, existingName, StringComparison.OrdinalIgnoreCase));
+            return builtinCategory is not null
+                && (string.Equals(name, builtinCategory.CanonicalName, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(name, builtinCategory.KoreanName, StringComparison.OrdinalIgnoreCase));
+        }
+
         private static string? NormalizeAppCategoryColor(string? color)
         {
             var normalized = color?.Trim();
-            return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+            if (string.IsNullOrWhiteSpace(normalized))
+                return null;
+
+            try
+            {
+                var parsed = ColorTranslator.FromHtml(normalized);
+                return ColorTranslator.ToHtml(Color.FromArgb(parsed.R, parsed.G, parsed.B));
+            }
+            catch
+            {
+                throw new ArgumentException("Category color must be a valid HTML color.", nameof(color));
+            }
         }
 
         private static void EnsureRuntimeSessionColumns(SqliteConnection connection)
