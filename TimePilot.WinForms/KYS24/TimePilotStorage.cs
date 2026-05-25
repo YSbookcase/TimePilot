@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Globalization;
 using Microsoft.Data.Sqlite;
 
@@ -595,6 +596,147 @@ namespace TimePilot.WinForms.KYS24
             }
 
             return categories;
+        }
+
+        public IReadOnlyList<AppCategoryEditorRow> GetAppCategoryEditorRows()
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    c.id,
+                    c.name,
+                    c.color,
+                    c.sort_order,
+                    c.is_builtin,
+                    CAST(COUNT(a.id) AS INTEGER) AS app_count
+                FROM app_categories c
+                LEFT JOIN apps a ON a.primary_category_id = c.id
+                GROUP BY c.id, c.name, c.color, c.sort_order, c.is_builtin
+                ORDER BY c.sort_order, c.name COLLATE NOCASE;
+                """;
+
+            var rows = new List<AppCategoryEditorRow>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                rows.Add(new AppCategoryEditorRow(
+                    reader.GetInt64(0),
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2),
+                    reader.GetInt32(3),
+                    reader.GetInt32(4) != 0,
+                    reader.GetInt32(5)));
+            }
+
+            return rows;
+        }
+
+        public long CreateCustomAppCategory(string name, string? color)
+        {
+            var normalizedName = NormalizeAppCategoryName(name);
+            var normalizedColor = NormalizeAppCategoryColor(color);
+            using var connection = OpenConnection();
+            EnsureAppCategoryNameIsUnique(connection, normalizedName, null);
+            var now = FormatTimestamp(DateTimeOffset.UtcNow);
+            var sortOrder = GetNextCustomAppCategorySortOrder(connection);
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO app_categories (
+                    name,
+                    color,
+                    sort_order,
+                    is_builtin,
+                    created_at,
+                    updated_at
+                )
+                VALUES ($name, $color, $sortOrder, 0, $createdAt, $updatedAt)
+                RETURNING id;
+                """;
+            command.Parameters.AddWithValue("$name", normalizedName);
+            command.Parameters.AddWithValue("$color", (object?)normalizedColor ?? DBNull.Value);
+            command.Parameters.AddWithValue("$sortOrder", sortOrder);
+            command.Parameters.AddWithValue("$createdAt", now);
+            command.Parameters.AddWithValue("$updatedAt", now);
+            return (long)command.ExecuteScalar()!;
+        }
+
+        public void UpdateCustomAppCategory(long categoryId, string name, string? color)
+        {
+            var normalizedName = NormalizeAppCategoryName(name);
+            var normalizedColor = NormalizeAppCategoryColor(color);
+            using var connection = OpenConnection();
+            EnsureAppCategoryNameIsUnique(connection, normalizedName, categoryId);
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE app_categories
+                SET name = $name,
+                    color = $color,
+                    updated_at = $updatedAt
+                WHERE id = $categoryId
+                  AND is_builtin = 0;
+                """;
+            command.Parameters.AddWithValue("$name", normalizedName);
+            command.Parameters.AddWithValue("$color", (object?)normalizedColor ?? DBNull.Value);
+            command.Parameters.AddWithValue("$updatedAt", FormatTimestamp(DateTimeOffset.UtcNow));
+            command.Parameters.AddWithValue("$categoryId", categoryId);
+            command.ExecuteNonQuery();
+        }
+
+        public void UpdateAppCategoryColor(long categoryId, string? color)
+        {
+            var normalizedColor = NormalizeAppCategoryColor(color);
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE app_categories
+                SET color = $color,
+                    updated_at = $updatedAt
+                WHERE id = $categoryId;
+                """;
+            command.Parameters.AddWithValue("$color", (object?)normalizedColor ?? DBNull.Value);
+            command.Parameters.AddWithValue("$updatedAt", FormatTimestamp(DateTimeOffset.UtcNow));
+            command.Parameters.AddWithValue("$categoryId", categoryId);
+            command.ExecuteNonQuery();
+        }
+
+        public void DeleteCustomAppCategory(long categoryId)
+        {
+            using var connection = OpenConnection();
+            using var transaction = connection.BeginTransaction();
+
+            using (var clearCommand = connection.CreateCommand())
+            {
+                clearCommand.Transaction = transaction;
+                clearCommand.CommandText = """
+                    UPDATE apps
+                    SET primary_category_id = NULL
+                    WHERE primary_category_id = $categoryId
+                      AND EXISTS (
+                          SELECT 1
+                          FROM app_categories c
+                          WHERE c.id = $categoryId
+                            AND c.is_builtin = 0
+                      );
+                    """;
+                clearCommand.Parameters.AddWithValue("$categoryId", categoryId);
+                clearCommand.ExecuteNonQuery();
+            }
+
+            using (var deleteCommand = connection.CreateCommand())
+            {
+                deleteCommand.Transaction = transaction;
+                deleteCommand.CommandText = """
+                    DELETE FROM app_categories
+                    WHERE id = $categoryId
+                      AND is_builtin = 0;
+                    """;
+                deleteCommand.Parameters.AddWithValue("$categoryId", categoryId);
+                deleteCommand.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
         }
 
         public void SetAppPrimaryCategory(long appId, long? categoryId)
@@ -1700,7 +1842,6 @@ namespace TimePilot.WinForms.KYS24
                     )
                     VALUES ($name, $color, $sortOrder, 1, $createdAt, $updatedAt)
                     ON CONFLICT(name) DO UPDATE SET
-                        color = excluded.color,
                         sort_order = excluded.sort_order,
                         updated_at = excluded.updated_at
                     WHERE app_categories.is_builtin = 1;
@@ -1723,7 +1864,6 @@ namespace TimePilot.WinForms.KYS24
                 command.CommandText = """
                     UPDATE app_categories
                     SET name = $canonicalName,
-                        color = $color,
                         updated_at = $updatedAt
                     WHERE is_builtin = 1
                       AND sort_order = $sortOrder
@@ -1739,6 +1879,86 @@ namespace TimePilot.WinForms.KYS24
                 command.Parameters.AddWithValue("$sortOrder", category.SortOrder);
                 command.Parameters.AddWithValue("$updatedAt", timestamp);
                 command.ExecuteNonQuery();
+            }
+        }
+
+        private static int GetNextCustomAppCategorySortOrder(SqliteConnection connection)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT COALESCE(MAX(sort_order), 100) + 10
+                FROM app_categories;
+                """;
+            return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+        }
+
+        private static string NormalizeAppCategoryName(string name)
+        {
+            var normalized = name.Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+                throw new ArgumentException("Category name is required.", nameof(name));
+
+            return normalized;
+        }
+
+        private static void EnsureAppCategoryNameIsUnique(SqliteConnection connection, string name, long? currentCategoryId)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT id, name, sort_order, is_builtin
+                FROM app_categories;
+                """;
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var categoryId = reader.GetInt64(0);
+                if (currentCategoryId.HasValue && categoryId == currentCategoryId.Value)
+                    continue;
+
+                var existingName = reader.GetString(1);
+                var sortOrder = reader.GetInt32(2);
+                var isBuiltin = reader.GetInt32(3) != 0;
+                if (IsSameAppCategoryName(name, existingName, sortOrder, isBuiltin))
+                    throw new InvalidOperationException("A category with the same display name already exists.");
+            }
+        }
+
+        private static bool IsSameAppCategoryName(string name, string existingName, int sortOrder, bool isBuiltin)
+        {
+            if (string.Equals(name, existingName, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            var displayName = AppCategoryDisplay.GetDisplayName(existingName, sortOrder);
+            if (string.Equals(name, displayName, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (!isBuiltin)
+                return false;
+
+            var builtinCategory = AppCategoryDisplay.BuiltinCategories.FirstOrDefault(x =>
+                x.SortOrder == sortOrder
+                || string.Equals(x.CanonicalName, existingName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(x.KoreanName, existingName, StringComparison.OrdinalIgnoreCase));
+            return builtinCategory is not null
+                && (string.Equals(name, builtinCategory.CanonicalName, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(name, builtinCategory.KoreanName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string? NormalizeAppCategoryColor(string? color)
+        {
+            var normalized = color?.Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+                return null;
+
+            try
+            {
+                var parsed = ColorTranslator.FromHtml(normalized);
+                return ColorTranslator.ToHtml(Color.FromArgb(parsed.R, parsed.G, parsed.B));
+            }
+            catch
+            {
+                throw new ArgumentException("Category color must be a valid HTML color.", nameof(color));
             }
         }
 
