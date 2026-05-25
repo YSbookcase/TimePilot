@@ -15,6 +15,7 @@ namespace TimePilot.WinForms
         private readonly ComboBox assignCategoryComboBox = new();
         private readonly Button applyCategoryButton = new();
         private readonly Button clearCategoryButton = new();
+        private readonly Button manageCategoriesButton = new();
         private readonly Button refreshButton = new();
         private readonly Button searchWebButton = new();
         private readonly Button closeButton = new();
@@ -121,6 +122,9 @@ namespace TimePilot.WinForms
             clearCategoryButton.Text = IsEnglish ? "Clear category" : "분류 해제";
             clearCategoryButton.Width = 72;
             clearCategoryButton.Click += OnClearCategoryButtonClick;
+            manageCategoriesButton.Text = IsEnglish ? "Categories..." : "분류 관리...";
+            manageCategoriesButton.Width = 96;
+            manageCategoriesButton.Click += OnManageCategoriesButtonClick;
 
             refreshButton.Text = IsEnglish ? "Refresh" : "새로고침";
             refreshButton.Width = 84;
@@ -140,6 +144,7 @@ namespace TimePilot.WinForms
             topPanel.Controls.Add(assignCategoryComboBox);
             topPanel.Controls.Add(applyCategoryButton);
             topPanel.Controls.Add(clearCategoryButton);
+            topPanel.Controls.Add(manageCategoriesButton);
             topPanel.Controls.Add(searchWebButton);
             topPanel.Controls.Add(refreshButton);
 
@@ -275,6 +280,17 @@ namespace TimePilot.WinForms
         {
             allRows = AddIcons(storage.GetAppCategoryManagementRows(DateTimeOffset.UtcNow));
             ApplyFilter();
+        }
+
+        private void OnManageCategoriesButtonClick(object? sender, EventArgs e)
+        {
+            using var form = new AppCategoryEditorForm(storage, language);
+            form.ShowDialog(this);
+            if (!form.CategoriesChanged)
+                return;
+
+            CategoriesChanged = true;
+            LoadData();
         }
 
         private IReadOnlyList<AppCategoryManagementRow> AddIcons(IReadOnlyList<AppCategoryManagementRow> rows)
