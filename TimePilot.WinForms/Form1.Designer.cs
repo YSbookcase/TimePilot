@@ -777,6 +777,8 @@
             // detailSplitContainer
             //
             detailSplitContainer.Dock = DockStyle.Fill;
+            detailSplitContainer.Panel1MinSize = 120;
+            detailSplitContainer.Panel2MinSize = 150;
             detailSplitContainer.Location = new Point(3, 85);
             detailSplitContainer.Name = "detailSplitContainer";
             detailSplitContainer.Orientation = Orientation.Horizontal;
@@ -789,7 +791,7 @@
             //
             detailSplitContainer.Panel2.Controls.Add(runtimeSegmentsGrid);
             detailSplitContainer.Size = new Size(706, 332);
-            detailSplitContainer.SplitterDistance = 212;
+            detailSplitContainer.SplitterDistance = 164;
             detailSplitContainer.TabIndex = 0;
             //
             // runtimeGrid

@@ -25,6 +25,22 @@ namespace TimePilot.WinForms
         private readonly ContextMenuStrip appCategoryMenu = new();
         private readonly ContextMenuStrip usageGridMenu = new();
         private readonly ContextMenuStrip timelineGridMenu = new();
+        private readonly TableLayoutPanel runtimeSegmentPanel = new();
+        private readonly TableLayoutPanel runtimeSegmentTimelinePanel = new();
+        private readonly Label runtimeSegmentObservationFilterLabel = new();
+        private readonly ComboBox runtimeSegmentObservationFilterComboBox = new();
+        private readonly RuntimeSegmentTimelineControl runtimeSegmentTimelineControl = new();
+        private readonly FlowLayoutPanel runtimeSegmentZoomPanel = new();
+        private readonly Label runtimeSegmentZoomRangeLabel = new();
+        private readonly Button runtimeSegmentZoomOutButton = new();
+        private readonly Button runtimeSegmentZoomInButton = new();
+        private readonly Button runtimeSegmentPreviousButton = new();
+        private readonly Button runtimeSegmentNextButton = new();
+        private readonly Button runtimeSegmentResetButton = new();
+        private readonly Button runtimeSegmentHelpButton = new();
+        private readonly HScrollBar runtimeSegmentZoomScrollBar = new();
+        private bool isUpdatingRuntimeSegmentScrollBar;
+        private RuntimeSegmentSelectionKey? selectedRuntimeSegmentKey;
         private readonly bool startMinimizedToTray;
         private Dictionary<string, List<AppSettings.TableColumnLayout>> defaultTableColumnLayouts = new();
         private AppSettings settings = AppSettings.LoadDefault();
@@ -47,9 +63,11 @@ namespace TimePilot.WinForms
         private SortOrder runtimeSortOrder = SortOrder.Descending;
         private SortOrder runtimeSegmentSortOrder = SortOrder.Descending;
         private DetailRuntimeFilter selectedDetailRuntimeFilter = DetailRuntimeFilter.SummaryApps;
+        private RuntimeSegmentObservationFilter selectedRuntimeSegmentObservationFilter = RuntimeSegmentObservationFilter.All;
         private bool showRunningRuntimeOnly;
         private bool isRefreshingRuntimeGrid;
         private bool isSelectingRuntimeGridRow;
+        private bool isRestoringRuntimeSegmentSelection;
         private bool isUpdatingDetailRuntimeFilterOptions;
         private bool isExplicitExitRequested;
         private volatile bool isViewRefreshRunning;
@@ -91,10 +109,12 @@ namespace TimePilot.WinForms
 
             UiText.UseLanguage(settings.UiLanguage);
             InitializeComponent();
+            InitializeRuntimeSegmentTimeline();
             defaultTableColumnLayouts = CaptureTableColumnLayouts();
             ApplySavedWindowPlacement();
             ApplySavedTableSortState();
             ApplySavedTableColumnLayouts();
+            ApplyInitialDetailSplitDistance();
             RegisterTableColumnLayoutPersistence();
             InitializeRecordedDateCalendar();
             InitializeSummaryPeriodSelector();
@@ -247,6 +267,20 @@ namespace TimePilot.WinForms
                 return;
 
             settings.SetWindowPlacement(normalBounds, WindowState == FormWindowState.Maximized);
+        }
+
+        private void ApplyInitialDetailSplitDistance()
+        {
+            if (detailSplitContainer.Height <= 0)
+                return;
+
+            var availableHeight = detailSplitContainer.Height - detailSplitContainer.SplitterWidth;
+            var splitterDistance = Math.Clamp(
+                availableHeight / 2,
+                detailSplitContainer.Panel1MinSize,
+                Math.Max(detailSplitContainer.Panel1MinSize, availableHeight - detailSplitContainer.Panel2MinSize));
+            if (splitterDistance > 0)
+                detailSplitContainer.SplitterDistance = splitterDistance;
         }
 
         private void ApplySavedTableSortState()
@@ -733,6 +767,88 @@ namespace TimePilot.WinForms
             RefreshTimelineSystemEventFilterOptions();
         }
 
+        private void InitializeRuntimeSegmentTimeline()
+        {
+            detailSplitContainer.Panel2.Controls.Remove(runtimeSegmentsGrid);
+
+            runtimeSegmentPanel.SuspendLayout();
+            runtimeSegmentPanel.Dock = DockStyle.Fill;
+            runtimeSegmentPanel.ColumnCount = 1;
+            runtimeSegmentPanel.RowCount = 2;
+            runtimeSegmentPanel.ColumnStyles.Clear();
+            runtimeSegmentPanel.RowStyles.Clear();
+            runtimeSegmentPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            runtimeSegmentPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 138));
+            runtimeSegmentPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            runtimeSegmentTimelinePanel.Dock = DockStyle.Fill;
+            runtimeSegmentTimelinePanel.ColumnCount = 1;
+            runtimeSegmentTimelinePanel.RowCount = 3;
+            runtimeSegmentTimelinePanel.ColumnStyles.Clear();
+            runtimeSegmentTimelinePanel.RowStyles.Clear();
+            runtimeSegmentTimelinePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            runtimeSegmentTimelinePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            runtimeSegmentTimelinePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            runtimeSegmentTimelinePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 17));
+
+            runtimeSegmentZoomPanel.Dock = DockStyle.Fill;
+            runtimeSegmentZoomPanel.Height = 36;
+            runtimeSegmentZoomPanel.Padding = new Padding(8, 3, 8, 3);
+            runtimeSegmentZoomPanel.WrapContents = false;
+            runtimeSegmentZoomRangeLabel.AutoSize = true;
+            runtimeSegmentZoomRangeLabel.ForeColor = SystemColors.GrayText;
+            runtimeSegmentZoomRangeLabel.Margin = new Padding(0, 7, 12, 0);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentZoomOutButton, OnRuntimeSegmentZoomOutButtonClick);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentZoomInButton, OnRuntimeSegmentZoomInButtonClick);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentPreviousButton, OnRuntimeSegmentPreviousButtonClick);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentNextButton, OnRuntimeSegmentNextButtonClick);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentResetButton, OnRuntimeSegmentResetButtonClick, width: 52);
+
+            runtimeSegmentTimelineControl.Dock = DockStyle.Fill;
+            runtimeSegmentTimelineControl.ViewRangeChanged += OnRuntimeSegmentTimelineViewRangeChanged;
+            runtimeSegmentObservationFilterLabel.AutoSize = true;
+            runtimeSegmentObservationFilterLabel.Margin = new Padding(12, 8, 3, 0);
+            runtimeSegmentObservationFilterComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            runtimeSegmentObservationFilterComboBox.Width = 132;
+            runtimeSegmentObservationFilterComboBox.SelectedIndexChanged += OnRuntimeSegmentObservationFilterComboBoxSelectedIndexChanged;
+            runtimeSegmentHelpButton.Size = new Size(28, 23);
+            runtimeSegmentHelpButton.Margin = new Padding(3, 2, 3, 0);
+            runtimeSegmentHelpButton.UseVisualStyleBackColor = true;
+            runtimeSegmentHelpButton.Click += OnRuntimeSegmentHelpButtonClick;
+            runtimeSegmentZoomScrollBar.Dock = DockStyle.Fill;
+            runtimeSegmentZoomScrollBar.Enabled = false;
+            runtimeSegmentZoomScrollBar.Visible = false;
+            runtimeSegmentZoomScrollBar.Minimum = 0;
+            runtimeSegmentZoomScrollBar.Maximum = 1000;
+            runtimeSegmentZoomScrollBar.LargeChange = 1000;
+            runtimeSegmentZoomScrollBar.Scroll += OnRuntimeSegmentZoomScrollBarScroll;
+            runtimeSegmentsGrid.Dock = DockStyle.Fill;
+            runtimeSegmentTimelineControl.SetSegments(
+                selectedDetailDate,
+                null,
+                Array.Empty<ProcessRuntimeSegmentRow>());
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentZoomRangeLabel);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentZoomOutButton);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentZoomInButton);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentPreviousButton);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentNextButton);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentResetButton);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentHelpButton);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentObservationFilterLabel);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentObservationFilterComboBox);
+            runtimeSegmentTimelinePanel.Controls.Add(runtimeSegmentZoomPanel, 0, 0);
+            runtimeSegmentTimelinePanel.Controls.Add(runtimeSegmentTimelineControl, 0, 1);
+            runtimeSegmentTimelinePanel.Controls.Add(runtimeSegmentZoomScrollBar, 0, 2);
+            runtimeSegmentPanel.Controls.Add(runtimeSegmentTimelinePanel, 0, 0);
+            runtimeSegmentPanel.Controls.Add(runtimeSegmentsGrid, 0, 1);
+            runtimeSegmentPanel.ResumeLayout();
+
+            detailSplitContainer.Panel2.Controls.Add(runtimeSegmentPanel);
+            runtimeSegmentsGrid.SelectionChanged += OnRuntimeSegmentsGridSelectionChanged;
+            RefreshRuntimeSegmentObservationFilterOptions();
+            UpdateRuntimeSegmentZoomControls();
+        }
+
         private void RefreshTimelineTypeHighlightOptions()
         {
             var options = TimelineActivityTypeHighlightOption.GetOptions();
@@ -767,6 +883,24 @@ namespace TimePilot.WinForms
             finally
             {
                 timelineSystemEventFilterComboBox.EndUpdate();
+            }
+        }
+
+        private void RefreshRuntimeSegmentObservationFilterOptions()
+        {
+            var options = RuntimeSegmentObservationFilterOption.GetOptions();
+            var selectedIndex = Array.FindIndex(options.ToArray(), option => option.Value == selectedRuntimeSegmentObservationFilter);
+            runtimeSegmentObservationFilterComboBox.BeginUpdate();
+            try
+            {
+                runtimeSegmentObservationFilterComboBox.Items.Clear();
+                runtimeSegmentObservationFilterComboBox.Items.AddRange(options.Cast<object>().ToArray());
+                runtimeSegmentObservationFilterComboBox.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+                selectedRuntimeSegmentObservationFilter = ((RuntimeSegmentObservationFilterOption)runtimeSegmentObservationFilterComboBox.SelectedItem!).Value;
+            }
+            finally
+            {
+                runtimeSegmentObservationFilterComboBox.EndUpdate();
             }
         }
 
@@ -985,6 +1119,15 @@ namespace TimePilot.WinForms
             detailDescriptionLabel.Text = UiText.Main.DetailDescription;
             detailTrackingDisabledLabel.Text = UiText.Main.DetailTrackingDisabledMessage;
             detailTrackingDisabledPreferencesButton.Text = UiText.Main.DetailTrackingDisabledOpenPreferences;
+            runtimeSegmentTimelineControl.Invalidate();
+            runtimeSegmentZoomOutButton.Text = UiText.Main.TimelineZoomOut;
+            runtimeSegmentZoomInButton.Text = UiText.Main.TimelineZoomIn;
+            runtimeSegmentPreviousButton.Text = UiText.Main.TimelinePanPrevious;
+            runtimeSegmentNextButton.Text = UiText.Main.TimelinePanNext;
+            runtimeSegmentObservationFilterLabel.Text = GetRuntimeSegmentObservationFilterLabelText();
+            runtimeSegmentResetButton.Text = GetRuntimeSegmentResetText();
+            runtimeSegmentHelpButton.Text = UiText.Main.DetailHelp;
+            UpdateRuntimeSegmentZoomControls();
             timelineDateLabel.Text = UiText.Main.Date;
             timelineCalendarButton.Text = UiText.Main.Calendar;
             timelineTodayButton.Text = UiText.Main.Today;
@@ -1005,6 +1148,7 @@ namespace TimePilot.WinForms
             RefreshTimelineCategoryBucketOptions();
             RefreshTimelineTypeHighlightOptions();
             RefreshTimelineSystemEventFilterOptions();
+            RefreshRuntimeSegmentObservationFilterOptions();
 
             dailyUsageDateColumn.HeaderText = UiText.Main.Date;
             dailyUsageActiveTimeColumn.HeaderText = UiText.Main.TotalActiveUsageTime;
@@ -1070,6 +1214,8 @@ namespace TimePilot.WinForms
             runtimeCoverageSummaryToolTip.SetToolTip(detailCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(detailRuntimeFilterComboBox, UiText.Main.RuntimeTrackingTypeTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(detailHelpButton, UiText.Main.DetailHelpTitle);
+            runtimeCoverageSummaryToolTip.SetToolTip(runtimeSegmentResetButton, GetRuntimeSegmentResetTooltip());
+            runtimeCoverageSummaryToolTip.SetToolTip(runtimeSegmentHelpButton, GetRuntimeSegmentHelpTitle());
             runtimeCoverageSummaryToolTip.SetToolTip(detailDescriptionLabel, UiText.Main.DetailDescription);
             runtimeCoverageSummaryToolTip.SetToolTip(timelineCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(timelineHelpButton, UiText.Main.TimelineHelpTitle);
@@ -1307,9 +1453,10 @@ namespace TimePilot.WinForms
                 selectedRuntimeAppId = GetSelectedRuntimeAppId();
                 if (selectedRuntimeAppId == appIdToRestore && snapshot.RuntimeSegmentRows is not null)
                 {
-                    SetGridDataSourcePreservingView(
-                        runtimeSegmentsGrid,
-                        SortRuntimeSegmentRows(snapshot.RuntimeSegmentRows));
+                    var sortedSegments = SortRuntimeSegmentRows(FilterRuntimeSegmentRows(snapshot.RuntimeSegmentRows));
+                    SetRuntimeSegmentsDataSource(sortedSegments);
+                    RestoreRuntimeSegmentSelection(selectedRuntimeSegmentKey, selectFirstWhenMissing: selectedRuntimeSegmentKey is null);
+                    UpdateRuntimeSegmentTimeline(GetSelectedRuntimeSummaryRow(), sortedSegments);
                 }
                 else
                 {
@@ -1327,7 +1474,10 @@ namespace TimePilot.WinForms
                 ("view-total", totalStopwatch.ElapsedMilliseconds));
         }
 
-        private void RefreshRuntimeSegments(DateTimeOffset observedAt)
+        private void RefreshRuntimeSegments(
+            DateTimeOffset observedAt,
+            RuntimeSegmentSelectionKey? selectionKeyToRestore = null,
+            bool selectFirstWhenMissing = true)
         {
             if (storage is null)
                 return;
@@ -1335,13 +1485,114 @@ namespace TimePilot.WinForms
             var selectedRow = runtimeGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSummaryRow;
             if (selectedRow is null)
             {
+                selectedRuntimeSegmentKey = null;
                 SetGridDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
+                UpdateRuntimeSegmentTimeline(null, Array.Empty<ProcessRuntimeSegmentRow>());
                 return;
             }
 
-            SetGridDataSourcePreservingView(
-                runtimeSegmentsGrid,
-                SortRuntimeSegmentRows(storage.GetProcessRuntimeSegmentsForDate(selectedRow.AppId, selectedDetailDate, observedAt)));
+            var segmentRows = SortRuntimeSegmentRows(FilterRuntimeSegmentRows(
+                storage.GetProcessRuntimeSegmentsForDate(selectedRow.AppId, selectedDetailDate, observedAt)));
+            var keyToRestore = selectionKeyToRestore ?? selectedRuntimeSegmentKey;
+            SetRuntimeSegmentsDataSource(segmentRows);
+            RestoreRuntimeSegmentSelection(keyToRestore, selectFirstWhenMissing: selectFirstWhenMissing && keyToRestore is null);
+            UpdateRuntimeSegmentTimeline(selectedRow, segmentRows);
+        }
+
+        private void UpdateRuntimeSegmentTimeline(
+            ProcessRuntimeSummaryRow? selectedRow,
+            IReadOnlyList<ProcessRuntimeSegmentRow> segmentRows)
+        {
+            runtimeSegmentTimelineControl.SetSegments(
+                selectedDetailDate,
+                selectedRow,
+                segmentRows);
+            UpdateRuntimeSegmentZoomControls();
+        }
+
+        private void SetRuntimeSegmentsDataSource(IReadOnlyList<ProcessRuntimeSegmentRow> segmentRows)
+        {
+            isRestoringRuntimeSegmentSelection = true;
+            try
+            {
+                SetGridDataSourcePreservingView(
+                    runtimeSegmentsGrid,
+                    segmentRows,
+                    preserveSelection: false);
+                runtimeSegmentsGrid.ClearSelection();
+                runtimeSegmentsGrid.CurrentCell = null;
+            }
+            finally
+            {
+                isRestoringRuntimeSegmentSelection = false;
+            }
+        }
+
+        private bool RestoreRuntimeSegmentSelection(RuntimeSegmentSelectionKey? key, bool selectFirstWhenMissing)
+        {
+            if (runtimeSegmentsGrid.Rows.Count == 0)
+            {
+                selectedRuntimeSegmentKey = null;
+                runtimeSegmentTimelineControl.SetHighlightedSegment(null);
+                return false;
+            }
+
+            if (key is null)
+                return SelectFirstRuntimeSegmentIfNeeded(selectFirstWhenMissing);
+
+            foreach (DataGridViewRow row in runtimeSegmentsGrid.Rows)
+            {
+                if (row.DataBoundItem is not ProcessRuntimeSegmentRow segment || !key.Value.Matches(segment))
+                    continue;
+
+                isRestoringRuntimeSegmentSelection = true;
+                try
+                {
+                    var columnIndex = runtimeSegmentsGrid.CurrentCell?.ColumnIndex
+                        ?? GetFirstDisplayedColumnIndex(runtimeSegmentsGrid);
+                    columnIndex = Math.Clamp(columnIndex, 0, runtimeSegmentsGrid.Columns.Count - 1);
+                    runtimeSegmentsGrid.ClearSelection();
+                    row.Selected = true;
+                    runtimeSegmentsGrid.CurrentCell = row.Cells[columnIndex];
+                    selectedRuntimeSegmentKey = key;
+                    runtimeSegmentTimelineControl.SetHighlightedSegment(segment);
+                }
+                finally
+                {
+                    isRestoringRuntimeSegmentSelection = false;
+                }
+
+                return true;
+            }
+
+            selectedRuntimeSegmentKey = null;
+            runtimeSegmentTimelineControl.SetHighlightedSegment(null);
+            return SelectFirstRuntimeSegmentIfNeeded(selectFirstWhenMissing);
+        }
+
+        private bool SelectFirstRuntimeSegmentIfNeeded(bool shouldSelect)
+        {
+            if (!shouldSelect || runtimeSegmentsGrid.CurrentRow is not null || runtimeSegmentsGrid.Rows.Count == 0)
+                return false;
+
+            isRestoringRuntimeSegmentSelection = true;
+            try
+            {
+                runtimeSegmentsGrid.ClearSelection();
+                runtimeSegmentsGrid.CurrentCell = runtimeSegmentsGrid.Rows[0].Cells[0];
+                runtimeSegmentsGrid.Rows[0].Selected = true;
+                if (runtimeSegmentsGrid.Rows[0].DataBoundItem is ProcessRuntimeSegmentRow segment)
+                {
+                    selectedRuntimeSegmentKey = RuntimeSegmentSelectionKey.From(segment);
+                    runtimeSegmentTimelineControl.SetHighlightedSegment(segment);
+                }
+            }
+            finally
+            {
+                isRestoringRuntimeSegmentSelection = false;
+            }
+
+            return true;
         }
 
         private static void SetDateStatus(Label label, bool? hasData)
@@ -1577,6 +1828,22 @@ namespace TimePilot.WinForms
 
             if (showRunningRuntimeOnly)
                 filteredRows = filteredRows.Where(x => x.HasRunningSession);
+
+            return filteredRows.ToList();
+        }
+
+        private IReadOnlyList<ProcessRuntimeSegmentRow> FilterRuntimeSegmentRows(
+            IReadOnlyList<ProcessRuntimeSegmentRow> rows)
+        {
+            IEnumerable<ProcessRuntimeSegmentRow> filteredRows = rows;
+
+            filteredRows = selectedRuntimeSegmentObservationFilter switch
+            {
+                RuntimeSegmentObservationFilter.VisibleApps => filteredRows.Where(x => x.HasMainWindow),
+                RuntimeSegmentObservationFilter.UserProcesses => filteredRows.Where(x => !x.HasMainWindow && x.IsCurrentSessionProcess),
+                RuntimeSegmentObservationFilter.AllProcesses => filteredRows.Where(x => !x.HasMainWindow && !x.IsCurrentSessionProcess),
+                _ => filteredRows
+            };
 
             return filteredRows.ToList();
         }
@@ -1878,6 +2145,11 @@ namespace TimePilot.WinForms
             UpdateTimelineZoomControls();
         }
 
+        private void OnRuntimeSegmentTimelineViewRangeChanged(object? sender, EventArgs e)
+        {
+            UpdateRuntimeSegmentZoomControls();
+        }
+
         private void OnTimelineZoomOutButtonClick(object? sender, EventArgs e)
         {
             timelineOverviewControl.ZoomOut();
@@ -1911,6 +2183,59 @@ namespace TimePilot.WinForms
                 UiText.Main.TimelineHelpTitle,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
+        }
+
+        private void OnRuntimeSegmentResetButtonClick(object? sender, EventArgs e)
+        {
+            runtimeSegmentTimelineControl.ResetView();
+        }
+
+        private void OnRuntimeSegmentZoomOutButtonClick(object? sender, EventArgs e)
+        {
+            runtimeSegmentTimelineControl.ZoomOut();
+        }
+
+        private void OnRuntimeSegmentZoomInButtonClick(object? sender, EventArgs e)
+        {
+            runtimeSegmentTimelineControl.ZoomIn();
+        }
+
+        private void OnRuntimeSegmentPreviousButtonClick(object? sender, EventArgs e)
+        {
+            runtimeSegmentTimelineControl.PanPrevious();
+        }
+
+        private void OnRuntimeSegmentNextButtonClick(object? sender, EventArgs e)
+        {
+            runtimeSegmentTimelineControl.PanNext();
+        }
+
+        private void OnRuntimeSegmentHelpButtonClick(object? sender, EventArgs e)
+        {
+            CenteredMessageDialog.Show(
+                this,
+                GetRuntimeSegmentHelpMessage(),
+                GetRuntimeSegmentHelpTitle(),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private void OnRuntimeSegmentObservationFilterComboBoxSelectedIndexChanged(object? sender, EventArgs e)
+        {
+            if (runtimeSegmentObservationFilterComboBox.SelectedItem is not RuntimeSegmentObservationFilterOption option
+                || option.Value == selectedRuntimeSegmentObservationFilter)
+                return;
+
+            selectedRuntimeSegmentObservationFilter = option.Value;
+            RefreshRuntimeSegments(DateTimeOffset.UtcNow);
+        }
+
+        private void OnRuntimeSegmentZoomScrollBarScroll(object? sender, ScrollEventArgs e)
+        {
+            if (isUpdatingRuntimeSegmentScrollBar)
+                return;
+
+            runtimeSegmentTimelineControl.SetViewStartRatio(e.NewValue / 1000d);
         }
 
         private void OnTimelineZoomScrollBarScroll(object? sender, ScrollEventArgs e)
@@ -2340,6 +2665,41 @@ namespace TimePilot.WinForms
             finally
             {
                 isUpdatingTimelineScrollBar = false;
+            }
+        }
+
+        private void UpdateRuntimeSegmentZoomControls()
+        {
+            runtimeSegmentZoomRangeLabel.Text = GetRuntimeSegmentViewRangeText();
+            runtimeSegmentZoomOutButton.Enabled = runtimeSegmentTimelineControl.IsZoomed;
+            runtimeSegmentZoomInButton.Enabled = true;
+            runtimeSegmentPreviousButton.Enabled = runtimeSegmentTimelineControl.CanPanPrevious;
+            runtimeSegmentNextButton.Enabled = runtimeSegmentTimelineControl.CanPanNext;
+            runtimeSegmentResetButton.Enabled = runtimeSegmentTimelineControl.IsZoomed;
+            UpdateRuntimeSegmentZoomScrollBar();
+        }
+
+        private void UpdateRuntimeSegmentZoomScrollBar()
+        {
+            isUpdatingRuntimeSegmentScrollBar = true;
+            try
+            {
+                const int scale = 1000;
+                var width = Math.Clamp((int)Math.Round(runtimeSegmentTimelineControl.ViewWidthRatio * scale), 1, scale);
+                var maxValue = Math.Max(0, scale - width);
+                var value = Math.Clamp((int)Math.Round(runtimeSegmentTimelineControl.ViewStartRatio * scale), 0, maxValue);
+
+                runtimeSegmentZoomScrollBar.Visible = runtimeSegmentTimelineControl.IsZoomed;
+                runtimeSegmentZoomScrollBar.Enabled = runtimeSegmentTimelineControl.IsZoomed;
+                runtimeSegmentZoomScrollBar.Minimum = 0;
+                runtimeSegmentZoomScrollBar.Maximum = scale;
+                runtimeSegmentZoomScrollBar.LargeChange = width;
+                runtimeSegmentZoomScrollBar.SmallChange = Math.Max(1, width / 10);
+                runtimeSegmentZoomScrollBar.Value = value;
+            }
+            finally
+            {
+                isUpdatingRuntimeSegmentScrollBar = false;
             }
         }
 
@@ -2784,6 +3144,7 @@ namespace TimePilot.WinForms
                 return;
 
             selectedRuntimeAppId = GetSelectedRuntimeAppId();
+            selectedRuntimeSegmentKey = null;
             RefreshRuntimeSegments(DateTimeOffset.UtcNow);
         }
 
@@ -2917,6 +3278,9 @@ namespace TimePilot.WinForms
             if (e.ColumnIndex < 0)
                 return;
 
+            var selectionKey = (runtimeSegmentsGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSegmentRow) is { } selectedSegment
+                ? RuntimeSegmentSelectionKey.From(selectedSegment)
+                : selectedRuntimeSegmentKey;
             var propertyName = GetRuntimeSegmentSortPropertyName(runtimeSegmentsGrid.Columns[e.ColumnIndex]);
             if (propertyName is null)
                 return;
@@ -2926,8 +3290,24 @@ namespace TimePilot.WinForms
                 : SortOrder.Descending;
             runtimeSegmentSortProperty = propertyName;
             SaveTableSortState();
-            RefreshRuntimeSegments(DateTimeOffset.UtcNow);
+            RefreshRuntimeSegments(
+                DateTimeOffset.UtcNow,
+                selectionKeyToRestore: selectionKey,
+                selectFirstWhenMissing: false);
             UpdateSortGlyphs();
+        }
+
+        private void OnRuntimeSegmentsGridSelectionChanged(object? sender, EventArgs e)
+        {
+            if (isRestoringRuntimeSegmentSelection)
+                return;
+
+            if (runtimeSegmentsGrid.CurrentRow is null && runtimeSegmentsGrid.Rows.Count > 0)
+                return;
+
+            var selectedSegment = runtimeSegmentsGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSegmentRow;
+            selectedRuntimeSegmentKey = selectedSegment is null ? null : RuntimeSegmentSelectionKey.From(selectedSegment);
+            runtimeSegmentTimelineControl.SetHighlightedSegment(selectedSegment);
         }
 
         private void OnRunningRuntimeOnlyCheckBoxCheckedChanged(object? sender, EventArgs e)
@@ -2980,6 +3360,69 @@ namespace TimePilot.WinForms
         private void OnDetailTrackingDisabledPreferencesButtonClick(object? sender, EventArgs e)
         {
             ShowPreferencesDialog();
+        }
+
+        private static void ConfigureRuntimeSegmentZoomButton(
+            Button button,
+            EventHandler clickHandler,
+            int width = 32)
+        {
+            button.Size = new Size(width, 24);
+            button.Margin = new Padding(3, 2, 3, 0);
+            button.UseVisualStyleBackColor = true;
+            button.Click += clickHandler;
+        }
+
+        private string GetRuntimeSegmentViewRangeText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"Runtime view: {runtimeSegmentTimelineControl.ViewRangeText}"
+                : $"실행 구간 보기: {runtimeSegmentTimelineControl.ViewRangeText}";
+        }
+
+        private static string GetRuntimeSegmentResetText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Full" : "전체";
+        }
+
+        private static string GetRuntimeSegmentObservationFilterLabelText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Basis" : "관측 기준";
+        }
+
+        private static string GetRuntimeSegmentResetTooltip()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? "Return the selected app runtime chart to the full-day view."
+                : "선택 앱 실행 구간 그래프를 하루 전체 보기로 되돌립니다.";
+        }
+
+        private static string GetRuntimeSegmentHelpTitle()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? "Selected App Runtime Chart Help"
+                : "선택 앱 실행 구간 도움말";
+        }
+
+        private static string GetRuntimeSegmentHelpMessage()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? "Selected app runtime chart controls\n\n"
+                    + "- Drag the chart: zoom into the selected time range.\n"
+                    + "- Ctrl+wheel: zoom around the pointer.\n"
+                    + "- Shift+wheel: pan left/right in the zoomed view.\n"
+                    + "- Left / Right keys: pan left/right after clicking the chart.\n"
+                    + "- Esc or Full: return to the full-day view.\n"
+                    + "- Selecting a runtime segment row highlights that segment on the chart.\n\n"
+                    + "Overlapping or dense segments may look close together. Zoom into the range when you need to inspect the exact position."
+                : "선택 앱 실행 구간 그래프 조작\n\n"
+                    + "- 그래프 드래그: 선택한 시간 범위로 확대합니다.\n"
+                    + "- Ctrl+휠: 마우스 위치를 기준으로 확대/축소합니다.\n"
+                    + "- Shift+휠: 확대한 보기에서 좌우로 이동합니다.\n"
+                    + "- 왼쪽/오른쪽 방향키: 그래프를 클릭한 뒤 좌우로 이동합니다.\n"
+                    + "- Esc 또는 전체: 하루 전체 보기로 되돌립니다.\n"
+                    + "- 실행 구간 목록의 행을 선택하면 해당 구간이 그래프에서 강조됩니다.\n\n"
+                    + "구간이 많이 겹치거나 촘촘한 앱은 한눈에 구분하기 어려울 수 있습니다. 정확한 위치를 보려면 해당 범위를 확대해서 확인하세요.";
         }
 
         private static string GetDetailRuntimeFilterText(DetailRuntimeFilter filter)
@@ -3218,6 +3661,11 @@ namespace TimePilot.WinForms
         private long? GetSelectedRuntimeAppId()
         {
             return (runtimeGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSummaryRow)?.AppId;
+        }
+
+        private ProcessRuntimeSummaryRow? GetSelectedRuntimeSummaryRow()
+        {
+            return runtimeGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSummaryRow;
         }
 
         private static T? SelectGridRow<T>(DataGridView grid, int rowIndex, int columnIndex)
@@ -4032,6 +4480,23 @@ namespace TimePilot.WinForms
             }
         }
 
+        private sealed record RuntimeSegmentObservationFilterOption(string Label, RuntimeSegmentObservationFilter Value)
+        {
+            public override string ToString() => Label;
+
+            public static IReadOnlyList<RuntimeSegmentObservationFilterOption> GetOptions()
+            {
+                var isEnglish = UiText.CurrentLanguage == UiLanguage.English;
+                return
+                [
+                    new(isEnglish ? "All basis" : "전체 기준", RuntimeSegmentObservationFilter.All),
+                    new(UiText.Main.WindowedApp, RuntimeSegmentObservationFilter.VisibleApps),
+                    new(UiText.Main.UserProcess, RuntimeSegmentObservationFilter.UserProcesses),
+                    new(UiText.Main.AllProcesses, RuntimeSegmentObservationFilter.AllProcesses)
+                ];
+            }
+        }
+
         private sealed record SystemTimelineEventRow(
             DateTimeOffset OccurredAt,
             string OccurredAtText,
@@ -4040,6 +4505,33 @@ namespace TimePilot.WinForms
             string PreviousIntervalText,
             string RelationText,
             string DetailsText);
+
+        private readonly record struct RuntimeSegmentSelectionKey(
+            DateTimeOffset StartedAt,
+            DateTimeOffset? EndedAt,
+            int ProcessId,
+            bool HasMainWindow,
+            bool IsCurrentSessionProcess)
+        {
+            public static RuntimeSegmentSelectionKey From(ProcessRuntimeSegmentRow segment)
+            {
+                return new RuntimeSegmentSelectionKey(
+                    segment.StartedAt,
+                    segment.EndedAt,
+                    segment.ProcessId,
+                    segment.HasMainWindow,
+                    segment.IsCurrentSessionProcess);
+            }
+
+            public bool Matches(ProcessRuntimeSegmentRow segment)
+            {
+                return StartedAt == segment.StartedAt
+                    && EndedAt == segment.EndedAt
+                    && ProcessId == segment.ProcessId
+                    && HasMainWindow == segment.HasMainWindow
+                    && IsCurrentSessionProcess == segment.IsCurrentSessionProcess;
+            }
+        }
 
     }
 }
