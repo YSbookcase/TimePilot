@@ -20,6 +20,7 @@ namespace TimePilot.WinForms
         private readonly Label processRuntimeWarningLabel = new();
         private readonly Button openDataFolderButton = new();
         private readonly Button clearUsageDataButton = new();
+        private readonly LinkLabel sponsorLinkLabel = new();
         private readonly Button okButton = new();
         private readonly Button cancelButton = new();
 
@@ -224,6 +225,14 @@ namespace TimePilot.WinForms
             clearUsageDataButton.Text = UiText.Preferences.ClearUsageData;
             clearUsageDataButton.Click += OnClearUsageDataButtonClick;
 
+            sponsorLinkLabel.AutoSize = true;
+            sponsorLinkLabel.Location = new Point(20, 488);
+            sponsorLinkLabel.Name = "sponsorLinkLabel";
+            sponsorLinkLabel.Size = new Size(120, 15);
+            sponsorLinkLabel.TabStop = true;
+            sponsorLinkLabel.Text = UiText.Preferences.SponsorLink;
+            sponsorLinkLabel.LinkClicked += OnSponsorLinkLabelLinkClicked;
+
             okButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             okButton.DialogResult = DialogResult.OK;
             okButton.Location = new Point(294, 482);
@@ -253,6 +262,7 @@ namespace TimePilot.WinForms
             Controls.Add(performanceDiagnosticsCheckBox);
             Controls.Add(processRuntimeGroupBox);
             Controls.Add(dataManagementGroupBox);
+            Controls.Add(sponsorLinkLabel);
             Controls.Add(okButton);
             Controls.Add(cancelButton);
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -414,6 +424,26 @@ namespace TimePilot.WinForms
 
             ClearUsageDataRequested = true;
             clearUsageDataButton.Text = UiText.Preferences.ClearUsageDataPending;
+        }
+
+        private void OnSponsorLinkLabelLinkClicked(object? sender, LinkLabelLinkClickedEventArgs e)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(ExternalLinks.SponsorUrl)
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Preferences.SponsorOpenFailed(ex.Message),
+                    UiText.Preferences.SponsorLink,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
         }
 
         private void OnOkButtonClick(object? sender, EventArgs e)
