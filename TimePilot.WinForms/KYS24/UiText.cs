@@ -168,6 +168,10 @@ namespace TimePilot.WinForms.KYS24
             public static string RawDataExportTitle => current.Main.RawDataExportTitle;
             public static string RawDataExportWarning => current.Main.RawDataExportWarning;
             public static string RuntimeDiagnostics => current.Main.RuntimeDiagnostics;
+            public static string Sponsor => current.Main.Sponsor;
+            public static string SponsorAboutMessage => current.Main.SponsorAboutMessage;
+            public static string SponsorOpened => current.Main.SponsorOpened;
+            public static string SponsorOpenFailed(string message) => current.Main.SponsorOpenFailed(message);
             public static string RuntimeDiagnosticsTitle => current.Main.RuntimeDiagnosticsTitle;
             public static string RuntimeDiagnosticsNoHistory => current.Main.RuntimeDiagnosticsNoHistory;
             public static string RuntimeDiagnosticsLastRun => current.Main.RuntimeDiagnosticsLastRun;
@@ -287,6 +291,7 @@ namespace TimePilot.WinForms.KYS24
             public static string DataFolderOpenTitle => current.Preferences.DataFolderOpenTitle;
             public static string ClearUsageDataTitle => current.Preferences.ClearUsageDataTitle;
             public static string ClearUsageDataMessage => current.Preferences.ClearUsageDataMessage;
+            public static string SponsorLink => current.Preferences.SponsorLink;
             public static string AdvancedTrackingTitle => current.Preferences.AdvancedTrackingTitle;
             public static string WindowedAppsScope => current.Preferences.WindowedAppsScope;
             public static string WindowedAppsScopeDescription => current.Preferences.WindowedAppsScopeDescription;
@@ -302,6 +307,11 @@ namespace TimePilot.WinForms.KYS24
             public static string DataFolderOpenFailed(string message)
             {
                 return current.Preferences.DataFolderOpenFailed(message);
+            }
+
+            public static string SponsorOpenFailed(string message)
+            {
+                return current.Preferences.SponsorOpenFailed(message);
             }
         }
 
@@ -516,6 +526,10 @@ namespace TimePilot.WinForms.KYS24
                         RawDataExportTitle: "원본 데이터 전체 내보내기",
                         RawDataExportWarning: "원본 데이터에는 앱 이름, 프로세스 이름, 실행 경로, 사용 시간, 실행 기록이 포함될 수 있습니다.\n\n현재는 기간 제한 없이 전체 원본 테이블 CSV를 ZIP 파일로 저장합니다. 계속할까요?",
                         RuntimeDiagnostics: "실행 진단",
+                        Sponsor: "후원하기...",
+                        SponsorAboutMessage: "TimePilot 개발을 응원하고 싶다면 도움말 > 후원하기에서 GitHub Sponsors 페이지를 열 수 있습니다.",
+                        SponsorOpened: "후원 페이지를 열었습니다.",
+                        SponsorOpenFailed: message => $"후원 페이지를 열지 못했습니다.\n\n{message}",
                         RuntimeDiagnosticsTitle: "TimePilot 실행 진단",
                         RuntimeDiagnosticsNoHistory: "아직 확인할 수 있는 이전 실행 기록이 없습니다.",
                         RuntimeDiagnosticsLastRun: "최근 종료된 실행",
@@ -621,6 +635,7 @@ namespace TimePilot.WinForms.KYS24
                         DataFolderOpenTitle: "데이터 폴더 열기",
                         ClearUsageDataTitle: "사용 기록 삭제",
                         ClearUsageDataMessage: "저장을 누르면 앱 사용 기록과 타임라인 기록이 삭제됩니다.\n\n환경 설정과 Windows 시작 시 자동 실행 설정은 유지됩니다.",
+                        SponsorLink: "TimePilot 개발 후원",
                         AdvancedTrackingTitle: "고급 추적 설정",
                         WindowedAppsScope: "화면에 보이는 앱만",
                         WindowedAppsScopeDescription: "창이 감지된 앱을 추적합니다. 작업관리자의 앱 항목과 비슷하지만 완전히 동일하지 않을 수 있습니다.",
@@ -632,7 +647,8 @@ namespace TimePilot.WinForms.KYS24
                         AllProcessesRiskMessage: "모든 프로세스를 10초 미만 주기로 추적하면 환경에 따라 TimePilot이 멈추거나 비정상 종료될 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
                         UserProcessesRiskMessage: "모든 사용자 프로세스를 5초 이하 주기로 추적하면 CPU 사용량과 저장 데이터가 크게 증가할 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
                         AnyScopeRiskMessage: "3초 이하 확인 주기는 추적 범위와 관계없이 시스템 부하와 저장 데이터 증가를 유발할 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
-                        DataFolderOpenFailed: message => $"데이터 폴더를 열 수 없습니다.\n\n{message}"),
+                        DataFolderOpenFailed: message => $"데이터 폴더를 열 수 없습니다.\n\n{message}",
+                        SponsorOpenFailed: message => $"후원 페이지를 열 수 없습니다.\n\n{message}"),
                     new DateStatusText("기록 있음", "기록 없음", "확인 전"),
                     new CalendarPickerText(
                         MonthTitle: month => string.Format(CultureInfo.CurrentCulture, "{0:yyyy}년 {0:M월}", month),
@@ -812,6 +828,10 @@ namespace TimePilot.WinForms.KYS24
                         RawDataExportTitle: "Export all raw data",
                         RawDataExportWarning: "Raw data can include app names, process names, executable paths, usage times, and runtime records.\n\nTimePilot currently exports all raw table CSV files without a date range limit into a ZIP file. Continue?",
                         RuntimeDiagnostics: "Runtime diagnostics",
+                        Sponsor: "Sponsor...",
+                        SponsorAboutMessage: "To support TimePilot development, open Help > Sponsor to visit the GitHub Sponsors page.",
+                        SponsorOpened: "Opened the sponsor page.",
+                        SponsorOpenFailed: message => $"Could not open the sponsor page.\n\n{message}",
                         RuntimeDiagnosticsTitle: "TimePilot runtime diagnostics",
                         RuntimeDiagnosticsNoHistory: "No previous runtime history is available yet.",
                         RuntimeDiagnosticsLastRun: "Most recent completed run",
@@ -917,6 +937,7 @@ namespace TimePilot.WinForms.KYS24
                         DataFolderOpenTitle: "Open data folder",
                         ClearUsageDataTitle: "Delete usage records",
                         ClearUsageDataMessage: "When you click Save, app usage records and timeline records will be deleted.\n\nPreferences and Windows startup settings will be kept.",
+                        SponsorLink: "Sponsor TimePilot development",
                         AdvancedTrackingTitle: "Advanced tracking settings",
                         WindowedAppsScope: "Visible apps only",
                         WindowedAppsScopeDescription: "Tracks apps with a detected app window. This is similar to Task Manager's Apps group, but may not match it exactly.",
@@ -928,7 +949,8 @@ namespace TimePilot.WinForms.KYS24
                         AllProcessesRiskMessage: "Tracking all processes at intervals shorter than 10 seconds may freeze or unexpectedly close TimePilot depending on your environment.\n\nIf repeated unexpected exits happen shortly after launch with the same setting, background app tracking will be disabled on the next launch.\n\nSave this risky setting?",
                         UserProcessesRiskMessage: "Tracking all user processes every 5 seconds or less can significantly increase CPU usage and stored data.\n\nIf repeated unexpected exits happen shortly after launch with the same setting, background app tracking will be disabled on the next launch.\n\nSave this risky setting?",
                         AnyScopeRiskMessage: "Check intervals of 3 seconds or less can increase system load and stored data regardless of tracking scope.\n\nIf repeated unexpected exits happen shortly after launch with the same setting, background app tracking will be disabled on the next launch.\n\nSave this risky setting?",
-                        DataFolderOpenFailed: message => $"Could not open the data folder.\n\n{message}"),
+                        DataFolderOpenFailed: message => $"Could not open the data folder.\n\n{message}",
+                        SponsorOpenFailed: message => $"Could not open the sponsor page.\n\n{message}"),
                     new DateStatusText("Has records", "No records", "Not checked"),
                     new CalendarPickerText(
                         MonthTitle: month => month.ToString("MMMM yyyy", CultureInfo.CurrentCulture),
@@ -1076,6 +1098,10 @@ namespace TimePilot.WinForms.KYS24
             string RawDataExportTitle,
             string RawDataExportWarning,
             string RuntimeDiagnostics,
+            string Sponsor,
+            string SponsorAboutMessage,
+            string SponsorOpened,
+            Func<string, string> SponsorOpenFailed,
             string RuntimeDiagnosticsTitle,
             string RuntimeDiagnosticsNoHistory,
             string RuntimeDiagnosticsLastRun,
@@ -1179,6 +1205,7 @@ namespace TimePilot.WinForms.KYS24
             string DataFolderOpenTitle,
             string ClearUsageDataTitle,
             string ClearUsageDataMessage,
+            string SponsorLink,
             string AdvancedTrackingTitle,
             string WindowedAppsScope,
             string WindowedAppsScopeDescription,
@@ -1190,7 +1217,8 @@ namespace TimePilot.WinForms.KYS24
             string AllProcessesRiskMessage,
             string UserProcessesRiskMessage,
             string AnyScopeRiskMessage,
-            Func<string, string> DataFolderOpenFailed);
+            Func<string, string> DataFolderOpenFailed,
+            Func<string, string> SponsorOpenFailed);
 
         private sealed record DateStatusText(string HasData, string NoData, string NotChecked);
 

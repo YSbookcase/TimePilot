@@ -960,6 +960,7 @@ namespace TimePilot.WinForms
             resetTableSortMenuItem.Text = GetResetTableSortMenuText();
             helpMenuItem.Text = UiText.Main.HelpMenu;
             runtimeDiagnosticsMenuItem.Text = UiText.Main.RuntimeDiagnostics;
+            sponsorMenuItem.Text = UiText.Main.Sponsor;
             aboutMenuItem.Text = UiText.Main.About;
 
             summaryTab.Text = UiText.Main.SummaryTab;
@@ -3476,10 +3477,31 @@ namespace TimePilot.WinForms
         {
             CenteredMessageDialog.Show(
                 this,
-                $"TimePilot {Application.ProductVersion}",
+                $"TimePilot {Application.ProductVersion}\n\n{UiText.Main.SponsorAboutMessage}",
                 UiText.Main.AboutTitle,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
+        }
+
+        private void OnSponsorMenuItemClick(object? sender, EventArgs e)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(ExternalLinks.SponsorUrl)
+                {
+                    UseShellExecute = true
+                });
+                SetStatusText(UiText.Main.SponsorOpened);
+            }
+            catch (Exception ex)
+            {
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Main.SponsorOpenFailed(ex.Message),
+                    UiText.Main.Sponsor,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
         }
 
         private void OnRuntimeDiagnosticsMenuItemClick(object? sender, EventArgs e)
