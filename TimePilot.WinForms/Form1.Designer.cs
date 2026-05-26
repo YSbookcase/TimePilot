@@ -791,7 +791,7 @@
             //
             detailSplitContainer.Panel2.Controls.Add(runtimeSegmentsGrid);
             detailSplitContainer.Size = new Size(706, 332);
-            detailSplitContainer.SplitterDistance = 164;
+            detailSplitContainer.SplitterDistance = 131;
             detailSplitContainer.TabIndex = 0;
             //
             // runtimeGrid
@@ -1314,8 +1314,8 @@
             timelineHighlightSummaryPanel.Dock = DockStyle.Top;
             timelineHighlightSummaryPanel.Location = new Point(3, 71);
             timelineHighlightSummaryPanel.Name = "timelineHighlightSummaryPanel";
-            timelineHighlightSummaryPanel.Padding = new Padding(8, 4, 8, 2);
-            timelineHighlightSummaryPanel.Size = new Size(706, 30);
+            timelineHighlightSummaryPanel.Padding = new Padding(8, 0, 8, 2);
+            timelineHighlightSummaryPanel.Size = new Size(706, 24);
             timelineHighlightSummaryPanel.TabIndex = 3;
             timelineHighlightSummaryPanel.Visible = false;
             timelineHighlightSummaryPanel.WrapContents = false;
@@ -1324,8 +1324,8 @@
             //
             timelineHighlightSummaryLabel.AutoSize = true;
             timelineHighlightSummaryLabel.ForeColor = SystemColors.ControlText;
-            timelineHighlightSummaryLabel.Location = new Point(11, 10);
-            timelineHighlightSummaryLabel.Margin = new Padding(0, 6, 4, 0);
+            timelineHighlightSummaryLabel.Location = new Point(11, 4);
+            timelineHighlightSummaryLabel.Margin = new Padding(0, 4, 4, 0);
             timelineHighlightSummaryLabel.Name = "timelineHighlightSummaryLabel";
             timelineHighlightSummaryLabel.Size = new Size(0, 15);
             timelineHighlightSummaryLabel.TabIndex = 0;
