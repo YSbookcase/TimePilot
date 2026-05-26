@@ -56,7 +56,9 @@ namespace TimePilot.WinForms
         private long? selectedRuntimeAppId;
         private volatile bool isClosing;
         private volatile bool isProcessRuntimeSampleRunning;
+        private bool isExportRunning;
         private string statusText = string.Empty;
+        private string? exportStatusText;
         private string? performanceStatusText;
         private DateTimeOffset? performanceStatusExpiresAt;
         private DataGridView? hoveredHeaderGrid;
@@ -1449,9 +1451,13 @@ namespace TimePilot.WinForms
                 performanceStatusExpiresAt = null;
             }
 
-            statusLabel.Text = string.IsNullOrWhiteSpace(performanceStatusText)
-                ? statusText
-                : $"{statusText} | {performanceStatusText}";
+            var parts = new List<string> { statusText };
+            if (!string.IsNullOrWhiteSpace(exportStatusText))
+                parts.Add(exportStatusText);
+            if (!string.IsNullOrWhiteSpace(performanceStatusText))
+                parts.Add(performanceStatusText);
+
+            statusLabel.Text = string.Join(" | ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
         }
 
         private IReadOnlyList<UsageSummaryRow> AddIcons(IReadOnlyList<UsageSummaryRow> rows)
@@ -3296,11 +3302,12 @@ namespace TimePilot.WinForms
             }
         }
 
-        private void OnExportCsvMenuItemClick(object? sender, EventArgs e)
+        private async void OnExportCsvMenuItemClick(object? sender, EventArgs e)
         {
-            if (storage is null)
+            if (storage is null || isExportRunning)
                 return;
 
+            var storageSnapshot = storage;
             var now = DateTimeOffset.UtcNow;
             var today = now.ToLocalTime().Date;
             using var rangeDialog = new CsvExportRangeForm(today, settings.UiLanguage, GetRecordedDates);
@@ -3321,25 +3328,37 @@ namespace TimePilot.WinForms
             if (dialog.ShowDialog(this) != DialogResult.OK)
                 return;
 
+            var startDate = rangeDialog.StartDate;
+            var endDate = rangeDialog.EndDate;
             try
             {
-                var exporter = new UsageCsvExporter(storage);
-                var exportedFiles = exporter.ExportRange(dialog.FileName, rangeDialog.StartDate, rangeDialog.EndDate, now);
+                SetExportRunning(true, BuildExportInProgressStatus(UiText.Main.CsvExportTitle));
+                var fileName = dialog.FileName;
+                var exportedFiles = await Task.Run(() =>
+                {
+                    var exporter = new UsageCsvExporter(storageSnapshot);
+                    return exporter.ExportRange(fileName, startDate, endDate, now);
+                });
+
+                SetExportRunning(false, BuildExportCompletedStatus(UiText.Main.CsvExportTitle));
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.CsvExportCompleted(exportedFiles.Count, Path.GetDirectoryName(dialog.FileName)),
                     UiText.Main.CsvExportTitle,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
+                ClearExportStatus();
             }
             catch (Exception ex)
             {
+                SetExportRunning(false, BuildExportFailedStatus(UiText.Main.CsvExportTitle));
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.CsvExportFailed(ex.Message),
                     UiText.Main.CsvExportTitle,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
+                ClearExportStatus();
             }
         }
 
@@ -3350,11 +3369,49 @@ namespace TimePilot.WinForms
                 : $"{startDate:yyyy-MM-dd}_to_{endDate:yyyy-MM-dd}";
         }
 
-        private void OnExportRawDataMenuItemClick(object? sender, EventArgs e)
+        private void SetExportRunning(bool isRunning, string? message)
         {
-            if (storage is null)
+            isExportRunning = isRunning;
+            exportStatusText = message;
+            exportCsvMenuItem.Enabled = !isRunning;
+            exportRawDataMenuItem.Enabled = !isRunning;
+            UseWaitCursor = isRunning;
+            RefreshStatusLabel();
+        }
+
+        private static string BuildExportInProgressStatus(string title)
+        {
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"{title} in progress..."
+                : $"{title} 진행 중...";
+        }
+
+        private static string BuildExportCompletedStatus(string title)
+        {
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"{title} completed."
+                : $"{title} 완료.";
+        }
+
+        private static string BuildExportFailedStatus(string title)
+        {
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"{title} failed."
+                : $"{title} 실패.";
+        }
+
+        private void ClearExportStatus()
+        {
+            exportStatusText = null;
+            RefreshStatusLabel();
+        }
+
+        private async void OnExportRawDataMenuItemClick(object? sender, EventArgs e)
+        {
+            if (storage is null || isExportRunning)
                 return;
 
+            var storageSnapshot = storage;
             var confirm = CenteredMessageDialog.Show(
                 this,
                 UiText.Main.RawDataExportWarning,
@@ -3380,23 +3437,33 @@ namespace TimePilot.WinForms
 
             try
             {
-                var exporter = new RawDataZipExporter(storage);
-                var exportedFiles = exporter.Export(dialog.FileName);
+                SetExportRunning(true, BuildExportInProgressStatus(UiText.Main.RawDataExportTitle));
+                var fileName = dialog.FileName;
+                var exportedFiles = await Task.Run(() =>
+                {
+                    var exporter = new RawDataZipExporter(storageSnapshot);
+                    return exporter.Export(fileName);
+                });
+
+                SetExportRunning(false, BuildExportCompletedStatus(UiText.Main.RawDataExportTitle));
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.RawDataExportCompleted(dialog.FileName, exportedFiles.Count),
                     UiText.Main.RawDataExportTitle,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
+                ClearExportStatus();
             }
             catch (Exception ex)
             {
+                SetExportRunning(false, BuildExportFailedStatus(UiText.Main.RawDataExportTitle));
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.RawDataExportFailed(ex.Message),
                     UiText.Main.RawDataExportTitle,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
+                ClearExportStatus();
             }
         }
 
