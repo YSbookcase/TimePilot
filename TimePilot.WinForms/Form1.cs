@@ -95,6 +95,8 @@ namespace TimePilot.WinForms
         private bool systemEventHandlersRegistered;
         private string? highlightedTimelineProcessName;
         private string? highlightedTimelineAppName;
+        private TimelineSegmentSelectionKey? highlightedTimelineSegmentKey;
+        private string? highlightedTimelineSegmentLabel;
         private IReadOnlyList<ForegroundUsageSummary> currentTimelineForegroundUsage = Array.Empty<ForegroundUsageSummary>();
         private IReadOnlyList<ActivityTimelineRow> currentTimelineRows = Array.Empty<ActivityTimelineRow>();
         private IReadOnlyList<SystemTimelineEvent> currentTimelineSystemEvents = Array.Empty<SystemTimelineEvent>();
@@ -276,7 +278,7 @@ namespace TimePilot.WinForms
 
             var availableHeight = detailSplitContainer.Height - detailSplitContainer.SplitterWidth;
             var splitterDistance = Math.Clamp(
-                availableHeight / 2,
+                (int)Math.Round(availableHeight * 0.4),
                 detailSplitContainer.Panel1MinSize,
                 Math.Max(detailSplitContainer.Panel1MinSize, availableHeight - detailSplitContainer.Panel2MinSize));
             if (splitterDistance > 0)
@@ -760,8 +762,8 @@ namespace TimePilot.WinForms
             timelineSystemEventFilterComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             timelineSystemEventFilterComboBox.Width = 112;
             timelineSystemEventFilterComboBox.SelectedIndexChanged += OnTimelineSystemEventFilterComboBoxSelectedIndexChanged;
-            timelineZoomPanel.WrapContents = true;
-            timelineZoomPanel.Height = 64;
+            timelineZoomPanel.WrapContents = false;
+            timelineZoomPanel.Height = 32;
             timelineZoomPanel.Controls.Add(timelineSystemEventFilterLabel);
             timelineZoomPanel.Controls.Add(timelineSystemEventFilterComboBox);
             RefreshTimelineSystemEventFilterOptions();
@@ -1418,7 +1420,7 @@ namespace TimePilot.WinForms
                     filteredSystemEvents,
                     snapshot.CategoryTimelineSegments ?? Array.Empty<CategoryTimelineSegment>());
                 timelineOverviewControl.SetSystemEventHighlightEnabled(selectedTimelineSystemEventFilter != TimelineSystemEventFilter.All);
-                timelineOverviewControl.SetHighlightedProcessName(highlightedTimelineProcessName);
+                ApplyTimelineHighlightToOverview();
                 SetGridDataSourcePreservingView(
                     timelineGrid,
                     AddIcons(SortTimelineRows(snapshot.TimelineRows)));
@@ -1428,10 +1430,10 @@ namespace TimePilot.WinForms
             if (snapshot.RuntimeRows is not null)
             {
                 SetDateStatus(detailDateStatusLabel, snapshot.DetailDateHasData);
+                var appIdToRestoreOnApply = selectedRuntimeAppId ?? appIdToRestore;
                 isRefreshingRuntimeGrid = true;
                 try
                 {
-                    var appIdToRestoreOnApply = selectedRuntimeAppId ?? appIdToRestore;
                     var runtimeRows = ApplyCurrentTrackingScope(snapshot.RuntimeRows);
                     SetGridDataSourcePreservingView(
                         runtimeGrid,
@@ -1450,18 +1452,27 @@ namespace TimePilot.WinForms
                     isRefreshingRuntimeGrid = false;
                 }
 
-                selectedRuntimeAppId = GetSelectedRuntimeAppId();
+                selectedRuntimeAppId = appIdToRestoreOnApply ?? GetSelectedRuntimeAppId();
                 if (selectedRuntimeAppId == appIdToRestore && snapshot.RuntimeSegmentRows is not null)
                 {
                     var sortedSegments = SortRuntimeSegmentRows(FilterRuntimeSegmentRows(snapshot.RuntimeSegmentRows));
                     SetRuntimeSegmentsDataSource(sortedSegments);
                     RestoreRuntimeSegmentSelection(selectedRuntimeSegmentKey, selectFirstWhenMissing: selectedRuntimeSegmentKey is null);
-                    UpdateRuntimeSegmentTimeline(GetSelectedRuntimeSummaryRow(), sortedSegments);
+                    UpdateRuntimeSegmentTimeline(GetRuntimeRowForSelectedApp(), sortedSegments);
                 }
                 else
                 {
                     RefreshRuntimeSegments(observedAt);
                 }
+
+                RestoreRuntimeGridView(
+                    runtimeFirstDisplayedRowIndex,
+                    runtimeFirstDisplayedColumnIndex,
+                    runtimeHorizontalOffset);
+                ScheduleRuntimeGridViewRestore(
+                    runtimeFirstDisplayedRowIndex,
+                    runtimeFirstDisplayedColumnIndex,
+                    runtimeHorizontalOffset);
             }
 
             UpdateSortGlyphs();
@@ -1482,7 +1493,7 @@ namespace TimePilot.WinForms
             if (storage is null)
                 return;
 
-            var selectedRow = runtimeGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSummaryRow;
+            var selectedRow = GetRuntimeRowForSelectedApp();
             if (selectedRow is null)
             {
                 selectedRuntimeSegmentKey = null;
@@ -1548,12 +1559,9 @@ namespace TimePilot.WinForms
                 isRestoringRuntimeSegmentSelection = true;
                 try
                 {
-                    var columnIndex = runtimeSegmentsGrid.CurrentCell?.ColumnIndex
-                        ?? GetFirstDisplayedColumnIndex(runtimeSegmentsGrid);
-                    columnIndex = Math.Clamp(columnIndex, 0, runtimeSegmentsGrid.Columns.Count - 1);
                     runtimeSegmentsGrid.ClearSelection();
                     row.Selected = true;
-                    runtimeSegmentsGrid.CurrentCell = row.Cells[columnIndex];
+                    runtimeSegmentsGrid.CurrentCell = null;
                     selectedRuntimeSegmentKey = key;
                     runtimeSegmentTimelineControl.SetHighlightedSegment(segment);
                 }
@@ -1579,8 +1587,8 @@ namespace TimePilot.WinForms
             try
             {
                 runtimeSegmentsGrid.ClearSelection();
-                runtimeSegmentsGrid.CurrentCell = runtimeSegmentsGrid.Rows[0].Cells[0];
                 runtimeSegmentsGrid.Rows[0].Selected = true;
+                runtimeSegmentsGrid.CurrentCell = null;
                 if (runtimeSegmentsGrid.Rows[0].DataBoundItem is ProcessRuntimeSegmentRow segment)
                 {
                     selectedRuntimeSegmentKey = RuntimeSegmentSelectionKey.From(segment);
@@ -2009,11 +2017,51 @@ namespace TimePilot.WinForms
             if (row is null || string.IsNullOrWhiteSpace(row.ProcessName))
                 return;
 
+            highlightedTimelineSegmentKey = null;
+            highlightedTimelineSegmentLabel = null;
             highlightedTimelineProcessName = row.ProcessName;
             highlightedTimelineAppName = row.DisplayName;
             timelineOverviewControl.SetHighlightedProcessName(highlightedTimelineProcessName);
             UpdateTimelineHighlightUi();
             timelineGrid.Invalidate();
+        }
+
+        private void HighlightTimelineSegment(ActivityTimelineRow? row)
+        {
+            if (row is null)
+                return;
+
+            SetTimelineTypeHighlight(TimelineActivityTypeHighlight.None);
+            highlightedTimelineProcessName = null;
+            highlightedTimelineAppName = null;
+            highlightedTimelineSegmentKey = TimelineSegmentSelectionKey.From(row);
+            highlightedTimelineSegmentLabel = GetTimelineSegmentHighlightLabel(row);
+            timelineOverviewControl.SetHighlightedActivitySegment(row);
+            UpdateTimelineHighlightUi();
+            timelineGrid.Invalidate();
+        }
+
+        private static string GetHighlightTimelineSegmentMenuText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Highlight this segment" : "이 구간 강조";
+        }
+
+        private static string GetHighlightTimelineAppMenuText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Highlight this app" : "이 앱 강조";
+        }
+
+        private static string GetTimelineSegmentHighlightLabel(ActivityTimelineRow row)
+        {
+            return $"{row.DisplayName} {row.StartedAtText}-{row.EndedAtText}";
+        }
+
+        private string GetTimelineSegmentHighlightText()
+        {
+            var label = highlightedTimelineSegmentLabel ?? "";
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"Highlight segment: {label}"
+                : $"구간 강조: {label}";
         }
 
         private DateTime GetTimelineDateForSummarySelection(UsageSummaryRow row)
@@ -2470,7 +2518,10 @@ namespace TimePilot.WinForms
         private void ShowTimelineActivityContextMenu(ActivityTimelineRow row, Control owner, Point location)
         {
             timelineGridMenu.Items.Clear();
-            var highlightItem = new ToolStripMenuItem(UiText.Main.HighlightInTimeline);
+            var highlightSegmentItem = new ToolStripMenuItem(GetHighlightTimelineSegmentMenuText());
+            highlightSegmentItem.Click += (_, _) => HighlightTimelineSegment(row);
+            timelineGridMenu.Items.Add(highlightSegmentItem);
+            var highlightItem = new ToolStripMenuItem(GetHighlightTimelineAppMenuText());
             highlightItem.Click += (_, _) => HighlightTimelineRow(row);
             timelineGridMenu.Items.Add(highlightItem);
             if (row.AppId is { } appId)
@@ -2481,7 +2532,8 @@ namespace TimePilot.WinForms
             }
 
             timelineGridMenu.Items.Add(CreateSearchWebMenuItem(row.DisplayName, row.ProcessName));
-            if (string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase))
+            if (highlightedTimelineSegmentKey is not null
+                || string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase))
             {
                 var clearHighlightItem = new ToolStripMenuItem(UiText.Main.ClearTimelineHighlight);
                 clearHighlightItem.Click += (_, _) => ClearTimelineHighlights(resetTypeHighlight: true);
@@ -2495,7 +2547,10 @@ namespace TimePilot.WinForms
         {
             highlightedTimelineProcessName = null;
             highlightedTimelineAppName = null;
+            highlightedTimelineSegmentKey = null;
+            highlightedTimelineSegmentLabel = null;
             timelineOverviewControl.SetHighlightedProcessName(null);
+            timelineOverviewControl.SetHighlightedActivitySegment(null);
             if (resetTypeHighlight)
                 SetTimelineTypeHighlight(TimelineActivityTypeHighlight.None);
 
@@ -2705,13 +2760,16 @@ namespace TimePilot.WinForms
 
         private void UpdateTimelineHighlightUi()
         {
-            var hasHighlight = !string.IsNullOrWhiteSpace(highlightedTimelineProcessName);
+            var hasHighlight = highlightedTimelineSegmentKey is not null
+                || !string.IsNullOrWhiteSpace(highlightedTimelineProcessName);
             timelineHighlightLabel.Visible = hasHighlight;
             timelineHighlightClearButton.Visible = hasHighlight;
             timelineHighlightHintLabel.Visible = !hasHighlight;
-            timelineHighlightLabel.Text = hasHighlight
-                ? UiText.Main.TimelineHighlight(highlightedTimelineAppName ?? highlightedTimelineProcessName!)
-                : "";
+            timelineHighlightLabel.Text = highlightedTimelineSegmentKey is not null
+                ? GetTimelineSegmentHighlightText()
+                : hasHighlight
+                    ? UiText.Main.TimelineHighlight(highlightedTimelineAppName ?? highlightedTimelineProcessName!)
+                    : "";
             UpdateTimelineHighlightSummary();
         }
 
@@ -2733,14 +2791,43 @@ namespace TimePilot.WinForms
                 timelineOverviewControl.SetHighlightedActivityType(GetTimelineHighlightedActivityTypeText());
         }
 
+        private void ApplyTimelineHighlightToOverview()
+        {
+            if (highlightedTimelineSegmentKey is not null)
+            {
+                var highlightedRow = currentTimelineRows.FirstOrDefault(row => highlightedTimelineSegmentKey.Value.Matches(row));
+                if (highlightedRow is not null)
+                {
+                    highlightedTimelineSegmentLabel = GetTimelineSegmentHighlightLabel(highlightedRow);
+                    timelineOverviewControl.SetHighlightedActivitySegment(highlightedRow);
+                    return;
+                }
+
+                highlightedTimelineSegmentKey = null;
+                highlightedTimelineSegmentLabel = null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(highlightedTimelineProcessName))
+            {
+                timelineOverviewControl.SetHighlightedProcessName(highlightedTimelineProcessName);
+                return;
+            }
+
+            ApplyTimelineActivityTypeHighlight();
+        }
+
         private bool HasTimelineHighlight()
         {
-            return !string.IsNullOrWhiteSpace(highlightedTimelineProcessName)
+            return highlightedTimelineSegmentKey is not null
+                || !string.IsNullOrWhiteSpace(highlightedTimelineProcessName)
                 || selectedTimelineActivityTypeHighlight != TimelineActivityTypeHighlight.None;
         }
 
         private bool IsTimelineRowHighlighted(ActivityTimelineRow row)
         {
+            if (highlightedTimelineSegmentKey is not null)
+                return highlightedTimelineSegmentKey.Value.Matches(row);
+
             if (selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows
                 && string.IsNullOrWhiteSpace(highlightedTimelineProcessName))
                 return false;
@@ -2978,6 +3065,16 @@ namespace TimePilot.WinForms
                 return;
 
             var isHighlighted = IsTimelineRowHighlighted(row);
+            if (highlightedTimelineSegmentKey is not null && !isHighlighted)
+            {
+                gridRow.DefaultCellStyle.ForeColor = SystemColors.WindowText;
+                gridRow.DefaultCellStyle.BackColor = SystemColors.Window;
+                gridRow.DefaultCellStyle.SelectionForeColor = SystemColors.HighlightText;
+                gridRow.DefaultCellStyle.SelectionBackColor = SystemColors.Highlight;
+                gridRow.DefaultCellStyle.Font = null;
+                return;
+            }
+
             gridRow.DefaultCellStyle.ForeColor = isHighlighted
                 ? SystemColors.WindowText
                 : SystemColors.GrayText;
@@ -3668,6 +3765,21 @@ namespace TimePilot.WinForms
             return runtimeGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSummaryRow;
         }
 
+        private ProcessRuntimeSummaryRow? GetRuntimeRowForSelectedApp()
+        {
+            if (selectedRuntimeAppId is { } appId)
+            {
+                foreach (DataGridViewRow row in runtimeGrid.Rows)
+                {
+                    if (row.DataBoundItem is ProcessRuntimeSummaryRow runtimeRow
+                        && runtimeRow.AppId == appId)
+                        return runtimeRow;
+                }
+            }
+
+            return runtimeGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSummaryRow;
+        }
+
         private static T? SelectGridRow<T>(DataGridView grid, int rowIndex, int columnIndex)
             where T : class
         {
@@ -3741,6 +3853,36 @@ namespace TimePilot.WinForms
                 TrySetHorizontalScrollingOffset(runtimeGrid, horizontalScrollingOffset);
                 return;
             }
+        }
+
+        private void RestoreRuntimeGridView(
+            int firstDisplayedRowIndex,
+            int firstDisplayedColumnIndex,
+            int horizontalScrollingOffset)
+        {
+            TrySetFirstDisplayedRowIndex(runtimeGrid, firstDisplayedRowIndex);
+            TrySetFirstDisplayedColumnIndex(runtimeGrid, firstDisplayedColumnIndex);
+            TrySetHorizontalScrollingOffset(runtimeGrid, horizontalScrollingOffset);
+        }
+
+        private void ScheduleRuntimeGridViewRestore(
+            int firstDisplayedRowIndex,
+            int firstDisplayedColumnIndex,
+            int horizontalScrollingOffset)
+        {
+            if (runtimeGrid.IsDisposed || !runtimeGrid.IsHandleCreated)
+                return;
+
+            runtimeGrid.BeginInvoke(new Action(() =>
+            {
+                if (runtimeGrid.IsDisposed)
+                    return;
+
+                RestoreRuntimeGridView(
+                    firstDisplayedRowIndex,
+                    firstDisplayedColumnIndex,
+                    horizontalScrollingOffset);
+            }));
         }
 
         private static SortOrder ToggleSortOrder(SortOrder sortOrder)
@@ -4505,6 +4647,36 @@ namespace TimePilot.WinForms
             string PreviousIntervalText,
             string RelationText,
             string DetailsText);
+
+        private readonly record struct TimelineSegmentSelectionKey(
+            string ActivityType,
+            DateTimeOffset StartedAt,
+            DateTimeOffset? EndedAt,
+            string DisplayName,
+            string ProcessName,
+            long? AppId)
+        {
+            public static TimelineSegmentSelectionKey From(ActivityTimelineRow row)
+            {
+                return new TimelineSegmentSelectionKey(
+                    row.ActivityType,
+                    row.StartedAt,
+                    row.EndedAt,
+                    row.DisplayName,
+                    row.ProcessName,
+                    row.AppId);
+            }
+
+            public bool Matches(ActivityTimelineRow row)
+            {
+                return string.Equals(ActivityType, row.ActivityType, StringComparison.Ordinal)
+                    && StartedAt == row.StartedAt
+                    && EndedAt == row.EndedAt
+                    && string.Equals(DisplayName, row.DisplayName, StringComparison.Ordinal)
+                    && string.Equals(ProcessName, row.ProcessName, StringComparison.OrdinalIgnoreCase)
+                    && AppId == row.AppId;
+            }
+        }
 
         private readonly record struct RuntimeSegmentSelectionKey(
             DateTimeOffset StartedAt,

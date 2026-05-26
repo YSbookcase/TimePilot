@@ -439,7 +439,7 @@ namespace TimePilot.WinForms.KYS24
                             + "새로 기록되는 유휴 구간에는 당시 유휴 기준이 함께 저장됩니다. 일부 기존 기록은 기준을 알 수 없을 수 있습니다.",
                         IdleThresholdAtDetection: value => $"기록 당시 유휴 기준 {value}",
                         ClearTimelineHighlight: "해제",
-                        TimelineHighlight: appName => $"강조: {appName}",
+                        TimelineHighlight: appName => $"앱 강조: {appName}",
                         TimelineHighlightSummary: (activeUsage, usageRatio, switchCount, segmentCount, longestSegment) =>
                             $"강조 앱 요약: 활성 시간 {activeUsage} · 전체 활성 시간 대비 {usageRatio.ToString("P1", CultureInfo.CurrentCulture)} · 전환 횟수 {switchCount:N0} · 타임라인 구간 {segmentCount:N0} · 최장 연속 사용 {longestSegment}",
                         TimelineHighlightSummaryTooltip:
@@ -742,7 +742,7 @@ namespace TimePilot.WinForms.KYS24
                             + "New idle sessions store the idle threshold that was active at the time. Some older records may not have this value.",
                         IdleThresholdAtDetection: value => $"Idle threshold at detection {value}",
                         ClearTimelineHighlight: "Clear",
-                        TimelineHighlight: appName => $"Highlight: {appName}",
+                        TimelineHighlight: appName => $"App highlight: {appName}",
                         TimelineHighlightSummary: (activeUsage, usageRatio, switchCount, segmentCount, longestSegment) =>
                             $"Highlighted app summary: active time {activeUsage} · share of total active time {usageRatio.ToString("P1", CultureInfo.CurrentCulture)} · switches {switchCount:N0} · timeline segments {segmentCount:N0} · longest continuous use {longestSegment}",
                         TimelineHighlightSummaryTooltip:

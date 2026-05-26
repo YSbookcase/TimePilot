@@ -63,6 +63,7 @@ namespace TimePilot.WinForms
         private IReadOnlyList<CategoryTimelineSegment> categorySegments = Array.Empty<CategoryTimelineSegment>();
         private string? highlightedProcessName;
         private string? highlightedActivityType;
+        private ActivitySegmentHighlightKey? highlightedActivitySegmentKey;
         private bool isWindowsHighlighted;
         private bool highlightSystemEvents;
         private DateTime localDate = DateTime.Today;
@@ -144,6 +145,17 @@ namespace TimePilot.WinForms
         public void SetHighlightedProcessName(string? processName)
         {
             highlightedProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName;
+            highlightedActivitySegmentKey = null;
+            hoverText = null;
+            Invalidate();
+        }
+
+        public void SetHighlightedActivitySegment(ActivityTimelineRow? row)
+        {
+            highlightedActivitySegmentKey = row is null ? null : ActivitySegmentHighlightKey.From(row);
+            highlightedProcessName = null;
+            highlightedActivityType = null;
+            isWindowsHighlighted = false;
             hoverText = null;
             Invalidate();
         }
@@ -151,6 +163,7 @@ namespace TimePilot.WinForms
         public void SetHighlightedActivityType(string? activityType)
         {
             highlightedActivityType = string.IsNullOrWhiteSpace(activityType) ? null : activityType;
+            highlightedActivitySegmentKey = null;
             isWindowsHighlighted = false;
             hoverText = null;
             Invalidate();
@@ -159,6 +172,7 @@ namespace TimePilot.WinForms
         public void SetWindowsHighlighted(bool isHighlighted)
         {
             highlightedActivityType = null;
+            highlightedActivitySegmentKey = null;
             isWindowsHighlighted = isHighlighted;
             hoverText = null;
             Invalidate();
@@ -557,6 +571,31 @@ namespace TimePilot.WinForms
                 return;
             }
 
+            if (highlightedActivitySegmentKey is not null)
+            {
+                foreach (var row in rows)
+                {
+                    if (IsSingleSegmentHighlighted(row))
+                        continue;
+
+                    var segment = GetSegmentBounds(row, activityBounds);
+                    if (segment.Width > 0)
+                        DrawSegment(graphics, row, segment);
+                }
+
+                foreach (var row in rows)
+                {
+                    if (!IsSingleSegmentHighlighted(row))
+                        continue;
+
+                    var segment = GetSegmentBounds(row, activityBounds);
+                    if (segment.Width > 0)
+                        DrawSegment(graphics, row, segment);
+                }
+
+                return;
+            }
+
             foreach (var row in rows)
             {
                 var segment = GetSegmentBounds(row, activityBounds);
@@ -613,6 +652,18 @@ namespace TimePilot.WinForms
             using var borderPen = new Pen(GetBorderColor(row));
             graphics.FillRectangle(fillBrush, segment);
             graphics.DrawRectangle(borderPen, segment);
+
+            if (IsSingleSegmentHighlighted(row))
+            {
+                using var tintBrush = new SolidBrush(HighlightTintColor);
+                using var highlightPen = new Pen(HighlightBorderColor, 4);
+                graphics.FillRectangle(tintBrush, segment);
+                graphics.DrawRectangle(highlightPen, segment);
+                return;
+            }
+
+            if (highlightedActivitySegmentKey is not null)
+                return;
 
             if (isWindowsHighlighted && highlightedProcessName is null)
                 return;
@@ -774,6 +825,9 @@ namespace TimePilot.WinForms
 
         private bool IsHighlighted(ActivityTimelineRow row)
         {
+            if (highlightedActivitySegmentKey is not null)
+                return IsSingleSegmentHighlighted(row);
+
             if (!HasHighlight)
                 return false;
 
@@ -790,7 +844,16 @@ namespace TimePilot.WinForms
             return processMatches && activityTypeMatches;
         }
 
-        private bool HasHighlight => highlightedProcessName is not null || highlightedActivityType is not null || isWindowsHighlighted;
+        private bool IsSingleSegmentHighlighted(ActivityTimelineRow row)
+        {
+            return highlightedActivitySegmentKey?.Matches(row) == true;
+        }
+
+        private bool HasHighlight =>
+            highlightedActivitySegmentKey is not null
+            || highlightedProcessName is not null
+            || highlightedActivityType is not null
+            || isWindowsHighlighted;
 
         private void DrawHoverInfo(Graphics graphics, string text, Rectangle bounds)
         {
@@ -1138,6 +1201,36 @@ namespace TimePilot.WinForms
         {
             var totalHours = (int)value.TotalHours;
             return string.Format(CultureInfo.CurrentCulture, "{0:00}:{1:00}", totalHours, value.Minutes);
+        }
+
+        private readonly record struct ActivitySegmentHighlightKey(
+            string ActivityType,
+            DateTimeOffset StartedAt,
+            DateTimeOffset? EndedAt,
+            string DisplayName,
+            string ProcessName,
+            long? AppId)
+        {
+            public static ActivitySegmentHighlightKey From(ActivityTimelineRow row)
+            {
+                return new ActivitySegmentHighlightKey(
+                    row.ActivityType,
+                    row.StartedAt,
+                    row.EndedAt,
+                    row.DisplayName,
+                    row.ProcessName,
+                    row.AppId);
+            }
+
+            public bool Matches(ActivityTimelineRow row)
+            {
+                return string.Equals(ActivityType, row.ActivityType, StringComparison.Ordinal)
+                    && StartedAt == row.StartedAt
+                    && EndedAt == row.EndedAt
+                    && string.Equals(DisplayName, row.DisplayName, StringComparison.Ordinal)
+                    && string.Equals(ProcessName, row.ProcessName, StringComparison.OrdinalIgnoreCase)
+                    && AppId == row.AppId;
+            }
         }
 
         private Rectangle GetAxisLabelBounds(string label, int centerX, Rectangle timelineBounds)
