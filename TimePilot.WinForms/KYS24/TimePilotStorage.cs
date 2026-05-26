@@ -1548,6 +1548,115 @@ namespace TimePilot.WinForms.KYS24
             return ranges;
         }
 
+        public IReadOnlyList<SystemTimelineEvent> GetInferredSystemTimelineEventsForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var dayStart = new DateTimeOffset(localDate.Date, TimeZoneInfo.Local.GetUtcOffset(localDate.Date));
+            var dayEndDate = localDate.Date.AddDays(1);
+            var dayEnd = new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate));
+
+            if (dayEnd > now)
+                dayEnd = now;
+
+            if (dayEnd <= dayStart)
+                return Array.Empty<SystemTimelineEvent>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT started_at,
+                       ended_at,
+                       last_heartbeat_at,
+                       shutdown_reason,
+                       system_booted_at
+                FROM app_runtime_sessions
+                WHERE COALESCE(system_booted_at, started_at) < $dayEnd
+                  AND COALESCE(ended_at, last_heartbeat_at, started_at) >= $dayStart
+                ORDER BY COALESCE(system_booted_at, started_at), started_at;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            var events = new List<SystemTimelineEvent>();
+            var bootEstimateGroups = new List<BootEstimateGroup>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = ParseTimestamp(reader.GetString(0));
+                DateTimeOffset? endedAt = reader.IsDBNull(1) ? null : ParseTimestamp(reader.GetString(1));
+                DateTimeOffset? lastHeartbeatAt = reader.IsDBNull(2) ? null : ParseTimestamp(reader.GetString(2));
+                var shutdownReason = reader.IsDBNull(3) ? null : reader.GetString(3);
+                DateTimeOffset? systemBootedAt = reader.IsDBNull(4) ? null : ParseTimestamp(reader.GetString(4));
+
+                if (systemBootedAt is { } bootedAt
+                    && bootedAt >= dayStart
+                    && bootedAt < dayEnd
+                    && bootedAt < startedAt)
+                    AddBootEstimate(bootEstimateGroups, bootedAt, startedAt);
+
+                var endedOrHeartbeatAt = endedAt ?? lastHeartbeatAt;
+                if (endedOrHeartbeatAt is { } recordingEndedAt
+                    && recordingEndedAt >= dayStart
+                    && recordingEndedAt < dayEnd)
+                {
+                    events.Add(new SystemTimelineEvent(
+                        recordingEndedAt,
+                        "recording-end-estimate",
+                        string.IsNullOrWhiteSpace(shutdownReason)
+                            ? "Reason:unknown"
+                            : $"Reason:{shutdownReason}",
+                        IsInferred: true));
+                }
+            }
+
+            events.AddRange(bootEstimateGroups.Select(group => new SystemTimelineEvent(
+                group.BootedAt,
+                "windows-boot-estimate",
+                $"TimePilotStartedAt:{FormatTimestamp(group.NearestTimePilotStartedAt)}",
+                IsInferred: true)));
+
+            return events;
+        }
+
+        private static void AddBootEstimate(
+            ICollection<BootEstimateGroup> bootEstimateGroups,
+            DateTimeOffset bootedAt,
+            DateTimeOffset timePilotStartedAt)
+        {
+            foreach (var group in bootEstimateGroups)
+            {
+                if (Math.Abs((group.BootedAt - bootedAt).TotalSeconds) <= 60)
+                {
+                    group.AddCandidate(bootedAt, timePilotStartedAt);
+                    return;
+                }
+            }
+
+            bootEstimateGroups.Add(new BootEstimateGroup(bootedAt, timePilotStartedAt));
+        }
+
+        private sealed class BootEstimateGroup
+        {
+            public BootEstimateGroup(DateTimeOffset bootedAt, DateTimeOffset timePilotStartedAt)
+            {
+                BootedAt = bootedAt;
+                NearestTimePilotStartedAt = timePilotStartedAt;
+            }
+
+            public DateTimeOffset BootedAt { get; private set; }
+
+            public DateTimeOffset NearestTimePilotStartedAt { get; private set; }
+
+            public void AddCandidate(DateTimeOffset bootedAt, DateTimeOffset timePilotStartedAt)
+            {
+                if (Math.Abs((bootedAt - timePilotStartedAt).TotalMilliseconds)
+                    < Math.Abs((BootedAt - NearestTimePilotStartedAt).TotalMilliseconds))
+                {
+                    BootedAt = bootedAt;
+                    NearestTimePilotStartedAt = timePilotStartedAt;
+                }
+            }
+        }
+
         private static void AddSystemTimelineRange(
             ICollection<SystemTimelineRange> ranges,
             DateTimeOffset? startedAt,
