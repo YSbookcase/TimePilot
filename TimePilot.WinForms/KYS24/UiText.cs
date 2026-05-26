@@ -83,6 +83,7 @@ namespace TimePilot.WinForms.KYS24
                 int idleThresholdMinutes) =>
                 current.Main.SummaryIdleAnalysis(activeUsage, idleUsage, inputActivityRatio, idleThresholdMinutes);
             public static string SummaryIdleAnalysisTooltip => current.Main.SummaryIdleAnalysisTooltip;
+            public static string IdleThresholdAtDetection(string value) => current.Main.IdleThresholdAtDetection(value);
             public static string ClearTimelineHighlight => current.Main.ClearTimelineHighlight;
             public static string TimelineHighlight(string appName) => current.Main.TimelineHighlight(appName);
             public static string TimelineHighlightSummary(
@@ -435,7 +436,8 @@ namespace TimePilot.WinForms.KYS24
                             "유휴 시간은 설정한 기준 이상 키보드/마우스 입력이 없었던 시간입니다.\n"
                             + "자리 비움뿐 아니라 읽기, 영상 시청, 대기 상태도 포함될 수 있습니다.\n"
                             + "입력 활동 비율은 활성 시간 / (활성 시간 + 유휴 시간)입니다.\n"
-                            + "현재 유휴 기준은 환경 설정의 현재 값이며, 과거에 다른 기준으로 기록된 구간은 후속 작업에서 별도 기준 저장을 검토합니다.",
+                            + "새로 기록되는 유휴 구간에는 당시 유휴 기준이 함께 저장됩니다. 일부 기존 기록은 기준을 알 수 없을 수 있습니다.",
+                        IdleThresholdAtDetection: value => $"기록 당시 유휴 기준 {value}",
                         ClearTimelineHighlight: "해제",
                         TimelineHighlight: appName => $"강조: {appName}",
                         TimelineHighlightSummary: (activeUsage, usageRatio, switchCount, segmentCount, longestSegment) =>
@@ -737,7 +739,8 @@ namespace TimePilot.WinForms.KYS24
                             "Idle time is time with no keyboard or mouse input for at least the configured threshold.\n"
                             + "It can include being away, reading, watching video, waiting, or thinking.\n"
                             + "Input activity ratio is active time / (active time + idle time).\n"
-                            + "The current idle threshold uses the current Preferences value; storing historical thresholds is tracked separately.",
+                            + "New idle sessions store the idle threshold that was active at the time. Some older records may not have this value.",
+                        IdleThresholdAtDetection: value => $"Idle threshold at detection {value}",
                         ClearTimelineHighlight: "Clear",
                         TimelineHighlight: appName => $"Highlight: {appName}",
                         TimelineHighlightSummary: (activeUsage, usageRatio, switchCount, segmentCount, longestSegment) =>
@@ -1021,6 +1024,7 @@ namespace TimePilot.WinForms.KYS24
             string SummaryTimelineHighlightHint,
             Func<string, string, double, int, string> SummaryIdleAnalysis,
             string SummaryIdleAnalysisTooltip,
+            Func<string, string> IdleThresholdAtDetection,
             string ClearTimelineHighlight,
             Func<string, string> TimelineHighlight,
             Func<string, double, int, int, string, string> TimelineHighlightSummary,
