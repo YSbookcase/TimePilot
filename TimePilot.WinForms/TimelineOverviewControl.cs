@@ -64,6 +64,7 @@ namespace TimePilot.WinForms
         private string? highlightedProcessName;
         private string? highlightedActivityType;
         private bool isWindowsHighlighted;
+        private bool highlightSystemEvents;
         private DateTime localDate = DateTime.Today;
         private TimeSpan viewStart = TimeSpan.Zero;
         private TimeSpan viewEnd = TimeSpan.FromDays(1);
@@ -77,6 +78,8 @@ namespace TimePilot.WinForms
         public event EventHandler? ViewRangeChanged;
 
         public event EventHandler<TimelineActivitySegmentContextEventArgs>? ActivitySegmentContextRequested;
+
+        public event EventHandler<TimelineWindowsTrackContextEventArgs>? WindowsTrackContextRequested;
 
         public bool IsZoomed => viewStart > TimeSpan.Zero || viewEnd < TimeSpan.FromDays(1);
 
@@ -158,6 +161,15 @@ namespace TimePilot.WinForms
             highlightedActivityType = null;
             isWindowsHighlighted = isHighlighted;
             hoverText = null;
+            Invalidate();
+        }
+
+        public void SetSystemEventHighlightEnabled(bool isEnabled)
+        {
+            if (highlightSystemEvents == isEnabled)
+                return;
+
+            highlightSystemEvents = isEnabled;
             Invalidate();
         }
 
@@ -251,6 +263,12 @@ namespace TimePilot.WinForms
 
             if (e.Button == MouseButtons.Right)
             {
+                if (GetWindowsBounds(ClientRectangle).Contains(e.Location))
+                {
+                    WindowsTrackContextRequested?.Invoke(this, new TimelineWindowsTrackContextEventArgs(e.Location));
+                    return;
+                }
+
                 if (FindActivityRowAt(e.Location) is { } row)
                     ActivitySegmentContextRequested?.Invoke(this, new TimelineActivitySegmentContextEventArgs(row, e.Location));
 
@@ -482,9 +500,15 @@ namespace TimePilot.WinForms
                 if (segment.Width <= 0)
                     continue;
 
-                using var fillBrush = new SolidBrush(GetSystemRangeFillColor(range.RangeType));
-                using var borderPen = new Pen(GetSystemRangeBorderColor(range.RangeType), 2);
-                var rangeBounds = new Rectangle(segment.Left, windowsBounds.Top + 2, segment.Width, Math.Max(8, windowsBounds.Height - 4));
+                using var fillBrush = new SolidBrush(highlightSystemEvents
+                    ? GetSystemRangeFillColor(range.RangeType)
+                    : Color.FromArgb(90, 100, 116, 139));
+                using var borderPen = new Pen(highlightSystemEvents
+                    ? GetSystemRangeBorderColor(range.RangeType)
+                    : Color.FromArgb(150, 100, 116, 139), highlightSystemEvents ? 2 : 1);
+                var rangeBounds = highlightSystemEvents
+                    ? new Rectangle(segment.Left, windowsBounds.Top + 2, segment.Width, Math.Max(8, windowsBounds.Height - 4))
+                    : new Rectangle(segment.Left, windowsBounds.Top + 3, segment.Width, Math.Max(6, windowsBounds.Height - 6));
                 graphics.FillRectangle(fillBrush, rangeBounds);
                 graphics.DrawRectangle(borderPen, rangeBounds);
             }

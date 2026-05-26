@@ -79,6 +79,7 @@ namespace TimePilot.WinForms
         private string? highlightedTimelineAppName;
         private IReadOnlyList<ForegroundUsageSummary> currentTimelineForegroundUsage = Array.Empty<ForegroundUsageSummary>();
         private IReadOnlyList<ActivityTimelineRow> currentTimelineRows = Array.Empty<ActivityTimelineRow>();
+        private IReadOnlyList<SystemTimelineEvent> currentTimelineSystemEvents = Array.Empty<SystemTimelineEvent>();
         private Font? timelineHighlightedRowFont;
         private Form? recordedDatePickerPopupForm;
         private readonly Label timelineSystemEventFilterLabel = new();
@@ -134,6 +135,7 @@ namespace TimePilot.WinForms
             timelineGrid.RowPostPaint += OnTimelineGridRowPostPaint;
             timelineZoomScrollBar.Scroll += OnTimelineZoomScrollBarScroll;
             timelineOverviewControl.ActivitySegmentContextRequested += OnTimelineOverviewActivitySegmentContextRequested;
+            timelineOverviewControl.WindowsTrackContextRequested += OnTimelineOverviewWindowsTrackContextRequested;
             runtimeGrid.CellMouseEnter += OnGridCellMouseEnter;
             runtimeGrid.CellMouseLeave += OnGridCellMouseLeave;
             runtimeGrid.CellMouseDown += OnRuntimeGridCellMouseDown;
@@ -841,6 +843,12 @@ namespace TimePilot.WinForms
                         3_600_000,
                         "개발 45%, 자료조사/브라우징 40%")
                 });
+            currentTimelineSystemEvents =
+            [
+                new SystemTimelineEvent(DateTimeOffset.Now.AddHours(-2.5), "timepilot-start", "Preview"),
+                new SystemTimelineEvent(DateTimeOffset.Now.AddMinutes(-50), "lock", "Preview"),
+                new SystemTimelineEvent(DateTimeOffset.Now.AddMinutes(-30), "unlock", "Preview")
+            ];
         }
 
         private void SetRuntimeCoverageSummary(RuntimeCoverageSummary? summary)
@@ -990,7 +998,7 @@ namespace TimePilot.WinForms
             timelineHelpButton.Text = UiText.Main.TimelineHelp;
             timelineCategoryBucketLabel.Text = UiText.Main.TimelineCategoryBucket;
             timelineTypeHighlightLabel.Text = settings.UiLanguage == UiLanguage.English ? "Highlight type" : "유형 강조";
-            timelineSystemEventFilterLabel.Text = settings.UiLanguage == UiLanguage.English ? "Windows event" : "Windows 이벤트";
+            timelineSystemEventFilterLabel.Text = settings.UiLanguage == UiLanguage.English ? "System event" : "시스템 이벤트";
             timelineOverviewControl.Invalidate();
             UpdateTimelineZoomControls();
             UpdateTimelineHighlightUi();
@@ -1162,6 +1170,9 @@ namespace TimePilot.WinForms
                     var systemTimelineEvents = selectedTab == timelineTab
                         ? storage.GetSystemTimelineEventsForDate(timelineDate, observedAt)
                         : null;
+                    var inferredSystemTimelineEvents = selectedTab == timelineTab
+                        ? storage.GetInferredSystemTimelineEventsForDate(timelineDate, observedAt)
+                        : null;
                     var systemTimelineRanges = selectedTab == timelineTab
                         ? storage.GetSystemTimelineRangesForDate(timelineDate, observedAt)
                         : null;
@@ -1206,6 +1217,7 @@ namespace TimePilot.WinForms
                         windowsRuntimeRanges,
                         systemTimelineRanges,
                         systemTimelineEvents,
+                        inferredSystemTimelineEvents,
                         categoryTimelineSegments,
                         timelineForegroundUsage,
                         runtimeRows,
@@ -1246,13 +1258,20 @@ namespace TimePilot.WinForms
                 currentTimelineRows = snapshot.TimelineRows;
                 currentTimelineForegroundUsage = snapshot.TimelineForegroundUsage ?? Array.Empty<ForegroundUsageSummary>();
                 SetDateStatus(timelineDateStatusLabel, snapshot.TimelineDateHasData);
+                var filteredSystemRanges = FilterSystemTimelineRanges(snapshot.SystemTimelineRanges ?? Array.Empty<SystemTimelineRange>());
+                var filteredSystemEvents = FilterSystemTimelineEvents(snapshot.SystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>());
+                currentTimelineSystemEvents = FilterSystemTimelineEvents(
+                    (snapshot.SystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>())
+                    .Concat(snapshot.InferredSystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>())
+                    .ToList());
                 timelineOverviewControl.SetTimeline(
                     selectedTimelineDate,
                     snapshot.TimelineRows,
                     snapshot.WindowsRuntimeRanges ?? Array.Empty<TimelineRange>(),
-                    FilterSystemTimelineRanges(snapshot.SystemTimelineRanges ?? Array.Empty<SystemTimelineRange>()),
-                    FilterSystemTimelineEvents(snapshot.SystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>()),
+                    filteredSystemRanges,
+                    filteredSystemEvents,
                     snapshot.CategoryTimelineSegments ?? Array.Empty<CategoryTimelineSegment>());
+                timelineOverviewControl.SetSystemEventHighlightEnabled(selectedTimelineSystemEventFilter != TimelineSystemEventFilter.All);
                 timelineOverviewControl.SetHighlightedProcessName(highlightedTimelineProcessName);
                 SetGridDataSourcePreservingView(
                     timelineGrid,
@@ -1975,6 +1994,154 @@ namespace TimePilot.WinForms
             ShowTimelineActivityContextMenu(e.Row, timelineOverviewControl, e.Location);
         }
 
+        private void OnTimelineOverviewWindowsTrackContextRequested(object? sender, TimelineWindowsTrackContextEventArgs e)
+        {
+            ShowTimelineWindowsContextMenu(timelineOverviewControl, e.Location);
+        }
+
+        private void ShowTimelineWindowsContextMenu(Control owner, Point location)
+        {
+            timelineGridMenu.Items.Clear();
+            var eventListItem = new ToolStripMenuItem(GetTimelineSystemEventsTitle(selectedTimelineDate));
+            eventListItem.Click += (_, _) => ShowTimelineSystemEventsPopup(owner, location);
+            timelineGridMenu.Items.Add(eventListItem);
+            timelineGridMenu.Show(owner, location);
+        }
+
+        private void ShowTimelineSystemEventsPopup(Control owner, Point location)
+        {
+            var popup = new Form
+            {
+                Text = GetTimelineSystemEventsTitle(selectedTimelineDate),
+                ShowInTaskbar = false,
+                StartPosition = FormStartPosition.Manual,
+                Size = new Size(720, 260),
+                MinimizeBox = false,
+                MaximizeBox = false,
+                FormBorderStyle = FormBorderStyle.SizableToolWindow
+            };
+            popup.Icon = Icon;
+
+            var label = new Label
+            {
+                Dock = DockStyle.Top,
+                Height = 28,
+                Padding = new Padding(8, 6, 8, 0),
+                Text = GetTimelineSystemEventsPopupDescription(selectedTimelineDate)
+            };
+
+            var grid = CreateTimelineSystemEventsGrid();
+            grid.DataSource = BuildSystemTimelineEventRows(currentTimelineSystemEvents);
+            popup.Controls.Add(grid);
+            popup.Controls.Add(label);
+
+            var screenLocation = owner.PointToScreen(location);
+            popup.Location = KeepPopupOnScreen(new Point(screenLocation.X + 8, screenLocation.Y + 8), popup.Size);
+            popup.Show(this);
+        }
+
+        private static DataGridView CreateTimelineSystemEventsGrid()
+        {
+            var grid = new BufferedDataGridView
+            {
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                AllowUserToOrderColumns = true,
+                AllowUserToResizeRows = false,
+                AutoGenerateColumns = false,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+                BackgroundColor = SystemColors.Window,
+                BorderStyle = BorderStyle.None,
+                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
+                Dock = DockStyle.Fill,
+                MultiSelect = false,
+                ReadOnly = true,
+                RowHeadersVisible = false,
+                ScrollBars = ScrollBars.Both,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect
+            };
+
+            grid.Columns.AddRange(
+                CreateTextColumn(nameof(SystemTimelineEventRow.OccurredAtText), GetTimelineSystemEventTimeHeaderText(), 90),
+                CreateTextColumn(nameof(SystemTimelineEventRow.EventTypeText), UiText.Main.Type, 110),
+                CreateTextColumn(nameof(SystemTimelineEventRow.PreviousIntervalText), GetTimelineSystemEventPreviousIntervalHeaderText(), 110),
+                CreateTextColumn(nameof(SystemTimelineEventRow.RelationText), GetTimelineSystemEventRelationHeaderText(), 150),
+                CreateTextColumn(nameof(SystemTimelineEventRow.DetailsText), GetTimelineSystemEventDetailsHeaderText(), 220));
+            grid.ColumnHeaderMouseClick += OnTimelineSystemEventsGridColumnHeaderMouseClick;
+
+            return grid;
+        }
+
+        private static DataGridViewTextBoxColumn CreateTextColumn(string propertyName, string headerText, int width)
+        {
+            return new DataGridViewTextBoxColumn
+            {
+                DataPropertyName = propertyName,
+                HeaderText = headerText,
+                Name = propertyName,
+                ReadOnly = true,
+                SortMode = DataGridViewColumnSortMode.Programmatic,
+                Width = width
+            };
+        }
+
+        private static Point KeepPopupOnScreen(Point location, Size size)
+        {
+            var workingArea = Screen.FromPoint(location).WorkingArea;
+            var x = Math.Min(location.X, workingArea.Right - size.Width);
+            var y = Math.Min(location.Y, workingArea.Bottom - size.Height);
+            return new Point(Math.Max(workingArea.Left, x), Math.Max(workingArea.Top, y));
+        }
+
+        private static void OnTimelineSystemEventsGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (sender is not DataGridView grid
+                || e.ColumnIndex < 0
+                || e.ColumnIndex >= grid.Columns.Count)
+                return;
+
+            var column = grid.Columns[e.ColumnIndex];
+            var direction = column.HeaderCell.SortGlyphDirection == SortOrder.Ascending
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+
+            var rows = grid.Rows
+                .Cast<DataGridViewRow>()
+                .Select(row => row.DataBoundItem)
+                .OfType<SystemTimelineEventRow>()
+                .ToList();
+            grid.DataSource = SortSystemTimelineEventRows(rows, column.DataPropertyName, direction);
+            foreach (DataGridViewColumn gridColumn in grid.Columns)
+            {
+                if (gridColumn.SortMode != DataGridViewColumnSortMode.Programmatic)
+                    continue;
+
+                gridColumn.HeaderCell.SortGlyphDirection = gridColumn.Index == e.ColumnIndex
+                    ? (direction == ListSortDirection.Ascending ? SortOrder.Ascending : SortOrder.Descending)
+                    : SortOrder.None;
+            }
+        }
+
+        private static IReadOnlyList<SystemTimelineEventRow> SortSystemTimelineEventRows(
+            IReadOnlyList<SystemTimelineEventRow> rows,
+            string propertyName,
+            ListSortDirection direction)
+        {
+            IOrderedEnumerable<SystemTimelineEventRow> orderedRows = propertyName switch
+            {
+                nameof(SystemTimelineEventRow.OccurredAtText) => rows.OrderBy(row => row.OccurredAt),
+                nameof(SystemTimelineEventRow.PreviousIntervalText) => rows.OrderBy(row => row.PreviousIntervalMs),
+                nameof(SystemTimelineEventRow.EventTypeText) => rows.OrderBy(row => row.EventTypeText, StringComparer.CurrentCulture),
+                nameof(SystemTimelineEventRow.RelationText) => rows.OrderBy(row => row.RelationText, StringComparer.CurrentCulture),
+                nameof(SystemTimelineEventRow.DetailsText) => rows.OrderBy(row => row.DetailsText, StringComparer.CurrentCulture),
+                _ => rows.OrderBy(row => row.OccurredAt)
+            };
+
+            return direction == ListSortDirection.Ascending
+                ? orderedRows.ToList()
+                : orderedRows.Reverse().ToList();
+        }
+
         private void ShowTimelineActivityContextMenu(ActivityTimelineRow row, Control owner, Point location)
         {
             timelineGridMenu.Items.Clear();
@@ -2254,6 +2421,35 @@ namespace TimePilot.WinForms
             };
         }
 
+        private static IReadOnlyList<SystemTimelineEventRow> BuildSystemTimelineEventRows(IReadOnlyList<SystemTimelineEvent> events)
+        {
+            var orderedEvents = events
+                .OrderBy(systemEvent => systemEvent.OccurredAt)
+                .ToList();
+            var rows = new List<SystemTimelineEventRow>(orderedEvents.Count);
+            SystemTimelineEvent? previousEvent = null;
+
+            foreach (var systemEvent in orderedEvents)
+            {
+                var intervalText = previousEvent is null
+                    ? "-"
+                    : FormatDiagnosticDuration((long)(systemEvent.OccurredAt - previousEvent.OccurredAt).TotalMilliseconds);
+                rows.Add(new SystemTimelineEventRow(
+                    systemEvent.OccurredAt,
+                    systemEvent.OccurredAt.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture),
+                    GetSystemEventTypeText(systemEvent.EventType),
+                    previousEvent is null ? -1 : (long)(systemEvent.OccurredAt - previousEvent.OccurredAt).TotalMilliseconds,
+                    intervalText,
+                    GetSystemEventRelationText(systemEvent.EventType),
+                    FormatSystemEventDetails(systemEvent)));
+                previousEvent = systemEvent;
+            }
+
+            return rows
+                .OrderByDescending(row => row.OccurredAt)
+                .ToList();
+        }
+
         private static bool MatchesTimelineSystemEventFilter(string eventType, TimelineSystemEventFilter filter)
         {
             var normalized = eventType.ToLowerInvariant();
@@ -2261,9 +2457,103 @@ namespace TimePilot.WinForms
             {
                 TimelineSystemEventFilter.Lock => normalized is "lock" or "unlock" or "logon" or "logoff",
                 TimelineSystemEventFilter.Power => normalized is "suspend" or "resume" or "power-status-change" or "power-mode",
-                TimelineSystemEventFilter.Shutdown => normalized is "system-shutdown",
-                TimelineSystemEventFilter.TimePilot => normalized is "timepilot-start" or "timepilot-exit",
+                TimelineSystemEventFilter.Shutdown => normalized is "system-shutdown" or "recording-end-estimate",
+                TimelineSystemEventFilter.TimePilot => normalized is "timepilot-start" or "timepilot-exit" or "windows-boot-estimate" or "recording-end-estimate",
                 _ => true
+            };
+        }
+
+        private static string GetTimelineSystemEventsTitle(DateTime date)
+        {
+            var dateText = date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.CurrentCulture);
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"System event list ({dateText})"
+                : $"시스템 이벤트 목록 ({dateText})";
+        }
+
+        private static string GetTimelineSystemEventsPopupDescription(DateTime date)
+        {
+            var dateText = date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.CurrentCulture);
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"Selected date: {dateText}. Event intervals are hints for interpretation, not confirmed causes of missing records."
+                : $"선택 날짜: {dateText}. 이벤트 간격은 해석 보조 정보이며, 미기록 원인을 확정하지 않습니다.";
+        }
+
+        private static string GetTimelineSystemEventTimeHeaderText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Time" : "시각";
+        }
+
+        private static string GetTimelineSystemEventPreviousIntervalHeaderText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Since previous" : "직전 간격";
+        }
+
+        private static string GetTimelineSystemEventRelationHeaderText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Hint" : "해석 단서";
+        }
+
+        private static string GetTimelineSystemEventDetailsHeaderText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Details" : "상세";
+        }
+
+        private static string GetSystemEventRelationText(string eventType)
+        {
+            var isEnglish = UiText.CurrentLanguage == UiLanguage.English;
+            return eventType.ToLowerInvariant() switch
+            {
+                "lock" => isEnglish ? "Lock range start" : "잠금 구간 시작",
+                "unlock" or "logon" => isEnglish ? "Lock range end candidate" : "잠금 구간 종료 후보",
+                "logoff" => isEnglish ? "Logoff event" : "로그오프 이벤트",
+                "suspend" => isEnglish ? "Sleep range start" : "절전 구간 시작",
+                "resume" => isEnglish ? "Sleep range end candidate" : "절전 구간 종료 후보",
+                "system-shutdown" => isEnglish ? "Shutdown/restart event" : "종료/재시작 이벤트",
+                "timepilot-start" => isEnglish ? "TimePilot recording start" : "TimePilot 기록 시작",
+                "timepilot-exit" => isEnglish ? "TimePilot recording end" : "TimePilot 기록 종료",
+                "windows-boot-estimate" => isEnglish ? "Windows startup estimate" : "Windows 시작 추정",
+                "recording-end-estimate" => isEnglish ? "Recording end estimate" : "기록 종료 추정",
+                _ => "-"
+            };
+        }
+
+        private static string FormatSystemEventDetails(SystemTimelineEvent systemEvent)
+        {
+            if (string.IsNullOrWhiteSpace(systemEvent.Details))
+                return systemEvent.IsInferred ? GetInferredSystemEventDetailsText(systemEvent.EventType) : "-";
+
+            if (systemEvent.Details.StartsWith("TimePilotStartedAt:", StringComparison.OrdinalIgnoreCase)
+                && DateTimeOffset.TryParse(systemEvent.Details["TimePilotStartedAt:".Length..], out var startedAt))
+            {
+                return UiText.CurrentLanguage == UiLanguage.English
+                    ? $"TimePilot started at {startedAt.ToLocalTime():HH:mm:ss}"
+                    : $"TimePilot 시작 {startedAt.ToLocalTime():HH:mm:ss}";
+            }
+
+            if (systemEvent.Details.StartsWith("Reason:", StringComparison.OrdinalIgnoreCase))
+            {
+                var reason = systemEvent.Details["Reason:".Length..];
+                return UiText.CurrentLanguage == UiLanguage.English
+                    ? $"Reason: {GetShutdownReasonText(reason)}"
+                    : $"사유: {GetShutdownReasonText(reason)}";
+            }
+
+            return systemEvent.Details;
+        }
+
+        private static string GetInferredSystemEventDetailsText(string eventType)
+        {
+            var isEnglish = UiText.CurrentLanguage == UiLanguage.English;
+            return eventType.ToLowerInvariant() switch
+            {
+                "windows-boot-estimate" => isEnglish
+                    ? "Estimated from Windows system startup time."
+                    : "Windows 시스템 시작 시간을 기준으로 추정했습니다.",
+                "recording-end-estimate" => isEnglish
+                    ? "Estimated from the last TimePilot runtime record."
+                    : "TimePilot의 마지막 실행 기록을 기준으로 추정했습니다.",
+                _ => "-"
             };
         }
 
@@ -3310,6 +3600,7 @@ namespace TimePilot.WinForms
                     Array.Empty<SystemTimelineEvent>(),
                     Array.Empty<CategoryTimelineSegment>());
                 SetGridDataSourcePreservingView(timelineGrid, Array.Empty<ActivityTimelineRow>());
+                currentTimelineSystemEvents = Array.Empty<SystemTimelineEvent>();
                 SetGridDataSourcePreservingView(runtimeGrid, Array.Empty<ProcessRuntimeSummaryRow>());
                 SetGridDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
                 SetStatusText(UiText.Main.UsageDataCleared);
@@ -3639,6 +3930,8 @@ namespace TimePilot.WinForms
                 "timepilot-start" => UiText.Main.SystemEventTimePilotStart,
                 "timepilot-exit" => UiText.Main.SystemEventTimePilotExit,
                 "system-shutdown" => UiText.Main.ShutdownReasonSystemShutdown,
+                "windows-boot-estimate" => UiText.CurrentLanguage == UiLanguage.English ? "Windows startup estimate" : "Windows 시작 추정",
+                "recording-end-estimate" => UiText.CurrentLanguage == UiLanguage.English ? "Recording end estimate" : "기록 종료 추정",
                 _ => eventType
             };
         }
@@ -3679,6 +3972,7 @@ namespace TimePilot.WinForms
             IReadOnlyList<TimelineRange>? WindowsRuntimeRanges,
             IReadOnlyList<SystemTimelineRange>? SystemTimelineRanges,
             IReadOnlyList<SystemTimelineEvent>? SystemTimelineEvents,
+            IReadOnlyList<SystemTimelineEvent>? InferredSystemTimelineEvents,
             IReadOnlyList<CategoryTimelineSegment>? CategoryTimelineSegments,
             IReadOnlyList<ForegroundUsageSummary>? TimelineForegroundUsage,
             IReadOnlyList<ProcessRuntimeSummaryRow>? RuntimeRows,
@@ -3737,6 +4031,15 @@ namespace TimePilot.WinForms
                 ];
             }
         }
+
+        private sealed record SystemTimelineEventRow(
+            DateTimeOffset OccurredAt,
+            string OccurredAtText,
+            string EventTypeText,
+            long PreviousIntervalMs,
+            string PreviousIntervalText,
+            string RelationText,
+            string DetailsText);
 
     }
 }
