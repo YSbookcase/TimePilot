@@ -2366,6 +2366,24 @@ namespace TimePilot.WinForms
             e.Graphics.DrawRectangle(borderPen, bounds.Left, bounds.Top, bounds.Width - 1, bounds.Height - 1);
         }
 
+        private void OnTimelineGridCellMouseEnter(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0
+                || e.RowIndex >= timelineGrid.Rows.Count
+                || timelineGrid.Rows[e.RowIndex].DataBoundItem is not ActivityTimelineRow row)
+            {
+                timelineOverviewControl.SetExternalHoverText(null);
+                return;
+            }
+
+            timelineOverviewControl.SetExternalHoverText(TimelineOverviewControl.FormatActivityHoverText(row));
+        }
+
+        private void OnTimelineGridMouseLeave(object? sender, EventArgs e)
+        {
+            timelineOverviewControl.SetExternalHoverText(null);
+        }
+
         private Rectangle GetVisibleTimelineRowCellsBounds(int rowIndex)
         {
             Rectangle bounds = Rectangle.Empty;

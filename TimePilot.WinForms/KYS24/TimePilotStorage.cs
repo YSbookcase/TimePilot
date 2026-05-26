@@ -137,6 +137,7 @@ namespace TimePilot.WinForms.KYS24
             EnsureAppsColumns(connection);
             EnsureRuntimeSessionColumns(connection);
             EnsureForegroundSessionColumns(connection);
+            EnsureIdleSessionColumns(connection);
             EnsureProcessRuntimeSessionColumns(connection);
             RenameBuiltinAppCategoriesToCanonical(connection, now);
             SeedDefaultAppCategories(connection, now);
@@ -2111,6 +2112,11 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
+        private static void EnsureIdleSessionColumns(SqliteConnection connection)
+        {
+            AddColumnIfMissing(connection, "idle_sessions", "threshold_ms", "INTEGER NULL");
+        }
+
         private static void EnsureProcessRuntimeSessionColumns(SqliteConnection connection)
         {
             AddColumnIfMissing(connection, "process_runtime_sessions", "tracking_scope", "INTEGER NULL");
@@ -2481,7 +2487,8 @@ namespace TimePilot.WinForms.KYS24
                     a.primary_category_id,
                     c.name,
                     i.started_at,
-                    i.ended_at
+                    i.ended_at,
+                    i.threshold_ms
                 FROM idle_sessions i
                 LEFT JOIN apps a ON a.id = i.foreground_app_id
                 LEFT JOIN app_categories c ON c.id = a.primary_category_id
@@ -2503,6 +2510,7 @@ namespace TimePilot.WinForms.KYS24
                 var categoryName = reader.IsDBNull(5) ? null : reader.GetString(5);
                 var startedAt = ParseTimestamp(reader.GetString(6));
                 DateTimeOffset? endedAt = reader.IsDBNull(7) ? null : ParseTimestamp(reader.GetString(7));
+                var idleThresholdMs = reader.IsDBNull(8) ? (int?)null : reader.GetInt32(8);
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(endedAt ?? now, dayEnd);
                 DateTimeOffset? displayEnd = IsCurrentTimelineSession(endedAt, effectiveEnd, dayEnd, now)
@@ -2519,7 +2527,8 @@ namespace TimePilot.WinForms.KYS24
                     processName,
                     appId,
                     primaryCategoryId,
-                    categoryName);
+                    categoryName,
+                    idleThresholdMs);
             }
         }
 
@@ -2549,7 +2558,8 @@ namespace TimePilot.WinForms.KYS24
             string processName = "",
             long? appId = null,
             long? primaryCategoryId = null,
-            string? categoryName = null)
+            string? categoryName = null,
+            int? idleThresholdMs = null)
         {
             var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
             if (durationMs <= 0)
@@ -2565,7 +2575,8 @@ namespace TimePilot.WinForms.KYS24
                 ProcessName: processName,
                 AppId: appId,
                 PrimaryCategoryId: primaryCategoryId,
-                CategoryName: categoryName));
+                CategoryName: categoryName,
+                IdleThresholdMs: idleThresholdMs));
         }
 
         private static void AddActiveUsageToRuntimeAggregations(

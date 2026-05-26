@@ -1371,7 +1371,9 @@
             timelineGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             timelineGrid.Size = new Size(706, 173);
             timelineGrid.TabIndex = 0;
+            timelineGrid.CellMouseEnter += OnTimelineGridCellMouseEnter;
             timelineGrid.ColumnHeaderMouseClick += OnTimelineGridColumnHeaderMouseClick;
+            timelineGrid.MouseLeave += OnTimelineGridMouseLeave;
             // 
             // timelineTypeColumn
             // 

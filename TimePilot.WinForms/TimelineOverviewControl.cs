@@ -69,6 +69,7 @@ namespace TimePilot.WinForms
         private TimeSpan viewEnd = TimeSpan.FromDays(1);
         private readonly Stack<(TimeSpan Start, TimeSpan End)> viewHistory = new();
         private string? hoverText;
+        private string? externalHoverText;
         private bool isDragging;
         private int dragStartX;
         private int dragCurrentX;
@@ -119,10 +120,21 @@ namespace TimePilot.WinForms
             hoverText = null;
             if (dateChanged)
             {
+                externalHoverText = null;
                 viewHistory.Clear();
                 SetViewRange(TimeSpan.Zero, TimeSpan.FromDays(1), addHistory: false);
             }
 
+            Invalidate();
+        }
+
+        public void SetExternalHoverText(string? text)
+        {
+            text = string.IsNullOrWhiteSpace(text) ? null : text;
+            if (string.Equals(text, externalHoverText, StringComparison.Ordinal))
+                return;
+
+            externalHoverText = text;
             Invalidate();
         }
 
@@ -227,8 +239,9 @@ namespace TimePilot.WinForms
             DrawActivityRows(graphics, activityBounds);
             DrawDragSelection(graphics, bounds);
 
-            if (!string.IsNullOrEmpty(hoverText))
-                DrawHoverInfo(graphics, hoverText, bounds);
+            var infoText = hoverText ?? externalHoverText;
+            if (!string.IsNullOrEmpty(infoText))
+                DrawHoverInfo(graphics, infoText, bounds);
         }
 
         protected override void OnMouseDown(MouseEventArgs e)
@@ -715,10 +728,15 @@ namespace TimePilot.WinForms
         private string? FindActivityHoverTextAt(Point point)
         {
             var row = FindActivityRowAt(point);
+            return row is null ? null : FormatActivityHoverText(row);
+        }
 
-            return row is null
-                ? null
-                : $"{row.ActivityType} | {row.DisplayName} | {row.StartedAtText}-{row.EndedAtText} | {row.DurationText}";
+        public static string FormatActivityHoverText(ActivityTimelineRow row)
+        {
+            var text = $"{row.ActivityType} | {row.DisplayName} | {row.StartedAtText}-{row.EndedAtText} | {row.DurationText}";
+            return row.IdleThresholdMs is null || !string.Equals(row.ActivityType, UiText.Main.Idle, StringComparison.Ordinal)
+                ? text
+                : $"{text} | {UiText.Main.IdleThresholdAtDetection(row.IdleThresholdText)}";
         }
 
         private ActivityTimelineRow? FindActivityRowAt(Point point)

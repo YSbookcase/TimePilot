@@ -13,7 +13,8 @@ namespace TimePilot.WinForms.KYS24
         string ProcessName = "",
         long? AppId = null,
         long? PrimaryCategoryId = null,
-        string? CategoryName = null)
+        string? CategoryName = null,
+        int? IdleThresholdMs = null)
     {
         public string CategoryText => string.IsNullOrWhiteSpace(CategoryName)
             ? UiText.Main.Uncategorized
@@ -25,6 +26,10 @@ namespace TimePilot.WinForms.KYS24
             ?? UiText.Timeline.InProgress;
 
         public string DurationText => FormatDuration(DurationMs);
+
+        public string IdleThresholdText => IdleThresholdMs is null
+            ? ""
+            : FormatDuration(IdleThresholdMs.Value);
 
         private static string FormatDuration(long durationMs)
         {
