@@ -1379,25 +1379,53 @@ namespace TimePilot.WinForms.KYS24
             var localDayStart = now.ToLocalTime().Date;
             var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
             var dayEnd = Min(dayStart.AddDays(1), now);
+            return GetRuntimeCoverageForPeriod(dayStart, dayEnd, now);
+        }
 
-            if (dayEnd <= dayStart)
-                return new RuntimeCoverageSummary(0, 0, 0, 0, null);
+        public RuntimeCoverageSummary GetRuntimeCoverageForPeriod(
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd,
+            DateTimeOffset now)
+        {
+            var effectiveEnd = Min(periodEnd, now);
+            if (effectiveEnd <= periodStart)
+                return new RuntimeCoverageSummary(0, 0, 0, 0, 0, 0, 0, null);
 
             using var connection = OpenConnection();
-            var runtimeIntervals = GetRuntimeIntervalsForDay(connection, dayStart, dayEnd, now);
-            var mergedIntervals = MergeIntervals(runtimeIntervals);
-            var totalWindowMs = Math.Max(0, (long)(dayEnd - dayStart).TotalMilliseconds);
-            var trackedRuntimeMs = mergedIntervals
+            var runtimeIntervals = MergeIntervals(GetRuntimeIntervalsForPeriod(connection, periodStart, effectiveEnd, now));
+            var windowsRuntimeIntervals = MergeIntervals(GetWindowsRuntimeIntervalsForPeriod(connection, periodStart, effectiveEnd, now));
+            var systemRanges = GetSystemTimelineRangesForPeriod(connection, periodStart, effectiveEnd);
+            var sleepIntervals = MergeIntervals(systemRanges
+                .Where(range => range.RangeType == SystemTimelineRangeType.SleepEstimate)
+                .Select(range => (range.StartedAt, range.EndedAt))
+                .ToList());
+            var lockIntervals = MergeIntervals(systemRanges
+                .Where(range => range.RangeType == SystemTimelineRangeType.LockSession)
+                .Select(range => (range.StartedAt, range.EndedAt))
+                .ToList());
+            var excludedIntervals = MergeIntervals(sleepIntervals.Concat(lockIntervals).ToList());
+            var recordableIntervals = SubtractIntervals(windowsRuntimeIntervals, excludedIntervals);
+            var trackedRecordableIntervals = IntersectIntervals(runtimeIntervals, recordableIntervals);
+            var windowsRuntimeMs = windowsRuntimeIntervals
                 .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
-            var missingRuntimeMs = Math.Max(0, totalWindowMs - trackedRuntimeMs);
-            var longestMissingRuntimeMs = GetLongestGapMs(mergedIntervals, dayStart, dayEnd);
-            var bootBeforeTimePilotMs = GetBootBeforeTimePilotMs(connection, dayStart, dayEnd);
+            var recordableRuntimeMs = recordableIntervals
+                .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
+            var trackedRuntimeMs = trackedRecordableIntervals
+                .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
+            var missingRuntimeMs = Math.Max(0, recordableRuntimeMs - trackedRuntimeMs);
+            var longestMissingRuntimeMs = GetLongestMissingMs(recordableIntervals, trackedRecordableIntervals);
+            var sleepExcludedMs = GetIntersectedDurationMs(windowsRuntimeIntervals, sleepIntervals);
+            var lockExcludedMs = GetIntersectedDurationMs(windowsRuntimeIntervals, lockIntervals);
+            var bootBeforeTimePilotMs = GetBootBeforeTimePilotMs(connection, periodStart, effectiveEnd);
 
             return new RuntimeCoverageSummary(
-                totalWindowMs,
+                windowsRuntimeMs,
+                recordableRuntimeMs,
                 trackedRuntimeMs,
                 missingRuntimeMs,
                 longestMissingRuntimeMs,
+                sleepExcludedMs,
+                lockExcludedMs,
                 bootBeforeTimePilotMs);
         }
 
@@ -1498,19 +1526,27 @@ namespace TimePilot.WinForms.KYS24
             if (dayEnd <= dayStart)
                 return Array.Empty<SystemTimelineRange>();
 
-            var lookbackStart = dayStart.AddDays(-1);
             using var connection = OpenConnection();
+            return GetSystemTimelineRangesForPeriod(connection, dayStart, dayEnd);
+        }
+
+        private static IReadOnlyList<SystemTimelineRange> GetSystemTimelineRangesForPeriod(
+            SqliteConnection connection,
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd)
+        {
+            var lookbackStart = periodStart.AddDays(-1);
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT occurred_at,
                        event_type
                 FROM system_events
                 WHERE occurred_at >= $lookbackStart
-                  AND occurred_at < $dayEnd
+                  AND occurred_at < $periodEnd
                 ORDER BY occurred_at;
                 """;
             command.Parameters.AddWithValue("$lookbackStart", FormatTimestamp(lookbackStart));
-            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
 
             var ranges = new List<SystemTimelineRange>();
             DateTimeOffset? sleepStartedAt = null;
@@ -1526,7 +1562,7 @@ namespace TimePilot.WinForms.KYS24
                         sleepStartedAt = occurredAt;
                         break;
                     case "resume":
-                        AddSystemTimelineRange(ranges, sleepStartedAt, occurredAt, dayStart, dayEnd, SystemTimelineRangeType.SleepEstimate);
+                        AddSystemTimelineRange(ranges, sleepStartedAt, occurredAt, periodStart, periodEnd, SystemTimelineRangeType.SleepEstimate);
                         sleepStartedAt = null;
                         break;
                     case "lock":
@@ -1534,7 +1570,7 @@ namespace TimePilot.WinForms.KYS24
                         break;
                     case "unlock":
                     case "logon":
-                        AddSystemTimelineRange(ranges, lockStartedAt, occurredAt, dayStart, dayEnd, SystemTimelineRangeType.LockSession);
+                        AddSystemTimelineRange(ranges, lockStartedAt, occurredAt, periodStart, periodEnd, SystemTimelineRangeType.LockSession);
                         lockStartedAt = null;
                         break;
                     case "logoff":
@@ -1544,6 +1580,9 @@ namespace TimePilot.WinForms.KYS24
                         break;
                 }
             }
+
+            AddSystemTimelineRange(ranges, sleepStartedAt, periodEnd, periodStart, periodEnd, SystemTimelineRangeType.SleepEstimate);
+            AddSystemTimelineRange(ranges, lockStartedAt, periodEnd, periodStart, periodEnd, SystemTimelineRangeType.LockSession);
 
             return ranges;
         }
@@ -1720,16 +1759,26 @@ namespace TimePilot.WinForms.KYS24
             DateTimeOffset dayEnd,
             DateTimeOffset now)
         {
+            return GetRuntimeIntervalsForPeriod(connection, dayStart, dayEnd, now);
+        }
+
+        private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> GetRuntimeIntervalsForPeriod(
+            SqliteConnection connection,
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd,
+            DateTimeOffset now)
+        {
             using var command = connection.CreateCommand();
             command.CommandText = """
-                SELECT started_at, ended_at
+                SELECT started_at,
+                       COALESCE(ended_at, last_heartbeat_at, $now)
                 FROM app_runtime_sessions
-                WHERE started_at < $dayEnd
-                  AND COALESCE(ended_at, $now) > $dayStart
+                WHERE started_at < $periodEnd
+                  AND COALESCE(ended_at, last_heartbeat_at, $now) > $periodStart
                 ORDER BY started_at;
                 """;
-            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
-            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
             command.Parameters.AddWithValue("$now", FormatTimestamp(now));
 
             var intervals = new List<(DateTimeOffset Start, DateTimeOffset End)>();
@@ -1737,9 +1786,47 @@ namespace TimePilot.WinForms.KYS24
             while (reader.Read())
             {
                 var startedAt = ParseTimestamp(reader.GetString(0));
-                var endedAt = reader.IsDBNull(1) ? now : ParseTimestamp(reader.GetString(1));
-                var effectiveStart = Max(startedAt, dayStart);
-                var effectiveEnd = Min(endedAt, dayEnd);
+                var endedAt = ParseTimestamp(reader.GetString(1));
+                var effectiveStart = Max(startedAt, periodStart);
+                var effectiveEnd = Min(endedAt, periodEnd);
+
+                if (effectiveEnd > effectiveStart)
+                    intervals.Add((effectiveStart, effectiveEnd));
+            }
+
+            return intervals;
+        }
+
+        private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> GetWindowsRuntimeIntervalsForPeriod(
+            SqliteConnection connection,
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd,
+            DateTimeOffset now)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT system_booted_at,
+                       started_at,
+                       COALESCE(ended_at, last_heartbeat_at, $now)
+                FROM app_runtime_sessions
+                WHERE COALESCE(system_booted_at, started_at) < $periodEnd
+                  AND COALESCE(ended_at, last_heartbeat_at, $now) > $periodStart
+                ORDER BY COALESCE(system_booted_at, started_at);
+                """;
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            var intervals = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = reader.IsDBNull(0)
+                    ? ParseTimestamp(reader.GetString(1))
+                    : ParseTimestamp(reader.GetString(0));
+                var endedAt = ParseTimestamp(reader.GetString(2));
+                var effectiveStart = Max(startedAt, periodStart);
+                var effectiveEnd = Min(endedAt, periodEnd);
 
                 if (effectiveEnd > effectiveStart)
                     intervals.Add((effectiveStart, effectiveEnd));
@@ -3039,6 +3126,94 @@ namespace TimePilot.WinForms.KYS24
             }
 
             return merged;
+        }
+
+        private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> SubtractIntervals(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> sourceIntervals,
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> excludedIntervals)
+        {
+            if (sourceIntervals.Count == 0 || excludedIntervals.Count == 0)
+                return sourceIntervals;
+
+            var result = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            foreach (var source in sourceIntervals)
+            {
+                var cursor = source.Start;
+                foreach (var excluded in excludedIntervals)
+                {
+                    if (excluded.End <= cursor)
+                        continue;
+
+                    if (excluded.Start >= source.End)
+                        break;
+
+                    if (excluded.Start > cursor)
+                        result.Add((cursor, Min(excluded.Start, source.End)));
+
+                    if (excluded.End > cursor)
+                        cursor = Max(cursor, excluded.End);
+
+                    if (cursor >= source.End)
+                        break;
+                }
+
+                if (cursor < source.End)
+                    result.Add((cursor, source.End));
+            }
+
+            return result;
+        }
+
+        private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> IntersectIntervals(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> leftIntervals,
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> rightIntervals)
+        {
+            var intersections = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            var leftIndex = 0;
+            var rightIndex = 0;
+            while (leftIndex < leftIntervals.Count && rightIndex < rightIntervals.Count)
+            {
+                var left = leftIntervals[leftIndex];
+                var right = rightIntervals[rightIndex];
+                var start = Max(left.Start, right.Start);
+                var end = Min(left.End, right.End);
+                if (end > start)
+                    intersections.Add((start, end));
+
+                if (left.End < right.End)
+                    leftIndex++;
+                else
+                    rightIndex++;
+            }
+
+            return intersections;
+        }
+
+        private static long GetIntersectedDurationMs(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> leftIntervals,
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> rightIntervals)
+        {
+            return IntersectIntervals(leftIntervals, rightIntervals)
+                .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
+        }
+
+        private static long GetLongestMissingMs(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> recordableIntervals,
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> trackedIntervals)
+        {
+            var longestMissingMs = 0L;
+            foreach (var recordable in recordableIntervals)
+            {
+                var trackedInWindow = trackedIntervals
+                    .Where(interval => interval.Start < recordable.End && interval.End > recordable.Start)
+                    .Select(interval => (Max(interval.Start, recordable.Start), Min(interval.End, recordable.End)))
+                    .ToList();
+                longestMissingMs = Math.Max(
+                    longestMissingMs,
+                    GetLongestGapMs(MergeIntervals(trackedInWindow), recordable.Start, recordable.End));
+            }
+
+            return longestMissingMs;
         }
 
         private sealed class UsageAggregation

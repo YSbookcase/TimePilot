@@ -355,9 +355,12 @@ namespace TimePilot.WinForms.KYS24
             public static string NotChecked => current.RuntimeCoverage.NotChecked;
             public static string Tooltip => current.RuntimeCoverage.Tooltip;
             public static string Coverage(double ratio) => current.RuntimeCoverage.Coverage(ratio);
+            public static string Recordable(string duration) => current.RuntimeCoverage.Recordable(duration);
             public static string Tracked(string duration) => current.RuntimeCoverage.Tracked(duration);
             public static string Missing(string duration) => current.RuntimeCoverage.Missing(duration);
             public static string LongestMissing(string duration) => current.RuntimeCoverage.LongestMissing(duration);
+            public static string SleepExcluded(string duration) => current.RuntimeCoverage.SleepExcluded(duration);
+            public static string LockExcluded(string duration) => current.RuntimeCoverage.LockExcluded(duration);
             public static string BootBeforeTimePilot(string duration) =>
                 current.RuntimeCoverage.BootBeforeTimePilot(duration);
         }
@@ -668,12 +671,15 @@ namespace TimePilot.WinForms.KYS24
                         LastYear: year => $"작년({year})"),
                     new TimelineText("진행 중"),
                     new RuntimeCoverageText(
-                        NotChecked: "기록 커버리지 -",
-                        Tooltip: "기록 커버리지는 오늘 0시부터 현재까지의 전체 시간 중 TimePilot이 실행되어 기록할 수 있었던 시간의 비율입니다. 컴퓨터를 실제로 사용한 시간 기준이 아닙니다.\n\n미기록 시간은 TimePilot이 실행되지 않았거나 기록할 수 없었던 구간입니다. PC 종료, Windows 절전, 앱 종료, 비정상 종료 등이 원인일 수 있으며 정확한 원인은 단정하지 않습니다.\n\n부팅 후 미실행은 Windows 시스템 시작 후 TimePilot이 처음 실행되기 전까지의 추정 시간입니다. Windows 로그인 시간이 아니라 시스템 시작 시각 기준입니다.",
-                        Coverage: ratio => string.Format(CultureInfo.CurrentCulture, "오늘 0시~현재 기록 커버리지 {0:P1}", ratio),
-                        Tracked: duration => $"기록 {duration}",
-                        Missing: duration => $"미기록 {duration}(원인 미확정)",
+                        NotChecked: "기록 상태 -",
+                        Tooltip: "기록 상태는 선택 기간에서 TimePilot이 기록 가능했던 시간 중 실제 기록을 남긴 비율입니다.\n\n기록 가능 시간은 Windows 실행 추정 시간에서 절전 및 잠금 구간을 제외해 계산합니다. 잠금 중에는 LockApp 같은 시스템 화면이 기록될 수 있지만, 사용자가 일반 앱을 조작할 수 있는 상태로 보지 않습니다.\n\n이 값은 활성/유휴 시간, 집중도, 생산성 점수가 아닙니다. Windows 실행/절전/잠금 구간은 이벤트 또는 추정 기반이므로 실제 상태와 차이가 있을 수 있습니다.",
+                        Coverage: ratio => string.Format(CultureInfo.CurrentCulture, "기록 상태 {0:P1}", ratio),
+                        Recordable: duration => $"기록 대상 {duration}",
+                        Tracked: duration => $"기록됨 {duration}",
+                        Missing: duration => $"미기록 {duration}",
                         LongestMissing: duration => $"최장 미기록 {duration}",
+                        SleepExcluded: duration => $"절전 제외 {duration}",
+                        LockExcluded: duration => $"잠금 제외 {duration}",
                         BootBeforeTimePilot: duration => $"부팅 후 미실행 {duration}"));
             }
 
@@ -971,12 +977,15 @@ namespace TimePilot.WinForms.KYS24
                         LastYear: year => $"Last year ({year})"),
                     new TimelineText("In progress"),
                     new RuntimeCoverageText(
-                        NotChecked: "Record coverage -",
-                        Tooltip: "Record coverage is the share of time from midnight to now when TimePilot was running and able to record. It is not based on actual PC usage time.\n\nMissing time means TimePilot was not running or could not record during that period. Possible causes include PC shutdown, Windows sleep, app exit, or unexpected exit; the exact cause is not determined.\n\nBefore TimePilot after boot is the estimated time from Windows system startup until TimePilot first started. It is based on system startup time, not Windows login time.",
-                        Coverage: ratio => string.Format(CultureInfo.CurrentCulture, "Record coverage from midnight to now {0:P1}", ratio),
-                        Tracked: duration => $"Recorded {duration}",
-                        Missing: duration => $"Missing {duration} (cause unknown)",
+                        NotChecked: "Record status -",
+                        Tooltip: "Record status is the share of recordable time in the selected period where TimePilot actually recorded data.\n\nRecordable time is calculated from estimated Windows runtime after excluding sleep and lock ranges. During lock, system screens such as LockApp can be recorded, but the user is not considered able to operate normal apps.\n\nThis value is not active/idle time, focus, or a productivity score. Windows runtime, sleep, and lock ranges can be event-based or inferred, so they may differ from the actual system state.",
+                        Coverage: ratio => string.Format(CultureInfo.CurrentCulture, "Record status {0:P1}", ratio),
+                        Recordable: duration => $"Recordable {duration}",
+                        Tracked: duration => $"Counted recorded time {duration}",
+                        Missing: duration => $"Missing {duration}",
                         LongestMissing: duration => $"Longest missing {duration}",
+                        SleepExcluded: duration => $"Sleep excluded {duration}",
+                        LockExcluded: duration => $"Lock excluded {duration}",
                         BootBeforeTimePilot: duration => $"Before TimePilot after boot {duration}"));
             }
         }
@@ -1248,9 +1257,12 @@ namespace TimePilot.WinForms.KYS24
             string NotChecked,
             string Tooltip,
             Func<double, string> Coverage,
+            Func<string, string> Recordable,
             Func<string, string> Tracked,
             Func<string, string> Missing,
             Func<string, string> LongestMissing,
+            Func<string, string> SleepExcluded,
+            Func<string, string> LockExcluded,
             Func<string, string> BootBeforeTimePilot);
     }
 }

@@ -3,15 +3,18 @@ using System.Globalization;
 namespace TimePilot.WinForms.KYS24
 {
     internal sealed record RuntimeCoverageSummary(
-        long TotalWindowMs,
+        long WindowsRuntimeMs,
+        long RecordableRuntimeMs,
         long TrackedRuntimeMs,
         long MissingRuntimeMs,
         long LongestMissingRuntimeMs,
+        long SleepExcludedMs,
+        long LockExcludedMs,
         long? BootBeforeTimePilotMs)
     {
-        public double CoverageRatio => TotalWindowMs <= 0
-            ? 1
-            : Math.Min(1, (double)TrackedRuntimeMs / TotalWindowMs);
+        public double CoverageRatio => RecordableRuntimeMs <= 0
+            ? 0
+            : Math.Min(1, (double)TrackedRuntimeMs / RecordableRuntimeMs);
 
         public string SummaryText
         {
@@ -28,10 +31,17 @@ namespace TimePilot.WinForms.KYS24
                 var parts = new List<string>
                 {
                     UiText.RuntimeCoverage.Coverage(CoverageRatio),
+                    UiText.RuntimeCoverage.Recordable(FormatDuration(RecordableRuntimeMs)),
                     UiText.RuntimeCoverage.Tracked(FormatDuration(TrackedRuntimeMs)),
                     UiText.RuntimeCoverage.Missing(FormatDuration(MissingRuntimeMs)),
                     UiText.RuntimeCoverage.LongestMissing(FormatDuration(LongestMissingRuntimeMs))
                 };
+
+                if (SleepExcludedMs > 0)
+                    parts.Add(UiText.RuntimeCoverage.SleepExcluded(FormatDuration(SleepExcludedMs)));
+
+                if (LockExcludedMs > 0)
+                    parts.Add(UiText.RuntimeCoverage.LockExcluded(FormatDuration(LockExcludedMs)));
 
                 if (BootBeforeTimePilotMs is { } bootMs && bootMs > 0)
                     parts.Add(UiText.RuntimeCoverage.BootBeforeTimePilot(FormatDuration(bootMs)));

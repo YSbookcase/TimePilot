@@ -359,8 +359,8 @@
             runtimeCoverageSummaryPanel.Dock = DockStyle.Top;
             runtimeCoverageSummaryPanel.Location = new Point(3, 39);
             runtimeCoverageSummaryPanel.Name = "runtimeCoverageSummaryPanel";
-            runtimeCoverageSummaryPanel.Padding = new Padding(8, 4, 8, 4);
-            runtimeCoverageSummaryPanel.Size = new Size(706, 48);
+            runtimeCoverageSummaryPanel.Padding = new Padding(8, 0, 8, 2);
+            runtimeCoverageSummaryPanel.Size = new Size(706, 24);
             runtimeCoverageSummaryPanel.TabIndex = 2;
             runtimeCoverageSummaryPanel.Visible = false;
             runtimeCoverageSummaryPanel.WrapContents = true;
@@ -372,8 +372,8 @@
             summaryIdleAnalysisPanel.Dock = DockStyle.Top;
             summaryIdleAnalysisPanel.Location = new Point(3, 87);
             summaryIdleAnalysisPanel.Name = "summaryIdleAnalysisPanel";
-            summaryIdleAnalysisPanel.Padding = new Padding(8, 4, 8, 4);
-            summaryIdleAnalysisPanel.Size = new Size(706, 32);
+            summaryIdleAnalysisPanel.Padding = new Padding(8, 0, 8, 2);
+            summaryIdleAnalysisPanel.Size = new Size(706, 24);
             summaryIdleAnalysisPanel.TabIndex = 4;
             summaryIdleAnalysisPanel.Visible = false;
             summaryIdleAnalysisPanel.WrapContents = true;
@@ -382,8 +382,8 @@
             //
             summaryIdleAnalysisLabel.AutoSize = true;
             summaryIdleAnalysisLabel.ForeColor = SystemColors.ControlText;
-            summaryIdleAnalysisLabel.Location = new Point(11, 10);
-            summaryIdleAnalysisLabel.Margin = new Padding(0, 6, 4, 0);
+            summaryIdleAnalysisLabel.Location = new Point(11, 4);
+            summaryIdleAnalysisLabel.Margin = new Padding(0, 4, 4, 0);
             summaryIdleAnalysisLabel.Name = "summaryIdleAnalysisLabel";
             summaryIdleAnalysisLabel.Size = new Size(0, 15);
             summaryIdleAnalysisLabel.TabIndex = 0;
