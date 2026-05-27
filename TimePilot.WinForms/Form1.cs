@@ -1019,6 +1019,7 @@ namespace TimePilot.WinForms
                 inputActivityRatio,
                 settings.IdleThresholdMinutes);
             summaryIdleAnalysisPanel.Visible = true;
+            UpdateSummaryIdleAnalysisPanelHeight();
         }
 
         private void SetRuntimeCoverageSummaryParts(params string[] parts)
@@ -1028,7 +1029,10 @@ namespace TimePilot.WinForms
 
         private void SetRuntimeCoverageSummaryParts(IEnumerable<string> parts)
         {
-            var partList = parts.ToList();
+            var partList = parts
+                .Where(part => !string.IsNullOrWhiteSpace(part))
+                .ToList();
+            runtimeCoverageSummaryPanel.Visible = partList.Count > 0;
             var toolTipText = runtimeCoverageSummaryToolTip.GetToolTip(runtimeCoverageSummaryPanel);
 
             runtimeCoverageSummaryPanel.SuspendLayout();
@@ -1062,11 +1066,27 @@ namespace TimePilot.WinForms
                     runtimeCoverageSummaryPanel.Controls.Remove(label);
                     label.Dispose();
                 }
+
+                UpdateRuntimeCoverageSummaryPanelHeight();
             }
             finally
             {
                 runtimeCoverageSummaryPanel.ResumeLayout();
             }
+        }
+
+        private void UpdateRuntimeCoverageSummaryPanelHeight()
+        {
+            var preferredHeight = runtimeCoverageSummaryPanel.GetPreferredSize(
+                new Size(runtimeCoverageSummaryPanel.Width, 0)).Height;
+            runtimeCoverageSummaryPanel.Height = Math.Clamp(preferredHeight, 24, 48);
+        }
+
+        private void UpdateSummaryIdleAnalysisPanelHeight()
+        {
+            var preferredHeight = summaryIdleAnalysisPanel.GetPreferredSize(
+                new Size(summaryIdleAnalysisPanel.Width, 0)).Height;
+            summaryIdleAnalysisPanel.Height = Math.Clamp(preferredHeight, 24, 48);
         }
 
         private void ConfigureTrayIcon()
@@ -1309,6 +1329,9 @@ namespace TimePilot.WinForms
                     var idleUsage = selectedTab == summaryTab
                         ? storage.GetIdleUsageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
                         : null;
+                    var runtimeCoverage = selectedTab == summaryTab
+                        ? storage.GetRuntimeCoverageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End, observedAt)
+                        : null;
                     var timelineRows = selectedTab == timelineTab
                         ? storage.GetActivityTimelineForDate(timelineDate, observedAt)
                         : null;
@@ -1357,7 +1380,7 @@ namespace TimePilot.WinForms
                         foregroundUsage,
                         dailyUsageTrendRows,
                         idleUsage,
-                        null,
+                        runtimeCoverage,
                         summaryPeriodRange.ShowDateInTimestamps,
                         detailDateHasData,
                         timelineDateHasData,
