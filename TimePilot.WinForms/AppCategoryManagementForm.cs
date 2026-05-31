@@ -190,6 +190,7 @@ namespace TimePilot.WinForms
                 CreateTextColumn(nameof(AppCategoryManagementRow.AutomaticAppName), IsEnglish ? "Automatic name" : "자동 이름", 160),
                 CreateTextColumn(nameof(AppCategoryManagementRow.UserAliasText), IsEnglish ? "Custom name" : "사용자 이름", 150, nameof(AppCategoryManagementRow.UserAlias)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.ProcessName), IsEnglish ? "Process" : "프로세스", 130),
+                CreateTextColumn(nameof(AppCategoryManagementRow.TrackingTypeText), IsEnglish ? "Observed as" : "관측 유형", 110),
                 CreateTextColumn(nameof(AppCategoryManagementRow.FileDescriptionText), IsEnglish ? "Description" : "파일 설명", 180, nameof(AppCategoryManagementRow.FileDescription)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.ProductNameText), IsEnglish ? "Product" : "제품명", 160, nameof(AppCategoryManagementRow.ProductName)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.CompanyNameText), IsEnglish ? "Company" : "회사", 150, nameof(AppCategoryManagementRow.CompanyName)),
@@ -200,6 +201,10 @@ namespace TimePilot.WinForms
                 CreateTextColumn(nameof(AppCategoryManagementRow.SwitchCountText), IsEnglish ? "Switches" : "전환", 80, nameof(AppCategoryManagementRow.SwitchCount)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.RuntimeSegmentCountText), IsEnglish ? "Segments" : "구간", 80, nameof(AppCategoryManagementRow.RuntimeSegmentCount)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.ExecutablePath), IsEnglish ? "Path" : "실행 경로", 320));
+
+            appsGrid.Columns[nameof(AppCategoryManagementRow.TrackingTypeText) + "Column"].ToolTipText = IsEnglish
+                ? "Shows whether the app was observed as a visible app, user process, or all-process item."
+                : "앱이 화면 앱, 사용자 프로세스, 전체 프로세스 항목 중 어떤 방식으로 관측되었는지 보여줍니다.";
 
             ApplySavedColumnVisibility();
 
@@ -601,6 +606,7 @@ namespace TimePilot.WinForms
                 nameof(AppCategoryManagementRow.AutomaticAppName) => OrderRows(rows, x => x.AutomaticAppName),
                 nameof(AppCategoryManagementRow.UserAlias) => OrderRows(rows, x => x.UserAlias ?? ""),
                 nameof(AppCategoryManagementRow.ProcessName) => OrderRows(rows, x => x.ProcessName),
+                nameof(AppCategoryManagementRow.TrackingTypeText) => OrderRows(rows, x => x.TrackingTypeText),
                 nameof(AppCategoryManagementRow.HasAppIcon) => OrderRows(rows, x => x.HasAppIcon),
                 nameof(AppCategoryManagementRow.FileDescription) => OrderRows(rows, x => x.FileDescription ?? ""),
                 nameof(AppCategoryManagementRow.ProductName) => OrderRows(rows, x => x.ProductName ?? ""),
