@@ -248,7 +248,8 @@ namespace TimePilot.WinForms.KYS24
             public static string DataBackupFailed(string message) => current.Main.DataBackupFailed(message);
             public static string DataRestorePlan(bool hasSettings, int logCount) =>
                 current.Main.DataRestorePlan(hasSettings, logCount);
-            public static string DataRestoreCompleted(int count) => current.Main.DataRestoreCompleted(count);
+            public static string DataRestoreCompleted(int count, string safetyBackupPath) =>
+                current.Main.DataRestoreCompleted(count, safetyBackupPath);
             public static string DataRestoreFailed(string message) => current.Main.DataRestoreFailed(message);
         }
 
@@ -564,7 +565,7 @@ namespace TimePilot.WinForms.KYS24
                         DataBackupTitle: "TimePilot 백업",
                         DataRestoreTitle: "TimePilot 복원",
                         DataBackupWarning: "백업 파일에는 사용 기록 데이터베이스와 설정이 포함됩니다. 개인 사용 기록이 들어 있으므로 보관과 공유에 주의하세요.\n\n백업을 만들까요?",
-                        DataRestoreWarning: "백업을 복원하면 현재 사용 기록 데이터베이스와 설정이 백업 파일의 내용으로 덮어쓰기 됩니다.\n\n복원 후 TimePilot은 현재 세션을 다시 시작합니다. 계속할까요?",
+                        DataRestoreWarning: "백업을 복원하면 현재 사용 기록 데이터베이스와 설정이 백업 파일의 내용으로 대체됩니다.\n\n복원 전에 현재 데이터는 자동으로 별도 백업됩니다. 복원 후 TimePilot은 현재 세션을 다시 시작합니다. 계속할까요?",
                         DataRestoreMissingDatabase: "백업 파일에 timepilot.db가 없어 복원할 수 없습니다.",
                         DataBackupReadmeTitle: "TimePilot 백업",
                         DataBackupReadmeCreatedAt: createdAt => $"생성 시각: {createdAt}",
@@ -628,7 +629,7 @@ namespace TimePilot.WinForms.KYS24
                         DataBackupFailed: message => $"백업 만들기에 실패했습니다.\n\n{message}",
                         DataRestorePlan: (hasSettings, logCount) =>
                             $"이 백업에는 사용 기록 데이터베이스{(hasSettings ? ", 설정" : "")}{(logCount > 0 ? $", 로그 {logCount}개" : "")}가 포함되어 있습니다.",
-                        DataRestoreCompleted: count => $"백업을 복원했습니다. 복원 파일 {count}개",
+                        DataRestoreCompleted: (count, safetyBackupPath) => $"백업을 복원했습니다. 복원 파일 {count}개\n\n복원 전 현재 데이터 백업:\n{safetyBackupPath}",
                         DataRestoreFailed: message => $"백업 복원에 실패했습니다.\n\n{message}"),
                     new CsvText(
                         Date: "날짜",
@@ -897,7 +898,7 @@ namespace TimePilot.WinForms.KYS24
                         DataBackupTitle: "TimePilot backup",
                         DataRestoreTitle: "TimePilot restore",
                         DataBackupWarning: "The backup file includes the usage database and settings. It can contain personal usage records, so be careful when storing or sharing it.\n\nCreate a backup?",
-                        DataRestoreWarning: "Restoring a backup will overwrite the current usage database and settings with the backup contents.\n\nTimePilot will restart the current recording session after restore. Continue?",
+                        DataRestoreWarning: "Restoring a backup will replace the current usage database and settings with the backup contents.\n\nTimePilot will automatically create a separate backup of the current data before restoring. TimePilot will restart the current recording session after restore. Continue?",
                         DataRestoreMissingDatabase: "This backup cannot be restored because timepilot.db is missing.",
                         DataBackupReadmeTitle: "TimePilot backup",
                         DataBackupReadmeCreatedAt: createdAt => $"Created at: {createdAt}",
@@ -961,7 +962,7 @@ namespace TimePilot.WinForms.KYS24
                         DataBackupFailed: message => $"Backup failed.\n\n{message}",
                         DataRestorePlan: (hasSettings, logCount) =>
                             $"This backup includes the usage database{(hasSettings ? ", settings" : "")}{(logCount > 0 ? $", and {logCount} log file(s)" : "")}.",
-                        DataRestoreCompleted: count => $"Restored the backup. Restored files: {count}",
+                        DataRestoreCompleted: (count, safetyBackupPath) => $"Restored the backup. Restored files: {count}\n\nCurrent data backup before restore:\n{safetyBackupPath}",
                         DataRestoreFailed: message => $"Restore failed.\n\n{message}"),
                     new CsvText(
                         Date: "Date",
@@ -1257,7 +1258,7 @@ namespace TimePilot.WinForms.KYS24
             Func<string, int, string> DataBackupCompleted,
             Func<string, string> DataBackupFailed,
             Func<bool, int, string> DataRestorePlan,
-            Func<int, string> DataRestoreCompleted,
+            Func<int, string, string> DataRestoreCompleted,
             Func<string, string> DataRestoreFailed);
 
         private sealed record CsvText(

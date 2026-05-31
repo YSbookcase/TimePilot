@@ -4839,11 +4839,13 @@ namespace TimePilot.WinForms
                 return;
 
             var now = DateTimeOffset.UtcNow;
+            string safetyBackupPath;
             try
             {
                 SetExportRunning(true, BuildExportInProgressStatus(UiText.Main.DataRestoreTitle));
                 sampleTimer.Stop();
                 EndCurrentTrackingSessions(now, "restore-data");
+                safetyBackupPath = CreatePreRestoreSafetyBackup(service, now);
                 storage?.Dispose();
                 storage = null;
 
@@ -4854,7 +4856,7 @@ namespace TimePilot.WinForms
                 SetExportRunning(false, BuildExportCompletedStatus(UiText.Main.DataRestoreTitle));
                 CenteredMessageDialog.Show(
                     this,
-                    UiText.Main.DataRestoreCompleted(result.RestoredFiles.Count),
+                    UiText.Main.DataRestoreCompleted(result.RestoredFiles.Count, safetyBackupPath),
                     UiText.Main.DataRestoreTitle,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
@@ -4877,6 +4879,15 @@ namespace TimePilot.WinForms
                 if (!isClosing && storage is not null)
                     sampleTimer.Start();
             }
+        }
+
+        private static string CreatePreRestoreSafetyBackup(DataBackupService service, DateTimeOffset now)
+        {
+            Directory.CreateDirectory(AppDataPaths.BackupDirectory);
+            var fileName = $"TimePilot-before-restore-{now.ToLocalTime():yyyy-MM-dd-HHmmss}.zip";
+            var backupPath = Path.Combine(AppDataPaths.BackupDirectory, fileName);
+            service.CreateBackup(backupPath, now);
+            return backupPath;
         }
 
         private void EndCurrentTrackingSessions(DateTimeOffset endedAt, string shutdownReason)
