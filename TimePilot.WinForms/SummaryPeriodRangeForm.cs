@@ -156,7 +156,7 @@ namespace TimePilot.WinForms
         {
             startDateTextBox.Text = FormatDate(StartDate);
             endDateTextBox.Text = FormatDate(EndDate);
-            rangeDurationLabel.Text = FormatRangeDuration(StartDate, EndDate);
+            rangeDurationLabel.Text = CalendarRangeDurationFormatter.Format(StartDate, EndDate, includePrefix: true);
         }
 
         private DateTime NormalizeSelectableDate(DateTime date)
@@ -233,70 +233,5 @@ namespace TimePilot.WinForms
             return date.ToString("yyyy-MM-dd (ddd)", CultureInfo.CurrentCulture);
         }
 
-        private static string FormatRangeDuration(DateTime startDate, DateTime endDate)
-        {
-            if (endDate.Date < startDate.Date)
-                return UiText.SummaryPeriod.InvalidCustomRange;
-
-            var totalDays = (endDate.Date - startDate.Date).Days + 1;
-            var endExclusive = endDate.Date.AddDays(1);
-            var cursor = startDate.Date;
-
-            var years = endExclusive.Year - cursor.Year;
-            if (cursor.AddYears(years) > endExclusive)
-                years--;
-            cursor = cursor.AddYears(years);
-
-            var months = ((endExclusive.Year - cursor.Year) * 12) + endExclusive.Month - cursor.Month;
-            if (cursor.AddMonths(months) > endExclusive)
-                months--;
-            cursor = cursor.AddMonths(months);
-
-            var days = (endExclusive - cursor).Days;
-            var text = UiText.CurrentLanguage == UiLanguage.English
-                ? FormatEnglishCalendarDuration(years, months, days)
-                : FormatKoreanCalendarDuration(years, months, days);
-
-            if (years == 0 && months == 0)
-                return UiText.CurrentLanguage == UiLanguage.English
-                    ? $"Selected period: {text}"
-                    : $"선택 기간: {text}";
-
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? $"Selected period: {text} ({totalDays:N0} days total)"
-                : $"선택 기간: {text} (총 {totalDays:N0}일)";
-        }
-
-        private static string FormatKoreanCalendarDuration(int years, int months, int days)
-        {
-            var parts = new List<string>();
-            if (years > 0)
-                parts.Add($"{years:N0}년");
-            if (months > 0)
-                parts.Add($"{months:N0}개월");
-            if (days > 0 || parts.Count == 0)
-                parts.Add($"{days:N0}일");
-
-            return string.Join(" ", parts);
-        }
-
-        private static string FormatEnglishCalendarDuration(int years, int months, int days)
-        {
-            var parts = new List<string>();
-            AddEnglishDurationPart(parts, years, "year");
-            AddEnglishDurationPart(parts, months, "month");
-            if (days > 0 || parts.Count == 0)
-                AddEnglishDurationPart(parts, days, "day");
-
-            return string.Join(" ", parts);
-        }
-
-        private static void AddEnglishDurationPart(List<string> parts, int value, string unit)
-        {
-            if (value <= 0)
-                return;
-
-            parts.Add($"{value:N0} {unit}{(value == 1 ? string.Empty : "s")}");
-        }
     }
 }
