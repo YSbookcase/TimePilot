@@ -38,6 +38,8 @@ namespace TimePilot.WinForms.KYS24
             public static string FileMenu => current.Main.FileMenu;
             public static string ExportCsv => current.Main.ExportCsv;
             public static string ExportRawData => current.Main.ExportRawData;
+            public static string CreateDataBackup => current.Main.CreateDataBackup;
+            public static string RestoreDataBackup => current.Main.RestoreDataBackup;
             public static string Exit => current.Main.Exit;
             public static string SettingsMenu => current.Main.SettingsMenu;
             public static string Preferences => current.Main.Preferences;
@@ -168,6 +170,16 @@ namespace TimePilot.WinForms.KYS24
             public static string ZipFilter => current.Main.ZipFilter;
             public static string RawDataExportTitle => current.Main.RawDataExportTitle;
             public static string RawDataExportWarning => current.Main.RawDataExportWarning;
+            public static string DataBackupTitle => current.Main.DataBackupTitle;
+            public static string DataRestoreTitle => current.Main.DataRestoreTitle;
+            public static string DataBackupWarning => current.Main.DataBackupWarning;
+            public static string DataRestoreWarning => current.Main.DataRestoreWarning;
+            public static string DataRestoreMissingDatabase => current.Main.DataRestoreMissingDatabase;
+            public static string DataBackupReadmeTitle => current.Main.DataBackupReadmeTitle;
+            public static string DataBackupReadmeCreatedAt(string createdAt) =>
+                current.Main.DataBackupReadmeCreatedAt(createdAt);
+            public static string DataBackupReadmePrivacyNotice => current.Main.DataBackupReadmePrivacyNotice;
+            public static string DataBackupReadmeFileList => current.Main.DataBackupReadmeFileList;
             public static string RuntimeDiagnostics => current.Main.RuntimeDiagnostics;
             public static string Sponsor => current.Main.Sponsor;
             public static string SponsorAboutMessage => current.Main.SponsorAboutMessage;
@@ -231,6 +243,18 @@ namespace TimePilot.WinForms.KYS24
             public static string RawDataExportCompleted(string filePath, int count) =>
                 current.Main.RawDataExportCompleted(filePath, count);
             public static string RawDataExportFailed(string message) => current.Main.RawDataExportFailed(message);
+            public static string DataBackupCompleted(string filePath, int count) =>
+                current.Main.DataBackupCompleted(filePath, count);
+            public static string DataBackupFailed(string message) => current.Main.DataBackupFailed(message);
+            public static string DataRestorePlan(bool hasSettings, int logCount) =>
+                current.Main.DataRestorePlan(hasSettings, logCount);
+            public static string DataRestoreCompleted(int count, string safetyBackupPath) =>
+                current.Main.DataRestoreCompleted(count, safetyBackupPath);
+            public static string DataRestoreFailed(string message) => current.Main.DataRestoreFailed(message);
+            public static string DataRestorePreparing => current.Main.DataRestorePreparing;
+            public static string DataRestoreCreatingSafetyBackup => current.Main.DataRestoreCreatingSafetyBackup;
+            public static string DataRestoreApplyingBackup => current.Main.DataRestoreApplyingBackup;
+            public static string DataRestoreRestartingSession => current.Main.DataRestoreRestartingSession;
         }
 
         public static class Csv
@@ -391,6 +415,8 @@ namespace TimePilot.WinForms.KYS24
                         FileMenu: "파일",
                         ExportCsv: "CSV 내보내기...",
                         ExportRawData: "원본 데이터 전체 내보내기...",
+                        CreateDataBackup: "백업 만들기...",
+                        RestoreDataBackup: "백업에서 복원...",
                         Exit: "종료",
                         SettingsMenu: "설정",
                         Preferences: "환경 설정...",
@@ -540,6 +566,15 @@ namespace TimePilot.WinForms.KYS24
                         ZipFilter: "ZIP 파일 (*.zip)|*.zip",
                         RawDataExportTitle: "원본 데이터 전체 내보내기",
                         RawDataExportWarning: "원본 데이터에는 앱 이름, 프로세스 이름, 실행 경로, 사용 시간, 실행 기록이 포함될 수 있습니다.\n\n현재는 기간 제한 없이 전체 원본 테이블 CSV를 ZIP 파일로 저장합니다. 계속할까요?",
+                        DataBackupTitle: "TimePilot 백업",
+                        DataRestoreTitle: "TimePilot 복원",
+                        DataBackupWarning: "백업 파일에는 사용 기록 데이터베이스와 설정이 포함됩니다. 개인 사용 기록이 들어 있으므로 보관과 공유에 주의하세요.\n\n백업을 만들까요?",
+                        DataRestoreWarning: "백업을 복원하면 현재 사용 기록 데이터베이스와 설정이 백업 파일의 내용으로 대체됩니다.\n\n복원 전에 현재 데이터는 자동으로 별도 백업됩니다. 복원 후 TimePilot은 현재 세션을 다시 시작합니다. 계속할까요?",
+                        DataRestoreMissingDatabase: "백업 파일에 timepilot.db가 없어 복원할 수 없습니다.",
+                        DataBackupReadmeTitle: "TimePilot 백업",
+                        DataBackupReadmeCreatedAt: createdAt => $"생성 시각: {createdAt}",
+                        DataBackupReadmePrivacyNotice: "이 ZIP 파일에는 TimePilot 사용 기록 데이터베이스와 설정이 포함되어 있습니다. 앱 이름, 프로세스 이름, 실행 경로, 사용 시간, 실행 기록 등 개인 사용 기록이 포함될 수 있으므로 공유와 보관에 주의하세요.",
+                        DataBackupReadmeFileList: "포함 파일:",
                         RuntimeDiagnostics: "실행 진단",
                         Sponsor: "후원하기...",
                         SponsorAboutMessage: "TimePilot 개발을 응원하고 싶다면 도움말 > 후원하기에서 GitHub Sponsors 페이지를 열 수 있습니다.",
@@ -593,7 +628,17 @@ namespace TimePilot.WinForms.KYS24
                         CsvExportCompleted: (count, directory) => $"CSV 파일 {count}개를 내보냈습니다.\n\n{directory}",
                         CsvExportFailed: message => $"CSV 내보내기에 실패했습니다.\n\n{message}",
                         RawDataExportCompleted: (filePath, count) => $"원본 데이터 파일 {count}개를 내보냈습니다.\n\n{filePath}",
-                        RawDataExportFailed: message => $"원본 데이터 내보내기에 실패했습니다.\n\n{message}"),
+                        RawDataExportFailed: message => $"원본 데이터 내보내기에 실패했습니다.\n\n{message}",
+                        DataBackupCompleted: (filePath, count) => $"백업 파일을 만들었습니다. 포함 파일 {count}개\n\n{filePath}",
+                        DataBackupFailed: message => $"백업 만들기에 실패했습니다.\n\n{message}",
+                        DataRestorePlan: (hasSettings, logCount) =>
+                            $"이 백업에는 사용 기록 데이터베이스{(hasSettings ? ", 설정" : "")}{(logCount > 0 ? $", 로그 {logCount}개" : "")}가 포함되어 있습니다.",
+                        DataRestoreCompleted: (count, safetyBackupPath) => $"백업을 복원했습니다. 복원 파일 {count}개\n\n복원 전 현재 데이터 백업:\n{safetyBackupPath}",
+                        DataRestoreFailed: message => $"백업 복원에 실패했습니다.\n\n{message}",
+                        DataRestorePreparing: "복원 준비 중...",
+                        DataRestoreCreatingSafetyBackup: "복원 전 현재 데이터 백업 중...",
+                        DataRestoreApplyingBackup: "백업 데이터 적용 중...",
+                        DataRestoreRestartingSession: "TimePilot 기록 세션 다시 시작 중..."),
                     new CsvText(
                         Date: "날짜",
                         AppName: "앱 이름",
@@ -707,6 +752,8 @@ namespace TimePilot.WinForms.KYS24
                         FileMenu: "File",
                         ExportCsv: "Export CSV...",
                         ExportRawData: "Export all raw data...",
+                        CreateDataBackup: "Create backup...",
+                        RestoreDataBackup: "Restore from backup...",
                         Exit: "Exit",
                         SettingsMenu: "Settings",
                         Preferences: "Preferences...",
@@ -856,6 +903,15 @@ namespace TimePilot.WinForms.KYS24
                         ZipFilter: "ZIP files (*.zip)|*.zip",
                         RawDataExportTitle: "Export all raw data",
                         RawDataExportWarning: "Raw data can include app names, process names, executable paths, usage times, and runtime records.\n\nTimePilot currently exports all raw table CSV files without a date range limit into a ZIP file. Continue?",
+                        DataBackupTitle: "TimePilot backup",
+                        DataRestoreTitle: "TimePilot restore",
+                        DataBackupWarning: "The backup file includes the usage database and settings. It can contain personal usage records, so be careful when storing or sharing it.\n\nCreate a backup?",
+                        DataRestoreWarning: "Restoring a backup will replace the current usage database and settings with the backup contents.\n\nTimePilot will automatically create a separate backup of the current data before restoring. TimePilot will restart the current recording session after restore. Continue?",
+                        DataRestoreMissingDatabase: "This backup cannot be restored because timepilot.db is missing.",
+                        DataBackupReadmeTitle: "TimePilot backup",
+                        DataBackupReadmeCreatedAt: createdAt => $"Created at: {createdAt}",
+                        DataBackupReadmePrivacyNotice: "This ZIP file contains the TimePilot usage database and settings. It can include personal usage records such as app names, process names, executable paths, usage times, and runtime records. Be careful when storing or sharing it.",
+                        DataBackupReadmeFileList: "Included files:",
                         RuntimeDiagnostics: "Runtime diagnostics",
                         Sponsor: "Sponsor...",
                         SponsorAboutMessage: "To support TimePilot development, open Help > Sponsor to visit the GitHub Sponsors page.",
@@ -909,7 +965,17 @@ namespace TimePilot.WinForms.KYS24
                         CsvExportCompleted: (count, directory) => $"Exported {count} CSV files.\n\n{directory}",
                         CsvExportFailed: message => $"CSV export failed.\n\n{message}",
                         RawDataExportCompleted: (filePath, count) => $"Exported {count} raw data files.\n\n{filePath}",
-                        RawDataExportFailed: message => $"Raw data export failed.\n\n{message}"),
+                        RawDataExportFailed: message => $"Raw data export failed.\n\n{message}",
+                        DataBackupCompleted: (filePath, count) => $"Created the backup file. Included files: {count}\n\n{filePath}",
+                        DataBackupFailed: message => $"Backup failed.\n\n{message}",
+                        DataRestorePlan: (hasSettings, logCount) =>
+                            $"This backup includes the usage database{(hasSettings ? ", settings" : "")}{(logCount > 0 ? $", and {logCount} log file(s)" : "")}.",
+                        DataRestoreCompleted: (count, safetyBackupPath) => $"Restored the backup. Restored files: {count}\n\nCurrent data backup before restore:\n{safetyBackupPath}",
+                        DataRestoreFailed: message => $"Restore failed.\n\n{message}",
+                        DataRestorePreparing: "Preparing restore...",
+                        DataRestoreCreatingSafetyBackup: "Backing up current data before restore...",
+                        DataRestoreApplyingBackup: "Applying backup data...",
+                        DataRestoreRestartingSession: "Restarting TimePilot recording session..."),
                     new CsvText(
                         Date: "Date",
                         AppName: "App name",
@@ -1022,6 +1088,8 @@ namespace TimePilot.WinForms.KYS24
             string FileMenu,
             string ExportCsv,
             string ExportRawData,
+            string CreateDataBackup,
+            string RestoreDataBackup,
             string Exit,
             string SettingsMenu,
             string Preferences,
@@ -1136,6 +1204,15 @@ namespace TimePilot.WinForms.KYS24
             string ZipFilter,
             string RawDataExportTitle,
             string RawDataExportWarning,
+            string DataBackupTitle,
+            string DataRestoreTitle,
+            string DataBackupWarning,
+            string DataRestoreWarning,
+            string DataRestoreMissingDatabase,
+            string DataBackupReadmeTitle,
+            Func<string, string> DataBackupReadmeCreatedAt,
+            string DataBackupReadmePrivacyNotice,
+            string DataBackupReadmeFileList,
             string RuntimeDiagnostics,
             string Sponsor,
             string SponsorAboutMessage,
@@ -1189,7 +1266,16 @@ namespace TimePilot.WinForms.KYS24
             Func<int, string?, string> CsvExportCompleted,
             Func<string, string> CsvExportFailed,
             Func<string, int, string> RawDataExportCompleted,
-            Func<string, string> RawDataExportFailed);
+            Func<string, string> RawDataExportFailed,
+            Func<string, int, string> DataBackupCompleted,
+            Func<string, string> DataBackupFailed,
+            Func<bool, int, string> DataRestorePlan,
+            Func<int, string, string> DataRestoreCompleted,
+            Func<string, string> DataRestoreFailed,
+            string DataRestorePreparing,
+            string DataRestoreCreatingSafetyBackup,
+            string DataRestoreApplyingBackup,
+            string DataRestoreRestartingSession);
 
         private sealed record CsvText(
             string Date,

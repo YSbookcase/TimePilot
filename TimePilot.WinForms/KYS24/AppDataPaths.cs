@@ -14,5 +14,7 @@ namespace TimePilot.WinForms.KYS24
         public static string SettingsPath => Path.Combine(DataDirectory, "settings.json");
 
         public static string DatabasePath => Path.Combine(DataDirectory, "timepilot.db");
+
+        public static string BackupDirectory => Path.Combine(DataDirectory, "backups");
     }
 }

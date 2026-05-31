@@ -22,6 +22,8 @@
             fileMenuItem = new ToolStripMenuItem();
             exportCsvMenuItem = new ToolStripMenuItem();
             exportRawDataMenuItem = new ToolStripMenuItem();
+            createDataBackupMenuItem = new ToolStripMenuItem();
+            restoreDataBackupMenuItem = new ToolStripMenuItem();
             exitMenuItem = new ToolStripMenuItem();
             settingsMenuItem = new ToolStripMenuItem();
             preferencesMenuItem = new ToolStripMenuItem();
@@ -170,7 +172,7 @@
             // 
             // fileMenuItem
             // 
-            fileMenuItem.DropDownItems.AddRange(new ToolStripItem[] { exportCsvMenuItem, exportRawDataMenuItem, exitMenuItem });
+            fileMenuItem.DropDownItems.AddRange(new ToolStripItem[] { exportCsvMenuItem, exportRawDataMenuItem, createDataBackupMenuItem, restoreDataBackupMenuItem, exitMenuItem });
             fileMenuItem.Name = "fileMenuItem";
             fileMenuItem.Size = new Size(43, 20);
             fileMenuItem.Text = UiText.Main.FileMenu;
@@ -188,6 +190,20 @@
             exportRawDataMenuItem.Size = new Size(180, 22);
             exportRawDataMenuItem.Text = UiText.Main.ExportRawData;
             exportRawDataMenuItem.Click += OnExportRawDataMenuItemClick;
+            //
+            // createDataBackupMenuItem
+            //
+            createDataBackupMenuItem.Name = "createDataBackupMenuItem";
+            createDataBackupMenuItem.Size = new Size(180, 22);
+            createDataBackupMenuItem.Text = UiText.Main.CreateDataBackup;
+            createDataBackupMenuItem.Click += OnCreateDataBackupMenuItemClick;
+            //
+            // restoreDataBackupMenuItem
+            //
+            restoreDataBackupMenuItem.Name = "restoreDataBackupMenuItem";
+            restoreDataBackupMenuItem.Size = new Size(180, 22);
+            restoreDataBackupMenuItem.Text = UiText.Main.RestoreDataBackup;
+            restoreDataBackupMenuItem.Click += OnRestoreDataBackupMenuItemClick;
             // 
             // exitMenuItem
             // 
@@ -1520,6 +1536,8 @@
         private ToolStripMenuItem fileMenuItem;
         private ToolStripMenuItem exportCsvMenuItem;
         private ToolStripMenuItem exportRawDataMenuItem;
+        private ToolStripMenuItem createDataBackupMenuItem;
+        private ToolStripMenuItem restoreDataBackupMenuItem;
         private ToolStripMenuItem exitMenuItem;
         private ToolStripMenuItem settingsMenuItem;
         private ToolStripMenuItem preferencesMenuItem;

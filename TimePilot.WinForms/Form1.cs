@@ -1132,6 +1132,8 @@ namespace TimePilot.WinForms
             fileMenuItem.Text = UiText.Main.FileMenu;
             exportCsvMenuItem.Text = UiText.Main.ExportCsv;
             exportRawDataMenuItem.Text = UiText.Main.ExportRawData;
+            createDataBackupMenuItem.Text = UiText.Main.CreateDataBackup;
+            restoreDataBackupMenuItem.Text = UiText.Main.RestoreDataBackup;
             exitMenuItem.Text = UiText.Main.Exit;
             settingsMenuItem.Text = UiText.Main.SettingsMenu;
             preferencesMenuItem.Text = UiText.Main.Preferences;
@@ -4631,6 +4633,8 @@ namespace TimePilot.WinForms
             exportStatusText = message;
             exportCsvMenuItem.Enabled = !isRunning;
             exportRawDataMenuItem.Enabled = !isRunning;
+            createDataBackupMenuItem.Enabled = !isRunning;
+            restoreDataBackupMenuItem.Enabled = !isRunning;
             UseWaitCursor = isRunning;
             RefreshStatusLabel();
         }
@@ -4720,6 +4724,238 @@ namespace TimePilot.WinForms
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
                 ClearExportStatus();
+            }
+        }
+
+        private async void OnCreateDataBackupMenuItemClick(object? sender, EventArgs e)
+        {
+            if (storage is null || isExportRunning)
+                return;
+
+            var confirm = CenteredMessageDialog.Show(
+                this,
+                UiText.Main.DataBackupWarning,
+                UiText.Main.DataBackupTitle,
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Information);
+            if (confirm != DialogResult.OK)
+                return;
+
+            var now = DateTimeOffset.UtcNow;
+            using var dialog = new SaveFileDialog
+            {
+                AddExtension = true,
+                DefaultExt = "zip",
+                FileName = $"TimePilot-backup-{now.ToLocalTime():yyyy-MM-dd-HHmm}.zip",
+                Filter = UiText.Main.ZipFilter,
+                OverwritePrompt = true,
+                Title = UiText.Main.DataBackupTitle
+            };
+
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            var wasTimerEnabled = sampleTimer.Enabled;
+            try
+            {
+                SetExportRunning(true, BuildExportInProgressStatus(UiText.Main.DataBackupTitle));
+                sampleTimer.Stop();
+                storage.UpdateRuntimeHeartbeat(now);
+
+                var fileName = dialog.FileName;
+                var entries = await Task.Run(() =>
+                {
+                    var service = new DataBackupService();
+                    return service.CreateBackup(fileName, now);
+                });
+
+                SetExportRunning(false, BuildExportCompletedStatus(UiText.Main.DataBackupTitle));
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Main.DataBackupCompleted(dialog.FileName, entries.Count),
+                    UiText.Main.DataBackupTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                ClearExportStatus();
+            }
+            catch (Exception ex)
+            {
+                SetExportRunning(false, BuildExportFailedStatus(UiText.Main.DataBackupTitle));
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Main.DataBackupFailed(ex.Message),
+                    UiText.Main.DataBackupTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                ClearExportStatus();
+            }
+            finally
+            {
+                if (wasTimerEnabled && !isClosing)
+                    sampleTimer.Start();
+            }
+        }
+
+        private async void OnRestoreDataBackupMenuItemClick(object? sender, EventArgs e)
+        {
+            if (isExportRunning)
+                return;
+
+            using var dialog = new OpenFileDialog
+            {
+                AddExtension = true,
+                DefaultExt = "zip",
+                Filter = UiText.Main.ZipFilter,
+                Title = UiText.Main.DataRestoreTitle
+            };
+
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            var service = new DataBackupService();
+            DataBackupRestorePlan plan;
+            try
+            {
+                plan = service.InspectBackup(dialog.FileName);
+            }
+            catch (Exception ex)
+            {
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Main.DataRestoreFailed(ex.Message),
+                    UiText.Main.DataRestoreTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
+
+            var confirm = CenteredMessageDialog.Show(
+                this,
+                $"{UiText.Main.DataRestorePlan(plan.HasSettings, plan.LogCount)}\n\n{UiText.Main.DataRestoreWarning}",
+                UiText.Main.DataRestoreTitle,
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Warning);
+            if (confirm != DialogResult.OK)
+                return;
+
+            var now = DateTimeOffset.UtcNow;
+            string safetyBackupPath;
+            try
+            {
+                SetExportRunning(true, UiText.Main.DataRestorePreparing);
+                await AllowUiToRenderAsync();
+                sampleTimer.Stop();
+                EndCurrentTrackingSessions(now, "restore-data");
+
+                SetExportRunning(true, UiText.Main.DataRestoreCreatingSafetyBackup);
+                await AllowUiToRenderAsync();
+                safetyBackupPath = CreatePreRestoreSafetyBackup(service, now);
+                storage?.Dispose();
+                storage = null;
+
+                SetExportRunning(true, UiText.Main.DataRestoreApplyingBackup);
+                await AllowUiToRenderAsync();
+                var fileName = dialog.FileName;
+                var result = await Task.Run(() => service.RestoreBackup(fileName));
+
+                SetExportRunning(true, UiText.Main.DataRestoreRestartingSession);
+                await AllowUiToRenderAsync();
+                ReinitializeStorageAfterDataRestore(DateTimeOffset.UtcNow);
+
+                SetExportRunning(false, BuildExportCompletedStatus(UiText.Main.DataRestoreTitle));
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Main.DataRestoreCompleted(result.RestoredFiles.Count, safetyBackupPath),
+                    UiText.Main.DataRestoreTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                ClearExportStatus();
+            }
+            catch (Exception ex)
+            {
+                TryReinitializeStorageAfterRestoreFailure();
+                SetExportRunning(false, BuildExportFailedStatus(UiText.Main.DataRestoreTitle));
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Main.DataRestoreFailed(ex.Message),
+                    UiText.Main.DataRestoreTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                ClearExportStatus();
+            }
+            finally
+            {
+                if (!isClosing && storage is not null)
+                    sampleTimer.Start();
+            }
+        }
+
+        private static Task AllowUiToRenderAsync()
+        {
+            Application.DoEvents();
+            return Task.Delay(50);
+        }
+
+        private static string CreatePreRestoreSafetyBackup(DataBackupService service, DateTimeOffset now)
+        {
+            Directory.CreateDirectory(AppDataPaths.BackupDirectory);
+            var fileName = $"TimePilot-before-restore-{now.ToLocalTime():yyyy-MM-dd-HHmmss}.zip";
+            var backupPath = Path.Combine(AppDataPaths.BackupDirectory, fileName);
+            service.CreateBackup(backupPath, now);
+            return backupPath;
+        }
+
+        private void EndCurrentTrackingSessions(DateTimeOffset endedAt, string shutdownReason)
+        {
+            idleSessionTracker?.EndCurrentSession(endedAt);
+            foregroundSessionTracker?.EndCurrentSession(endedAt);
+            lock (processRuntimeTrackingLock)
+            {
+                processRuntimeSessionTracker?.EndCurrentSessions(endedAt);
+            }
+
+            storage?.EndRuntimeSession(endedAt, shutdownReason);
+            foregroundSessionTracker = null;
+            idleSessionTracker = null;
+            processRuntimeSessionTracker = null;
+        }
+
+        private void ReinitializeStorageAfterDataRestore(DateTimeOffset startedAt)
+        {
+            settings = AppSettings.LoadDefault();
+            WindowsStartupRegistration.SetEnabled(settings.StartWithWindows);
+            UiText.UseLanguage(settings.UiLanguage);
+            ApplyUiText();
+            ApplySavedTableSortState();
+            ApplySavedTableColumnLayouts();
+            storage = TimePilotStorage.CreateDefault();
+            foregroundSessionTracker = new ForegroundSessionTracker(storage);
+            idleSessionTracker = new IdleSessionTracker(storage);
+            processRuntimeSessionTracker = new ProcessRuntimeSessionTracker(storage);
+
+            var systemBootedAt = GetCurrentSystemBootedAt(startedAt);
+            storage.Initialize(startedAt, systemBootedAt);
+            ApplyProcessRuntimeSafeModeIfNeeded();
+            UpdateDetailTrackingDisabledBanner();
+            storage.BeginRuntimeSession(startedAt, systemBootedAt, Application.ProductVersion);
+            RecordWindowsSystemEvent("timepilot-start", "ApplicationRestartedAfterRestore");
+            lastProcessRuntimeSampleAt = null;
+            lastSampleTickAt = null;
+            selectedRuntimeAppId = null;
+            RefreshViews(startedAt);
+        }
+
+        private void TryReinitializeStorageAfterRestoreFailure()
+        {
+            if (storage is not null)
+                return;
+
+            try
+            {
+                ReinitializeStorageAfterDataRestore(DateTimeOffset.UtcNow);
+            }
+            catch
+            {
             }
         }
 
