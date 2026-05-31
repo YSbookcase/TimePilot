@@ -87,6 +87,8 @@ namespace TimePilot.WinForms.KYS24
 
         public Dictionary<string, List<TableColumnLayout>> TableColumnLayouts { get; set; } = new();
 
+        public Dictionary<string, bool> AppCategoryManagementColumnVisibility { get; set; } = new(StringComparer.Ordinal);
+
         public bool IsCurrentProcessRuntimeRiskAccepted =>
             !IsDangerousProcessRuntimeTracking(
                 ProcessRuntimeTrackingEnabled,
@@ -140,6 +142,8 @@ namespace TimePilot.WinForms.KYS24
                 settings.RuntimeSegmentSortProperty = NormalizeNullableText(persisted?.RuntimeSegmentSortProperty);
                 settings.RuntimeSegmentSortDescending = persisted?.RuntimeSegmentSortDescending;
                 settings.TableColumnLayouts = NormalizeTableColumnLayouts(persisted?.TableColumnLayouts);
+                settings.AppCategoryManagementColumnVisibility =
+                    NormalizeColumnVisibility(persisted?.AppCategoryManagementColumnVisibility);
             }
             catch
             {
@@ -170,6 +174,7 @@ namespace TimePilot.WinForms.KYS24
                 settings.RuntimeSegmentSortProperty = null;
                 settings.RuntimeSegmentSortDescending = null;
                 settings.TableColumnLayouts = new Dictionary<string, List<TableColumnLayout>>();
+                settings.AppCategoryManagementColumnVisibility = new Dictionary<string, bool>(StringComparer.Ordinal);
             }
 
             return settings;
@@ -210,7 +215,9 @@ namespace TimePilot.WinForms.KYS24
                 RuntimeSortDescending = RuntimeSortDescending,
                 RuntimeSegmentSortProperty = NormalizeNullableText(RuntimeSegmentSortProperty),
                 RuntimeSegmentSortDescending = RuntimeSegmentSortDescending,
-                TableColumnLayouts = NormalizeTableColumnLayouts(TableColumnLayouts)
+                TableColumnLayouts = NormalizeTableColumnLayouts(TableColumnLayouts),
+                AppCategoryManagementColumnVisibility =
+                    NormalizeColumnVisibility(AppCategoryManagementColumnVisibility)
             };
             IdleThresholdMinutes = persisted.IdleThresholdMinutes;
             StartWithWindows = persisted.StartWithWindows;
@@ -240,6 +247,7 @@ namespace TimePilot.WinForms.KYS24
             RuntimeSegmentSortProperty = persisted.RuntimeSegmentSortProperty;
             RuntimeSegmentSortDescending = persisted.RuntimeSegmentSortDescending;
             TableColumnLayouts = persisted.TableColumnLayouts;
+            AppCategoryManagementColumnVisibility = persisted.AppCategoryManagementColumnVisibility;
 
             File.WriteAllText(
                 settingsPath,
@@ -336,6 +344,7 @@ namespace TimePilot.WinForms.KYS24
             RuntimeSegmentSortProperty = null;
             RuntimeSegmentSortDescending = null;
             TableColumnLayouts.Clear();
+            AppCategoryManagementColumnVisibility.Clear();
             Save();
         }
 
@@ -420,6 +429,20 @@ namespace TimePilot.WinForms.KYS24
                         .Select(group => group.First())
                         .OrderBy(column => column.DisplayIndex)
                         .ToList(),
+                    StringComparer.Ordinal);
+        }
+
+        private static Dictionary<string, bool> NormalizeColumnVisibility(Dictionary<string, bool>? visibility)
+        {
+            if (visibility is null || visibility.Count == 0)
+                return new Dictionary<string, bool>(StringComparer.Ordinal);
+
+            return visibility
+                .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+                .GroupBy(x => x.Key.Trim(), StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.First().Value,
                     StringComparer.Ordinal);
         }
 
@@ -509,6 +532,8 @@ namespace TimePilot.WinForms.KYS24
             public bool? RuntimeSegmentSortDescending { get; set; }
 
             public Dictionary<string, List<TableColumnLayout>> TableColumnLayouts { get; set; } = new();
+
+            public Dictionary<string, bool> AppCategoryManagementColumnVisibility { get; set; } = new();
         }
 
         public sealed class TableColumnLayout

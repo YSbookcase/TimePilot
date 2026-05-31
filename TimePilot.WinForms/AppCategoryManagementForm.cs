@@ -6,6 +6,7 @@ namespace TimePilot.WinForms
     internal sealed class AppCategoryManagementForm : Form
     {
         private readonly TimePilotStorage storage;
+        private readonly AppSettings settings;
         private readonly UiLanguage language;
         private readonly AppIconCache appIconCache = new();
         private readonly ComboBox filterComboBox = new();
@@ -23,6 +24,7 @@ namespace TimePilot.WinForms
         private readonly DataGridView appsGrid = new();
         private readonly BindingSource appsBindingSource = new();
         private readonly ContextMenuStrip categoryMenu = new();
+        private readonly ContextMenuStrip columnMenu = new();
 
         private IReadOnlyList<AppCategoryOption> categories = Array.Empty<AppCategoryOption>();
         private IReadOnlyList<AppCategoryManagementRow> allRows = Array.Empty<AppCategoryManagementRow>();
@@ -38,11 +40,13 @@ namespace TimePilot.WinForms
         private int pendingRightClickRowIndex = -1;
         private int pendingRightClickColumnIndex = -1;
         private bool isRightClickInProgress;
+        private bool isApplyingColumnVisibility;
         private int? selectionAnchorRowIndex;
 
-        public AppCategoryManagementForm(TimePilotStorage storage, UiLanguage language)
+        public AppCategoryManagementForm(TimePilotStorage storage, AppSettings settings, UiLanguage language)
         {
             this.storage = storage;
+            this.settings = settings;
             this.language = language;
 
             InitializeComponent();
@@ -106,7 +110,11 @@ namespace TimePilot.WinForms
             showFileInfoCheckBox.AutoSize = true;
             showFileInfoCheckBox.Margin = new Padding(12, 4, 0, 0);
             showFileInfoCheckBox.Text = IsEnglish ? "Show file info" : "파일 정보 표시";
-            showFileInfoCheckBox.CheckedChanged += (_, _) => UpdateFileInfoColumnVisibility();
+            showFileInfoCheckBox.CheckedChanged += (_, _) =>
+            {
+                if (!isApplyingColumnVisibility)
+                    SetFileInfoColumnVisibility(showFileInfoCheckBox.Checked, save: true);
+            };
 
             assignLabel.AutoSize = true;
             assignLabel.Margin = new Padding(12, 5, 6, 0);
@@ -164,6 +172,8 @@ namespace TimePilot.WinForms
             appsGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
             appsGrid.DataSource = appsBindingSource;
             appsGrid.ColumnHeaderMouseClick += OnAppsGridColumnHeaderMouseClick;
+            appsGrid.ColumnHeaderMouseClick += OnAppsGridColumnHeaderContextClick;
+            appsGrid.ColumnStateChanged += OnAppsGridColumnStateChanged;
             appsGrid.MouseDown += OnAppsGridMouseDown;
             appsGrid.MouseUp += OnAppsGridMouseUp;
             appsGrid.CellMouseDown += OnAppsGridCellMouseDown;
@@ -191,7 +201,7 @@ namespace TimePilot.WinForms
                 CreateTextColumn(nameof(AppCategoryManagementRow.RuntimeSegmentCountText), IsEnglish ? "Segments" : "구간", 80, nameof(AppCategoryManagementRow.RuntimeSegmentCount)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.ExecutablePath), IsEnglish ? "Path" : "실행 경로", 320));
 
-            UpdateFileInfoColumnVisibility();
+            ApplySavedColumnVisibility();
 
             bottomPanel.Dock = DockStyle.Bottom;
             bottomPanel.FlowDirection = FlowDirection.LeftToRight;
@@ -253,20 +263,111 @@ namespace TimePilot.WinForms
             };
         }
 
-        private void UpdateFileInfoColumnVisibility()
+        private void SetFileInfoColumnVisibility(bool visible, bool save)
         {
-            var showFileInfo = showFileInfoCheckBox.Checked;
-            SetColumnVisible(nameof(AppCategoryManagementRow.FileDescriptionText), showFileInfo);
-            SetColumnVisible(nameof(AppCategoryManagementRow.ProductNameText), showFileInfo);
-            SetColumnVisible(nameof(AppCategoryManagementRow.CompanyNameText), showFileInfo);
-            SetColumnVisible(nameof(AppCategoryManagementRow.ExecutablePath), showFileInfo);
+            SetColumnVisible(nameof(AppCategoryManagementRow.FileDescriptionText), visible, save);
+            SetColumnVisible(nameof(AppCategoryManagementRow.ProductNameText), visible, save);
+            SetColumnVisible(nameof(AppCategoryManagementRow.CompanyNameText), visible, save);
+            SetColumnVisible(nameof(AppCategoryManagementRow.ExecutablePath), visible, save);
+            SyncFileInfoCheckBox();
         }
 
-        private void SetColumnVisible(string propertyName, bool visible)
+        private void ApplySavedColumnVisibility()
+        {
+            isApplyingColumnVisibility = true;
+            try
+            {
+                foreach (DataGridViewColumn column in appsGrid.Columns)
+                {
+                    column.Visible = GetSavedColumnVisibility(column);
+                }
+
+                EnsureRequiredColumnsVisible();
+                SyncFileInfoCheckBox();
+            }
+            finally
+            {
+                isApplyingColumnVisibility = false;
+            }
+        }
+
+        private bool GetSavedColumnVisibility(DataGridViewColumn column)
+        {
+            if (settings.AppCategoryManagementColumnVisibility.TryGetValue(column.Name, out var visible))
+                return visible || IsRequiredColumn(column);
+
+            return !IsFileInfoColumn(column);
+        }
+
+        private void SetColumnVisible(string propertyName, bool visible, bool save)
         {
             var columnName = propertyName + "Column";
-            if (appsGrid.Columns.Contains(columnName))
-                appsGrid.Columns[columnName].Visible = visible;
+            if (!appsGrid.Columns.Contains(columnName))
+                return;
+
+            SetColumnVisible(appsGrid.Columns[columnName], visible, save);
+        }
+
+        private void SetColumnVisible(DataGridViewColumn column, bool visible, bool save)
+        {
+            if (IsRequiredColumn(column))
+                visible = true;
+
+            column.Visible = visible;
+            if (!save)
+                return;
+
+            settings.AppCategoryManagementColumnVisibility[column.Name] = visible;
+            settings.Save();
+            SyncFileInfoCheckBox();
+        }
+
+        private void SyncFileInfoCheckBox()
+        {
+            isApplyingColumnVisibility = true;
+            try
+            {
+                showFileInfoCheckBox.Checked = GetFileInfoColumns().Any(column => column.Visible);
+            }
+            finally
+            {
+                isApplyingColumnVisibility = false;
+            }
+        }
+
+        private IEnumerable<DataGridViewColumn> GetFileInfoColumns()
+        {
+            return new[]
+                {
+                    nameof(AppCategoryManagementRow.FileDescriptionText) + "Column",
+                    nameof(AppCategoryManagementRow.ProductNameText) + "Column",
+                    nameof(AppCategoryManagementRow.CompanyNameText) + "Column",
+                    nameof(AppCategoryManagementRow.ExecutablePath) + "Column"
+                }
+                .Where(name => appsGrid.Columns.Contains(name))
+                .Select(name => appsGrid.Columns[name]);
+        }
+
+        private static bool IsFileInfoColumn(DataGridViewColumn column)
+        {
+            return column.DataPropertyName is nameof(AppCategoryManagementRow.FileDescriptionText)
+                or nameof(AppCategoryManagementRow.ProductNameText)
+                or nameof(AppCategoryManagementRow.CompanyNameText)
+                or nameof(AppCategoryManagementRow.ExecutablePath);
+        }
+
+        private static bool IsRequiredColumn(DataGridViewColumn column)
+        {
+            return column.DataPropertyName == nameof(AppCategoryManagementRow.AppName);
+        }
+
+        private void EnsureRequiredColumnsVisible()
+        {
+            foreach (DataGridViewColumn column in appsGrid.Columns)
+            {
+                if (IsRequiredColumn(column))
+                    column.Visible = true;
+            }
         }
 
         private void LoadData()
@@ -525,6 +626,9 @@ namespace TimePilot.WinForms
 
         private void OnAppsGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
         {
+            if (e.Button != MouseButtons.Left)
+                return;
+
             if (e.ColumnIndex < 0)
                 return;
 
@@ -541,6 +645,71 @@ namespace TimePilot.WinForms
                 : SortOrder.Descending;
             sortProperty = propertyName;
             SortVisibleRowsPreservingView();
+        }
+
+        private void OnAppsGridColumnHeaderContextClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Right || e.ColumnIndex < 0)
+                return;
+
+            ShowColumnMenu(appsGrid.Columns[e.ColumnIndex], appsGrid.PointToClient(Cursor.Position));
+        }
+
+        private void ShowColumnMenu(DataGridViewColumn clickedColumn, Point location)
+        {
+            columnMenu.Items.Clear();
+
+            var hideItem = new ToolStripMenuItem(IsEnglish ? "Hide this column" : "이 열 숨기기")
+            {
+                Enabled = clickedColumn.Visible && !IsRequiredColumn(clickedColumn)
+            };
+            hideItem.Click += (_, _) => SetColumnVisible(clickedColumn, false, save: true);
+            columnMenu.Items.Add(hideItem);
+            columnMenu.Items.Add(new ToolStripSeparator());
+
+            var columnsItem = new ToolStripMenuItem(IsEnglish ? "Visible columns" : "표시할 열");
+            foreach (DataGridViewColumn column in appsGrid.Columns.Cast<DataGridViewColumn>().OrderBy(column => column.DisplayIndex))
+            {
+                var item = new ToolStripMenuItem(column.HeaderText)
+                {
+                    Checked = column.Visible,
+                    Enabled = !IsRequiredColumn(column)
+                };
+                item.Click += (_, _) => SetColumnVisible(column, !column.Visible, save: true);
+                columnsItem.DropDownItems.Add(item);
+            }
+
+            columnMenu.Items.Add(columnsItem);
+            columnMenu.Items.Add(new ToolStripSeparator());
+
+            var resetItem = new ToolStripMenuItem(IsEnglish ? "Reset columns" : "기본값으로 되돌리기");
+            resetItem.Click += (_, _) => ResetColumnVisibility();
+            columnMenu.Items.Add(resetItem);
+
+            columnMenu.Show(appsGrid, location);
+        }
+
+        private void ResetColumnVisibility()
+        {
+            settings.AppCategoryManagementColumnVisibility.Clear();
+            settings.Save();
+            ApplySavedColumnVisibility();
+        }
+
+        private void OnAppsGridColumnStateChanged(object? sender, DataGridViewColumnStateChangedEventArgs e)
+        {
+            if (isApplyingColumnVisibility || e.StateChanged != DataGridViewElementStates.Visible)
+                return;
+
+            if (IsRequiredColumn(e.Column) && !e.Column.Visible)
+            {
+                e.Column.Visible = true;
+                return;
+            }
+
+            settings.AppCategoryManagementColumnVisibility[e.Column.Name] = e.Column.Visible;
+            settings.Save();
+            SyncFileInfoCheckBox();
         }
 
         private void SortVisibleRowsPreservingView()
