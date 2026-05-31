@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace TimePilot.WinForms.KYS24
 {
     internal sealed record SummaryPeriodOption(SummaryPeriod Period, string DisplayName)
@@ -25,7 +27,8 @@ namespace TimePilot.WinForms.KYS24
                     FormatMonthDay(lastMonthStart),
                     FormatMonthDay(lastMonthEnd))),
                 new(SummaryPeriod.ThisYear, UiText.SummaryPeriod.ThisYear(today.Year)),
-                new(SummaryPeriod.LastYear, UiText.SummaryPeriod.LastYear(today.Year - 1))
+                new(SummaryPeriod.LastYear, UiText.SummaryPeriod.LastYear(today.Year - 1)),
+                new(SummaryPeriod.CustomRange, UiText.SummaryPeriod.CustomRange)
             ];
         }
 
@@ -36,7 +39,7 @@ namespace TimePilot.WinForms.KYS24
 
         private static string FormatDate(DateTime date)
         {
-            return date.ToString("M/d");
+            return date.ToString("M/d (ddd)", CultureInfo.CurrentCulture);
         }
 
         private static string FormatMonthDay(DateTime date)

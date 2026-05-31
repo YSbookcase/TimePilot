@@ -333,6 +333,12 @@ namespace TimePilot.WinForms.KYS24
         public static class SummaryPeriod
         {
             public static string SpecificDate => current.SummaryPeriod.SpecificDate;
+            public static string CustomRange => current.SummaryPeriod.CustomRange;
+            public static string CustomRangeTitle => current.SummaryPeriod.CustomRangeTitle;
+            public static string CustomRangeButton => current.SummaryPeriod.CustomRangeButton;
+            public static string StartDate => current.SummaryPeriod.StartDate;
+            public static string EndDate => current.SummaryPeriod.EndDate;
+            public static string InvalidCustomRange => current.SummaryPeriod.InvalidCustomRange;
             public static string Today(string date) => current.SummaryPeriod.Today(date);
             public static string Yesterday(string date) => current.SummaryPeriod.Yesterday(date);
             public static string ThisWeek(string weekStart) => current.SummaryPeriod.ThisWeek(weekStart);
@@ -661,6 +667,12 @@ namespace TimePilot.WinForms.KYS24
                         DayNames: ["일", "월", "화", "수", "목", "금", "토"]),
                     new SummaryPeriodText(
                         SpecificDate: "특정 날짜",
+                        CustomRange: "사용자 지정 기간",
+                        CustomRangeTitle: "요약 기간 설정",
+                        CustomRangeButton: "기간 설정",
+                        StartDate: "시작일",
+                        EndDate: "종료일",
+                        InvalidCustomRange: "종료일은 시작일 이후여야 합니다.",
                         Today: date => $"오늘 ({date})",
                         Yesterday: date => $"어제 ({date})",
                         ThisWeek: weekStart => $"이번 주({weekStart}~오늘)",
@@ -967,6 +979,12 @@ namespace TimePilot.WinForms.KYS24
                         DayNames: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]),
                     new SummaryPeriodText(
                         SpecificDate: "Specific date",
+                        CustomRange: "Custom range",
+                        CustomRangeTitle: "Summary Period",
+                        CustomRangeButton: "Set period",
+                        StartDate: "Start date",
+                        EndDate: "End date",
+                        InvalidCustomRange: "End date must be on or after start date.",
                         Today: date => $"Today ({date})",
                         Yesterday: date => $"Yesterday ({date})",
                         ThisWeek: weekStart => $"This week ({weekStart}~today)",
@@ -1242,6 +1260,12 @@ namespace TimePilot.WinForms.KYS24
 
         private sealed record SummaryPeriodText(
             string SpecificDate,
+            string CustomRange,
+            string CustomRangeTitle,
+            string CustomRangeButton,
+            string StartDate,
+            string EndDate,
+            string InvalidCustomRange,
             Func<string, string> Today,
             Func<string, string> Yesterday,
             Func<string, string> ThisWeek,

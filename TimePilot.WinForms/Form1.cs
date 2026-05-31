@@ -51,6 +51,8 @@ namespace TimePilot.WinForms
         private string runtimeSegmentSortProperty = nameof(ProcessRuntimeSegmentRow.StartedAt);
         private SummaryPeriod selectedSummaryPeriod = SummaryPeriod.Today;
         private DateTime selectedSummarySpecificDate = DateTime.Today;
+        private DateTime selectedSummaryCustomStartDate = DateTime.Today;
+        private DateTime selectedSummaryCustomEndDate = DateTime.Today;
         private DateTime summaryPeriodOptionsDate = DateTime.Today;
         private DateTime selectedDetailDate = DateTime.Today;
         private DateTime selectedTimelineDate = DateTime.Today;
@@ -612,6 +614,8 @@ namespace TimePilot.WinForms
         {
             selectedSummaryPeriod = SummaryPeriod.Today;
             selectedSummarySpecificDate = DateTime.Today;
+            selectedSummaryCustomStartDate = DateTime.Today;
+            selectedSummaryCustomEndDate = DateTime.Today;
             RefreshDetailRuntimeFilterOptions();
             RefreshSummaryPeriodOptions(DateTime.Today);
         }
@@ -672,13 +676,19 @@ namespace TimePilot.WinForms
 
                 if (selectedSummarySpecificDate > today)
                     selectedSummarySpecificDate = today;
+                if (selectedSummaryCustomStartDate > today)
+                    selectedSummaryCustomStartDate = today;
+                if (selectedSummaryCustomEndDate > today)
+                    selectedSummaryCustomEndDate = today;
+                if (selectedSummaryCustomEndDate < selectedSummaryCustomStartDate)
+                    selectedSummaryCustomEndDate = selectedSummaryCustomStartDate;
 
                 if (summarySpecificDatePicker.Value.Date > today)
                     summarySpecificDatePicker.Value = today;
 
                 summarySpecificDatePicker.MaxDate = today;
                 summarySpecificDatePicker.Value = selectedSummarySpecificDate;
-                UpdateSummarySpecificDateControlsVisibility();
+                UpdateSummaryPeriodControlsVisibility();
             }
             finally
             {
@@ -1132,6 +1142,8 @@ namespace TimePilot.WinForms
             timelineTab.Text = UiText.Main.TimelineTab;
             summaryPeriodLabel.Text = UiText.Main.Period;
             summarySpecificDateCalendarButton.Text = UiText.Main.Calendar;
+            summaryCustomRangeButton.Text = UiText.SummaryPeriod.CustomRangeButton;
+            UpdateSummaryCustomRangeLabel();
             detailDateLabel.Text = UiText.Main.Date;
             detailCalendarButton.Text = UiText.Main.Calendar;
             detailTodayButton.Text = UiText.Main.Today;
@@ -1233,6 +1245,7 @@ namespace TimePilot.WinForms
             trayIcon.Text = UiText.AppName;
             runtimeCoverageSummaryToolTip.SetToolTip(runtimeCoverageSummaryPanel, UiText.RuntimeCoverage.Tooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(summarySpecificDateCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
+            runtimeCoverageSummaryToolTip.SetToolTip(summaryCustomRangeButton, UiText.SummaryPeriod.CustomRangeTitle);
             runtimeCoverageSummaryToolTip.SetToolTip(detailCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(detailRuntimeFilterComboBox, UiText.Main.RuntimeTrackingTypeTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(detailHelpButton, UiText.Main.DetailHelpTitle);
@@ -1310,7 +1323,9 @@ namespace TimePilot.WinForms
             var summaryPeriodRange = SummaryPeriodCalculator.GetRange(
                 observedAt,
                 selectedSummaryPeriod,
-                selectedSummarySpecificDate);
+                selectedSummarySpecificDate,
+                selectedSummaryCustomStartDate,
+                selectedSummaryCustomEndDate);
             var detailDate = selectedDetailDate;
             var timelineDate = selectedTimelineDate;
             isViewRefreshRunning = true;
@@ -3196,7 +3211,7 @@ namespace TimePilot.WinForms
                 return;
 
             selectedSummaryPeriod = option.Period;
-            UpdateSummarySpecificDateControlsVisibility();
+            UpdateSummaryPeriodControlsVisibility();
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
@@ -3211,6 +3226,23 @@ namespace TimePilot.WinForms
                 summarySpecificDateCalendarButton,
                 selectedSummarySpecificDate,
                 ApplySummarySpecificDate);
+        }
+
+        private void OnSummaryCustomRangeButtonClick(object? sender, EventArgs e)
+        {
+            using var dialog = new SummaryPeriodRangeForm(
+                selectedSummaryCustomStartDate,
+                selectedSummaryCustomEndDate,
+                DateTime.Today,
+                GetRecordedDates);
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            selectedSummaryCustomStartDate = dialog.StartDate;
+            selectedSummaryCustomEndDate = dialog.EndDate;
+            UpdateSummaryCustomRangeLabel();
+            if (selectedSummaryPeriod == SummaryPeriod.CustomRange)
+                RefreshViews(DateTimeOffset.UtcNow);
         }
 
         private void ApplySummarySpecificDate(DateTime date)
@@ -3234,11 +3266,31 @@ namespace TimePilot.WinForms
                 RefreshViews(DateTimeOffset.UtcNow);
         }
 
-        private void UpdateSummarySpecificDateControlsVisibility()
+        private void UpdateSummaryPeriodControlsVisibility()
         {
             var isSpecificDate = selectedSummaryPeriod == SummaryPeriod.SpecificDate;
+            var isCustomRange = selectedSummaryPeriod == SummaryPeriod.CustomRange;
             summarySpecificDatePicker.Visible = isSpecificDate;
             summarySpecificDateCalendarButton.Visible = isSpecificDate;
+            summaryCustomRangeButton.Visible = isCustomRange;
+            summaryCustomRangeLabel.Visible = isCustomRange;
+            UpdateSummaryCustomRangeLabel();
+        }
+
+        private void UpdateSummaryCustomRangeLabel()
+        {
+            summaryCustomRangeLabel.Text = FormatSummaryCustomRangeLabel(
+                selectedSummaryCustomStartDate,
+                selectedSummaryCustomEndDate);
+        }
+
+        private static string FormatSummaryCustomRangeLabel(DateTime startDate, DateTime endDate)
+        {
+            var dateText = startDate.Date == endDate.Date
+                ? startDate.ToString("yyyy-MM-dd (ddd)")
+                : $"{startDate:yyyy-MM-dd (ddd)} ~ {endDate:yyyy-MM-dd (ddd)}";
+            var durationText = CalendarRangeDurationFormatter.Format(startDate, endDate, includePrefix: false);
+            return $"{dateText} · {durationText}";
         }
 
         private void OnRuntimeGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)

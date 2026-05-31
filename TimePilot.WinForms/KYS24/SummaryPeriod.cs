@@ -10,6 +10,7 @@ namespace TimePilot.WinForms.KYS24
         ThisMonth,
         LastMonth,
         ThisYear,
-        LastYear
+        LastYear,
+        CustomRange
     }
 }
