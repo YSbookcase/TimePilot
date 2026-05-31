@@ -433,11 +433,15 @@ namespace TimePilot.WinForms.KYS24
                             + "- Shift+휠: 좌우로 이동합니다.\n"
                             + "- ← / →: 좌우로 이동합니다.\n"
                             + "- Esc: 전체 보기로 돌아갑니다.\n\n"
+                            + "우클릭 동작\n"
+                            + "- 행 우클릭: 앱 전체 강조, 구간 강조, 분류 설정을 할 수 있습니다.\n"
+                            + "- 분류 막대 우클릭: 해당 구간의 앱 통계를 볼 수 있습니다.\n"
+                            + "- 윈도우 막대 우클릭: 시스템 이벤트 목록을 볼 수 있습니다.\n\n"
                             + "표 형태의 목록에서는 Shift+휠로 좌우 이동할 수 있습니다.",
                         TimelineViewRange: value => $"보기 범위: {value}",
                         ShowInTimeline: "타임라인에서 보기",
                         HighlightInTimeline: "타임라인에서 강조",
-                        TimelineHighlightHint: "행을 우클릭해 앱 구간을 강조할 수 있습니다.",
+                        TimelineHighlightHint: "우클릭: 강조/통계",
                         SummaryTimelineHighlightHint: "앱 행을 우클릭해 타임라인에서 강조할 수 있습니다.",
                         SummaryIdleAnalysis: (activeUsage, idleUsage, inputActivityRatio, idleThresholdMinutes) =>
                             $"입력 활동 요약: 활성 시간 {activeUsage} · 유휴 시간 {idleUsage} · 입력 활동 비율 {inputActivityRatio.ToString("P1", CultureInfo.CurrentCulture)} · 현재 유휴 기준 {idleThresholdMinutes:N0}분",
@@ -745,11 +749,15 @@ namespace TimePilot.WinForms.KYS24
                             + "- Shift+wheel: pan left/right.\n"
                             + "- Left / Right keys: pan left/right.\n"
                             + "- Esc: return to the full day.\n\n"
+                            + "Right-click actions\n"
+                            + "- Row right-click: highlight an app, highlight a segment, or set a category.\n"
+                            + "- Category bar right-click: view app stats for that segment.\n"
+                            + "- Windows bar right-click: view system events.\n\n"
                             + "In table lists, Shift+wheel scrolls left/right.",
                         TimelineViewRange: value => $"View range: {value}",
                         ShowInTimeline: "Show in timeline",
                         HighlightInTimeline: "Highlight in timeline",
-                        TimelineHighlightHint: "Right-click a row to highlight app segments.",
+                        TimelineHighlightHint: "Right-click: highlight/stats",
                         SummaryTimelineHighlightHint: "Right-click an app row to highlight it in the timeline.",
                         SummaryIdleAnalysis: (activeUsage, idleUsage, inputActivityRatio, idleThresholdMinutes) =>
                             $"Input activity summary: active time {activeUsage} · idle time {idleUsage} · input activity ratio {inputActivityRatio.ToString("P1", CultureInfo.CurrentCulture)} · current idle threshold {idleThresholdMinutes:N0} min",

@@ -80,6 +80,8 @@ namespace TimePilot.WinForms
 
         public event EventHandler<TimelineActivitySegmentContextEventArgs>? ActivitySegmentContextRequested;
 
+        public event EventHandler<TimelineCategorySegmentContextEventArgs>? CategorySegmentContextRequested;
+
         public event EventHandler<TimelineWindowsTrackContextEventArgs>? WindowsTrackContextRequested;
 
         public bool IsZoomed => viewStart > TimeSpan.Zero || viewEnd < TimeSpan.FromDays(1);
@@ -280,6 +282,12 @@ namespace TimePilot.WinForms
                 if (GetWindowsBounds(ClientRectangle).Contains(e.Location))
                 {
                     WindowsTrackContextRequested?.Invoke(this, new TimelineWindowsTrackContextEventArgs(e.Location));
+                    return;
+                }
+
+                if (FindCategorySegmentAt(e.Location) is { } segment)
+                {
+                    CategorySegmentContextRequested?.Invoke(this, new TimelineCategorySegmentContextEventArgs(segment, e.Location));
                     return;
                 }
 
@@ -782,12 +790,7 @@ namespace TimePilot.WinForms
 
         private string? FindCategoryHoverTextAt(Point point)
         {
-            var timelineBounds = GetCategoryBounds(ClientRectangle);
-            var segment = categorySegments
-                .Select(item => new { Segment = item, Bounds = GetRangeBounds(item.StartedAt, item.EndedAt, timelineBounds) })
-                .LastOrDefault(x => x.Bounds.Contains(point))
-                ?.Segment;
-
+            var segment = FindCategorySegmentAt(point);
             if (segment is null)
                 return null;
 
@@ -798,6 +801,15 @@ namespace TimePilot.WinForms
                 $"{FormatTime(segment.StartedAt)}-{FormatTime(segment.EndedAt)}",
                 FormatDuration(segment.StartedAt, segment.EndedAt),
                 segment.DetailText);
+        }
+
+        private CategoryTimelineSegment? FindCategorySegmentAt(Point point)
+        {
+            var timelineBounds = GetCategoryBounds(ClientRectangle);
+            return categorySegments
+                .Select(item => new { Segment = item, Bounds = GetRangeBounds(item.StartedAt, item.EndedAt, timelineBounds) })
+                .LastOrDefault(x => x.Bounds.Contains(point))
+                ?.Segment;
         }
 
         private string? FindActivityHoverTextAt(Point point)
