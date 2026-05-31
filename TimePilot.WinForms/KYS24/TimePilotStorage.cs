@@ -788,7 +788,9 @@ namespace TimePilot.WinForms.KYS24
                     f.last_observed_at,
                     r.total_runtime_ms,
                     r.segment_count,
-                    r.last_observed_at
+                    r.last_observed_at,
+                    r.has_main_window,
+                    r.is_current_session_process
                 FROM apps a
                 LEFT JOIN app_categories c ON c.id = a.primary_category_id
                 LEFT JOIN (
@@ -805,7 +807,9 @@ namespace TimePilot.WinForms.KYS24
                         app_id,
                         SUM(MAX(0, CAST((julianday(COALESCE(ended_at, last_observed_at, started_at)) - julianday(started_at)) * 86400000 AS INTEGER))) AS total_runtime_ms,
                         COUNT(*) AS segment_count,
-                        MAX(COALESCE(ended_at, last_observed_at, started_at)) AS last_observed_at
+                        MAX(COALESCE(ended_at, last_observed_at, started_at)) AS last_observed_at,
+                        MAX(COALESCE(has_main_window, 0)) AS has_main_window,
+                        MAX(COALESCE(is_current_session_process, 0)) AS is_current_session_process
                     FROM process_runtime_sessions
                     GROUP BY app_id
                 ) r ON r.app_id = a.id
@@ -835,7 +839,11 @@ namespace TimePilot.WinForms.KYS24
                     reader.IsDBNull(8) ? 0 : reader.GetInt64(8),
                     reader.IsDBNull(11) ? 0 : reader.GetInt64(11),
                     reader.IsDBNull(9) ? 0 : Convert.ToInt32(reader.GetInt64(9)),
-                    reader.IsDBNull(12) ? 0 : Convert.ToInt32(reader.GetInt64(12))));
+                    reader.IsDBNull(12) ? 0 : Convert.ToInt32(reader.GetInt64(12)),
+                    HasForegroundActivity: !reader.IsDBNull(8) && reader.GetInt64(8) > 0,
+                    HasMainWindow: !reader.IsDBNull(14) && reader.GetInt64(14) != 0,
+                    IsCurrentSessionProcess: !reader.IsDBNull(15) && reader.GetInt64(15) != 0,
+                    HasRuntimeObservation: !reader.IsDBNull(12) && reader.GetInt64(12) > 0));
             }
 
             return rows;

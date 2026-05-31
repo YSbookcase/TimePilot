@@ -21,6 +21,10 @@ namespace TimePilot.WinForms.KYS24
         string? CompanyName = null,
         string? CategoryDisplayName = null,
         bool HasExtractedAppIcon = false,
+        bool HasForegroundActivity = false,
+        bool HasMainWindow = false,
+        bool IsCurrentSessionProcess = false,
+        bool HasRuntimeObservation = false,
         Image? AppIcon = null)
     {
         public string CategoryText => string.IsNullOrWhiteSpace(CategoryName)
@@ -46,6 +50,20 @@ namespace TimePilot.WinForms.KYS24
         public string CompanyNameText => CompanyName ?? "";
 
         public bool HasAppIcon => HasExtractedAppIcon;
+
+        public string TrackingTypeText
+        {
+            get
+            {
+                if (HasForegroundActivity || HasMainWindow)
+                    return UiText.Main.WindowedApp;
+
+                if (IsCurrentSessionProcess)
+                    return UiText.Main.UserProcess;
+
+                return HasRuntimeObservation ? UiText.Main.AllProcesses : "";
+            }
+        }
 
         private static string FormatDuration(long durationMs)
         {
