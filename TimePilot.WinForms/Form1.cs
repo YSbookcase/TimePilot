@@ -3117,8 +3117,8 @@ namespace TimePilot.WinForms
             var duration = FormatDiagnosticDuration((long)(segment.EndedAt - segment.StartedAt).TotalMilliseconds);
             var activeUsage = FormatDiagnosticDuration(segment.ActiveUsageMs);
             return UiText.CurrentLanguage == UiLanguage.English
-                ? $"{segment.CategoryName} | {start}-{end} | segment {duration} | recorded active {activeUsage}"
-                : $"{segment.CategoryName} | {start}-{end} | 구간 {duration} | 기록된 활성 {activeUsage}";
+                ? $"{segment.CategoryName} | {start}-{end} | segment {duration} | recorded active {activeUsage} | {segment.DetailText}"
+                : $"{segment.CategoryName} | {start}-{end} | 구간 {duration} | 기록된 활성 {activeUsage} | {segment.DetailText}";
         }
 
         private static string GetTimelineSystemEventTimeHeaderText()
@@ -4812,10 +4812,17 @@ namespace TimePilot.WinForms
                 [
                     new(UiText.Main.TimelineCategoryBucketAll, 0),
                     new(UiText.Main.TimelineCategoryBucketMinutes(15), 15),
-                    new(UiText.Main.TimelineCategoryBucketMinutes(30), 30),
+                    new(GetDefaultBucketLabel(), 30),
                     new(UiText.Main.TimelineCategoryBucketHours(1), 60),
                     new(UiText.Main.TimelineCategoryBucketHours(2), 120)
                 ];
+            }
+
+            private static string GetDefaultBucketLabel()
+            {
+                return UiText.CurrentLanguage == UiLanguage.English
+                    ? $"{UiText.Main.TimelineCategoryBucketMinutes(30)} (Default)"
+                    : $"{UiText.Main.TimelineCategoryBucketMinutes(30)} (기본)";
             }
         }
 
