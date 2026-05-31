@@ -21,6 +21,7 @@ namespace TimePilot.WinForms
         private readonly Button refreshButton = new();
         private readonly Button searchWebButton = new();
         private readonly Button closeButton = new();
+        private readonly Label guidanceLabel = new();
         private readonly Label statusLabel = new();
         private readonly DataGridView appsGrid = new();
         private readonly BindingSource appsBindingSource = new();
@@ -62,6 +63,8 @@ namespace TimePilot.WinForms
 
         private string UncategorizedText => IsEnglish ? "Uncategorized only" : "미분류만";
 
+        private string ImportantUnclassifiedText => IsEnglish ? "Important unclassified" : "중요 미분류";
+
         private string CategorizedText => IsEnglish ? "Categorized only" : "분류됨만";
 
         private string SpecificCategoryText => IsEnglish ? "Specific category" : "특정 분류";
@@ -87,9 +90,16 @@ namespace TimePilot.WinForms
             Size = new Size(1040, 640);
 
             topPanel.Dock = DockStyle.Top;
-            topPanel.Height = 72;
+            topPanel.Height = 96;
             topPanel.Padding = new Padding(12, 10, 12, 6);
             topPanel.WrapContents = true;
+
+            guidanceLabel.AutoSize = false;
+            guidanceLabel.Width = 820;
+            guidanceLabel.Height = 20;
+            guidanceLabel.Margin = new Padding(0, 0, 0, 4);
+            guidanceLabel.ForeColor = SystemColors.GrayText;
+            guidanceLabel.TextAlign = ContentAlignment.MiddleLeft;
 
             filterLabel.AutoSize = true;
             filterLabel.Margin = new Padding(0, 5, 6, 0);
@@ -148,6 +158,8 @@ namespace TimePilot.WinForms
             searchWebButton.Width = 84;
             searchWebButton.Click += OnSearchWebButtonClick;
 
+            topPanel.Controls.Add(guidanceLabel);
+            topPanel.SetFlowBreak(guidanceLabel, true);
             topPanel.Controls.Add(filterLabel);
             topPanel.Controls.Add(filterComboBox);
             topPanel.Controls.Add(filterCategoryComboBox);
@@ -530,6 +542,7 @@ namespace TimePilot.WinForms
                 {
                     AllText,
                     UncategorizedText,
+                    ImportantUnclassifiedText,
                     CategorizedText,
                     RecommendationsText,
                     SpecificCategoryText
@@ -592,6 +605,8 @@ namespace TimePilot.WinForms
 
             if (selectedFilter == UncategorizedText)
                 rows = rows.Where(x => x.PrimaryCategoryId is null);
+            else if (selectedFilter == ImportantUnclassifiedText)
+                rows = rows.Where(IsImportantUnclassified);
             else if (selectedFilter == CategorizedText)
                 rows = rows.Where(x => x.PrimaryCategoryId is not null);
             else if (selectedFilter == RecommendationsText)
@@ -620,7 +635,33 @@ namespace TimePilot.WinForms
                 .ToList();
             appsBindingSource.DataSource = visibleRows;
             UpdateSortGlyphs();
+            UpdateGuidanceSummary();
             RestoreSelection(visibleRows);
+        }
+
+        private void UpdateGuidanceSummary()
+        {
+            var unclassifiedCount = allRows.Count(row => row.PrimaryCategoryId is null);
+            var importantUnclassifiedCount = allRows.Count(IsImportantUnclassified);
+            var recommendationCount = allRows.Count(row => row.PrimaryCategoryId is null && row.HasRecommendation);
+            guidanceLabel.Text = IsEnglish
+                ? $"Unclassified {unclassifiedCount:N0} · Important {importantUnclassifiedCount:N0} · Suggestions {recommendationCount:N0}"
+                : $"미분류 {unclassifiedCount:N0}개 · 중요 미분류 {importantUnclassifiedCount:N0}개 · 추천 가능 {recommendationCount:N0}개";
+        }
+
+        private static bool IsImportantUnclassified(AppCategoryManagementRow row)
+        {
+            if (row.PrimaryCategoryId is not null)
+                return false;
+
+            if (row.HasRecommendation)
+                return true;
+
+            if (!row.HasForegroundActivity && !row.HasMainWindow)
+                return false;
+
+            return row.ActiveUsageMs >= 5 * 60 * 1000
+                || row.SwitchCount >= 3;
         }
 
         private IOrderedEnumerable<AppCategoryManagementRow> SortRows(IEnumerable<AppCategoryManagementRow> rows)
