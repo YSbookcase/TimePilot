@@ -52,9 +52,16 @@ namespace TimePilot.WinForms.KYS24
                     first_seen_at TEXT NOT NULL,
                     last_seen_at TEXT NOT NULL,
                     primary_category_id INTEGER NULL,
+                    primary_category_source TEXT NOT NULL DEFAULT 'none',
+                    primary_category_updated_at TEXT NULL,
+                    recommended_category_id INTEGER NULL,
+                    recommended_category_reason TEXT NULL,
+                    recommended_category_confidence REAL NULL,
+                    recommended_category_updated_at TEXT NULL,
                     user_alias TEXT NULL,
                     is_excluded INTEGER NOT NULL DEFAULT 0,
-                    FOREIGN KEY (primary_category_id) REFERENCES app_categories(id)
+                    FOREIGN KEY (primary_category_id) REFERENCES app_categories(id),
+                    FOREIGN KEY (recommended_category_id) REFERENCES app_categories(id)
                 );
 
                 CREATE TABLE IF NOT EXISTS app_runtime_sessions (
@@ -712,7 +719,9 @@ namespace TimePilot.WinForms.KYS24
                 clearCommand.Transaction = transaction;
                 clearCommand.CommandText = """
                     UPDATE apps
-                    SET primary_category_id = NULL
+                    SET primary_category_id = NULL,
+                        primary_category_source = $categorySource,
+                        primary_category_updated_at = $updatedAt
                     WHERE primary_category_id = $categoryId
                       AND EXISTS (
                           SELECT 1
@@ -721,6 +730,8 @@ namespace TimePilot.WinForms.KYS24
                             AND c.is_builtin = 0
                       );
                     """;
+                clearCommand.Parameters.AddWithValue("$categorySource", AppCategorySource.None);
+                clearCommand.Parameters.AddWithValue("$updatedAt", FormatTimestamp(DateTimeOffset.UtcNow));
                 clearCommand.Parameters.AddWithValue("$categoryId", categoryId);
                 clearCommand.ExecuteNonQuery();
             }
@@ -742,14 +753,27 @@ namespace TimePilot.WinForms.KYS24
 
         public void SetAppPrimaryCategory(long appId, long? categoryId)
         {
+            SetAppPrimaryCategory(
+                appId,
+                categoryId,
+                categoryId is null ? AppCategorySource.None : AppCategorySource.User);
+        }
+
+        public void SetAppPrimaryCategory(long appId, long? categoryId, string categorySource)
+        {
+            var normalizedSource = NormalizeAppCategorySource(categorySource, categoryId);
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText = """
                 UPDATE apps
-                SET primary_category_id = $categoryId
+                SET primary_category_id = $categoryId,
+                    primary_category_source = $categorySource,
+                    primary_category_updated_at = $updatedAt
                 WHERE id = $appId;
                 """;
             command.Parameters.AddWithValue("$categoryId", (object?)categoryId ?? DBNull.Value);
+            command.Parameters.AddWithValue("$categorySource", normalizedSource);
+            command.Parameters.AddWithValue("$updatedAt", FormatTimestamp(DateTimeOffset.UtcNow));
             command.Parameters.AddWithValue("$appId", appId);
             command.ExecuteNonQuery();
         }
@@ -874,6 +898,12 @@ namespace TimePilot.WinForms.KYS24
                         "first_seen_at",
                         "last_seen_at",
                         "primary_category_id",
+                        "primary_category_source",
+                        "primary_category_updated_at",
+                        "recommended_category_id",
+                        "recommended_category_reason",
+                        "recommended_category_confidence",
+                        "recommended_category_updated_at",
                         "user_alias",
                         "is_excluded"
                     ]),
@@ -2174,15 +2204,48 @@ namespace TimePilot.WinForms.KYS24
             }
 
             AddColumnIfMissing(connection, "apps", "primary_category_id", "INTEGER NULL");
+            AddColumnIfMissing(connection, "apps", "primary_category_source", "TEXT NOT NULL DEFAULT 'none'");
+            AddColumnIfMissing(connection, "apps", "primary_category_updated_at", "TEXT NULL");
+            AddColumnIfMissing(connection, "apps", "recommended_category_id", "INTEGER NULL");
+            AddColumnIfMissing(connection, "apps", "recommended_category_reason", "TEXT NULL");
+            AddColumnIfMissing(connection, "apps", "recommended_category_confidence", "REAL NULL");
+            AddColumnIfMissing(connection, "apps", "recommended_category_updated_at", "TEXT NULL");
             AddColumnIfMissing(connection, "apps", "user_alias", "TEXT NULL");
             AddColumnIfMissing(connection, "apps", "is_excluded", "INTEGER NOT NULL DEFAULT 0");
+            InitializeAppCategorySourceColumns(connection);
 
             using var indexCommand = connection.CreateCommand();
             indexCommand.CommandText = """
                 CREATE INDEX IF NOT EXISTS idx_apps_primary_category_id
                     ON apps(primary_category_id);
+
+                CREATE INDEX IF NOT EXISTS idx_apps_recommended_category_id
+                    ON apps(recommended_category_id);
                 """;
             indexCommand.ExecuteNonQuery();
+        }
+
+        private static void InitializeAppCategorySourceColumns(SqliteConnection connection)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE apps
+                SET primary_category_source = CASE
+                        WHEN primary_category_id IS NULL THEN $noneSource
+                        WHEN primary_category_source IS NULL
+                          OR TRIM(primary_category_source) = ''
+                          OR primary_category_source = $noneSource THEN $userSource
+                        ELSE primary_category_source
+                    END,
+                    primary_category_updated_at = CASE
+                        WHEN primary_category_id IS NOT NULL
+                          AND primary_category_updated_at IS NULL THEN last_seen_at
+                        ELSE primary_category_updated_at
+                    END;
+                """;
+            command.Parameters.AddWithValue("$noneSource", AppCategorySource.None);
+            command.Parameters.AddWithValue("$userSource", AppCategorySource.User);
+            command.ExecuteNonQuery();
         }
 
         private static void SeedDefaultAppCategories(SqliteConnection connection, DateTimeOffset now)
@@ -2320,6 +2383,22 @@ namespace TimePilot.WinForms.KYS24
             {
                 throw new ArgumentException("Category color must be a valid HTML color.", nameof(color));
             }
+        }
+
+        private static string NormalizeAppCategorySource(string? source, long? categoryId)
+        {
+            if (categoryId is null)
+                return AppCategorySource.None;
+
+            var normalized = source?.Trim().ToLowerInvariant();
+            return normalized switch
+            {
+                AppCategorySource.User => AppCategorySource.User,
+                AppCategorySource.Recommendation => AppCategorySource.Recommendation,
+                AppCategorySource.Import => AppCategorySource.Import,
+                AppCategorySource.System => AppCategorySource.System,
+                _ => AppCategorySource.User
+            };
         }
 
         private static void EnsureRuntimeSessionColumns(SqliteConnection connection)
