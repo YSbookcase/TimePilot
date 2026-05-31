@@ -141,6 +141,7 @@ Current design principles:
 - Avoid storing window titles, command lines, document names, or web page titles by default.
 - Keep resource metrics deferred until the time model is stable.
 - Prefer incremental WinForms improvements over a broad rewrite.
+- Treat basic app classification and local recommendation as a user-approved aid, not an automatic background decision. See `docs/features/APP_CLASSIFICATION_RECOMMENDATION.md`.
 
 ---
 

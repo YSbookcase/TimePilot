@@ -112,12 +112,14 @@ Issues that may need Community / Pro split:
 - `#57` hourly usage pattern visualization
 - `#60` backup and restore
 - `#87` app information search and user classification
+- `#140` app classification recommendation
 - `#90` opt-in detailed tracking mode
 - `#107` highlight long timeline usage segments
 
 Examples:
 
 - Custom app display names can keep basic aliases in Community, while rule-based classification, icon management, and category analytics can become Pro candidates.
+- App classification recommendation can keep local known-app suggestions and user-approved apply actions in Community, while online lookup, continuous rule-based automation, and advanced category analytics can become Pro candidates. See `docs/features/APP_CLASSIFICATION_RECOMMENDATION.md`.
 - Custom period summaries can keep specific day, this week, last week, this month, last month, this year, and last year in Community, while long-term trend comparison and advanced dashboards can become Pro candidates.
 - Visual timeline work can keep a basic daily bar-style timeline in Community, while long-range comparisons, tag layers, focus analysis, and automatic interpretation can become Pro candidates.
 
