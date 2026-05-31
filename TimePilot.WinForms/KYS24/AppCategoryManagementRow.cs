@@ -25,6 +25,9 @@ namespace TimePilot.WinForms.KYS24
         bool HasMainWindow = false,
         bool IsCurrentSessionProcess = false,
         bool HasRuntimeObservation = false,
+        long? RecommendedCategoryId = null,
+        string? RecommendedCategoryName = null,
+        string? RecommendationReason = null,
         Image? AppIcon = null)
     {
         public string CategoryText => string.IsNullOrWhiteSpace(CategoryName)
@@ -48,6 +51,12 @@ namespace TimePilot.WinForms.KYS24
         public string ProductNameText => ProductName ?? "";
 
         public string CompanyNameText => CompanyName ?? "";
+
+        public string RecommendedCategoryText => RecommendedCategoryName ?? "";
+
+        public string RecommendationReasonText => RecommendationReason ?? "";
+
+        public bool HasRecommendation => RecommendedCategoryId is not null;
 
         public bool HasAppIcon => HasExtractedAppIcon;
 

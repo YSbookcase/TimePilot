@@ -12,8 +12,9 @@ namespace TimePilot.WinForms.KYS24
             new("Creative", "창작", "#16A34A", 60),
             new("Game", "게임", "#DC2626", 70),
             new("Media", "미디어", "#EA580C", 80),
-            new("System", "시스템", "#475569", 90),
-            new("Background", "백그라운드", "#64748B", 100)
+            new("Utility", "유틸리티", "#0F766E", 90),
+            new("System", "시스템", "#475569", 100),
+            new("Background", "백그라운드", "#64748B", 110)
         ];
 
         public static string GetDisplayName(AppCategoryOption category)

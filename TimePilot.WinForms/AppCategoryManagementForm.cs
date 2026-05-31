@@ -16,6 +16,7 @@ namespace TimePilot.WinForms
         private readonly ComboBox assignCategoryComboBox = new();
         private readonly Button applyCategoryButton = new();
         private readonly Button clearCategoryButton = new();
+        private readonly Button applyRecommendationButton = new();
         private readonly Button manageCategoriesButton = new();
         private readonly Button refreshButton = new();
         private readonly Button searchWebButton = new();
@@ -64,6 +65,8 @@ namespace TimePilot.WinForms
         private string CategorizedText => IsEnglish ? "Categorized only" : "분류됨만";
 
         private string SpecificCategoryText => IsEnglish ? "Specific category" : "특정 분류";
+
+        private string RecommendationsText => IsEnglish ? "Recommendations only" : "추천 있음";
 
         private string NoCategoryText => IsEnglish ? "(Uncategorized)" : "(미분류)";
 
@@ -130,6 +133,9 @@ namespace TimePilot.WinForms
             clearCategoryButton.Text = IsEnglish ? "Clear category" : "분류 해제";
             clearCategoryButton.Width = 72;
             clearCategoryButton.Click += OnClearCategoryButtonClick;
+            applyRecommendationButton.Text = IsEnglish ? "Apply suggestion" : "추천 적용";
+            applyRecommendationButton.Width = 96;
+            applyRecommendationButton.Click += OnApplyRecommendationButtonClick;
             manageCategoriesButton.Text = IsEnglish ? "Categories..." : "분류 관리...";
             manageCategoriesButton.Width = 96;
             manageCategoriesButton.Click += OnManageCategoriesButtonClick;
@@ -152,6 +158,7 @@ namespace TimePilot.WinForms
             topPanel.Controls.Add(assignCategoryComboBox);
             topPanel.Controls.Add(applyCategoryButton);
             topPanel.Controls.Add(clearCategoryButton);
+            topPanel.Controls.Add(applyRecommendationButton);
             topPanel.Controls.Add(manageCategoriesButton);
             topPanel.Controls.Add(searchWebButton);
             topPanel.Controls.Add(refreshButton);
@@ -195,6 +202,8 @@ namespace TimePilot.WinForms
                 CreateTextColumn(nameof(AppCategoryManagementRow.ProductNameText), IsEnglish ? "Product" : "제품명", 160, nameof(AppCategoryManagementRow.ProductName)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.CompanyNameText), IsEnglish ? "Company" : "회사", 150, nameof(AppCategoryManagementRow.CompanyName)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.CategoryText), IsEnglish ? "Category" : "분류", 130),
+                CreateTextColumn(nameof(AppCategoryManagementRow.RecommendedCategoryText), IsEnglish ? "Suggestion" : "추천 분류", 130, nameof(AppCategoryManagementRow.RecommendedCategoryText)),
+                CreateTextColumn(nameof(AppCategoryManagementRow.RecommendationReasonText), IsEnglish ? "Suggestion reason" : "추천 근거", 150, nameof(AppCategoryManagementRow.RecommendationReasonText)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.LastObservedAtText), IsEnglish ? "Last observed" : "최근 감지", 150, nameof(AppCategoryManagementRow.LastObservedAt)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.ActiveUsageTimeText), IsEnglish ? "Active time" : "활성 사용", 110, nameof(AppCategoryManagementRow.ActiveUsageMs)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.RuntimeText), IsEnglish ? "Runtime" : "실행 시간", 110, nameof(AppCategoryManagementRow.RuntimeMs)),
@@ -205,6 +214,9 @@ namespace TimePilot.WinForms
             appsGrid.Columns[nameof(AppCategoryManagementRow.TrackingTypeText) + "Column"].ToolTipText = IsEnglish
                 ? "Shows whether the app was observed as a visible app, user process, or all-process item."
                 : "앱이 화면 앱, 사용자 프로세스, 전체 프로세스 항목 중 어떤 방식으로 관측되었는지 보여줍니다.";
+            appsGrid.Columns[nameof(AppCategoryManagementRow.RecommendedCategoryText) + "Column"].ToolTipText = IsEnglish
+                ? "Shows a conservative local category suggestion for unclassified apps."
+                : "미분류 앱에 대해 보수적인 로컬 분류 추천을 보여줍니다.";
 
             ApplySavedColumnVisibility();
 
@@ -408,7 +420,7 @@ namespace TimePilot.WinForms
                 .Select(row =>
                 {
                     var metadata = GetFileMetadata(row.ExecutablePath);
-                    return row with
+                    var enrichedRow = row with
                     {
                         FileDescription = metadata.FileDescription,
                         ProductName = metadata.ProductName,
@@ -417,6 +429,16 @@ namespace TimePilot.WinForms
                         HasExtractedAppIcon = HasDistinctAssociatedIcon(row.ExecutablePath),
                         AppIcon = appIconCache.GetIcon(row.ExecutablePath)
                     };
+
+                    var recommendation = AppCategoryRecommendationService.Recommend(enrichedRow, categories, language);
+                    return recommendation is null
+                        ? enrichedRow
+                        : enrichedRow with
+                        {
+                            RecommendedCategoryId = recommendation.CategoryId,
+                            RecommendedCategoryName = recommendation.CategoryName,
+                            RecommendationReason = recommendation.Reason
+                        };
                 })
                 .ToList();
         }
@@ -509,6 +531,7 @@ namespace TimePilot.WinForms
                     AllText,
                     UncategorizedText,
                     CategorizedText,
+                    RecommendationsText,
                     SpecificCategoryText
                 });
                 filterComboBox.SelectedItem = selectedFilter is not null && filterComboBox.Items.Contains(selectedFilter)
@@ -571,6 +594,8 @@ namespace TimePilot.WinForms
                 rows = rows.Where(x => x.PrimaryCategoryId is null);
             else if (selectedFilter == CategorizedText)
                 rows = rows.Where(x => x.PrimaryCategoryId is not null);
+            else if (selectedFilter == RecommendationsText)
+                rows = rows.Where(x => x.HasRecommendation);
             else if (selectedFilter == SpecificCategoryText
                 && filterCategoryComboBox.SelectedItem is CategorySelectionOption category)
                 rows = rows.Where(x => x.PrimaryCategoryId == category.Id);
@@ -612,6 +637,8 @@ namespace TimePilot.WinForms
                 nameof(AppCategoryManagementRow.ProductName) => OrderRows(rows, x => x.ProductName ?? ""),
                 nameof(AppCategoryManagementRow.CompanyName) => OrderRows(rows, x => x.CompanyName ?? ""),
                 nameof(AppCategoryManagementRow.CategoryText) => OrderRows(rows, x => x.CategoryText),
+                nameof(AppCategoryManagementRow.RecommendedCategoryText) => OrderRows(rows, x => x.RecommendedCategoryText),
+                nameof(AppCategoryManagementRow.RecommendationReasonText) => OrderRows(rows, x => x.RecommendationReasonText),
                 nameof(AppCategoryManagementRow.ActiveUsageMs) => OrderRows(rows, x => x.ActiveUsageMs),
                 nameof(AppCategoryManagementRow.RuntimeMs) => OrderRows(rows, x => x.RuntimeMs),
                 nameof(AppCategoryManagementRow.SwitchCount) => OrderRows(rows, x => x.SwitchCount),
@@ -805,6 +832,46 @@ namespace TimePilot.WinForms
             SetSelectedCategories(null);
         }
 
+        private void OnApplyRecommendationButtonClick(object? sender, EventArgs e)
+        {
+            ApplyRecommendations(GetSelectedRows());
+        }
+
+        private void ApplyRecommendations(IReadOnlyList<AppCategoryManagementRow> rows)
+        {
+            var rowsToChange = rows
+                .Where(row => row.PrimaryCategoryId is null && row.RecommendedCategoryId is not null)
+                .GroupBy(row => row.AppId)
+                .Select(group => group.First())
+                .ToList();
+            if (rowsToChange.Count == 0)
+            {
+                statusLabel.Text = IsEnglish
+                    ? "No selected unclassified apps have a recommendation."
+                    : "선택한 미분류 앱 중 적용할 추천이 없습니다.";
+                return;
+            }
+
+            if (rowsToChange.Count > 1 && !ConfirmBulkRecommendationApply(rowsToChange.Count))
+                return;
+
+            lastCategoryChange = new CategoryChangeUndo(
+                rowsToChange
+                    .Select(row => new CategoryChangeUndoItem(row.AppId, row.PrimaryCategoryId))
+                    .ToList());
+
+            foreach (var row in rowsToChange)
+                storage.SetAppPrimaryCategory(row.AppId, row.RecommendedCategoryId, AppCategorySource.Recommendation);
+
+            CategoriesChanged = true;
+            rowsToRestoreAfterFilter = rowsToChange.Select(row => row.AppId).ToHashSet();
+            allRows = AddIcons(storage.GetAppCategoryManagementRows(DateTimeOffset.UtcNow));
+            UpdateVisibleRows(rowsToRestoreAfterFilter);
+            statusLabel.Text = IsEnglish
+                ? $"{rowsToChange.Count:N0} recommendations applied. Press Ctrl+Z to undo the last change."
+                : $"{rowsToChange.Count:N0}개 앱에 추천 분류를 적용했습니다. Ctrl+Z로 직전 변경 1회를 되돌릴 수 있습니다.";
+        }
+
         private void OnSearchWebButtonClick(object? sender, EventArgs e)
         {
             if (appsGrid.CurrentRow?.DataBoundItem is not AppCategoryManagementRow row)
@@ -939,6 +1006,20 @@ namespace TimePilot.WinForms
             var message = IsEnglish
                 ? $"Change category for {count:N0} selected apps to {categoryName}?"
                 : $"선택한 {count:N0}개 앱의 분류를 {categoryName}(으)로 변경할까요?";
+
+            return CenteredMessageDialog.Show(
+                this,
+                message,
+                Text,
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question) == DialogResult.Yes;
+        }
+
+        private bool ConfirmBulkRecommendationApply(int count)
+        {
+            var message = IsEnglish
+                ? $"Apply recommendations to {count:N0} selected unclassified apps?"
+                : $"선택한 미분류 앱 {count:N0}개에 추천 분류를 적용할까요?";
 
             return CenteredMessageDialog.Show(
                 this,
@@ -1348,6 +1429,18 @@ namespace TimePilot.WinForms
             };
             clearItem.Click += (_, _) => SetCategories(selectedRows, null);
             categoryMenu.Items.Add(clearItem);
+
+            var recommendationRows = selectedRows
+                .Where(selectedRow => selectedRow.PrimaryCategoryId is null && selectedRow.RecommendedCategoryId is not null)
+                .ToList();
+            if (recommendationRows.Count > 0)
+            {
+                var recommendationItem = new ToolStripMenuItem(isBulkSelection
+                    ? IsEnglish ? "Apply selected recommendations" : "선택 항목 추천 적용"
+                    : IsEnglish ? "Apply recommendation" : "추천 적용");
+                recommendationItem.Click += (_, _) => ApplyRecommendations(recommendationRows);
+                categoryMenu.Items.Add(recommendationItem);
+            }
 
             if (categories.Count > 0)
                 categoryMenu.Items.Add(new ToolStripSeparator());
