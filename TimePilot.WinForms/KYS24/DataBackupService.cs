@@ -118,11 +118,13 @@ namespace TimePilot.WinForms.KYS24
                 using (var source = new SqliteConnection(new SqliteConnectionStringBuilder
                        {
                            DataSource = AppDataPaths.DatabasePath,
-                           Mode = SqliteOpenMode.ReadOnly
+                           Mode = SqliteOpenMode.ReadOnly,
+                           Pooling = false
                        }.ToString()))
                 using (var destination = new SqliteConnection(new SqliteConnectionStringBuilder
                        {
-                           DataSource = tempPath
+                           DataSource = tempPath,
+                           Pooling = false
                        }.ToString()))
                 {
                     source.Open();
@@ -130,6 +132,7 @@ namespace TimePilot.WinForms.KYS24
                     source.BackupDatabase(destination);
                 }
 
+                SqliteConnection.ClearAllPools();
                 archive.CreateEntryFromFile(tempPath, DatabaseEntryName, CompressionLevel.Optimal);
                 entries.Add(DatabaseEntryName);
             }
