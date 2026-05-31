@@ -754,6 +754,21 @@ namespace TimePilot.WinForms.KYS24
             command.ExecuteNonQuery();
         }
 
+        public void SetAppUserAlias(long appId, string? alias)
+        {
+            var normalizedAlias = string.IsNullOrWhiteSpace(alias) ? null : alias.Trim();
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE apps
+                SET user_alias = $userAlias
+                WHERE id = $appId;
+                """;
+            command.Parameters.AddWithValue("$userAlias", (object?)normalizedAlias ?? DBNull.Value);
+            command.Parameters.AddWithValue("$appId", appId);
+            command.ExecuteNonQuery();
+        }
+
         public IReadOnlyList<AppCategoryManagementRow> GetAppCategoryManagementRows(DateTimeOffset now)
         {
             using var connection = OpenConnection();
@@ -761,7 +776,9 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 SELECT
                     a.id,
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name),
                     a.display_name,
+                    a.user_alias,
                     a.process_name,
                     a.executable_path,
                     a.primary_category_id,
@@ -793,7 +810,7 @@ namespace TimePilot.WinForms.KYS24
                     GROUP BY app_id
                 ) r ON r.app_id = a.id
                 ORDER BY COALESCE(f.last_observed_at, r.last_observed_at, '') DESC,
-                         a.display_name COLLATE NOCASE;
+                         COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name) COLLATE NOCASE;
                 """;
             command.Parameters.AddWithValue("$now", FormatTimestamp(now));
 
@@ -801,8 +818,8 @@ namespace TimePilot.WinForms.KYS24
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                var foregroundLastObservedAt = reader.IsDBNull(8) ? (DateTimeOffset?)null : ParseTimestamp(reader.GetString(8));
-                var runtimeLastObservedAt = reader.IsDBNull(11) ? (DateTimeOffset?)null : ParseTimestamp(reader.GetString(11));
+                var foregroundLastObservedAt = reader.IsDBNull(10) ? (DateTimeOffset?)null : ParseTimestamp(reader.GetString(10));
+                var runtimeLastObservedAt = reader.IsDBNull(13) ? (DateTimeOffset?)null : ParseTimestamp(reader.GetString(13));
                 var lastObservedAt = MaxNullable(foregroundLastObservedAt, runtimeLastObservedAt);
 
                 rows.Add(new AppCategoryManagementRow(
@@ -810,13 +827,15 @@ namespace TimePilot.WinForms.KYS24
                     reader.GetString(1),
                     reader.GetString(2),
                     reader.IsDBNull(3) ? null : reader.GetString(3),
-                    reader.IsDBNull(4) ? (long?)null : reader.GetInt64(4),
+                    reader.GetString(4),
                     reader.IsDBNull(5) ? null : reader.GetString(5),
+                    reader.IsDBNull(6) ? (long?)null : reader.GetInt64(6),
+                    reader.IsDBNull(7) ? null : reader.GetString(7),
                     lastObservedAt,
-                    reader.IsDBNull(6) ? 0 : reader.GetInt64(6),
-                    reader.IsDBNull(9) ? 0 : reader.GetInt64(9),
-                    reader.IsDBNull(7) ? 0 : Convert.ToInt32(reader.GetInt64(7)),
-                    reader.IsDBNull(10) ? 0 : Convert.ToInt32(reader.GetInt64(10))));
+                    reader.IsDBNull(8) ? 0 : reader.GetInt64(8),
+                    reader.IsDBNull(11) ? 0 : reader.GetInt64(11),
+                    reader.IsDBNull(9) ? 0 : Convert.ToInt32(reader.GetInt64(9)),
+                    reader.IsDBNull(12) ? 0 : Convert.ToInt32(reader.GetInt64(12))));
             }
 
             return rows;
@@ -1010,7 +1029,7 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 SELECT
                     a.id,
-                    a.display_name,
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name),
                     a.process_name,
                     a.executable_path,
                     a.primary_category_id,
@@ -1129,7 +1148,7 @@ namespace TimePilot.WinForms.KYS24
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT
-                    a.display_name,
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name),
                     fs.started_at,
                     fs.ended_at,
                     fs.last_observed_at
@@ -1906,7 +1925,7 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 SELECT
                     a.id,
-                    a.display_name,
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name),
                     a.process_name,
                     a.executable_path,
                     a.primary_category_id,
@@ -2076,7 +2095,7 @@ namespace TimePilot.WinForms.KYS24
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT
-                    a.display_name,
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name),
                     c.name,
                     a.process_name,
                     prs.started_at,
@@ -2147,6 +2166,8 @@ namespace TimePilot.WinForms.KYS24
             }
 
             AddColumnIfMissing(connection, "apps", "primary_category_id", "INTEGER NULL");
+            AddColumnIfMissing(connection, "apps", "user_alias", "TEXT NULL");
+            AddColumnIfMissing(connection, "apps", "is_excluded", "INTEGER NOT NULL DEFAULT 0");
 
             using var indexCommand = connection.CreateCommand();
             indexCommand.CommandText = """
@@ -2616,7 +2637,7 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 SELECT
                     a.id,
-                    a.display_name,
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name),
                     a.process_name,
                     a.executable_path,
                     a.primary_category_id,
@@ -2677,7 +2698,7 @@ namespace TimePilot.WinForms.KYS24
             command.CommandText = """
                 SELECT
                     a.id,
-                    COALESCE(a.display_name, 'Idle'),
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name, 'Idle'),
                     a.process_name,
                     a.executable_path,
                     a.primary_category_id,

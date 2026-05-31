@@ -177,6 +177,8 @@ namespace TimePilot.WinForms
             appsGrid.Columns.AddRange(
                 CreateIconColumn(),
                 CreateTextColumn(nameof(AppCategoryManagementRow.AppName), IsEnglish ? "App" : "앱", 180),
+                CreateTextColumn(nameof(AppCategoryManagementRow.AutomaticAppName), IsEnglish ? "Automatic name" : "자동 이름", 160),
+                CreateTextColumn(nameof(AppCategoryManagementRow.UserAliasText), IsEnglish ? "Custom name" : "사용자 이름", 150, nameof(AppCategoryManagementRow.UserAlias)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.ProcessName), IsEnglish ? "Process" : "프로세스", 130),
                 CreateTextColumn(nameof(AppCategoryManagementRow.FileDescriptionText), IsEnglish ? "Description" : "파일 설명", 180, nameof(AppCategoryManagementRow.FileDescription)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.ProductNameText), IsEnglish ? "Product" : "제품명", 160, nameof(AppCategoryManagementRow.ProductName)),
@@ -472,6 +474,8 @@ namespace TimePilot.WinForms
             {
                 rows = rows.Where(x =>
                     x.AppName.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)
+                    || x.AutomaticAppName.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)
+                    || (x.UserAlias?.Contains(searchText, StringComparison.CurrentCultureIgnoreCase) ?? false)
                     || x.ProcessName.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)
                     || x.CategoryText.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)
                     || (x.FileDescription?.Contains(searchText, StringComparison.CurrentCultureIgnoreCase) ?? false)
@@ -493,6 +497,8 @@ namespace TimePilot.WinForms
             return sortProperty switch
             {
                 nameof(AppCategoryManagementRow.AppName) => OrderRows(rows, x => x.AppName),
+                nameof(AppCategoryManagementRow.AutomaticAppName) => OrderRows(rows, x => x.AutomaticAppName),
+                nameof(AppCategoryManagementRow.UserAlias) => OrderRows(rows, x => x.UserAlias ?? ""),
                 nameof(AppCategoryManagementRow.ProcessName) => OrderRows(rows, x => x.ProcessName),
                 nameof(AppCategoryManagementRow.HasAppIcon) => OrderRows(rows, x => x.HasAppIcon),
                 nameof(AppCategoryManagementRow.FileDescription) => OrderRows(rows, x => x.FileDescription ?? ""),
@@ -1132,6 +1138,21 @@ namespace TimePilot.WinForms
             appsGrid.Invalidate();
             var isBulkSelection = selectedRows.Count > 1;
 
+            if (!isBulkSelection)
+            {
+                var editNameItem = new ToolStripMenuItem(IsEnglish ? "Edit custom name..." : "사용자 이름 수정...");
+                editNameItem.Click += (_, _) => EditCustomName(row);
+                categoryMenu.Items.Add(editNameItem);
+
+                var clearNameItem = new ToolStripMenuItem(IsEnglish ? "Clear custom name" : "사용자 이름 초기화")
+                {
+                    Enabled = !string.IsNullOrWhiteSpace(row.UserAlias)
+                };
+                clearNameItem.Click += (_, _) => SetCustomName(row, null);
+                categoryMenu.Items.Add(clearNameItem);
+                categoryMenu.Items.Add(new ToolStripSeparator());
+            }
+
             var clearItem = new ToolStripMenuItem(isBulkSelection
                 ? IsEnglish ? "Clear selected categories" : "선택 항목 분류 해제"
                 : IsEnglish ? "Clear category" : "분류 해제")
@@ -1163,6 +1184,85 @@ namespace TimePilot.WinForms
             if (selectedRows.Count > 1)
                 BeginInvoke(new Action(() => RestoreSelectionByAppIds(selectedRows.Select(row => row.AppId).ToHashSet(), row.AppId)));
             contextMenuRows = null;
+        }
+
+        private void EditCustomName(AppCategoryManagementRow row)
+        {
+            var alias = ShowCustomNameDialog(row);
+            if (alias is null)
+                return;
+
+            SetCustomName(row, alias);
+        }
+
+        private void SetCustomName(AppCategoryManagementRow row, string? alias)
+        {
+            var normalizedAlias = string.IsNullOrWhiteSpace(alias) ? null : alias.Trim();
+            if (string.Equals(row.UserAlias, normalizedAlias, StringComparison.Ordinal))
+                return;
+
+            storage.SetAppUserAlias(row.AppId, normalizedAlias);
+            CategoriesChanged = true;
+            rowsToRestoreAfterFilter = new HashSet<long> { row.AppId };
+            allRows = AddIcons(storage.GetAppCategoryManagementRows(DateTimeOffset.UtcNow));
+            UpdateVisibleRows(rowsToRestoreAfterFilter);
+            statusLabel.Text = normalizedAlias is null
+                ? IsEnglish ? "Custom name cleared." : "사용자 이름을 초기화했습니다."
+                : IsEnglish ? "Custom name updated." : "사용자 이름을 수정했습니다.";
+        }
+
+        private string? ShowCustomNameDialog(AppCategoryManagementRow row)
+        {
+            using var dialog = new Form();
+            var descriptionLabel = new Label();
+            var nameTextBox = new TextBox();
+            var saveButton = new Button();
+            var cancelButton = new Button();
+
+            dialog.SuspendLayout();
+
+            descriptionLabel.AutoSize = false;
+            descriptionLabel.Location = new Point(16, 16);
+            descriptionLabel.Size = new Size(396, 52);
+            descriptionLabel.Text = IsEnglish
+                ? $"Automatic name: {row.AutomaticAppName}\nProcess: {row.ProcessName}"
+                : $"자동 이름: {row.AutomaticAppName}\n프로세스: {row.ProcessName}";
+
+            nameTextBox.Location = new Point(16, 76);
+            nameTextBox.Size = new Size(396, 23);
+            nameTextBox.Text = row.UserAlias ?? "";
+
+            saveButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            saveButton.DialogResult = DialogResult.OK;
+            saveButton.Location = new Point(256, 116);
+            saveButton.Size = new Size(75, 27);
+            saveButton.Text = IsEnglish ? "Save" : "저장";
+
+            cancelButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
+            cancelButton.DialogResult = DialogResult.Cancel;
+            cancelButton.Location = new Point(337, 116);
+            cancelButton.Size = new Size(75, 27);
+            cancelButton.Text = IsEnglish ? "Cancel" : "취소";
+
+            dialog.AcceptButton = saveButton;
+            dialog.CancelButton = cancelButton;
+            dialog.ClientSize = new Size(428, 160);
+            dialog.Controls.Add(descriptionLabel);
+            dialog.Controls.Add(nameTextBox);
+            dialog.Controls.Add(saveButton);
+            dialog.Controls.Add(cancelButton);
+            dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+            dialog.MaximizeBox = false;
+            dialog.MinimizeBox = false;
+            dialog.ShowIcon = false;
+            dialog.ShowInTaskbar = false;
+            dialog.StartPosition = FormStartPosition.CenterParent;
+            dialog.Text = IsEnglish ? "Edit Custom Name" : "사용자 이름 수정";
+
+            dialog.ResumeLayout(false);
+            dialog.PerformLayout();
+
+            return dialog.ShowDialog(this) == DialogResult.OK ? nameTextBox.Text : null;
         }
 
         private IReadOnlyList<AppCategoryManagementRow> GetSelectedRows()
