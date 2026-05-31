@@ -4842,15 +4842,24 @@ namespace TimePilot.WinForms
             string safetyBackupPath;
             try
             {
-                SetExportRunning(true, BuildExportInProgressStatus(UiText.Main.DataRestoreTitle));
+                SetExportRunning(true, UiText.Main.DataRestorePreparing);
+                await AllowUiToRenderAsync();
                 sampleTimer.Stop();
                 EndCurrentTrackingSessions(now, "restore-data");
+
+                SetExportRunning(true, UiText.Main.DataRestoreCreatingSafetyBackup);
+                await AllowUiToRenderAsync();
                 safetyBackupPath = CreatePreRestoreSafetyBackup(service, now);
                 storage?.Dispose();
                 storage = null;
 
+                SetExportRunning(true, UiText.Main.DataRestoreApplyingBackup);
+                await AllowUiToRenderAsync();
                 var fileName = dialog.FileName;
                 var result = await Task.Run(() => service.RestoreBackup(fileName));
+
+                SetExportRunning(true, UiText.Main.DataRestoreRestartingSession);
+                await AllowUiToRenderAsync();
                 ReinitializeStorageAfterDataRestore(DateTimeOffset.UtcNow);
 
                 SetExportRunning(false, BuildExportCompletedStatus(UiText.Main.DataRestoreTitle));
@@ -4879,6 +4888,12 @@ namespace TimePilot.WinForms
                 if (!isClosing && storage is not null)
                     sampleTimer.Start();
             }
+        }
+
+        private static Task AllowUiToRenderAsync()
+        {
+            Application.DoEvents();
+            return Task.Delay(50);
         }
 
         private static string CreatePreRestoreSafetyBackup(DataBackupService service, DateTimeOffset now)

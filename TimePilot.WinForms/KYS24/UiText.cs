@@ -251,6 +251,10 @@ namespace TimePilot.WinForms.KYS24
             public static string DataRestoreCompleted(int count, string safetyBackupPath) =>
                 current.Main.DataRestoreCompleted(count, safetyBackupPath);
             public static string DataRestoreFailed(string message) => current.Main.DataRestoreFailed(message);
+            public static string DataRestorePreparing => current.Main.DataRestorePreparing;
+            public static string DataRestoreCreatingSafetyBackup => current.Main.DataRestoreCreatingSafetyBackup;
+            public static string DataRestoreApplyingBackup => current.Main.DataRestoreApplyingBackup;
+            public static string DataRestoreRestartingSession => current.Main.DataRestoreRestartingSession;
         }
 
         public static class Csv
@@ -630,7 +634,11 @@ namespace TimePilot.WinForms.KYS24
                         DataRestorePlan: (hasSettings, logCount) =>
                             $"이 백업에는 사용 기록 데이터베이스{(hasSettings ? ", 설정" : "")}{(logCount > 0 ? $", 로그 {logCount}개" : "")}가 포함되어 있습니다.",
                         DataRestoreCompleted: (count, safetyBackupPath) => $"백업을 복원했습니다. 복원 파일 {count}개\n\n복원 전 현재 데이터 백업:\n{safetyBackupPath}",
-                        DataRestoreFailed: message => $"백업 복원에 실패했습니다.\n\n{message}"),
+                        DataRestoreFailed: message => $"백업 복원에 실패했습니다.\n\n{message}",
+                        DataRestorePreparing: "복원 준비 중...",
+                        DataRestoreCreatingSafetyBackup: "복원 전 현재 데이터 백업 중...",
+                        DataRestoreApplyingBackup: "백업 데이터 적용 중...",
+                        DataRestoreRestartingSession: "TimePilot 기록 세션 다시 시작 중..."),
                     new CsvText(
                         Date: "날짜",
                         AppName: "앱 이름",
@@ -963,7 +971,11 @@ namespace TimePilot.WinForms.KYS24
                         DataRestorePlan: (hasSettings, logCount) =>
                             $"This backup includes the usage database{(hasSettings ? ", settings" : "")}{(logCount > 0 ? $", and {logCount} log file(s)" : "")}.",
                         DataRestoreCompleted: (count, safetyBackupPath) => $"Restored the backup. Restored files: {count}\n\nCurrent data backup before restore:\n{safetyBackupPath}",
-                        DataRestoreFailed: message => $"Restore failed.\n\n{message}"),
+                        DataRestoreFailed: message => $"Restore failed.\n\n{message}",
+                        DataRestorePreparing: "Preparing restore...",
+                        DataRestoreCreatingSafetyBackup: "Backing up current data before restore...",
+                        DataRestoreApplyingBackup: "Applying backup data...",
+                        DataRestoreRestartingSession: "Restarting TimePilot recording session..."),
                     new CsvText(
                         Date: "Date",
                         AppName: "App name",
@@ -1259,7 +1271,11 @@ namespace TimePilot.WinForms.KYS24
             Func<string, string> DataBackupFailed,
             Func<bool, int, string> DataRestorePlan,
             Func<int, string, string> DataRestoreCompleted,
-            Func<string, string> DataRestoreFailed);
+            Func<string, string> DataRestoreFailed,
+            string DataRestorePreparing,
+            string DataRestoreCreatingSafetyBackup,
+            string DataRestoreApplyingBackup,
+            string DataRestoreRestartingSession);
 
         private sealed record CsvText(
             string Date,
