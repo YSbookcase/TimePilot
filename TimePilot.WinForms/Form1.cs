@@ -4451,7 +4451,7 @@ namespace TimePilot.WinForms
             if (storage is null)
                 return;
 
-            using var form = new AppCategoryManagementForm(storage, settings.UiLanguage);
+            using var form = new AppCategoryManagementForm(storage, settings, settings.UiLanguage);
             form.Icon = Icon;
             if (form.ShowDialog(this) == DialogResult.OK && form.CategoriesChanged)
                 RefreshViews(DateTimeOffset.UtcNow);
