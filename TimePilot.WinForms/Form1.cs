@@ -101,6 +101,8 @@ namespace TimePilot.WinForms
         private string? highlightedTimelineSegmentLabel;
         private IReadOnlyList<ForegroundUsageSummary> currentTimelineForegroundUsage = Array.Empty<ForegroundUsageSummary>();
         private IReadOnlyList<ActivityTimelineRow> currentTimelineRows = Array.Empty<ActivityTimelineRow>();
+        private IReadOnlyList<TimelineRange> currentTimelineWindowsRuntimeRanges = Array.Empty<TimelineRange>();
+        private IReadOnlyList<SystemTimelineRange> currentTimelineSystemRanges = Array.Empty<SystemTimelineRange>();
         private IReadOnlyList<SystemTimelineEvent> currentTimelineSystemEvents = Array.Empty<SystemTimelineEvent>();
         private Font? timelineHighlightedRowFont;
         private Form? recordedDatePickerPopupForm;
@@ -1447,6 +1449,8 @@ namespace TimePilot.WinForms
                 SetDateStatus(timelineDateStatusLabel, snapshot.TimelineDateHasData);
                 var filteredSystemRanges = FilterSystemTimelineRanges(snapshot.SystemTimelineRanges ?? Array.Empty<SystemTimelineRange>());
                 var filteredSystemEvents = FilterSystemTimelineEvents(snapshot.SystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>());
+                currentTimelineWindowsRuntimeRanges = snapshot.WindowsRuntimeRanges ?? Array.Empty<TimelineRange>();
+                currentTimelineSystemRanges = snapshot.SystemTimelineRanges ?? Array.Empty<SystemTimelineRange>();
                 currentTimelineSystemEvents = FilterSystemTimelineEvents(
                     (snapshot.SystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>())
                     .Concat(snapshot.InferredSystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>())
@@ -1454,7 +1458,7 @@ namespace TimePilot.WinForms
                 timelineOverviewControl.SetTimeline(
                     selectedTimelineDate,
                     snapshot.TimelineRows,
-                    snapshot.WindowsRuntimeRanges ?? Array.Empty<TimelineRange>(),
+                    currentTimelineWindowsRuntimeRanges,
                     filteredSystemRanges,
                     filteredSystemEvents,
                     snapshot.CategoryTimelineSegments ?? Array.Empty<CategoryTimelineSegment>());
@@ -2446,7 +2450,7 @@ namespace TimePilot.WinForms
             var label = new Label
             {
                 Dock = DockStyle.Top,
-                Height = 44,
+                Height = 64,
                 Padding = new Padding(8, 6, 8, 0),
                 Text = GetTimelineCategorySegmentAppStatsDescription(segment)
             };
@@ -3110,15 +3114,69 @@ namespace TimePilot.WinForms
             return UiText.CurrentLanguage == UiLanguage.English ? "Timeline Segment App Stats" : "타임라인 구간 앱 통계";
         }
 
-        private static string GetTimelineCategorySegmentAppStatsDescription(CategoryTimelineSegment segment)
+        private string GetTimelineCategorySegmentAppStatsDescription(CategoryTimelineSegment segment)
         {
             var start = segment.StartedAt.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture);
             var end = segment.EndedAt.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture);
             var duration = FormatDiagnosticDuration((long)(segment.EndedAt - segment.StartedAt).TotalMilliseconds);
             var activeUsage = FormatDiagnosticDuration(segment.ActiveUsageMs);
+            var stateSummary = GetTimelineSegmentStateSummary(segment);
             return UiText.CurrentLanguage == UiLanguage.English
-                ? $"{segment.CategoryName} | {start}-{end} | segment {duration} | recorded active {activeUsage} | {segment.DetailText}"
-                : $"{segment.CategoryName} | {start}-{end} | 구간 {duration} | 기록된 활성 {activeUsage} | {segment.DetailText}";
+                ? $"{segment.CategoryName} | {start}-{end} | segment {duration} | recorded active {activeUsage} | {segment.DetailText}\n{stateSummary}"
+                : $"{segment.CategoryName} | {start}-{end} | 구간 {duration} | 기록된 활성 {activeUsage} | {segment.DetailText}\n{stateSummary}";
+        }
+
+        private string GetTimelineSegmentStateSummary(CategoryTimelineSegment segment)
+        {
+            var activeMs = SumTimelineRowDuration(segment, row =>
+                !string.Equals(row.ActivityType, UiText.Main.Idle, StringComparison.Ordinal)
+                && !IsUntrackedTimelineActivity(row));
+            var idleMs = SumTimelineRowDuration(segment, row =>
+                string.Equals(row.ActivityType, UiText.Main.Idle, StringComparison.Ordinal));
+            var untrackedMs = SumTimelineRowDuration(segment, IsUntrackedTimelineActivity);
+            var windowsRuntimeMs = SumTimelineRangeDuration(segment, currentTimelineWindowsRuntimeRanges);
+            var sleepMs = SumSystemTimelineRangeDuration(segment, SystemTimelineRangeType.SleepEstimate);
+            var lockMs = SumSystemTimelineRangeDuration(segment, SystemTimelineRangeType.LockSession);
+
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"Status: active apps {FormatDiagnosticDuration(activeMs)} | idle {FormatDiagnosticDuration(idleMs)} | not tracked {FormatDiagnosticDuration(untrackedMs)} | Windows runtime {FormatDiagnosticDuration(windowsRuntimeMs)} | sleep estimate {FormatDiagnosticDuration(sleepMs)} | lock {FormatDiagnosticDuration(lockMs)}"
+                : $"상태: 활성 앱 {FormatDiagnosticDuration(activeMs)} | 유휴 {FormatDiagnosticDuration(idleMs)} | 미기록 {FormatDiagnosticDuration(untrackedMs)} | Windows 실행 {FormatDiagnosticDuration(windowsRuntimeMs)} | 절전 추정 {FormatDiagnosticDuration(sleepMs)} | 잠금 {FormatDiagnosticDuration(lockMs)}";
+        }
+
+        private long SumTimelineRowDuration(CategoryTimelineSegment segment, Func<ActivityTimelineRow, bool> predicate)
+        {
+            return currentTimelineRows
+                .Where(predicate)
+                .Sum(row => GetOverlapDurationMs(segment.StartedAt, segment.EndedAt, row.StartedAt, row.EndedAt ?? segment.EndedAt));
+        }
+
+        private long SumTimelineRangeDuration(CategoryTimelineSegment segment, IEnumerable<TimelineRange> ranges)
+        {
+            return ranges.Sum(range => GetOverlapDurationMs(segment.StartedAt, segment.EndedAt, range.StartedAt, range.EndedAt));
+        }
+
+        private long SumSystemTimelineRangeDuration(CategoryTimelineSegment segment, SystemTimelineRangeType rangeType)
+        {
+            return currentTimelineSystemRanges
+                .Where(range => range.RangeType == rangeType)
+                .Sum(range => GetOverlapDurationMs(segment.StartedAt, segment.EndedAt, range.StartedAt, range.EndedAt));
+        }
+
+        private static bool IsUntrackedTimelineActivity(ActivityTimelineRow row)
+        {
+            return string.Equals(row.ActivityType, UiText.Main.Untracked, StringComparison.Ordinal)
+                || string.Equals(row.ActivityType, UiText.Main.TimePilotUntracked, StringComparison.Ordinal);
+        }
+
+        private static long GetOverlapDurationMs(
+            DateTimeOffset leftStart,
+            DateTimeOffset leftEnd,
+            DateTimeOffset rightStart,
+            DateTimeOffset rightEnd)
+        {
+            var start = leftStart > rightStart ? leftStart : rightStart;
+            var end = leftEnd < rightEnd ? leftEnd : rightEnd;
+            return end <= start ? 0 : (long)(end - start).TotalMilliseconds;
         }
 
         private static string GetTimelineSystemEventTimeHeaderText()
@@ -4422,6 +4480,10 @@ namespace TimePilot.WinForms
                     Array.Empty<SystemTimelineEvent>(),
                     Array.Empty<CategoryTimelineSegment>());
                 SetGridDataSourcePreservingView(timelineGrid, Array.Empty<ActivityTimelineRow>());
+                currentTimelineForegroundUsage = Array.Empty<ForegroundUsageSummary>();
+                currentTimelineRows = Array.Empty<ActivityTimelineRow>();
+                currentTimelineWindowsRuntimeRanges = Array.Empty<TimelineRange>();
+                currentTimelineSystemRanges = Array.Empty<SystemTimelineRange>();
                 currentTimelineSystemEvents = Array.Empty<SystemTimelineEvent>();
                 SetGridDataSourcePreservingView(runtimeGrid, Array.Empty<ProcessRuntimeSummaryRow>());
                 SetGridDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
