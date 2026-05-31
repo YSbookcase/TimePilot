@@ -159,6 +159,7 @@ namespace TimePilot.WinForms
             timelineGrid.RowPostPaint += OnTimelineGridRowPostPaint;
             timelineZoomScrollBar.Scroll += OnTimelineZoomScrollBarScroll;
             timelineOverviewControl.ActivitySegmentContextRequested += OnTimelineOverviewActivitySegmentContextRequested;
+            timelineOverviewControl.CategorySegmentContextRequested += OnTimelineOverviewCategorySegmentContextRequested;
             timelineOverviewControl.WindowsTrackContextRequested += OnTimelineOverviewWindowsTrackContextRequested;
             runtimeGrid.CellMouseEnter += OnGridCellMouseEnter;
             runtimeGrid.CellMouseLeave += OnGridCellMouseLeave;
@@ -2405,9 +2406,59 @@ namespace TimePilot.WinForms
             ShowTimelineActivityContextMenu(e.Row, timelineOverviewControl, e.Location);
         }
 
+        private void OnTimelineOverviewCategorySegmentContextRequested(object? sender, TimelineCategorySegmentContextEventArgs e)
+        {
+            ShowTimelineCategorySegmentContextMenu(e.Segment, timelineOverviewControl, e.Location);
+        }
+
         private void OnTimelineOverviewWindowsTrackContextRequested(object? sender, TimelineWindowsTrackContextEventArgs e)
         {
             ShowTimelineWindowsContextMenu(timelineOverviewControl, e.Location);
+        }
+
+        private void ShowTimelineCategorySegmentContextMenu(CategoryTimelineSegment segment, Control owner, Point location)
+        {
+            timelineGridMenu.Items.Clear();
+            var appStatsItem = new ToolStripMenuItem(GetTimelineCategorySegmentAppStatsMenuText());
+            appStatsItem.Click += (_, _) => ShowTimelineCategorySegmentAppStatsPopup(segment, owner, location);
+            timelineGridMenu.Items.Add(appStatsItem);
+            timelineGridMenu.Show(owner, location);
+        }
+
+        private void ShowTimelineCategorySegmentAppStatsPopup(CategoryTimelineSegment segment, Control owner, Point location)
+        {
+            var rows = UsageSummaryRowBuilder.FromForegroundUsage(
+                storage?.GetForegroundUsageForPeriod(segment.StartedAt, segment.EndedAt)
+                    ?? Array.Empty<ForegroundUsageSummary>());
+
+            var popup = new Form
+            {
+                Text = GetTimelineCategorySegmentAppStatsTitle(),
+                ShowInTaskbar = false,
+                StartPosition = FormStartPosition.Manual,
+                Size = new Size(720, 300),
+                MinimizeBox = false,
+                MaximizeBox = false,
+                FormBorderStyle = FormBorderStyle.SizableToolWindow
+            };
+            popup.Icon = Icon;
+
+            var label = new Label
+            {
+                Dock = DockStyle.Top,
+                Height = 44,
+                Padding = new Padding(8, 6, 8, 0),
+                Text = GetTimelineCategorySegmentAppStatsDescription(segment)
+            };
+
+            var grid = CreateTimelineCategorySegmentAppStatsGrid();
+            grid.DataSource = rows;
+            popup.Controls.Add(grid);
+            popup.Controls.Add(label);
+
+            var screenLocation = owner.PointToScreen(location);
+            popup.Location = KeepPopupOnScreen(new Point(screenLocation.X + 8, screenLocation.Y + 8), popup.Size);
+            popup.Show(this);
         }
 
         private void ShowTimelineWindowsContextMenu(Control owner, Point location)
@@ -2481,6 +2532,91 @@ namespace TimePilot.WinForms
             grid.ColumnHeaderMouseClick += OnTimelineSystemEventsGridColumnHeaderMouseClick;
 
             return grid;
+        }
+
+        private static DataGridView CreateTimelineCategorySegmentAppStatsGrid()
+        {
+            var grid = new BufferedDataGridView
+            {
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                AllowUserToOrderColumns = true,
+                AllowUserToResizeRows = false,
+                AutoGenerateColumns = false,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+                BackgroundColor = SystemColors.Window,
+                BorderStyle = BorderStyle.None,
+                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
+                Dock = DockStyle.Fill,
+                MultiSelect = false,
+                ReadOnly = true,
+                RowHeadersVisible = false,
+                ScrollBars = ScrollBars.Both,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect
+            };
+
+            grid.Columns.AddRange(
+                CreateTextColumn(nameof(UsageSummaryRow.AppName), UiText.Main.App, 180),
+                CreateTextColumn(nameof(UsageSummaryRow.CategoryText), UiText.Main.Category, 120),
+                CreateTextColumn(nameof(UsageSummaryRow.ActiveUsageTimeText), UiText.Main.ActiveUsageTime, 120),
+                CreateTextColumn(nameof(UsageSummaryRow.UsageRatioText), UiText.Main.ActiveRatio, 90),
+                CreateTextColumn(nameof(UsageSummaryRow.SwitchCountText), UiText.Main.SwitchCount, 90),
+                CreateTextColumn(nameof(UsageSummaryRow.FirstStartedAtText), UiText.Main.FirstStartedAt, 110),
+                CreateTextColumn(nameof(UsageSummaryRow.LastObservedAtText), UiText.Main.LastObservedAt, 110));
+            grid.ColumnHeaderMouseClick += OnTimelineCategorySegmentAppStatsGridColumnHeaderMouseClick;
+
+            return grid;
+        }
+
+        private static void OnTimelineCategorySegmentAppStatsGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (sender is not DataGridView grid
+                || e.ColumnIndex < 0
+                || e.ColumnIndex >= grid.Columns.Count)
+                return;
+
+            var column = grid.Columns[e.ColumnIndex];
+            var direction = column.HeaderCell.SortGlyphDirection == SortOrder.Ascending
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+
+            var rows = grid.Rows
+                .Cast<DataGridViewRow>()
+                .Select(row => row.DataBoundItem)
+                .OfType<UsageSummaryRow>()
+                .ToList();
+            grid.DataSource = SortTimelineCategorySegmentAppStatsRows(rows, column.DataPropertyName, direction);
+            foreach (DataGridViewColumn gridColumn in grid.Columns)
+            {
+                if (gridColumn.SortMode != DataGridViewColumnSortMode.Programmatic)
+                    continue;
+
+                gridColumn.HeaderCell.SortGlyphDirection = gridColumn.Index == e.ColumnIndex
+                    ? (direction == ListSortDirection.Ascending ? SortOrder.Ascending : SortOrder.Descending)
+                    : SortOrder.None;
+            }
+        }
+
+        private static IReadOnlyList<UsageSummaryRow> SortTimelineCategorySegmentAppStatsRows(
+            IReadOnlyList<UsageSummaryRow> rows,
+            string propertyName,
+            ListSortDirection direction)
+        {
+            IOrderedEnumerable<UsageSummaryRow> orderedRows = propertyName switch
+            {
+                nameof(UsageSummaryRow.AppName) => rows.OrderBy(row => row.AppName, StringComparer.CurrentCulture),
+                nameof(UsageSummaryRow.CategoryText) => rows.OrderBy(row => row.CategoryText, StringComparer.CurrentCulture),
+                nameof(UsageSummaryRow.ActiveUsageTimeText) => rows.OrderBy(row => row.ActiveUsageMs),
+                nameof(UsageSummaryRow.UsageRatioText) => rows.OrderBy(row => row.UsageRatio),
+                nameof(UsageSummaryRow.SwitchCountText) => rows.OrderBy(row => row.SwitchCount),
+                nameof(UsageSummaryRow.FirstStartedAtText) => rows.OrderBy(row => row.FirstStartedAt),
+                nameof(UsageSummaryRow.LastObservedAtText) => rows.OrderBy(row => row.LastObservedAt),
+                _ => rows.OrderBy(row => row.ActiveUsageMs)
+            };
+
+            return direction == ListSortDirection.Ascending
+                ? orderedRows.ToList()
+                : orderedRows.Reverse().ToList();
         }
 
         private static DataGridViewTextBoxColumn CreateTextColumn(string propertyName, string headerText, int width)
@@ -2962,6 +3098,27 @@ namespace TimePilot.WinForms
             return UiText.CurrentLanguage == UiLanguage.English
                 ? $"Selected date: {dateText}. Event intervals are hints for interpretation, not confirmed causes of missing records."
                 : $"선택 날짜: {dateText}. 이벤트 간격은 해석 보조 정보이며, 미기록 원인을 확정하지 않습니다.";
+        }
+
+        private static string GetTimelineCategorySegmentAppStatsMenuText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Segment app stats" : "구간 앱 통계";
+        }
+
+        private static string GetTimelineCategorySegmentAppStatsTitle()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Timeline Segment App Stats" : "타임라인 구간 앱 통계";
+        }
+
+        private static string GetTimelineCategorySegmentAppStatsDescription(CategoryTimelineSegment segment)
+        {
+            var start = segment.StartedAt.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture);
+            var end = segment.EndedAt.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture);
+            var duration = FormatDiagnosticDuration((long)(segment.EndedAt - segment.StartedAt).TotalMilliseconds);
+            var activeUsage = FormatDiagnosticDuration(segment.ActiveUsageMs);
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"{segment.CategoryName} | {start}-{end} | segment {duration} | recorded active {activeUsage}"
+                : $"{segment.CategoryName} | {start}-{end} | 구간 {duration} | 기록된 활성 {activeUsage}";
         }
 
         private static string GetTimelineSystemEventTimeHeaderText()
