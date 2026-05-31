@@ -5,6 +5,8 @@ namespace TimePilot.WinForms.KYS24
     internal sealed record AppCategoryManagementRow(
         long AppId,
         string AppName,
+        string AutomaticAppName,
+        string? UserAlias,
         string ProcessName,
         string? ExecutablePath,
         long? PrimaryCategoryId,
@@ -24,6 +26,8 @@ namespace TimePilot.WinForms.KYS24
         public string CategoryText => string.IsNullOrWhiteSpace(CategoryName)
             ? UiText.Main.Uncategorized
             : CategoryDisplayName ?? AppCategoryDisplay.GetDisplayName(CategoryName);
+
+        public string UserAliasText => UserAlias ?? "";
 
         public string LastObservedAtText => LastObservedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.CurrentCulture) ?? "";
 
