@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using Microsoft.Data.Sqlite;
 
 namespace TimePilot.WinForms.KYS24
 {
@@ -27,7 +28,7 @@ namespace TimePilot.WinForms.KYS24
             WriteTextEntry(archive, ReadmeEntryName, BuildReadme(createdAt));
             entries.Add(ReadmeEntryName);
 
-            AddFileIfExists(archive, AppDataPaths.DatabasePath, DatabaseEntryName, entries);
+            AddDatabaseIfExists(archive, entries);
             AddFileIfExists(archive, AppDataPaths.SettingsPath, SettingsEntryName, entries);
 
             var logsDirectory = Path.Combine(AppDataPaths.DataDirectory, LogsDirectoryName);
@@ -101,6 +102,53 @@ namespace TimePilot.WinForms.KYS24
 
             archive.CreateEntryFromFile(sourcePath, entryName, CompressionLevel.Optimal);
             entries.Add(entryName);
+        }
+
+        private static void AddDatabaseIfExists(ZipArchive archive, List<string> entries)
+        {
+            if (!File.Exists(AppDataPaths.DatabasePath))
+                return;
+
+            var tempPath = Path.Combine(
+                Path.GetTempPath(),
+                $"TimePilot-backup-{Guid.NewGuid():N}.db");
+
+            try
+            {
+                using (var source = new SqliteConnection(new SqliteConnectionStringBuilder
+                       {
+                           DataSource = AppDataPaths.DatabasePath,
+                           Mode = SqliteOpenMode.ReadOnly
+                       }.ToString()))
+                using (var destination = new SqliteConnection(new SqliteConnectionStringBuilder
+                       {
+                           DataSource = tempPath
+                       }.ToString()))
+                {
+                    source.Open();
+                    destination.Open();
+                    source.BackupDatabase(destination);
+                }
+
+                archive.CreateEntryFromFile(tempPath, DatabaseEntryName, CompressionLevel.Optimal);
+                entries.Add(DatabaseEntryName);
+            }
+            finally
+            {
+                TryDeleteFile(tempPath);
+            }
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+            }
+            catch
+            {
+            }
         }
 
         private static void RestoreEntry(
