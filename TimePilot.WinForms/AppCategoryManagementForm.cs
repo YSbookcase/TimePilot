@@ -1152,6 +1152,18 @@ namespace TimePilot.WinForms
                 categoryMenu.Items.Add(clearNameItem);
                 categoryMenu.Items.Add(new ToolStripSeparator());
             }
+            else
+            {
+                var clearSelectedNamesItem = new ToolStripMenuItem(IsEnglish
+                    ? "Clear selected custom names"
+                    : "선택 항목 사용자 이름 초기화")
+                {
+                    Enabled = selectedRows.Any(selectedRow => !string.IsNullOrWhiteSpace(selectedRow.UserAlias))
+                };
+                clearSelectedNamesItem.Click += (_, _) => ClearCustomNames(selectedRows);
+                categoryMenu.Items.Add(clearSelectedNamesItem);
+                categoryMenu.Items.Add(new ToolStripSeparator());
+            }
 
             var clearItem = new ToolStripMenuItem(isBulkSelection
                 ? IsEnglish ? "Clear selected categories" : "선택 항목 분류 해제"
@@ -1201,6 +1213,9 @@ namespace TimePilot.WinForms
             if (string.Equals(row.UserAlias, normalizedAlias, StringComparison.Ordinal))
                 return;
 
+            if (normalizedAlias is not null && HasDuplicateAlias(row.AppId, normalizedAlias) && !ConfirmDuplicateAlias(normalizedAlias))
+                return;
+
             storage.SetAppUserAlias(row.AppId, normalizedAlias);
             CategoriesChanged = true;
             rowsToRestoreAfterFilter = new HashSet<long> { row.AppId };
@@ -1209,6 +1224,51 @@ namespace TimePilot.WinForms
             statusLabel.Text = normalizedAlias is null
                 ? IsEnglish ? "Custom name cleared." : "사용자 이름을 초기화했습니다."
                 : IsEnglish ? "Custom name updated." : "사용자 이름을 수정했습니다.";
+        }
+
+        private void ClearCustomNames(IReadOnlyList<AppCategoryManagementRow> rows)
+        {
+            var rowsToClear = rows
+                .Where(row => !string.IsNullOrWhiteSpace(row.UserAlias))
+                .GroupBy(row => row.AppId)
+                .Select(group => group.First())
+                .ToList();
+            if (rowsToClear.Count == 0)
+                return;
+
+            foreach (var row in rowsToClear)
+            {
+                storage.SetAppUserAlias(row.AppId, null);
+            }
+
+            CategoriesChanged = true;
+            rowsToRestoreAfterFilter = rowsToClear.Select(row => row.AppId).ToHashSet();
+            allRows = AddIcons(storage.GetAppCategoryManagementRows(DateTimeOffset.UtcNow));
+            UpdateVisibleRows(rowsToRestoreAfterFilter);
+            statusLabel.Text = IsEnglish
+                ? $"Cleared custom names for {rowsToClear.Count:N0} selected app(s)."
+                : $"선택 항목 {rowsToClear.Count:N0}개의 사용자 이름을 초기화했습니다.";
+        }
+
+        private bool HasDuplicateAlias(long currentAppId, string alias)
+        {
+            return allRows.Any(row =>
+                row.AppId != currentAppId
+                && string.Equals(row.UserAlias?.Trim(), alias, StringComparison.CurrentCultureIgnoreCase));
+        }
+
+        private bool ConfirmDuplicateAlias(string alias)
+        {
+            var message = IsEnglish
+                ? $"Another app already uses the custom name \"{alias}\".\n\nMultiple apps with the same display name can be harder to distinguish in Summary and Timeline. Continue?"
+                : $"이미 \"{alias}\" 사용자 이름을 사용하는 앱이 있습니다.\n\n여러 앱이 같은 이름으로 표시되면 요약과 타임라인에서 구분하기 어려울 수 있습니다. 계속할까요?";
+
+            return CenteredMessageDialog.Show(
+                this,
+                message,
+                IsEnglish ? "Duplicate Custom Name" : "사용자 이름 중복",
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Warning) == DialogResult.OK;
         }
 
         private string? ShowCustomNameDialog(AppCategoryManagementRow row)
