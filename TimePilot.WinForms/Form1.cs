@@ -54,6 +54,7 @@ namespace TimePilot.WinForms
         private DateTime selectedSummaryCustomStartDate = DateTime.Today;
         private DateTime selectedSummaryCustomEndDate = DateTime.Today;
         private DateTime summaryPeriodOptionsDate = DateTime.Today;
+        private DateTime dateSelectorOptionsDate = DateTime.Today;
         private DateTime selectedDetailDate = DateTime.Today;
         private DateTime selectedTimelineDate = DateTime.Today;
         private int selectedTimelineCategoryBucketMinutes = 30;
@@ -725,6 +726,7 @@ namespace TimePilot.WinForms
                 timelineDatePicker.MaxDate = today;
                 detailDatePicker.Value = today;
                 timelineDatePicker.Value = today;
+                dateSelectorOptionsDate = today;
             }
             finally
             {
@@ -1323,6 +1325,7 @@ namespace TimePilot.WinForms
             var runtimeHorizontalOffset = GetHorizontalScrollingOffset(runtimeGrid);
             var selectedTab = mainTabs.SelectedTab;
             RefreshSummaryPeriodOptionsIfDateChanged(observedAt);
+            RefreshDateSelectorsIfDateChanged(observedAt);
             var summaryPeriodRange = SummaryPeriodCalculator.GetRange(
                 observedAt,
                 selectedSummaryPeriod,
@@ -2864,6 +2867,30 @@ namespace TimePilot.WinForms
             detailTodayButton.Enabled = selectedDetailDate < today;
             timelineNextDateButton.Enabled = selectedTimelineDate < today;
             timelineTodayButton.Enabled = selectedTimelineDate < today;
+        }
+
+        private void RefreshDateSelectorsIfDateChanged(DateTimeOffset observedAt)
+        {
+            var today = observedAt.ToLocalTime().Date;
+            if (today == dateSelectorOptionsDate)
+                return;
+
+            isInitializingDateSelectors = true;
+            try
+            {
+                if (detailDatePicker.MaxDate.Date < today)
+                    detailDatePicker.MaxDate = today;
+                if (timelineDatePicker.MaxDate.Date < today)
+                    timelineDatePicker.MaxDate = today;
+
+                dateSelectorOptionsDate = today;
+            }
+            finally
+            {
+                isInitializingDateSelectors = false;
+            }
+
+            UpdateDateNavigationButtons();
         }
 
         private void UpdateTimelineZoomControls()
