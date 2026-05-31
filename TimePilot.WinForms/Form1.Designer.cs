@@ -39,6 +39,8 @@
             summaryPeriodComboBox = new ComboBox();
             summarySpecificDatePicker = new DateTimePicker();
             summarySpecificDateCalendarButton = new Button();
+            summaryCustomRangeButton = new Button();
+            summaryCustomRangeLabel = new Label();
             summaryHighlightHintLabel = new Label();
             runtimeCoverageSummaryPanel = new FlowLayoutPanel();
             summaryIdleAnalysisPanel = new FlowLayoutPanel();
@@ -292,6 +294,8 @@
             summaryPeriodPanel.Controls.Add(summaryPeriodComboBox);
             summaryPeriodPanel.Controls.Add(summarySpecificDatePicker);
             summaryPeriodPanel.Controls.Add(summarySpecificDateCalendarButton);
+            summaryPeriodPanel.Controls.Add(summaryCustomRangeButton);
+            summaryPeriodPanel.Controls.Add(summaryCustomRangeLabel);
             summaryPeriodPanel.Controls.Add(summaryHighlightHintLabel);
             summaryPeriodPanel.Dock = DockStyle.Top;
             summaryPeriodPanel.Location = new Point(3, 3);
@@ -343,15 +347,38 @@
             summarySpecificDateCalendarButton.Visible = false;
             summarySpecificDateCalendarButton.Click += OnSummarySpecificDateCalendarButtonClick;
             //
+            // summaryCustomRangeButton
+            //
+            summaryCustomRangeButton.AutoSize = true;
+            summaryCustomRangeButton.Location = new Point(458, 7);
+            summaryCustomRangeButton.Name = "summaryCustomRangeButton";
+            summaryCustomRangeButton.Size = new Size(75, 25);
+            summaryCustomRangeButton.TabIndex = 4;
+            summaryCustomRangeButton.Text = UiText.SummaryPeriod.CustomRangeButton;
+            summaryCustomRangeButton.UseVisualStyleBackColor = true;
+            summaryCustomRangeButton.Visible = false;
+            summaryCustomRangeButton.Click += OnSummaryCustomRangeButtonClick;
+            //
+            // summaryCustomRangeLabel
+            //
+            summaryCustomRangeLabel.AutoSize = true;
+            summaryCustomRangeLabel.ForeColor = SystemColors.GrayText;
+            summaryCustomRangeLabel.Location = new Point(539, 10);
+            summaryCustomRangeLabel.Margin = new Padding(4, 6, 4, 0);
+            summaryCustomRangeLabel.Name = "summaryCustomRangeLabel";
+            summaryCustomRangeLabel.Size = new Size(0, 15);
+            summaryCustomRangeLabel.TabIndex = 5;
+            summaryCustomRangeLabel.Visible = false;
+            //
             // summaryHighlightHintLabel
             //
             summaryHighlightHintLabel.AutoSize = true;
             summaryHighlightHintLabel.ForeColor = SystemColors.GrayText;
-            summaryHighlightHintLabel.Location = new Point(458, 10);
+            summaryHighlightHintLabel.Location = new Point(545, 10);
             summaryHighlightHintLabel.Margin = new Padding(8, 6, 4, 0);
             summaryHighlightHintLabel.Name = "summaryHighlightHintLabel";
             summaryHighlightHintLabel.Size = new Size(0, 15);
-            summaryHighlightHintLabel.TabIndex = 4;
+            summaryHighlightHintLabel.TabIndex = 6;
             summaryHighlightHintLabel.Text = UiText.Main.SummaryTimelineHighlightHint;
             //
             // runtimeCoverageSummaryPanel
@@ -1510,6 +1537,8 @@
         private ComboBox summaryPeriodComboBox;
         private DateTimePicker summarySpecificDatePicker;
         private Button summarySpecificDateCalendarButton;
+        private Button summaryCustomRangeButton;
+        private Label summaryCustomRangeLabel;
         private Label summaryHighlightHintLabel;
         private FlowLayoutPanel runtimeCoverageSummaryPanel;
         private FlowLayoutPanel summaryIdleAnalysisPanel;
