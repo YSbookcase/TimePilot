@@ -10,6 +10,7 @@ namespace TimePilot.WinForms
         private readonly TextBox endDateTextBox = new();
         private readonly Button startCalendarButton = new();
         private readonly Button endCalendarButton = new();
+        private readonly Label rangeDurationLabel = new();
         private readonly Button okButton = new();
         private readonly Button cancelButton = new();
         private readonly DateTime today;
@@ -53,16 +54,17 @@ namespace TimePilot.WinForms
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(420, 142);
+            ClientSize = new Size(420, 172);
 
             mainPanel.Dock = DockStyle.Fill;
             mainPanel.Padding = new Padding(12);
             mainPanel.ColumnCount = 2;
-            mainPanel.RowCount = 3;
+            mainPanel.RowCount = 4;
             mainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 82));
             mainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
             startLabel.Dock = DockStyle.Fill;
@@ -75,6 +77,10 @@ namespace TimePilot.WinForms
 
             ConfigureDatePanel(startDatePanel, startDateTextBox, startCalendarButton, (_, _) => ShowDateCalendar(startCalendarButton, StartDate, ApplyStartDate));
             ConfigureDatePanel(endDatePanel, endDateTextBox, endCalendarButton, (_, _) => ShowDateCalendar(endCalendarButton, EndDate, ApplyEndDate));
+
+            rangeDurationLabel.Dock = DockStyle.Fill;
+            rangeDurationLabel.ForeColor = SystemColors.GrayText;
+            rangeDurationLabel.TextAlign = ContentAlignment.MiddleLeft;
 
             okButton.Text = UiText.Common.Ok;
             okButton.Width = 84;
@@ -93,7 +99,9 @@ namespace TimePilot.WinForms
             mainPanel.Controls.Add(startDatePanel, 1, 0);
             mainPanel.Controls.Add(endLabel, 0, 1);
             mainPanel.Controls.Add(endDatePanel, 1, 1);
-            mainPanel.Controls.Add(buttonPanel, 0, 2);
+            mainPanel.Controls.Add(rangeDurationLabel, 0, 2);
+            mainPanel.SetColumnSpan(rangeDurationLabel, 2);
+            mainPanel.Controls.Add(buttonPanel, 0, 3);
             mainPanel.SetColumnSpan(buttonPanel, 2);
 
             AcceptButton = okButton;
@@ -148,6 +156,7 @@ namespace TimePilot.WinForms
         {
             startDateTextBox.Text = FormatDate(StartDate);
             endDateTextBox.Text = FormatDate(EndDate);
+            rangeDurationLabel.Text = FormatRangeDuration(StartDate, EndDate);
         }
 
         private DateTime NormalizeSelectableDate(DateTime date)
@@ -222,6 +231,72 @@ namespace TimePilot.WinForms
         private static string FormatDate(DateTime date)
         {
             return date.ToString("yyyy-MM-dd (ddd)", CultureInfo.CurrentCulture);
+        }
+
+        private static string FormatRangeDuration(DateTime startDate, DateTime endDate)
+        {
+            if (endDate.Date < startDate.Date)
+                return UiText.SummaryPeriod.InvalidCustomRange;
+
+            var totalDays = (endDate.Date - startDate.Date).Days + 1;
+            var endExclusive = endDate.Date.AddDays(1);
+            var cursor = startDate.Date;
+
+            var years = endExclusive.Year - cursor.Year;
+            if (cursor.AddYears(years) > endExclusive)
+                years--;
+            cursor = cursor.AddYears(years);
+
+            var months = ((endExclusive.Year - cursor.Year) * 12) + endExclusive.Month - cursor.Month;
+            if (cursor.AddMonths(months) > endExclusive)
+                months--;
+            cursor = cursor.AddMonths(months);
+
+            var days = (endExclusive - cursor).Days;
+            var text = UiText.CurrentLanguage == UiLanguage.English
+                ? FormatEnglishCalendarDuration(years, months, days)
+                : FormatKoreanCalendarDuration(years, months, days);
+
+            if (years == 0 && months == 0)
+                return UiText.CurrentLanguage == UiLanguage.English
+                    ? $"Selected period: {text}"
+                    : $"선택 기간: {text}";
+
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"Selected period: {text} ({totalDays:N0} days total)"
+                : $"선택 기간: {text} (총 {totalDays:N0}일)";
+        }
+
+        private static string FormatKoreanCalendarDuration(int years, int months, int days)
+        {
+            var parts = new List<string>();
+            if (years > 0)
+                parts.Add($"{years:N0}년");
+            if (months > 0)
+                parts.Add($"{months:N0}개월");
+            if (days > 0 || parts.Count == 0)
+                parts.Add($"{days:N0}일");
+
+            return string.Join(" ", parts);
+        }
+
+        private static string FormatEnglishCalendarDuration(int years, int months, int days)
+        {
+            var parts = new List<string>();
+            AddEnglishDurationPart(parts, years, "year");
+            AddEnglishDurationPart(parts, months, "month");
+            if (days > 0 || parts.Count == 0)
+                AddEnglishDurationPart(parts, days, "day");
+
+            return string.Join(" ", parts);
+        }
+
+        private static void AddEnglishDurationPart(List<string> parts, int value, string unit)
+        {
+            if (value <= 0)
+                return;
+
+            parts.Add($"{value:N0} {unit}{(value == 1 ? string.Empty : "s")}");
         }
     }
 }
