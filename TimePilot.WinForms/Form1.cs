@@ -2875,6 +2875,10 @@ namespace TimePilot.WinForms
             if (today == dateSelectorOptionsDate)
                 return;
 
+            var previousToday = dateSelectorOptionsDate;
+            var shouldAutoMoveTodayViews = !IsMainWindowActivelyViewed();
+            var shouldMoveDetailToToday = shouldAutoMoveTodayViews && selectedDetailDate == previousToday;
+            var shouldMoveTimelineToToday = shouldAutoMoveTodayViews && selectedTimelineDate == previousToday;
             isInitializingDateSelectors = true;
             try
             {
@@ -2882,6 +2886,19 @@ namespace TimePilot.WinForms
                     detailDatePicker.MaxDate = today;
                 if (timelineDatePicker.MaxDate.Date < today)
                     timelineDatePicker.MaxDate = today;
+
+                if (shouldMoveDetailToToday)
+                {
+                    selectedDetailDate = today;
+                    detailDatePicker.Value = today;
+                    selectedRuntimeAppId = null;
+                }
+
+                if (shouldMoveTimelineToToday)
+                {
+                    selectedTimelineDate = today;
+                    timelineDatePicker.Value = today;
+                }
 
                 dateSelectorOptionsDate = today;
             }
@@ -2891,6 +2908,24 @@ namespace TimePilot.WinForms
             }
 
             UpdateDateNavigationButtons();
+            if (shouldMoveDetailToToday || shouldMoveTimelineToToday)
+                SetStatusText(GetDateAutoAdvancedStatusText(today));
+        }
+
+        private bool IsMainWindowActivelyViewed()
+        {
+            return Visible
+                && ShowInTaskbar
+                && WindowState != FormWindowState.Minimized
+                && (ContainsFocus || ActiveForm == this);
+        }
+
+        private static string GetDateAutoAdvancedStatusText(DateTime today)
+        {
+            var dateText = today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.CurrentCulture);
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"Moved today's views to {dateText}"
+                : $"오늘 보기 날짜를 {dateText}(으)로 갱신했습니다.";
         }
 
         private void UpdateTimelineZoomControls()
