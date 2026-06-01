@@ -1,6 +1,7 @@
 param(
     [switch]$Clear,
-    [switch]$Status
+    [switch]$Status,
+    [switch]$Large
 )
 
 Set-StrictMode -Version Latest
@@ -17,7 +18,7 @@ try {
         throw "TimePilot build failed."
     }
 
-    $argument = if ($Status) { "--check-sample-data" } elseif ($Clear) { "--clear-sample-data" } else { "--seed-sample-data" }
+    $argument = if ($Status) { "--check-sample-data" } elseif ($Clear) { "--clear-sample-data" } elseif ($Large) { "--seed-large-sample-data" } else { "--seed-sample-data" }
     dotnet $appPath $argument
     if ($LASTEXITCODE -ne 0) {
         throw "TimePilot sample data command failed."
@@ -29,6 +30,9 @@ try {
 
     if ($Clear) {
         Write-Host "TimePilot sample data has been removed from %LocalAppData%\TimePilot\timepilot.db."
+    }
+    elseif ($Large) {
+        Write-Host "Large TimePilot sample data has been seeded into %LocalAppData%\TimePilot\timepilot.db."
     }
     else {
         Write-Host "TimePilot sample data has been seeded into %LocalAppData%\TimePilot\timepilot.db."
