@@ -1279,6 +1279,7 @@ namespace TimePilot.WinForms.KYS24
                 SELECT
                     COALESCE(c.name, $uncategorized),
                     c.color,
+                    COALESCE(NULLIF(a.user_alias, ''), a.display_name, a.process_name),
                     fs.started_at,
                     fs.ended_at,
                     fs.last_observed_at
@@ -1299,10 +1300,11 @@ namespace TimePilot.WinForms.KYS24
             {
                 var categoryName = reader.GetString(0);
                 var color = reader.IsDBNull(1) ? null : reader.GetString(1);
-                var startedAt = ParseTimestamp(reader.GetString(2));
-                var endedAt = reader.IsDBNull(3)
-                    ? reader.IsDBNull(4) ? startedAt : ParseTimestamp(reader.GetString(4))
-                    : ParseTimestamp(reader.GetString(3));
+                var appName = reader.GetString(2);
+                var startedAt = ParseTimestamp(reader.GetString(3));
+                var endedAt = reader.IsDBNull(4)
+                    ? reader.IsDBNull(5) ? startedAt : ParseTimestamp(reader.GetString(5))
+                    : ParseTimestamp(reader.GetString(4));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(endedAt, dayEnd);
                 if (effectiveEnd <= effectiveStart)
@@ -1315,6 +1317,7 @@ namespace TimePilot.WinForms.KYS24
                     bucketCount,
                     categoryName,
                     color,
+                    appName,
                     effectiveStart,
                     effectiveEnd);
             }
@@ -3107,6 +3110,7 @@ namespace TimePilot.WinForms.KYS24
             int bucketCount,
             string categoryName,
             string? color,
+            string appName,
             DateTimeOffset start,
             DateTimeOffset end)
         {
@@ -3135,6 +3139,8 @@ namespace TimePilot.WinForms.KYS24
                     }
 
                     total.ActiveUsageMs += durationMs;
+                    total.AppTotals.TryGetValue(appName, out var appTotalMs);
+                    total.AppTotals[appName] = appTotalMs + durationMs;
                 }
 
                 cursor = segmentEnd;
@@ -3165,6 +3171,9 @@ namespace TimePilot.WinForms.KYS24
                 isDistributed
                     ? detailParts.Prepend(UiText.Main.TimelineCategoryDistributed)
                     : detailParts);
+            var appText = FormatCategorySegmentTopApps(ordered.SelectMany(x => x.AppTotals), totalMs, take: 3);
+            if (!string.IsNullOrWhiteSpace(appText))
+                detailText = string.Join(" | ", detailText, appText);
 
             return new CategoryTimelineSegment(
                 startedAt,
@@ -3199,6 +3208,9 @@ namespace TimePilot.WinForms.KYS24
                     ordered
                         .Take(4)
                         .Select(x => $"{AppCategoryDisplay.GetDisplayName(x.CategoryName)} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}")));
+            var appText = FormatCategorySegmentTopApps(ordered.SelectMany(x => x.AppTotals), totalMs, take: 5);
+            if (!string.IsNullOrWhiteSpace(appText))
+                detailText = string.Join(" | ", detailText, appText);
 
             return new CategoryTimelineSegment(
                 dayStart,
@@ -3208,6 +3220,32 @@ namespace TimePilot.WinForms.KYS24
                 isDistributed,
                 totalMs,
                 detailText);
+        }
+
+        private static string FormatCategorySegmentTopApps(
+            IEnumerable<KeyValuePair<string, long>> appTotals,
+            long totalMs,
+            int take)
+        {
+            var parts = appTotals
+                .GroupBy(x => x.Key, StringComparer.CurrentCultureIgnoreCase)
+                .Select(group => new
+                {
+                    AppName = group.Key,
+                    ActiveUsageMs = group.Sum(x => x.Value)
+                })
+                .Where(x => x.ActiveUsageMs > 0)
+                .OrderByDescending(x => x.ActiveUsageMs)
+                .ThenBy(x => x.AppName, StringComparer.CurrentCulture)
+                .Take(take)
+                .Select(x => $"{x.AppName} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}")
+                .ToList();
+
+            if (parts.Count == 0)
+                return "";
+
+            var label = UiText.CurrentLanguage == UiLanguage.English ? "Top apps" : "상위 앱";
+            return $"{label}: {string.Join(", ", parts)}";
         }
 
         private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> MergeIntervals(
@@ -3389,6 +3427,8 @@ namespace TimePilot.WinForms.KYS24
             public string? Color { get; }
 
             public long ActiveUsageMs { get; set; }
+
+            public Dictionary<string, long> AppTotals { get; } = new(StringComparer.CurrentCultureIgnoreCase);
         }
 
         private sealed class ProcessRuntimeAggregation
