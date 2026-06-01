@@ -21,6 +21,15 @@ namespace TimePilot.WinForms.KYS24
         public const int DangerousAllProcessesSampleIntervalSeconds = 10;
         public const int DangerousUserProcessesSampleIntervalSeconds = 5;
         public const int DangerousAnyScopeSampleIntervalSeconds = 3;
+        public const int DefaultImportantUnclassifiedActiveMinutes = 5;
+        public const int MinImportantUnclassifiedActiveMinutes = 1;
+        public const int MaxImportantUnclassifiedActiveMinutes = 1440;
+        public const int DefaultImportantUnclassifiedSwitchCount = 3;
+        public const int MinImportantUnclassifiedSwitchCount = 1;
+        public const int MaxImportantUnclassifiedSwitchCount = 1000;
+        public const bool DefaultImportantUnclassifiedIncludeRecommendations = true;
+        public const bool DefaultImportantUnclassifiedVisibleAppsOnly = true;
+        public const bool DefaultImportantUnclassifiedExcludeBackgroundOnly = true;
 
         private readonly string settingsPath;
 
@@ -89,6 +98,23 @@ namespace TimePilot.WinForms.KYS24
 
         public Dictionary<string, bool> AppCategoryManagementColumnVisibility { get; set; } = new(StringComparer.Ordinal);
 
+        public int ImportantUnclassifiedActiveMinutes { get; set; } =
+            DefaultImportantUnclassifiedActiveMinutes;
+
+        public int ImportantUnclassifiedActiveMs => ImportantUnclassifiedActiveMinutes * 60 * 1000;
+
+        public int ImportantUnclassifiedSwitchCount { get; set; } =
+            DefaultImportantUnclassifiedSwitchCount;
+
+        public bool ImportantUnclassifiedIncludeRecommendations { get; set; } =
+            DefaultImportantUnclassifiedIncludeRecommendations;
+
+        public bool ImportantUnclassifiedVisibleAppsOnly { get; set; } =
+            DefaultImportantUnclassifiedVisibleAppsOnly;
+
+        public bool ImportantUnclassifiedExcludeBackgroundOnly { get; set; } =
+            DefaultImportantUnclassifiedExcludeBackgroundOnly;
+
         public bool IsCurrentProcessRuntimeRiskAccepted =>
             !IsDangerousProcessRuntimeTracking(
                 ProcessRuntimeTrackingEnabled,
@@ -144,6 +170,18 @@ namespace TimePilot.WinForms.KYS24
                 settings.TableColumnLayouts = NormalizeTableColumnLayouts(persisted?.TableColumnLayouts);
                 settings.AppCategoryManagementColumnVisibility =
                     NormalizeColumnVisibility(persisted?.AppCategoryManagementColumnVisibility);
+                settings.ImportantUnclassifiedActiveMinutes = NormalizeImportantUnclassifiedActiveMinutes(
+                    persisted?.ImportantUnclassifiedActiveMinutes);
+                settings.ImportantUnclassifiedSwitchCount = NormalizeImportantUnclassifiedSwitchCount(
+                    persisted?.ImportantUnclassifiedSwitchCount);
+                settings.ImportantUnclassifiedIncludeRecommendations =
+                    persisted?.ImportantUnclassifiedIncludeRecommendations
+                    ?? DefaultImportantUnclassifiedIncludeRecommendations;
+                settings.ImportantUnclassifiedVisibleAppsOnly = persisted?.ImportantUnclassifiedVisibleAppsOnly
+                    ?? DefaultImportantUnclassifiedVisibleAppsOnly;
+                settings.ImportantUnclassifiedExcludeBackgroundOnly =
+                    persisted?.ImportantUnclassifiedExcludeBackgroundOnly
+                    ?? DefaultImportantUnclassifiedExcludeBackgroundOnly;
             }
             catch
             {
@@ -175,6 +213,13 @@ namespace TimePilot.WinForms.KYS24
                 settings.RuntimeSegmentSortDescending = null;
                 settings.TableColumnLayouts = new Dictionary<string, List<TableColumnLayout>>();
                 settings.AppCategoryManagementColumnVisibility = new Dictionary<string, bool>(StringComparer.Ordinal);
+                settings.ImportantUnclassifiedActiveMinutes = DefaultImportantUnclassifiedActiveMinutes;
+                settings.ImportantUnclassifiedSwitchCount = DefaultImportantUnclassifiedSwitchCount;
+                settings.ImportantUnclassifiedIncludeRecommendations =
+                    DefaultImportantUnclassifiedIncludeRecommendations;
+                settings.ImportantUnclassifiedVisibleAppsOnly = DefaultImportantUnclassifiedVisibleAppsOnly;
+                settings.ImportantUnclassifiedExcludeBackgroundOnly =
+                    DefaultImportantUnclassifiedExcludeBackgroundOnly;
             }
 
             return settings;
@@ -217,7 +262,14 @@ namespace TimePilot.WinForms.KYS24
                 RuntimeSegmentSortDescending = RuntimeSegmentSortDescending,
                 TableColumnLayouts = NormalizeTableColumnLayouts(TableColumnLayouts),
                 AppCategoryManagementColumnVisibility =
-                    NormalizeColumnVisibility(AppCategoryManagementColumnVisibility)
+                    NormalizeColumnVisibility(AppCategoryManagementColumnVisibility),
+                ImportantUnclassifiedActiveMinutes = NormalizeImportantUnclassifiedActiveMinutes(
+                    ImportantUnclassifiedActiveMinutes),
+                ImportantUnclassifiedSwitchCount = NormalizeImportantUnclassifiedSwitchCount(
+                    ImportantUnclassifiedSwitchCount),
+                ImportantUnclassifiedIncludeRecommendations = ImportantUnclassifiedIncludeRecommendations,
+                ImportantUnclassifiedVisibleAppsOnly = ImportantUnclassifiedVisibleAppsOnly,
+                ImportantUnclassifiedExcludeBackgroundOnly = ImportantUnclassifiedExcludeBackgroundOnly
             };
             IdleThresholdMinutes = persisted.IdleThresholdMinutes;
             StartWithWindows = persisted.StartWithWindows;
@@ -248,6 +300,11 @@ namespace TimePilot.WinForms.KYS24
             RuntimeSegmentSortDescending = persisted.RuntimeSegmentSortDescending;
             TableColumnLayouts = persisted.TableColumnLayouts;
             AppCategoryManagementColumnVisibility = persisted.AppCategoryManagementColumnVisibility;
+            ImportantUnclassifiedActiveMinutes = persisted.ImportantUnclassifiedActiveMinutes;
+            ImportantUnclassifiedSwitchCount = persisted.ImportantUnclassifiedSwitchCount;
+            ImportantUnclassifiedIncludeRecommendations = persisted.ImportantUnclassifiedIncludeRecommendations;
+            ImportantUnclassifiedVisibleAppsOnly = persisted.ImportantUnclassifiedVisibleAppsOnly;
+            ImportantUnclassifiedExcludeBackgroundOnly = persisted.ImportantUnclassifiedExcludeBackgroundOnly;
 
             File.WriteAllText(
                 settingsPath,
@@ -348,6 +405,31 @@ namespace TimePilot.WinForms.KYS24
             Save();
         }
 
+        public void SetImportantUnclassifiedCriteria(
+            int activeMinutes,
+            int switchCount,
+            bool includeRecommendations,
+            bool visibleAppsOnly,
+            bool excludeBackgroundOnly)
+        {
+            ImportantUnclassifiedActiveMinutes = NormalizeImportantUnclassifiedActiveMinutes(activeMinutes);
+            ImportantUnclassifiedSwitchCount = NormalizeImportantUnclassifiedSwitchCount(switchCount);
+            ImportantUnclassifiedIncludeRecommendations = includeRecommendations;
+            ImportantUnclassifiedVisibleAppsOnly = visibleAppsOnly;
+            ImportantUnclassifiedExcludeBackgroundOnly = excludeBackgroundOnly;
+            Save();
+        }
+
+        public void ResetImportantUnclassifiedCriteria()
+        {
+            SetImportantUnclassifiedCriteria(
+                DefaultImportantUnclassifiedActiveMinutes,
+                DefaultImportantUnclassifiedSwitchCount,
+                DefaultImportantUnclassifiedIncludeRecommendations,
+                DefaultImportantUnclassifiedVisibleAppsOnly,
+                DefaultImportantUnclassifiedExcludeBackgroundOnly);
+        }
+
         private static int NormalizeIdleThresholdMinutes(int? minutes)
         {
             return Math.Clamp(
@@ -383,6 +465,22 @@ namespace TimePilot.WinForms.KYS24
                 seconds ?? DefaultProcessRuntimeSampleIntervalSeconds,
                 MinProcessRuntimeSampleIntervalSeconds,
                 MaxProcessRuntimeSampleIntervalSeconds);
+        }
+
+        private static int NormalizeImportantUnclassifiedActiveMinutes(int? minutes)
+        {
+            return Math.Clamp(
+                minutes ?? DefaultImportantUnclassifiedActiveMinutes,
+                MinImportantUnclassifiedActiveMinutes,
+                MaxImportantUnclassifiedActiveMinutes);
+        }
+
+        private static int NormalizeImportantUnclassifiedSwitchCount(int? count)
+        {
+            return Math.Clamp(
+                count ?? DefaultImportantUnclassifiedSwitchCount,
+                MinImportantUnclassifiedSwitchCount,
+                MaxImportantUnclassifiedSwitchCount);
         }
 
         private static int? NormalizeNullableProcessRuntimeSampleIntervalSeconds(int? seconds)
@@ -534,6 +632,21 @@ namespace TimePilot.WinForms.KYS24
             public Dictionary<string, List<TableColumnLayout>> TableColumnLayouts { get; set; } = new();
 
             public Dictionary<string, bool> AppCategoryManagementColumnVisibility { get; set; } = new();
+
+            public int ImportantUnclassifiedActiveMinutes { get; set; } =
+                DefaultImportantUnclassifiedActiveMinutes;
+
+            public int ImportantUnclassifiedSwitchCount { get; set; } =
+                DefaultImportantUnclassifiedSwitchCount;
+
+            public bool ImportantUnclassifiedIncludeRecommendations { get; set; } =
+                DefaultImportantUnclassifiedIncludeRecommendations;
+
+            public bool ImportantUnclassifiedVisibleAppsOnly { get; set; } =
+                DefaultImportantUnclassifiedVisibleAppsOnly;
+
+            public bool ImportantUnclassifiedExcludeBackgroundOnly { get; set; } =
+                DefaultImportantUnclassifiedExcludeBackgroundOnly;
         }
 
         public sealed class TableColumnLayout

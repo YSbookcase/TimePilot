@@ -18,11 +18,13 @@ namespace TimePilot.WinForms
         private readonly Button clearCategoryButton = new();
         private readonly Button applyRecommendationButton = new();
         private readonly Button manageCategoriesButton = new();
+        private readonly Button importantCriteriaButton = new();
         private readonly Button refreshButton = new();
         private readonly Button searchWebButton = new();
         private readonly Button closeButton = new();
         private readonly Label guidanceLabel = new();
         private readonly Label statusLabel = new();
+        private readonly ToolTip toolTip = new();
         private readonly DataGridView appsGrid = new();
         private readonly BindingSource appsBindingSource = new();
         private readonly ContextMenuStrip categoryMenu = new();
@@ -90,13 +92,13 @@ namespace TimePilot.WinForms
             Size = new Size(1040, 640);
 
             topPanel.Dock = DockStyle.Top;
-            topPanel.Height = 96;
+            topPanel.Height = 120;
             topPanel.Padding = new Padding(12, 10, 12, 6);
             topPanel.WrapContents = true;
 
             guidanceLabel.AutoSize = false;
             guidanceLabel.Width = 820;
-            guidanceLabel.Height = 20;
+            guidanceLabel.Height = 38;
             guidanceLabel.Margin = new Padding(0, 0, 0, 4);
             guidanceLabel.ForeColor = SystemColors.GrayText;
             guidanceLabel.TextAlign = ContentAlignment.MiddleLeft;
@@ -150,6 +152,10 @@ namespace TimePilot.WinForms
             manageCategoriesButton.Width = 96;
             manageCategoriesButton.Click += OnManageCategoriesButtonClick;
 
+            importantCriteriaButton.Text = IsEnglish ? "Criteria..." : "중요 기준...";
+            importantCriteriaButton.Width = 96;
+            importantCriteriaButton.Click += OnImportantCriteriaButtonClick;
+
             refreshButton.Text = IsEnglish ? "Refresh" : "새로고침";
             refreshButton.Width = 84;
             refreshButton.Click += (_, _) => ReloadAndApplyFilter();
@@ -172,6 +178,7 @@ namespace TimePilot.WinForms
             topPanel.Controls.Add(clearCategoryButton);
             topPanel.Controls.Add(applyRecommendationButton);
             topPanel.Controls.Add(manageCategoriesButton);
+            topPanel.Controls.Add(importantCriteriaButton);
             topPanel.Controls.Add(searchWebButton);
             topPanel.Controls.Add(refreshButton);
 
@@ -426,6 +433,25 @@ namespace TimePilot.WinForms
             LoadData();
         }
 
+        private void OnImportantCriteriaButtonClick(object? sender, EventArgs e)
+        {
+            using var form = new ImportantUnclassifiedCriteriaForm(settings, language);
+            form.Icon = Icon;
+            if (form.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            settings.SetImportantUnclassifiedCriteria(
+                form.ActiveMinutes,
+                form.SwitchCount,
+                form.IncludeRecommendations,
+                form.VisibleAppsOnly,
+                form.ExcludeBackgroundOnly);
+            ApplyFilter();
+            statusLabel.Text = IsEnglish
+                ? "Important unclassified criteria updated."
+                : "중요 미분류 기준을 변경했습니다.";
+        }
+
         private IReadOnlyList<AppCategoryManagementRow> AddIcons(IReadOnlyList<AppCategoryManagementRow> rows)
         {
             return rows
@@ -644,24 +670,48 @@ namespace TimePilot.WinForms
             var unclassifiedCount = allRows.Count(row => row.PrimaryCategoryId is null);
             var importantUnclassifiedCount = allRows.Count(IsImportantUnclassified);
             var recommendationCount = allRows.Count(row => row.PrimaryCategoryId is null && row.HasRecommendation);
+            var criteriaText = GetImportantCriteriaText();
             guidanceLabel.Text = IsEnglish
-                ? $"Unclassified {unclassifiedCount:N0} · Important {importantUnclassifiedCount:N0} · Suggestions {recommendationCount:N0}"
-                : $"미분류 {unclassifiedCount:N0}개 · 중요 미분류 {importantUnclassifiedCount:N0}개 · 추천 가능 {recommendationCount:N0}개";
+                ? $"Unclassified {unclassifiedCount:N0} · Important {importantUnclassifiedCount:N0} · Suggestions {recommendationCount:N0}{Environment.NewLine}{criteriaText}"
+                : $"미분류 {unclassifiedCount:N0}개 · 중요 미분류 {importantUnclassifiedCount:N0}개 · 추천 가능 {recommendationCount:N0}개{Environment.NewLine}{criteriaText}";
+            toolTip.SetToolTip(guidanceLabel, criteriaText);
+            toolTip.SetToolTip(importantCriteriaButton, criteriaText);
         }
 
-        private static bool IsImportantUnclassified(AppCategoryManagementRow row)
+        private string GetImportantCriteriaText()
+        {
+            var targetText = settings.ImportantUnclassifiedVisibleAppsOnly
+                ? IsEnglish ? "visible apps" : "화면 앱"
+                : IsEnglish ? "all tracked apps" : "전체 관측 앱";
+            var recommendationText = settings.ImportantUnclassifiedIncludeRecommendations
+                ? IsEnglish ? "suggestions included" : "추천 포함"
+                : IsEnglish ? "suggestions ignored" : "추천 제외";
+            var backgroundText = settings.ImportantUnclassifiedExcludeBackgroundOnly
+                ? IsEnglish ? "background-only excluded" : "백그라운드 단독 제외"
+                : IsEnglish ? "background-only included" : "백그라운드 단독 포함";
+
+            return IsEnglish
+                ? $"Criteria: {recommendationText} · {targetText} · {settings.ImportantUnclassifiedActiveMinutes}m active/{settings.ImportantUnclassifiedSwitchCount} switches · {backgroundText}"
+                : $"기준: {recommendationText} · {targetText} · 활성 {settings.ImportantUnclassifiedActiveMinutes}분/전환 {settings.ImportantUnclassifiedSwitchCount}회 · {backgroundText}";
+        }
+
+        private bool IsImportantUnclassified(AppCategoryManagementRow row)
         {
             if (row.PrimaryCategoryId is not null)
                 return false;
 
-            if (row.HasRecommendation)
+            if (settings.ImportantUnclassifiedIncludeRecommendations && row.HasRecommendation)
                 return true;
 
-            if (!row.HasForegroundActivity && !row.HasMainWindow)
+            var isVisibleOrUsed = row.HasForegroundActivity || row.HasMainWindow;
+            if (settings.ImportantUnclassifiedVisibleAppsOnly && !isVisibleOrUsed)
                 return false;
 
-            return row.ActiveUsageMs >= 5 * 60 * 1000
-                || row.SwitchCount >= 3;
+            if (settings.ImportantUnclassifiedExcludeBackgroundOnly && !isVisibleOrUsed)
+                return false;
+
+            return row.ActiveUsageMs >= settings.ImportantUnclassifiedActiveMs
+                || row.SwitchCount >= settings.ImportantUnclassifiedSwitchCount;
         }
 
         private IOrderedEnumerable<AppCategoryManagementRow> SortRows(IEnumerable<AppCategoryManagementRow> rows)
