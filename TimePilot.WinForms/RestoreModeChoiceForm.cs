@@ -29,7 +29,7 @@ namespace TimePilot.WinForms
             MinimizeBox = false;
             ShowIcon = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(680, 500);
+            ClientSize = new Size(720, 540);
 
             var root = new TableLayoutPanel
             {
@@ -40,7 +40,7 @@ namespace TimePilot.WinForms
             };
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 238));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 250));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -57,7 +57,7 @@ namespace TimePilot.WinForms
             {
                 AutoSize = false,
                 Dock = DockStyle.Top,
-                Height = 116,
+                Height = 148,
                 Text = BuildPlanText()
             };
 
@@ -80,15 +80,15 @@ namespace TimePilot.WinForms
             modesPanel.Controls.Add(CreateModePanel(
                 isEnglish ? "Return to backup state and keep later records" : "백업 상태로 되돌리되 이후 기록 유지",
                 isEnglish
-                    ? "Planned later. This needs a merge policy for app IDs, categories, settings, and overlapping periods."
-                    : "향후 지원 예정입니다. 앱 ID, 분류, 설정, 겹치는 기간을 어떻게 병합할지 정책이 먼저 필요합니다.",
+                    ? BuildKeepLaterRecordsDescription()
+                    : BuildKeepLaterRecordsDescription(),
                 enabled: false,
                 selected: false), 0, 1);
             modesPanel.Controls.Add(CreateModePanel(
                 isEnglish ? "Import backup records into current data" : "현재 데이터에 백업 기록 가져오기",
                 isEnglish
-                    ? "Planned later. This keeps current settings and imports records using the current database as the base."
-                    : "향후 지원 예정입니다. 현재 설정을 유지하고 현재 데이터베이스를 기준으로 백업 기록을 가져오는 방식입니다.",
+                    ? BuildImportBackupRecordsDescription()
+                    : BuildImportBackupRecordsDescription(),
                 enabled: false,
                 selected: false), 0, 2);
 
@@ -157,7 +157,7 @@ namespace TimePilot.WinForms
                 AutoSize = false,
                 Enabled = enabled,
                 Location = new Point(30, 34),
-                Size = new Size(600, 38),
+                Size = new Size(640, 44),
                 Text = description
             };
 
@@ -178,7 +178,7 @@ namespace TimePilot.WinForms
                 return $"This full-restore backup includes the usage database{(plan.HasSettings ? ", settings" : "")}{(plan.LogCount > 0 ? $", and {plan.LogCount} log file(s)" : "")}."
                     + createdAt
                     + $"\nBackup records: usage records {backupCounts.TotalUsageRecords:N0}, apps {backupCounts.Apps:N0}"
-                    + "\nDetailed comparison with current data will be handled in a later step.";
+                    + BuildDetailedComparisonText();
             }
             else
             {
@@ -189,8 +189,54 @@ namespace TimePilot.WinForms
                 return $"이 전체 복원 백업에는 사용 기록 데이터베이스{(plan.HasSettings ? ", 설정" : "")}{(plan.LogCount > 0 ? $", 로그 {plan.LogCount}개" : "")}가 포함되어 있습니다."
                     + createdAt
                     + $"\n백업 기록: 사용 기록 {backupCounts.TotalUsageRecords:N0}개, 앱 {backupCounts.Apps:N0}개"
-                    + "\n현재 데이터와의 상세 비교는 후속 단계에서 처리합니다.";
+                    + BuildDetailedComparisonText();
             }
+        }
+
+        private string BuildDetailedComparisonText()
+        {
+            if (plan.DetailedComparison is not { } comparison)
+            {
+                return isEnglish
+                    ? "\nCurrent-data comparison is unavailable. The backup file itself was validated."
+                    : "\n현재 데이터와의 비교는 사용할 수 없습니다. 백업 파일 자체 검증은 완료했습니다.";
+            }
+
+            return isEnglish
+                ? "\nCurrent-data comparison: "
+                    + $"current records keepable after backup restore {comparison.CurrentRecordsWithoutBackupOverlap:N0}, "
+                    + $"backup records importable into current data {comparison.BackupRecordsWithoutCurrentOverlap:N0}."
+                : "\n현재 데이터 비교: "
+                    + $"백업 복원 후 보존 가능한 현재 기록 {comparison.CurrentRecordsWithoutBackupOverlap:N0}개, "
+                    + $"현재 데이터로 가져올 수 있는 백업 기록 {comparison.BackupRecordsWithoutCurrentOverlap:N0}개.";
+        }
+
+        private string BuildKeepLaterRecordsDescription()
+        {
+            if (plan.DetailedComparison is not { } comparison)
+            {
+                return isEnglish
+                    ? "Planned later. This needs merge policy decisions before it can be enabled."
+                    : "향후 지원 예정입니다. 병합 정책 결정이 먼저 필요합니다.";
+            }
+
+            return isEnglish
+                ? $"Planned later. Current records without backup overlap: {comparison.CurrentRecordsWithoutBackupOverlap:N0}; overlapping current records: {comparison.CurrentRecordsOverlappingBackup:N0}."
+                : $"향후 지원 예정입니다. 백업과 겹치지 않는 현재 기록 {comparison.CurrentRecordsWithoutBackupOverlap:N0}개, 겹치는 현재 기록 {comparison.CurrentRecordsOverlappingBackup:N0}개.";
+        }
+
+        private string BuildImportBackupRecordsDescription()
+        {
+            if (plan.DetailedComparison is not { } comparison)
+            {
+                return isEnglish
+                    ? "Planned later. This keeps current settings and imports records using current data as the base."
+                    : "향후 지원 예정입니다. 현재 설정을 유지하고 현재 데이터를 기준으로 백업 기록을 가져오는 방식입니다.";
+            }
+
+            return isEnglish
+                ? $"Planned later. Backup records without current overlap: {comparison.BackupRecordsWithoutCurrentOverlap:N0}; overlapping backup records: {comparison.BackupRecordsOverlappingCurrent:N0}."
+                : $"향후 지원 예정입니다. 현재 데이터와 겹치지 않는 백업 기록 {comparison.BackupRecordsWithoutCurrentOverlap:N0}개, 겹치는 백업 기록 {comparison.BackupRecordsOverlappingCurrent:N0}개.";
         }
     }
 
