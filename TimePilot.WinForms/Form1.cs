@@ -4852,9 +4852,9 @@ namespace TimePilot.WinForms
 
             var now = DateTimeOffset.UtcNow;
             string? safetyBackupPath = null;
-            using var progressForm = new RestoreProgressForm(settings.UiLanguage, totalSteps: 4);
+            using var progressForm = new RestoreProgressForm(settings.UiLanguage, totalSteps: 5);
             progressForm.Icon = Icon;
-            progressForm.Show(this);
+            progressForm.ShowCentered(this);
             try
             {
                 SetExportRunning(true, UiText.Main.DataRestorePreparing);

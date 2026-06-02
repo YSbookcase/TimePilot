@@ -23,6 +23,13 @@ namespace TimePilot.WinForms
 
         public Task WaitForCloseAsync() => completionSource.Task;
 
+        public void ShowCentered(Form owner)
+        {
+            StartPosition = FormStartPosition.Manual;
+            CenterWithinOwner(owner);
+            Show(owner);
+        }
+
         public void SetStep(int step, string message)
         {
             var currentStep = Math.Clamp(step, 0, totalSteps);
@@ -62,7 +69,7 @@ namespace TimePilot.WinForms
             SuspendLayout();
 
             Text = isEnglish ? "TimePilot full restore" : "TimePilot 전체 복원";
-            StartPosition = FormStartPosition.CenterParent;
+            StartPosition = FormStartPosition.Manual;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -111,6 +118,20 @@ namespace TimePilot.WinForms
             FormClosed += (_, _) => completionSource.TrySetResult();
 
             ResumeLayout(false);
+        }
+
+        private void CenterWithinOwner(Form owner)
+        {
+            var ownerBounds = owner.WindowState == FormWindowState.Minimized
+                ? Screen.FromControl(owner).WorkingArea
+                : owner.Bounds;
+            var workingArea = Screen.FromControl(owner).WorkingArea;
+            var x = ownerBounds.Left + (ownerBounds.Width - Width) / 2;
+            var y = ownerBounds.Top + (ownerBounds.Height - Height) / 2;
+
+            x = Math.Clamp(x, workingArea.Left, workingArea.Right - Width);
+            y = Math.Clamp(y, workingArea.Top, workingArea.Bottom - Height);
+            Location = new Point(x, y);
         }
 
         private void OnFormClosing(object? sender, FormClosingEventArgs e)
