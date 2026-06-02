@@ -209,6 +209,7 @@
 - [x] Windows 설치 파일
 - [ ] 다국어 UI
 - [ ] 데이터 백업 및 복원
+  - 전체 복원과 병합 복원 정책은 `docs/features/RESTORE_MERGE_POLICY.ko.md`를 기준으로 검토한다.
 - [ ] Microsoft Store 배포 검토
 
 ---
