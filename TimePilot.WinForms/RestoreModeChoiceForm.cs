@@ -29,7 +29,7 @@ namespace TimePilot.WinForms
             MinimizeBox = false;
             ShowIcon = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(660, 430);
+            ClientSize = new Size(680, 500);
 
             var root = new TableLayoutPanel
             {
@@ -57,8 +57,8 @@ namespace TimePilot.WinForms
             {
                 AutoSize = false,
                 Dock = DockStyle.Top,
-                Height = 44,
-                Text = UiText.Main.DataRestorePlan(plan.HasSettings, plan.LogCount, plan.CreatedAt)
+                Height = 116,
+                Text = BuildPlanText()
             };
 
             var modesPanel = new TableLayoutPanel
@@ -157,13 +157,47 @@ namespace TimePilot.WinForms
                 AutoSize = false,
                 Enabled = enabled,
                 Location = new Point(30, 34),
-                Size = new Size(580, 38),
+                Size = new Size(600, 38),
                 Text = description
             };
 
             panel.Controls.Add(radioButton);
             panel.Controls.Add(descriptionLabel);
             return panel;
+        }
+
+        private string BuildPlanText()
+        {
+            var backupCounts = plan.BackupCounts;
+            var currentCounts = plan.CurrentCountsAfterBackup;
+            if (isEnglish)
+            {
+                var createdAt = plan.CreatedAt is { } value
+                    ? $"\nBackup created at: {value.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
+                    : "";
+                var currentAfter = plan.CreatedAt is null
+                    ? "Current records after this backup: unknown because this backup has no metadata."
+                    : $"Current records after this backup: usage records {currentCounts.TotalUsageRecords:N0}, apps {currentCounts.Apps:N0}";
+
+                return $"This full-restore backup includes the usage database{(plan.HasSettings ? ", settings" : "")}{(plan.LogCount > 0 ? $", and {plan.LogCount} log file(s)" : "")}."
+                    + createdAt
+                    + $"\nBackup records: usage records {backupCounts.TotalUsageRecords:N0}, apps {backupCounts.Apps:N0}"
+                    + $"\n{currentAfter}";
+            }
+            else
+            {
+                var createdAt = plan.CreatedAt is { } value
+                    ? $"\n백업 생성 시각: {value.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
+                    : "";
+                var currentAfter = plan.CreatedAt is null
+                    ? "현재 데이터의 백업 이후 기록: 메타데이터가 없어 확인할 수 없습니다."
+                    : $"현재 데이터의 백업 이후 기록: 사용 기록 {currentCounts.TotalUsageRecords:N0}개, 앱 {currentCounts.Apps:N0}개";
+
+                return $"이 전체 복원 백업에는 사용 기록 데이터베이스{(plan.HasSettings ? ", 설정" : "")}{(plan.LogCount > 0 ? $", 로그 {plan.LogCount}개" : "")}가 포함되어 있습니다."
+                    + createdAt
+                    + $"\n백업 기록: 사용 기록 {backupCounts.TotalUsageRecords:N0}개, 앱 {backupCounts.Apps:N0}개"
+                    + $"\n{currentAfter}";
+            }
         }
     }
 
