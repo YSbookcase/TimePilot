@@ -4829,13 +4829,10 @@ namespace TimePilot.WinForms
                 return;
             }
 
-            var confirm = CenteredMessageDialog.Show(
-                this,
-                $"{UiText.Main.DataRestorePlan(plan.HasSettings, plan.LogCount)}\n\n{UiText.Main.DataRestoreWarning}",
-                UiText.Main.DataRestoreTitle,
-                MessageBoxButtons.OKCancel,
-                MessageBoxIcon.Warning);
-            if (confirm != DialogResult.OK)
+            using var restoreModeChoiceForm = new RestoreModeChoiceForm(settings.UiLanguage, plan);
+            restoreModeChoiceForm.Icon = Icon;
+            if (restoreModeChoiceForm.ShowDialog(this) != DialogResult.OK
+                || restoreModeChoiceForm.Choice != RestoreModeChoice.FullReplace)
                 return;
 
             using var safetyBackupChoiceForm = new RestoreSafetyBackupChoiceForm(settings.UiLanguage);
