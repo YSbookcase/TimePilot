@@ -5,14 +5,24 @@ namespace TimePilot.WinForms
     internal sealed class RestoreModeChoiceForm : Form
     {
         private readonly bool isEnglish;
-        private readonly DataBackupRestorePlan plan;
+        private readonly Func<DataBackupDetailedComparison?>? detailedComparisonLoader;
+        private DataBackupRestorePlan plan;
+        private readonly Label planLabel = new();
+        private Label? keepLaterDescriptionLabel;
+        private Label? importBackupDescriptionLabel;
+        private readonly Button detailedAnalysisButton = new();
         private readonly Button continueButton = new();
         private readonly Button cancelButton = new();
+        private bool detailedAnalysisAttempted;
 
-        public RestoreModeChoiceForm(UiLanguage language, DataBackupRestorePlan plan)
+        public RestoreModeChoiceForm(
+            UiLanguage language,
+            DataBackupRestorePlan plan,
+            Func<DataBackupDetailedComparison?>? detailedComparisonLoader = null)
         {
             isEnglish = language == UiLanguage.English;
             this.plan = plan;
+            this.detailedComparisonLoader = detailedComparisonLoader;
             InitializeComponent();
         }
 
@@ -29,7 +39,7 @@ namespace TimePilot.WinForms
             MinimizeBox = false;
             ShowIcon = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(680, 500);
+            ClientSize = new Size(720, 540);
 
             var root = new TableLayoutPanel
             {
@@ -40,7 +50,7 @@ namespace TimePilot.WinForms
             };
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 238));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 250));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -53,13 +63,10 @@ namespace TimePilot.WinForms
                 Text = isEnglish ? "Select how to apply this backup." : "이 백업을 어떻게 적용할지 선택하세요."
             };
 
-            var planLabel = new Label
-            {
-                AutoSize = false,
-                Dock = DockStyle.Top,
-                Height = 116,
-                Text = BuildPlanText()
-            };
+            planLabel.AutoSize = false;
+            planLabel.Dock = DockStyle.Top;
+            planLabel.Height = 148;
+            planLabel.Text = BuildPlanText();
 
             var modesPanel = new TableLayoutPanel
             {
@@ -73,24 +80,25 @@ namespace TimePilot.WinForms
             modesPanel.Controls.Add(CreateModePanel(
                 isEnglish ? "Return completely to the backup state" : "백업 상태로 완전히 되돌리기",
                 isEnglish
-                    ? "Replace the current database and settings with this backup. Records collected after the backup can disappear from the current data."
-                    : "현재 사용 기록 데이터베이스와 설정을 백업 파일의 내용으로 대체합니다. 백업 이후 현재 PC에서 쌓인 기록은 현재 데이터에서 사라질 수 있습니다.",
+                    ? "The fastest restore method. Replace the current database and settings with this backup. Records, apps, categories, and settings changed after the backup can disappear from the current data."
+                    : "가장 빠른 복원 방식입니다. 현재 사용 기록 데이터베이스와 설정을 백업 파일의 내용으로 대체합니다. 백업 이후 쌓인 기록, 앱 정보, 분류, 설정 변경은 현재 데이터에서 사라질 수 있습니다.",
                 enabled: true,
-                selected: true), 0, 0);
+                selected: true,
+                descriptionLabel: out _), 0, 0);
             modesPanel.Controls.Add(CreateModePanel(
                 isEnglish ? "Return to backup state and keep later records" : "백업 상태로 되돌리되 이후 기록 유지",
-                isEnglish
-                    ? "Planned later. This needs a merge policy for app IDs, categories, settings, and overlapping periods."
-                    : "향후 지원 예정입니다. 앱 ID, 분류, 설정, 겹치는 기간을 어떻게 병합할지 정책이 먼저 필요합니다.",
+                BuildKeepLaterRecordsDescription(),
                 enabled: false,
-                selected: false), 0, 1);
+                selected: false,
+                descriptionLabel: out var keepDescription), 0, 1);
+            keepLaterDescriptionLabel = keepDescription;
             modesPanel.Controls.Add(CreateModePanel(
                 isEnglish ? "Import backup records into current data" : "현재 데이터에 백업 기록 가져오기",
-                isEnglish
-                    ? "Planned later. This keeps current settings and imports records using the current database as the base."
-                    : "향후 지원 예정입니다. 현재 설정을 유지하고 현재 데이터베이스를 기준으로 백업 기록을 가져오는 방식입니다.",
+                BuildImportBackupRecordsDescription(),
                 enabled: false,
-                selected: false), 0, 2);
+                selected: false,
+                descriptionLabel: out var importDescription), 0, 2);
+            importBackupDescriptionLabel = importDescription;
 
             var warningLabel = new Label
             {
@@ -117,8 +125,14 @@ namespace TimePilot.WinForms
             cancelButton.DialogResult = DialogResult.Cancel;
             cancelButton.Click += (_, _) => Choice = RestoreModeChoice.Cancel;
 
+            detailedAnalysisButton.Text = isEnglish ? "Detailed analysis" : "상세 분석";
+            detailedAnalysisButton.AutoSize = true;
+            detailedAnalysisButton.Enabled = detailedComparisonLoader is not null;
+            detailedAnalysisButton.Click += OnDetailedAnalysisButtonClick;
+
             buttonPanel.Controls.Add(cancelButton);
             buttonPanel.Controls.Add(continueButton);
+            buttonPanel.Controls.Add(detailedAnalysisButton);
 
             AcceptButton = continueButton;
             CancelButton = cancelButton;
@@ -133,7 +147,12 @@ namespace TimePilot.WinForms
             ResumeLayout(false);
         }
 
-        private Panel CreateModePanel(string title, string description, bool enabled, bool selected)
+        private Panel CreateModePanel(
+            string title,
+            string description,
+            bool enabled,
+            bool selected,
+            out Label descriptionLabel)
         {
             var panel = new Panel
             {
@@ -152,12 +171,12 @@ namespace TimePilot.WinForms
                 Location = new Point(8, 8)
             };
 
-            var descriptionLabel = new Label
+            descriptionLabel = new Label
             {
                 AutoSize = false,
                 Enabled = enabled,
                 Location = new Point(30, 34),
-                Size = new Size(600, 38),
+                Size = new Size(640, 44),
                 Text = description
             };
 
@@ -178,7 +197,7 @@ namespace TimePilot.WinForms
                 return $"This full-restore backup includes the usage database{(plan.HasSettings ? ", settings" : "")}{(plan.LogCount > 0 ? $", and {plan.LogCount} log file(s)" : "")}."
                     + createdAt
                     + $"\nBackup records: usage records {backupCounts.TotalUsageRecords:N0}, apps {backupCounts.Apps:N0}"
-                    + "\nDetailed comparison with current data will be handled in a later step.";
+                    + BuildDetailedComparisonText();
             }
             else
             {
@@ -189,8 +208,97 @@ namespace TimePilot.WinForms
                 return $"이 전체 복원 백업에는 사용 기록 데이터베이스{(plan.HasSettings ? ", 설정" : "")}{(plan.LogCount > 0 ? $", 로그 {plan.LogCount}개" : "")}가 포함되어 있습니다."
                     + createdAt
                     + $"\n백업 기록: 사용 기록 {backupCounts.TotalUsageRecords:N0}개, 앱 {backupCounts.Apps:N0}개"
-                    + "\n현재 데이터와의 상세 비교는 후속 단계에서 처리합니다.";
+                    + BuildDetailedComparisonText();
             }
+        }
+
+        private string BuildDetailedComparisonText()
+        {
+            if (plan.DetailedComparison is not { } comparison)
+            {
+                if (detailedAnalysisAttempted)
+                {
+                    return isEnglish
+                        ? "\nCurrent-data comparison is unavailable. The backup file itself was validated."
+                        : "\n현재 데이터와의 비교는 사용할 수 없습니다. 백업 파일 자체 검증은 완료했습니다.";
+                }
+
+                return isEnglish
+                    ? "\nDetailed analysis is for checking future merge/import restore options."
+                    : "\n상세 분석은 향후 병합/가져오기 복원 판단용 참고 정보입니다.";
+            }
+
+            return isEnglish
+                ? "\nCurrent-data comparison: "
+                    + $"current records keepable after backup restore {comparison.CurrentRecordsWithoutBackupOverlap:N0}, "
+                    + $"backup records importable into current data {comparison.BackupRecordsWithoutCurrentOverlap:N0}."
+                : "\n현재 데이터 비교: "
+                    + $"백업 복원 후 보존 가능한 현재 기록 {comparison.CurrentRecordsWithoutBackupOverlap:N0}개, "
+                    + $"현재 데이터로 가져올 수 있는 백업 기록 {comparison.BackupRecordsWithoutCurrentOverlap:N0}개.";
+        }
+
+        private string BuildKeepLaterRecordsDescription()
+        {
+            if (plan.DetailedComparison is not { } comparison)
+            {
+                return isEnglish
+                    ? "Planned later. This needs merge policy decisions before it can be enabled."
+                    : "향후 지원 예정입니다. 병합 정책 결정이 먼저 필요합니다.";
+            }
+
+            return isEnglish
+                ? $"Planned later. Current records without backup overlap: {comparison.CurrentRecordsWithoutBackupOverlap:N0}; overlapping current records: {comparison.CurrentRecordsOverlappingBackup:N0}."
+                : $"향후 지원 예정입니다. 백업과 겹치지 않는 현재 기록 {comparison.CurrentRecordsWithoutBackupOverlap:N0}개, 겹치는 현재 기록 {comparison.CurrentRecordsOverlappingBackup:N0}개.";
+        }
+
+        private string BuildImportBackupRecordsDescription()
+        {
+            if (plan.DetailedComparison is not { } comparison)
+            {
+                return isEnglish
+                    ? "Planned later. This keeps current settings and imports records using current data as the base."
+                    : "향후 지원 예정입니다. 현재 설정을 유지하고 현재 데이터를 기준으로 백업 기록을 가져오는 방식입니다.";
+            }
+
+            return isEnglish
+                ? $"Planned later. Backup records without current overlap: {comparison.BackupRecordsWithoutCurrentOverlap:N0}; overlapping backup records: {comparison.BackupRecordsOverlappingCurrent:N0}."
+                : $"향후 지원 예정입니다. 현재 데이터와 겹치지 않는 백업 기록 {comparison.BackupRecordsWithoutCurrentOverlap:N0}개, 겹치는 백업 기록 {comparison.BackupRecordsOverlappingCurrent:N0}개.";
+        }
+
+        private async void OnDetailedAnalysisButtonClick(object? sender, EventArgs e)
+        {
+            if (detailedComparisonLoader is null)
+                return;
+
+            detailedAnalysisButton.Enabled = false;
+            detailedAnalysisButton.Text = isEnglish ? "Analyzing..." : "분석 중...";
+            try
+            {
+                var comparison = await Task.Run(detailedComparisonLoader);
+                detailedAnalysisAttempted = true;
+                plan = plan with { DetailedComparison = comparison };
+                RefreshPlanText();
+            }
+            catch
+            {
+                detailedAnalysisAttempted = true;
+                plan = plan with { DetailedComparison = null };
+                RefreshPlanText();
+            }
+            finally
+            {
+                detailedAnalysisButton.Text = isEnglish ? "Detailed analysis" : "상세 분석";
+                detailedAnalysisButton.Enabled = true;
+            }
+        }
+
+        private void RefreshPlanText()
+        {
+            planLabel.Text = BuildPlanText();
+            if (keepLaterDescriptionLabel is not null)
+                keepLaterDescriptionLabel.Text = BuildKeepLaterRecordsDescription();
+            if (importBackupDescriptionLabel is not null)
+                importBackupDescriptionLabel.Text = BuildImportBackupRecordsDescription();
         }
     }
 

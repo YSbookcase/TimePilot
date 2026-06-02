@@ -87,7 +87,17 @@ namespace TimePilot.WinForms.KYS24
                 hasSettings,
                 logCount,
                 createdAt,
-                backupCounts);
+                backupCounts,
+                DetailedComparison: null);
+        }
+
+        public DataBackupDetailedComparison? InspectBackupDetailedComparison(string zipFilePath)
+        {
+            using var archive = OpenBackupArchive(zipFilePath);
+            if (archive.GetEntry(DatabaseEntryName) is null)
+                throw new InvalidDataException(UiText.Main.DataRestoreMissingDatabase);
+
+            return InspectDetailedComparisonIfAvailable(archive);
         }
 
         public DataBackupRestoreResult RestoreBackup(string zipFilePath)
@@ -256,6 +266,179 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
+        private static DataBackupDetailedComparison? InspectDetailedComparisonIfAvailable(ZipArchive archive)
+        {
+            if (!File.Exists(AppDataPaths.DatabasePath))
+                return null;
+
+            var backupTempPath = Path.Combine(
+                Path.GetTempPath(),
+                $"TimePilot-restore-backup-analysis-{Guid.NewGuid():N}.db");
+            var currentTempPath = Path.Combine(
+                Path.GetTempPath(),
+                $"TimePilot-restore-current-analysis-{Guid.NewGuid():N}.db");
+
+            try
+            {
+                var entry = archive.GetEntry(DatabaseEntryName);
+                if (entry is null)
+                    return null;
+
+                entry.ExtractToFile(backupTempPath, overwrite: true);
+                CreateDatabaseSnapshot(AppDataPaths.DatabasePath, currentTempPath);
+
+                using var backupConnection = OpenReadOnlyConnection(backupTempPath);
+                using var currentConnection = OpenReadOnlyConnection(currentTempPath);
+                var backupIntervals = ReadComparisonIntervals(backupConnection);
+                var currentIntervals = ReadComparisonIntervals(currentConnection);
+
+                return new DataBackupDetailedComparison(
+                    CompareTable("foreground_sessions", backupIntervals.ForegroundSessions, currentIntervals.ForegroundSessions),
+                    CompareTable("idle_sessions", backupIntervals.IdleSessions, currentIntervals.IdleSessions),
+                    CompareTable("app_runtime_sessions", backupIntervals.AppRuntimeSessions, currentIntervals.AppRuntimeSessions),
+                    CompareTable("process_runtime_sessions", backupIntervals.ProcessRuntimeSessions, currentIntervals.ProcessRuntimeSessions));
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                SqliteConnection.ClearAllPools();
+                TryDeleteFile(backupTempPath);
+                TryDeleteFile(currentTempPath);
+            }
+        }
+
+        private static void CreateDatabaseSnapshot(string sourcePath, string destinationPath)
+        {
+            using var source = OpenReadOnlyConnection(sourcePath);
+            using var destination = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = destinationPath,
+                Pooling = false
+            }.ToString());
+
+            destination.Open();
+            source.BackupDatabase(destination);
+        }
+
+        private static DataBackupTableComparison CompareTable(
+            string tableName,
+            IReadOnlyList<RestoreAnalysisInterval> backupIntervals,
+            IReadOnlyList<RestoreAnalysisInterval> currentIntervals)
+        {
+            return new DataBackupTableComparison(
+                tableName,
+                RestoreIntervalComparisonService.Compare(backupIntervals, currentIntervals),
+                RestoreIntervalComparisonService.Compare(currentIntervals, backupIntervals));
+        }
+
+        private static DataBackupComparisonIntervals ReadComparisonIntervals(SqliteConnection connection)
+        {
+            return new DataBackupComparisonIntervals(
+                ForegroundSessions: ReadSessionIntervals(
+                    connection,
+                    "foreground_sessions",
+                    "started_at",
+                    GetBestEndColumn(connection, "foreground_sessions", "ended_at", "last_observed_at"),
+                    "app_id"),
+                IdleSessions: ReadSessionIntervals(
+                    connection,
+                    "idle_sessions",
+                    "started_at",
+                    "ended_at",
+                    "foreground_app_id"),
+                AppRuntimeSessions: ReadSessionIntervals(
+                    connection,
+                    "app_runtime_sessions",
+                    "started_at",
+                    GetBestEndColumn(connection, "app_runtime_sessions", "ended_at", "last_heartbeat_at"),
+                    appIdColumn: null),
+                ProcessRuntimeSessions: ReadSessionIntervals(
+                    connection,
+                    "process_runtime_sessions",
+                    "started_at",
+                    GetBestEndColumn(connection, "process_runtime_sessions", "ended_at", "last_observed_at"),
+                    "app_id"));
+        }
+
+        private static string GetBestEndColumn(SqliteConnection connection, string tableName, string primaryColumn, string fallbackColumn)
+        {
+            if (ColumnExists(connection, tableName, fallbackColumn))
+                return $"COALESCE({primaryColumn}, {fallbackColumn})";
+
+            return primaryColumn;
+        }
+
+        private static IReadOnlyList<RestoreAnalysisInterval> ReadSessionIntervals(
+            SqliteConnection connection,
+            string tableName,
+            string startColumn,
+            string endExpression,
+            string? appIdColumn)
+        {
+            if (!TableExists(connection, tableName))
+                return [];
+
+            var intervals = new List<RestoreAnalysisInterval>();
+            using var command = connection.CreateCommand();
+            var matchKeyExpression = appIdColumn is null
+                ? "NULL"
+                : "a.process_name";
+            var joinClause = appIdColumn is null
+                ? ""
+                : $"LEFT JOIN apps a ON a.id = s.{appIdColumn}";
+            command.CommandText = $"""
+                SELECT s.{startColumn},
+                       {endExpression},
+                       {matchKeyExpression}
+                FROM {tableName} s
+                {joinClause}
+                WHERE {endExpression} IS NOT NULL;
+                """;
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = ParseTimestamp(reader.GetString(0));
+                var endedAt = ParseTimestamp(reader.GetString(1));
+                var matchKey = reader.IsDBNull(2) ? null : reader.GetString(2);
+                if (string.IsNullOrWhiteSpace(matchKey))
+                    matchKey = null;
+
+                intervals.Add(new RestoreAnalysisInterval(startedAt, endedAt, matchKey));
+            }
+
+            return intervals;
+        }
+
+        private static bool ColumnExists(SqliteConnection connection, string tableName, string columnName)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = $"PRAGMA table_info({tableName});";
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static SqliteConnection OpenReadOnlyConnection(string databasePath)
+        {
+            var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = databasePath,
+                Mode = SqliteOpenMode.ReadOnly,
+                Pooling = false
+            }.ToString());
+            connection.Open();
+            return connection;
+        }
+
         private static DataBackupRecordCounts CountDatabaseRecords(SqliteConnection connection)
         {
             return new DataBackupRecordCounts(
@@ -321,6 +504,11 @@ namespace TimePilot.WinForms.KYS24
             return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
         }
 
+        private static DateTimeOffset ParseTimestamp(string timestamp)
+        {
+            return DateTimeOffset.Parse(timestamp, null, System.Globalization.DateTimeStyles.RoundtripKind);
+        }
+
         private static string BuildReadme(DateTimeOffset createdAt)
         {
             var builder = new StringBuilder();
@@ -384,7 +572,8 @@ namespace TimePilot.WinForms.KYS24
         bool HasSettings,
         int LogCount,
         DateTimeOffset? CreatedAt,
-        DataBackupRecordCounts BackupCounts);
+        DataBackupRecordCounts BackupCounts,
+        DataBackupDetailedComparison? DetailedComparison);
 
     internal sealed record DataBackupRestoreResult(IReadOnlyList<string> RestoredFiles);
 
@@ -401,6 +590,57 @@ namespace TimePilot.WinForms.KYS24
         public int TotalUsageRecords =>
             ForegroundSessions + IdleSessions + AppRuntimeSessions + ProcessRuntimeSessions + SystemEvents;
     }
+
+    internal sealed record DataBackupDetailedComparison(
+        DataBackupTableComparison ForegroundSessions,
+        DataBackupTableComparison IdleSessions,
+        DataBackupTableComparison AppRuntimeSessions,
+        DataBackupTableComparison ProcessRuntimeSessions)
+    {
+        public int CurrentRecordsWithoutBackupOverlap =>
+            ForegroundSessions.CurrentRecordsWithoutBackupOverlap
+            + IdleSessions.CurrentRecordsWithoutBackupOverlap
+            + AppRuntimeSessions.CurrentRecordsWithoutBackupOverlap
+            + ProcessRuntimeSessions.CurrentRecordsWithoutBackupOverlap;
+
+        public int CurrentRecordsOverlappingBackup =>
+            ForegroundSessions.CurrentRecordsOverlappingBackup
+            + IdleSessions.CurrentRecordsOverlappingBackup
+            + AppRuntimeSessions.CurrentRecordsOverlappingBackup
+            + ProcessRuntimeSessions.CurrentRecordsOverlappingBackup;
+
+        public int BackupRecordsWithoutCurrentOverlap =>
+            ForegroundSessions.BackupRecordsWithoutCurrentOverlap
+            + IdleSessions.BackupRecordsWithoutCurrentOverlap
+            + AppRuntimeSessions.BackupRecordsWithoutCurrentOverlap
+            + ProcessRuntimeSessions.BackupRecordsWithoutCurrentOverlap;
+
+        public int BackupRecordsOverlappingCurrent =>
+            ForegroundSessions.BackupRecordsOverlappingCurrent
+            + IdleSessions.BackupRecordsOverlappingCurrent
+            + AppRuntimeSessions.BackupRecordsOverlappingCurrent
+            + ProcessRuntimeSessions.BackupRecordsOverlappingCurrent;
+    }
+
+    internal sealed record DataBackupTableComparison(
+        string TableName,
+        RestoreIntervalComparisonResult BackupBaselineCurrentCandidate,
+        RestoreIntervalComparisonResult CurrentBaselineBackupCandidate)
+    {
+        public int CurrentRecordsWithoutBackupOverlap => BackupBaselineCurrentCandidate.ImportableCount;
+
+        public int CurrentRecordsOverlappingBackup => BackupBaselineCurrentCandidate.ExcludedByOverlapCount;
+
+        public int BackupRecordsWithoutCurrentOverlap => CurrentBaselineBackupCandidate.ImportableCount;
+
+        public int BackupRecordsOverlappingCurrent => CurrentBaselineBackupCandidate.ExcludedByOverlapCount;
+    }
+
+    internal sealed record DataBackupComparisonIntervals(
+        IReadOnlyList<RestoreAnalysisInterval> ForegroundSessions,
+        IReadOnlyList<RestoreAnalysisInterval> IdleSessions,
+        IReadOnlyList<RestoreAnalysisInterval> AppRuntimeSessions,
+        IReadOnlyList<RestoreAnalysisInterval> ProcessRuntimeSessions);
 
     internal sealed record DataBackupMetadata(
         int SchemaVersion,
