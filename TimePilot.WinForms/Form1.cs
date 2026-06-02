@@ -4838,8 +4838,14 @@ namespace TimePilot.WinForms
             if (confirm != DialogResult.OK)
                 return;
 
+            using var safetyBackupChoiceForm = new RestoreSafetyBackupChoiceForm(settings.UiLanguage);
+            safetyBackupChoiceForm.Icon = Icon;
+            if (safetyBackupChoiceForm.ShowDialog(this) != DialogResult.OK
+                || safetyBackupChoiceForm.Choice == RestoreSafetyBackupChoice.Cancel)
+                return;
+
             var now = DateTimeOffset.UtcNow;
-            string safetyBackupPath;
+            string? safetyBackupPath = null;
             try
             {
                 SetExportRunning(true, UiText.Main.DataRestorePreparing);
@@ -4847,9 +4853,13 @@ namespace TimePilot.WinForms
                 sampleTimer.Stop();
                 EndCurrentTrackingSessions(now, "restore-data");
 
-                SetExportRunning(true, UiText.Main.DataRestoreCreatingSafetyBackup);
-                await AllowUiToRenderAsync();
-                safetyBackupPath = CreatePreRestoreSafetyBackup(service, now);
+                if (safetyBackupChoiceForm.Choice == RestoreSafetyBackupChoice.CreateSafetyBackup)
+                {
+                    SetExportRunning(true, UiText.Main.DataRestoreCreatingSafetyBackup);
+                    await AllowUiToRenderAsync();
+                    safetyBackupPath = CreatePreRestoreSafetyBackup(service, now);
+                }
+
                 storage?.Dispose();
                 storage = null;
 
@@ -4865,7 +4875,9 @@ namespace TimePilot.WinForms
                 SetExportRunning(false, BuildExportCompletedStatus(UiText.Main.DataRestoreTitle));
                 CenteredMessageDialog.Show(
                     this,
-                    UiText.Main.DataRestoreCompleted(result.RestoredFiles.Count, safetyBackupPath),
+                    safetyBackupPath is null
+                        ? UiText.Main.DataRestoreCompletedWithoutSafetyBackup(result.RestoredFiles.Count)
+                        : UiText.Main.DataRestoreCompleted(result.RestoredFiles.Count, safetyBackupPath),
                     UiText.Main.DataRestoreTitle,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
