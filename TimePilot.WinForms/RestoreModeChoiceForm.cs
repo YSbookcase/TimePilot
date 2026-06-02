@@ -29,7 +29,7 @@ namespace TimePilot.WinForms
             MinimizeBox = false;
             ShowIcon = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(680, 500);
+            ClientSize = new Size(700, 540);
 
             var root = new TableLayoutPanel
             {
@@ -57,7 +57,7 @@ namespace TimePilot.WinForms
             {
                 AutoSize = false,
                 Dock = DockStyle.Top,
-                Height = 116,
+                Height = 154,
                 Text = BuildPlanText()
             };
 
@@ -170,6 +170,9 @@ namespace TimePilot.WinForms
         {
             var backupCounts = plan.BackupCounts;
             var currentCounts = plan.CurrentCountsAfterBackup;
+            var preview = plan.PreviewAnalysis;
+            var importableCounts = preview.ImportableCounts;
+            var excludedCounts = preview.ExcludedOverlapCounts;
             if (isEnglish)
             {
                 var createdAt = plan.CreatedAt is { } value
@@ -182,7 +185,9 @@ namespace TimePilot.WinForms
                 return $"This full-restore backup includes the usage database{(plan.HasSettings ? ", settings" : "")}{(plan.LogCount > 0 ? $", and {plan.LogCount} log file(s)" : "")}."
                     + createdAt
                     + $"\nBackup records: usage records {backupCounts.TotalUsageRecords:N0}, apps {backupCounts.Apps:N0}"
-                    + $"\n{currentAfter}";
+                    + $"\n{currentAfter}"
+                    + $"\nPreview: importable usage records {importableCounts.TotalUsageRecords:N0}, excluded overlapping records {excludedCounts.TotalUsageRecords:N0}"
+                    + $"\nApp preview: new apps {preview.NewAppCandidates:N0}, match conflicts {preview.AppMatchConflictCandidates:N0}";
             }
             else
             {
@@ -196,7 +201,9 @@ namespace TimePilot.WinForms
                 return $"이 전체 복원 백업에는 사용 기록 데이터베이스{(plan.HasSettings ? ", 설정" : "")}{(plan.LogCount > 0 ? $", 로그 {plan.LogCount}개" : "")}가 포함되어 있습니다."
                     + createdAt
                     + $"\n백업 기록: 사용 기록 {backupCounts.TotalUsageRecords:N0}개, 앱 {backupCounts.Apps:N0}개"
-                    + $"\n{currentAfter}";
+                    + $"\n{currentAfter}"
+                    + $"\n미리보기: 가져올 수 있는 사용 기록 {importableCounts.TotalUsageRecords:N0}개, 겹쳐 제외될 기록 {excludedCounts.TotalUsageRecords:N0}개"
+                    + $"\n앱 미리보기: 새 앱 {preview.NewAppCandidates:N0}개, 매칭 충돌 후보 {preview.AppMatchConflictCandidates:N0}개";
             }
         }
     }

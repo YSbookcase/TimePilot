@@ -81,15 +81,15 @@ namespace TimePilot.WinForms.KYS24
             if (!hasDatabase)
                 throw new InvalidDataException(UiText.Main.DataRestoreMissingDatabase);
 
-            var backupCounts = ValidateDatabaseEntry(archive);
-            var currentCountsAfterBackup = CountCurrentRecordsAfter(createdAt);
+            var databaseInspection = InspectDatabaseEntry(archive, createdAt);
             return new DataBackupRestorePlan(
                 hasDatabase,
                 hasSettings,
                 logCount,
                 createdAt,
-                backupCounts,
-                currentCountsAfterBackup);
+                databaseInspection.BackupCounts,
+                databaseInspection.CurrentCountsAfterBackup,
+                databaseInspection.PreviewAnalysis);
         }
 
         public DataBackupRestoreResult RestoreBackup(string zipFilePath)
@@ -218,7 +218,7 @@ namespace TimePilot.WinForms.KYS24
             restoredFiles.Add(entryName);
         }
 
-        private static DataBackupRecordCounts ValidateDatabaseEntry(ZipArchive archive)
+        private static DataBackupDatabaseInspection InspectDatabaseEntry(ZipArchive archive, DateTimeOffset? createdAt)
         {
             var entry = archive.GetEntry(DatabaseEntryName);
             if (entry is null)
@@ -241,7 +241,13 @@ namespace TimePilot.WinForms.KYS24
 
                 ValidateIntegrity(connection);
                 ValidateRequiredTables(connection);
-                return CountDatabaseRecords(connection);
+                var backupCounts = CountDatabaseRecords(connection);
+                var previewAnalysis = AnalyzeCurrentRecordsAfterBackup(tempPath, createdAt);
+
+                return new DataBackupDatabaseInspection(
+                    backupCounts,
+                    previewAnalysis.CurrentCountsAfterBackup,
+                    previewAnalysis);
             }
             catch (InvalidDataException)
             {
@@ -258,10 +264,12 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
-        private static DataBackupRecordCounts CountCurrentRecordsAfter(DateTimeOffset? createdAt)
+        private static DataBackupPreviewAnalysis AnalyzeCurrentRecordsAfterBackup(
+            string backupDatabasePath,
+            DateTimeOffset? createdAt)
         {
             if (createdAt is null || !File.Exists(AppDataPaths.DatabasePath))
-                return DataBackupRecordCounts.Empty;
+                return DataBackupPreviewAnalysis.Empty;
 
             try
             {
@@ -272,23 +280,76 @@ namespace TimePilot.WinForms.KYS24
                     Pooling = false
                 }.ToString());
                 connection.Open();
+                AttachBackupDatabase(connection, backupDatabasePath);
 
-                return new DataBackupRecordCounts(
+                var currentCountsAfterBackup = new DataBackupRecordCounts(
                     Apps: CountRowsAfter(connection, "apps", "first_seen_at", createdAt.Value),
                     ForegroundSessions: CountRowsAfter(connection, "foreground_sessions", "started_at", createdAt.Value),
                     IdleSessions: CountRowsAfter(connection, "idle_sessions", "started_at", createdAt.Value),
                     AppRuntimeSessions: CountRowsAfter(connection, "app_runtime_sessions", "started_at", createdAt.Value),
                     ProcessRuntimeSessions: CountRowsAfter(connection, "process_runtime_sessions", "started_at", createdAt.Value),
                     SystemEvents: CountRowsAfter(connection, "system_events", "occurred_at", createdAt.Value));
+
+                var excludedOverlapCounts = new DataBackupRecordCounts(
+                    Apps: 0,
+                    ForegroundSessions: CountOverlappingRowsAfter(
+                        connection,
+                        "foreground_sessions",
+                        "current_row.started_at",
+                        "COALESCE(current_row.ended_at, current_row.last_observed_at, current_row.started_at)",
+                        "backup_row.started_at",
+                        "COALESCE(backup_row.ended_at, backup_row.last_observed_at, backup_row.started_at)",
+                        createdAt.Value),
+                    IdleSessions: CountOverlappingRowsAfter(
+                        connection,
+                        "idle_sessions",
+                        "current_row.started_at",
+                        "COALESCE(current_row.ended_at, current_row.started_at)",
+                        "backup_row.started_at",
+                        "COALESCE(backup_row.ended_at, backup_row.started_at)",
+                        createdAt.Value),
+                    AppRuntimeSessions: CountOverlappingRowsAfter(
+                        connection,
+                        "app_runtime_sessions",
+                        "current_row.started_at",
+                        "COALESCE(current_row.ended_at, current_row.last_heartbeat_at, current_row.started_at)",
+                        "backup_row.started_at",
+                        "COALESCE(backup_row.ended_at, backup_row.last_heartbeat_at, backup_row.started_at)",
+                        createdAt.Value),
+                    ProcessRuntimeSessions: CountOverlappingProcessRuntimeRowsAfter(connection, createdAt.Value),
+                    SystemEvents: CountMatchingSystemEventsAfter(connection, createdAt.Value));
+
+                var importableCounts = new DataBackupRecordCounts(
+                    Apps: Math.Max(0, CountNewAppCandidates(connection, createdAt.Value)),
+                    ForegroundSessions: Math.Max(0, currentCountsAfterBackup.ForegroundSessions - excludedOverlapCounts.ForegroundSessions),
+                    IdleSessions: Math.Max(0, currentCountsAfterBackup.IdleSessions - excludedOverlapCounts.IdleSessions),
+                    AppRuntimeSessions: Math.Max(0, currentCountsAfterBackup.AppRuntimeSessions - excludedOverlapCounts.AppRuntimeSessions),
+                    ProcessRuntimeSessions: Math.Max(0, currentCountsAfterBackup.ProcessRuntimeSessions - excludedOverlapCounts.ProcessRuntimeSessions),
+                    SystemEvents: Math.Max(0, currentCountsAfterBackup.SystemEvents - excludedOverlapCounts.SystemEvents));
+
+                return new DataBackupPreviewAnalysis(
+                    currentCountsAfterBackup,
+                    importableCounts,
+                    excludedOverlapCounts,
+                    NewAppCandidates: importableCounts.Apps,
+                    AppMatchConflictCandidates: CountAppMatchConflictCandidates(connection, createdAt.Value));
             }
             catch
             {
-                return DataBackupRecordCounts.Empty;
+                return DataBackupPreviewAnalysis.Empty;
             }
             finally
             {
                 SqliteConnection.ClearAllPools();
             }
+        }
+
+        private static void AttachBackupDatabase(SqliteConnection connection, string backupDatabasePath)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "ATTACH DATABASE $backupPath AS backup;";
+            command.Parameters.AddWithValue("$backupPath", backupDatabasePath);
+            command.ExecuteNonQuery();
         }
 
         private static DataBackupRecordCounts CountDatabaseRecords(SqliteConnection connection)
@@ -327,6 +388,130 @@ namespace TimePilot.WinForms.KYS24
             return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
         }
 
+        private static int CountOverlappingRowsAfter(
+            SqliteConnection connection,
+            string tableName,
+            string currentStartExpression,
+            string currentEndExpression,
+            string backupStartExpression,
+            string backupEndExpression,
+            DateTimeOffset startedAfter)
+        {
+            if (!TableExists(connection, tableName) || !TableExists(connection, $"backup.{tableName}"))
+                return 0;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = $"""
+                SELECT COUNT(*)
+                FROM {tableName} current_row
+                WHERE current_row.started_at >= $startedAfter
+                  AND EXISTS (
+                      SELECT 1
+                      FROM backup.{tableName} backup_row
+                      WHERE {currentStartExpression} < {backupEndExpression}
+                        AND {currentEndExpression} > {backupStartExpression}
+                  );
+                """;
+            command.Parameters.AddWithValue("$startedAfter", startedAfter.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+            return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private static int CountOverlappingProcessRuntimeRowsAfter(SqliteConnection connection, DateTimeOffset startedAfter)
+        {
+            if (!TableExists(connection, "process_runtime_sessions")
+                || !TableExists(connection, "backup.process_runtime_sessions")
+                || !TableExists(connection, "apps")
+                || !TableExists(connection, "backup.apps"))
+                return 0;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT COUNT(*)
+                FROM process_runtime_sessions current_row
+                JOIN apps current_app ON current_app.id = current_row.app_id
+                WHERE current_row.started_at >= $startedAfter
+                  AND EXISTS (
+                      SELECT 1
+                      FROM backup.process_runtime_sessions backup_row
+                      JOIN backup.apps backup_app ON backup_app.id = backup_row.app_id
+                      WHERE current_app.process_name = backup_app.process_name
+                        AND current_row.started_at < COALESCE(backup_row.ended_at, backup_row.last_observed_at, backup_row.started_at)
+                        AND COALESCE(current_row.ended_at, current_row.last_observed_at, current_row.started_at) > backup_row.started_at
+                  );
+                """;
+            command.Parameters.AddWithValue("$startedAfter", startedAfter.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+            return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private static int CountMatchingSystemEventsAfter(SqliteConnection connection, DateTimeOffset startedAfter)
+        {
+            if (!TableExists(connection, "system_events") || !TableExists(connection, "backup.system_events"))
+                return 0;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT COUNT(*)
+                FROM system_events current_row
+                WHERE current_row.occurred_at >= $startedAfter
+                  AND EXISTS (
+                      SELECT 1
+                      FROM backup.system_events backup_row
+                      WHERE backup_row.event_type = current_row.event_type
+                        AND backup_row.occurred_at = current_row.occurred_at
+                  );
+                """;
+            command.Parameters.AddWithValue("$startedAfter", startedAfter.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+            return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private static int CountNewAppCandidates(SqliteConnection connection, DateTimeOffset startedAfter)
+        {
+            if (!TableExists(connection, "apps") || !TableExists(connection, "backup.apps"))
+                return 0;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT COUNT(*)
+                FROM apps current_app
+                WHERE current_app.first_seen_at >= $startedAfter
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM backup.apps backup_app
+                      WHERE backup_app.process_name = current_app.process_name
+                        AND (
+                            backup_app.executable_path = current_app.executable_path
+                            OR backup_app.executable_path IS NULL
+                            OR current_app.executable_path IS NULL
+                        )
+                  );
+                """;
+            command.Parameters.AddWithValue("$startedAfter", startedAfter.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+            return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        private static int CountAppMatchConflictCandidates(SqliteConnection connection, DateTimeOffset startedAfter)
+        {
+            if (!TableExists(connection, "apps") || !TableExists(connection, "backup.apps"))
+                return 0;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT COUNT(*)
+                FROM apps current_app
+                WHERE current_app.first_seen_at >= $startedAfter
+                  AND current_app.executable_path IS NOT NULL
+                  AND EXISTS (
+                      SELECT 1
+                      FROM backup.apps backup_app
+                      WHERE backup_app.process_name = current_app.process_name
+                        AND backup_app.executable_path IS NOT NULL
+                        AND backup_app.executable_path <> current_app.executable_path
+                  );
+                """;
+            command.Parameters.AddWithValue("$startedAfter", startedAfter.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+            return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         private static void ValidateIntegrity(SqliteConnection connection)
         {
             using var command = connection.CreateCommand();
@@ -350,14 +535,23 @@ namespace TimePilot.WinForms.KYS24
 
         private static bool TableExists(SqliteConnection connection, string tableName)
         {
+            var schemaName = "main";
+            var actualTableName = tableName;
+            var separatorIndex = tableName.IndexOf('.', StringComparison.Ordinal);
+            if (separatorIndex > 0 && separatorIndex < tableName.Length - 1)
+            {
+                schemaName = tableName[..separatorIndex];
+                actualTableName = tableName[(separatorIndex + 1)..];
+            }
+
             using var command = connection.CreateCommand();
-            command.CommandText = """
+            command.CommandText = $"""
                 SELECT COUNT(*)
-                FROM sqlite_master
+                FROM {schemaName}.sqlite_master
                 WHERE type = 'table'
                   AND name = $tableName;
                 """;
-            command.Parameters.AddWithValue("$tableName", tableName);
+            command.Parameters.AddWithValue("$tableName", actualTableName);
             return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
         }
 
@@ -425,9 +619,15 @@ namespace TimePilot.WinForms.KYS24
         int LogCount,
         DateTimeOffset? CreatedAt,
         DataBackupRecordCounts BackupCounts,
-        DataBackupRecordCounts CurrentCountsAfterBackup);
+        DataBackupRecordCounts CurrentCountsAfterBackup,
+        DataBackupPreviewAnalysis PreviewAnalysis);
 
     internal sealed record DataBackupRestoreResult(IReadOnlyList<string> RestoredFiles);
+
+    internal sealed record DataBackupDatabaseInspection(
+        DataBackupRecordCounts BackupCounts,
+        DataBackupRecordCounts CurrentCountsAfterBackup,
+        DataBackupPreviewAnalysis PreviewAnalysis);
 
     internal sealed record DataBackupRecordCounts(
         int Apps,
@@ -441,6 +641,21 @@ namespace TimePilot.WinForms.KYS24
 
         public int TotalUsageRecords =>
             ForegroundSessions + IdleSessions + AppRuntimeSessions + ProcessRuntimeSessions + SystemEvents;
+    }
+
+    internal sealed record DataBackupPreviewAnalysis(
+        DataBackupRecordCounts CurrentCountsAfterBackup,
+        DataBackupRecordCounts ImportableCounts,
+        DataBackupRecordCounts ExcludedOverlapCounts,
+        int NewAppCandidates,
+        int AppMatchConflictCandidates)
+    {
+        public static DataBackupPreviewAnalysis Empty { get; } = new(
+            DataBackupRecordCounts.Empty,
+            DataBackupRecordCounts.Empty,
+            DataBackupRecordCounts.Empty,
+            NewAppCandidates: 0,
+            AppMatchConflictCandidates: 0);
     }
 
     internal sealed record DataBackupMetadata(
