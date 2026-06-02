@@ -4852,9 +4852,13 @@ namespace TimePilot.WinForms
 
             var now = DateTimeOffset.UtcNow;
             string? safetyBackupPath = null;
+            using var progressForm = new RestoreProgressForm(settings.UiLanguage, totalSteps: 4);
+            progressForm.Icon = Icon;
+            progressForm.Show(this);
             try
             {
                 SetExportRunning(true, UiText.Main.DataRestorePreparing);
+                progressForm.SetStep(1, UiText.Main.DataRestorePreparing);
                 await AllowUiToRenderAsync();
                 sampleTimer.Stop();
                 EndCurrentTrackingSessions(now, "restore-data");
@@ -4862,44 +4866,49 @@ namespace TimePilot.WinForms
                 if (safetyBackupChoiceForm.Choice == RestoreSafetyBackupChoice.CreateSafetyBackup)
                 {
                     SetExportRunning(true, UiText.Main.DataRestoreCreatingSafetyBackup);
+                    progressForm.SetStep(2, UiText.Main.DataRestoreCreatingSafetyBackup);
                     await AllowUiToRenderAsync();
                     safetyBackupPath = CreatePreRestoreSafetyBackup(service, now);
+                }
+                else
+                {
+                    progressForm.SetStep(
+                        2,
+                        settings.UiLanguage == UiLanguage.English
+                            ? "Skipping safety backup..."
+                            : "안전 백업을 건너뛰는 중...");
+                    await AllowUiToRenderAsync();
                 }
 
                 storage?.Dispose();
                 storage = null;
 
                 SetExportRunning(true, UiText.Main.DataRestoreApplyingBackup);
+                progressForm.SetStep(3, UiText.Main.DataRestoreApplyingBackup);
                 await AllowUiToRenderAsync();
                 var fileName = dialog.FileName;
                 var result = await Task.Run(() => service.RestoreBackup(fileName));
 
                 SetExportRunning(true, UiText.Main.DataRestoreRestartingSession);
+                progressForm.SetStep(4, UiText.Main.DataRestoreRestartingSession);
                 await AllowUiToRenderAsync();
                 ReinitializeStorageAfterDataRestore(DateTimeOffset.UtcNow);
 
                 SetExportRunning(false, BuildExportCompletedStatus(UiText.Main.DataRestoreTitle));
-                CenteredMessageDialog.Show(
-                    this,
+                progressForm.ShowCompleted(
                     safetyBackupPath is null
                         ? UiText.Main.DataRestoreCompletedWithoutSafetyBackup(result.RestoredFiles.Count)
-                        : UiText.Main.DataRestoreCompleted(result.RestoredFiles.Count, safetyBackupPath),
-                    UiText.Main.DataRestoreTitle,
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
+                        : UiText.Main.DataRestoreCompleted(result.RestoredFiles.Count, safetyBackupPath));
                 ClearExportStatus();
+                await progressForm.WaitForCloseAsync();
             }
             catch (Exception ex)
             {
                 TryReinitializeStorageAfterRestoreFailure();
                 SetExportRunning(false, BuildExportFailedStatus(UiText.Main.DataRestoreTitle));
-                CenteredMessageDialog.Show(
-                    this,
-                    UiText.Main.DataRestoreFailed(ex.Message),
-                    UiText.Main.DataRestoreTitle,
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                progressForm.ShowFailed(UiText.Main.DataRestoreFailed(ex.Message));
                 ClearExportStatus();
+                await progressForm.WaitForCloseAsync();
             }
             finally
             {
