@@ -80,8 +80,8 @@ namespace TimePilot.WinForms
             modesPanel.Controls.Add(CreateModePanel(
                 isEnglish ? "Return completely to the backup state" : "백업 상태로 완전히 되돌리기",
                 isEnglish
-                    ? "Replace the current database and settings with this backup. Records collected after the backup can disappear from the current data."
-                    : "현재 사용 기록 데이터베이스와 설정을 백업 파일의 내용으로 대체합니다. 백업 이후 현재 PC에서 쌓인 기록은 현재 데이터에서 사라질 수 있습니다.",
+                    ? "The fastest restore method. Replace the current database and settings with this backup. Records, apps, categories, and settings changed after the backup can disappear from the current data."
+                    : "가장 빠른 복원 방식입니다. 현재 사용 기록 데이터베이스와 설정을 백업 파일의 내용으로 대체합니다. 백업 이후 쌓인 기록, 앱 정보, 분류, 설정 변경은 현재 데이터에서 사라질 수 있습니다.",
                 enabled: true,
                 selected: true,
                 descriptionLabel: out _), 0, 0);
@@ -224,8 +224,8 @@ namespace TimePilot.WinForms
                 }
 
                 return isEnglish
-                    ? "\nClick Detailed analysis to compare this backup with the current data."
-                    : "\n상세 분석을 누르면 현재 데이터와 이 백업을 비교합니다.";
+                    ? "\nDetailed analysis is for checking future merge/import restore options."
+                    : "\n상세 분석은 향후 병합/가져오기 복원 판단용 참고 정보입니다.";
             }
 
             return isEnglish
