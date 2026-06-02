@@ -17,6 +17,8 @@ namespace TimePilot.WinForms
         private readonly Button lastWeekButton = new();
         private readonly Button thisMonthButton = new();
         private readonly Button lastMonthButton = new();
+        private readonly Button thisYearButton = new();
+        private readonly Button lastYearButton = new();
         private readonly Button okButton = new();
         private readonly Button cancelButton = new();
         private readonly bool isEnglish;
@@ -60,7 +62,7 @@ namespace TimePilot.WinForms
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(520, 222);
+            ClientSize = new Size(560, 246);
 
             mainPanel.Dock = DockStyle.Fill;
             mainPanel.Padding = new Padding(12);
@@ -68,7 +70,7 @@ namespace TimePilot.WinForms
             mainPanel.RowCount = 4;
             mainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 72));
             mainPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+            mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             mainPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -83,6 +85,8 @@ namespace TimePilot.WinForms
             ConfigurePresetButton(lastWeekButton, isEnglish ? "Last week" : "지난주", (_, _) => SetRange(GetWeekStart(today).AddDays(-7), GetWeekStart(today).AddDays(-1)));
             ConfigurePresetButton(thisMonthButton, isEnglish ? "This month" : "이번 달", (_, _) => SetRange(new DateTime(today.Year, today.Month, 1), today));
             ConfigurePresetButton(lastMonthButton, isEnglish ? "Last month" : "지난달", (_, _) => SetRange(GetLastMonthStart(today), GetLastMonthEnd(today)));
+            ConfigurePresetButton(thisYearButton, isEnglish ? "This year" : "올해", (_, _) => SetRange(new DateTime(today.Year, 1, 1), today));
+            ConfigurePresetButton(lastYearButton, isEnglish ? "Last year" : "작년", (_, _) => SetRange(new DateTime(today.Year - 1, 1, 1), new DateTime(today.Year - 1, 12, 31)));
             presetPanel.Controls.Add(todayButton);
             presetPanel.Controls.Add(yesterdayButton);
             presetPanel.Controls.Add(last7DaysButton);
@@ -90,6 +94,8 @@ namespace TimePilot.WinForms
             presetPanel.Controls.Add(lastWeekButton);
             presetPanel.Controls.Add(thisMonthButton);
             presetPanel.Controls.Add(lastMonthButton);
+            presetPanel.Controls.Add(thisYearButton);
+            presetPanel.Controls.Add(lastYearButton);
 
             startLabel.Dock = DockStyle.Fill;
             startLabel.Text = isEnglish ? "Start" : "시작일";

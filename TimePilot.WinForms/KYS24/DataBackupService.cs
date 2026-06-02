@@ -19,26 +19,37 @@ namespace TimePilot.WinForms.KYS24
             if (!string.IsNullOrWhiteSpace(directory))
                 Directory.CreateDirectory(directory);
 
-            if (File.Exists(zipFilePath))
-                File.Delete(zipFilePath);
+            var tempFilePath = Path.Combine(
+                string.IsNullOrWhiteSpace(directory) ? Path.GetTempPath() : directory,
+                $"TimePilot-backup-{Guid.NewGuid():N}.tmp");
 
-            using var archive = ZipFile.Open(zipFilePath, ZipArchiveMode.Create);
             var entries = new List<string>();
-
-            WriteTextEntry(archive, ReadmeEntryName, BuildReadme(createdAt));
-            entries.Add(ReadmeEntryName);
-
-            AddDatabaseIfExists(archive, entries);
-            AddFileIfExists(archive, AppDataPaths.SettingsPath, SettingsEntryName, entries);
-
-            var logsDirectory = Path.Combine(AppDataPaths.DataDirectory, LogsDirectoryName);
-            if (Directory.Exists(logsDirectory))
+            try
             {
-                foreach (var logFile in Directory.EnumerateFiles(logsDirectory))
+                using (var archive = ZipFile.Open(tempFilePath, ZipArchiveMode.Create))
                 {
-                    var entryName = $"{LogsDirectoryName}/{Path.GetFileName(logFile)}";
-                    AddFileIfExists(archive, logFile, entryName, entries);
+                    WriteTextEntry(archive, ReadmeEntryName, BuildReadme(createdAt));
+                    entries.Add(ReadmeEntryName);
+
+                    AddDatabaseIfExists(archive, entries);
+                    AddFileIfExists(archive, AppDataPaths.SettingsPath, SettingsEntryName, entries);
+
+                    var logsDirectory = Path.Combine(AppDataPaths.DataDirectory, LogsDirectoryName);
+                    if (Directory.Exists(logsDirectory))
+                    {
+                        foreach (var logFile in Directory.EnumerateFiles(logsDirectory))
+                        {
+                            var entryName = $"{LogsDirectoryName}/{Path.GetFileName(logFile)}";
+                            AddFileIfExists(archive, logFile, entryName, entries);
+                        }
+                    }
                 }
+
+                File.Move(tempFilePath, zipFilePath, overwrite: true);
+            }
+            finally
+            {
+                TryDeleteFile(tempFilePath);
             }
 
             return entries;

@@ -38,6 +38,30 @@ namespace TimePilot.WinForms.KYS24
             transaction.Commit();
         }
 
+        public static void SeedLarge()
+        {
+            var now = DateTimeOffset.UtcNow;
+            var systemBootedAt = now - TimeSpan.FromMilliseconds(Environment.TickCount64);
+
+            using (var storage = TimePilotStorage.CreateDefault())
+                storage.Initialize(now, systemBootedAt);
+
+            Directory.CreateDirectory(AppDataPaths.DataDirectory);
+            using var connection = OpenConnection();
+            using var transaction = connection.BeginTransaction();
+
+            DeleteExistingSampleData(connection, transaction);
+            var localNow = now.ToLocalTime();
+            var apps = CreateLargeSampleApps();
+            var appIds = InsertSampleApps(connection, transaction, now, apps);
+            InsertLargeSampleRuntimeSessions(connection, transaction, localNow);
+            InsertLargeSampleForegroundSessions(connection, transaction, appIds, apps, localNow);
+            InsertLargeSampleIdleSessions(connection, transaction, appIds, apps, localNow);
+            InsertLargeSampleProcessRuntimeSessions(connection, transaction, appIds, apps, localNow);
+
+            transaction.Commit();
+        }
+
         public static void Clear()
         {
             var now = DateTimeOffset.UtcNow;
@@ -86,10 +110,20 @@ namespace TimePilot.WinForms.KYS24
                 );
                 """,
                 command => command.Parameters.AddWithValue("$sampleProcessPrefix", $"{SampleProcessPrefix}%"));
+            var idleSessionCount = CountRows(
+                connection,
+                """
+                SELECT COUNT(*)
+                FROM idle_sessions
+                WHERE foreground_app_id IN (
+                    SELECT id FROM apps WHERE process_name LIKE $sampleProcessPrefix
+                );
+                """,
+                command => command.Parameters.AddWithValue("$sampleProcessPrefix", $"{SampleProcessPrefix}%"));
 
             return string.Create(
                 CultureInfo.InvariantCulture,
-                $"Sample data status: apps={appCount}, foreground_sessions={foregroundSessionCount}, app_runtime_sessions={runtimeSessionCount}, process_runtime_sessions={processRuntimeSessionCount}");
+                $"Sample data status: apps={appCount}, foreground_sessions={foregroundSessionCount}, idle_sessions={idleSessionCount}, app_runtime_sessions={runtimeSessionCount}, process_runtime_sessions={processRuntimeSessionCount}");
         }
 
         private static SqliteConnection OpenConnection()
@@ -142,8 +176,17 @@ namespace TimePilot.WinForms.KYS24
             SqliteTransaction transaction,
             DateTimeOffset now)
         {
+            return InsertSampleApps(connection, transaction, now, SampleApps);
+        }
+
+        private static Dictionary<string, long> InsertSampleApps(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            DateTimeOffset now,
+            IReadOnlyList<SampleApp> apps)
+        {
             var appIds = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-            foreach (var app in SampleApps)
+            foreach (var app in apps)
             {
                 using var command = connection.CreateCommand();
                 command.Transaction = transaction;
@@ -167,6 +210,39 @@ namespace TimePilot.WinForms.KYS24
             }
 
             return appIds;
+        }
+
+        private static IReadOnlyList<SampleApp> CreateLargeSampleApps()
+        {
+            var roles = new[]
+            {
+                "browser",
+                "editor",
+                "ide",
+                "chat",
+                "design",
+                "terminal",
+                "mail",
+                "docs",
+                "notes",
+                "player",
+                "database",
+                "spreadsheet",
+                "meeting",
+                "launcher",
+                "backup",
+                "sync",
+                "capture",
+                "reader",
+                "archive",
+                "utility"
+            };
+
+            return roles
+                .Select((role, index) => new SampleApp(
+                    $"Sample {CultureInfo.InvariantCulture.TextInfo.ToTitleCase(role)}",
+                    $"{SampleProcessPrefix}{role}_{index + 1:00}"))
+                .ToList();
         }
 
         private static void InsertSampleRuntimeSessions(
@@ -241,6 +317,97 @@ namespace TimePilot.WinForms.KYS24
             var yearDate = PreviousDateInRange(today, yearStart, 60);
             AddProcessRuntimeSession(connection, transaction, appIds[$"{SampleProcessPrefix}ide"], 9401, LocalAt(yearDate, 12, 50), LocalAt(yearDate, 15, 45), true, true, localNow);
             AddProcessRuntimeSession(connection, transaction, appIds[$"{SampleProcessPrefix}design"], 9402, LocalAt(yearDate, 15, 20), LocalAt(yearDate, 18, 40), true, true, localNow);
+        }
+
+        private static void InsertLargeSampleRuntimeSessions(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            DateTimeOffset localNow)
+        {
+            var startDate = localNow.Date.AddDays(-179);
+            for (var day = 0; day < 180; day++)
+            {
+                var date = startDate.AddDays(day);
+                AddRuntimeSession(connection, transaction, LocalAt(date, 8, 30), LocalAt(date, 18, 30), localNow);
+            }
+        }
+
+        private static void InsertLargeSampleForegroundSessions(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            IReadOnlyDictionary<string, long> appIds,
+            IReadOnlyList<SampleApp> apps,
+            DateTimeOffset localNow)
+        {
+            var startDate = localNow.Date.AddDays(-179);
+            for (var day = 0; day < 180; day++)
+            {
+                var date = startDate.AddDays(day);
+                var cursor = LocalAt(date, 8, 45);
+                var end = LocalAt(date, 18, 15);
+                var segmentIndex = 0;
+
+                while (cursor < end)
+                {
+                    var app = apps[(day + segmentIndex * 3) % apps.Count];
+                    var minutes = 2 + ((day + segmentIndex) % 6);
+                    var next = cursor.AddMinutes(minutes);
+                    AddForegroundSession(connection, transaction, appIds[app.ProcessName], cursor, next, localNow);
+                    cursor = next.AddSeconds(10 + ((day + segmentIndex) % 20));
+                    segmentIndex++;
+                }
+            }
+        }
+
+        private static void InsertLargeSampleIdleSessions(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            IReadOnlyDictionary<string, long> appIds,
+            IReadOnlyList<SampleApp> apps,
+            DateTimeOffset localNow)
+        {
+            var startDate = localNow.Date.AddDays(-179);
+            for (var day = 0; day < 180; day++)
+            {
+                var date = startDate.AddDays(day);
+                for (var index = 0; index < 5; index++)
+                {
+                    var app = apps[(day + index * 4) % apps.Count];
+                    var start = LocalAt(date, 10 + index, 15 + (index * 7 % 30));
+                    var end = start.AddMinutes(2 + index);
+                    AddIdleSession(connection, transaction, appIds[app.ProcessName], start, end, 120000, localNow);
+                }
+            }
+        }
+
+        private static void InsertLargeSampleProcessRuntimeSessions(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            IReadOnlyDictionary<string, long> appIds,
+            IReadOnlyList<SampleApp> apps,
+            DateTimeOffset localNow)
+        {
+            var startDate = localNow.Date.AddDays(-179);
+            for (var day = 0; day < 180; day++)
+            {
+                var date = startDate.AddDays(day);
+                for (var appIndex = 0; appIndex < apps.Count; appIndex++)
+                {
+                    var app = apps[(day + appIndex) % apps.Count];
+                    var start = LocalAt(date, 8 + appIndex % 8, (appIndex * 7) % 50);
+                    var end = start.AddMinutes(45 + ((day + appIndex) % 180));
+                    AddProcessRuntimeSession(
+                        connection,
+                        transaction,
+                        appIds[app.ProcessName],
+                        10000 + day * 100 + appIndex,
+                        start,
+                        end,
+                        appIndex % 3 != 0,
+                        true,
+                        localNow);
+                }
+            }
         }
 
         private static void AddRuntimeSession(
@@ -386,6 +553,48 @@ namespace TimePilot.WinForms.KYS24
                     command.Parameters.AddWithValue("$trackingScope", (int)ProcessRuntimeTrackingScope.AllProcesses);
                     command.Parameters.AddWithValue("$hasMainWindow", hasMainWindow ? 1 : 0);
                     command.Parameters.AddWithValue("$isCurrentSessionProcess", isCurrentSessionProcess ? 1 : 0);
+                });
+        }
+
+        private static void AddIdleSession(
+            SqliteConnection connection,
+            SqliteTransaction transaction,
+            long foregroundAppId,
+            DateTimeOffset start,
+            DateTimeOffset end,
+            long thresholdMs,
+            DateTimeOffset localNow)
+        {
+            var effectiveEnd = end > localNow ? localNow : end;
+            if (effectiveEnd <= start)
+                return;
+
+            ExecuteNonQuery(
+                connection,
+                transaction,
+                """
+                INSERT INTO idle_sessions (
+                    started_at,
+                    ended_at,
+                    duration_ms,
+                    threshold_ms,
+                    foreground_app_id
+                )
+                VALUES (
+                    $startedAt,
+                    $endedAt,
+                    $durationMs,
+                    $thresholdMs,
+                    $foregroundAppId
+                );
+                """,
+                command =>
+                {
+                    command.Parameters.AddWithValue("$startedAt", FormatTimestamp(start));
+                    command.Parameters.AddWithValue("$endedAt", FormatTimestamp(effectiveEnd));
+                    command.Parameters.AddWithValue("$durationMs", (long)(effectiveEnd - start).TotalMilliseconds);
+                    command.Parameters.AddWithValue("$thresholdMs", thresholdMs);
+                    command.Parameters.AddWithValue("$foregroundAppId", foregroundAppId);
                 });
         }
 

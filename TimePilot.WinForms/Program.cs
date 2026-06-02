@@ -19,6 +19,12 @@
                 return;
             }
 
+            if (args.Contains("--seed-large-sample-data"))
+            {
+                KYS24.SampleDataSeeder.SeedLarge();
+                return;
+            }
+
             if (args.Contains("--clear-sample-data"))
             {
                 KYS24.SampleDataSeeder.Clear();
