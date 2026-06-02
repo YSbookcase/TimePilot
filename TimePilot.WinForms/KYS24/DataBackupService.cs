@@ -75,6 +75,7 @@ namespace TimePilot.WinForms.KYS24
             var plan = InspectBackup(zipFilePath);
             Directory.CreateDirectory(AppDataPaths.DataDirectory);
 
+            SqliteConnection.ClearAllPools();
             using var archive = ZipFile.OpenRead(zipFilePath);
             var restoredFiles = new List<string>();
             RestoreEntry(archive, DatabaseEntryName, AppDataPaths.DatabasePath, restoredFiles);
