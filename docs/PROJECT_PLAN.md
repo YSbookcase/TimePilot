@@ -209,6 +209,7 @@ Current design principles:
 - [x] Windows installer
 - [ ] Multilingual UI
 - [ ] Data backup and restore
+  - Review full restore and merge restore policies in `docs/features/RESTORE_MERGE_POLICY.md`.
 - [ ] Microsoft Store distribution review
 
 ---
