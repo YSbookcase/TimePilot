@@ -12,6 +12,14 @@ namespace TimePilot.WinForms.KYS24
         private const string LogsDirectoryName = "logs";
 
         private static readonly UTF8Encoding Utf8WithBom = new(encoderShouldEmitUTF8Identifier: true);
+        private static readonly string[] RequiredDatabaseTables =
+        [
+            "apps",
+            "foreground_sessions",
+            "idle_sessions",
+            "app_runtime_sessions",
+            "process_runtime_sessions"
+        ];
 
         public IReadOnlyList<string> CreateBackup(string zipFilePath, DateTimeOffset createdAt)
         {
@@ -57,7 +65,7 @@ namespace TimePilot.WinForms.KYS24
 
         public DataBackupRestorePlan InspectBackup(string zipFilePath)
         {
-            using var archive = ZipFile.OpenRead(zipFilePath);
+            using var archive = OpenBackupArchive(zipFilePath);
             var hasDatabase = archive.GetEntry(DatabaseEntryName) is not null;
             var hasSettings = archive.GetEntry(SettingsEntryName) is not null;
             var logCount = archive.Entries.Count(entry =>
@@ -67,6 +75,7 @@ namespace TimePilot.WinForms.KYS24
             if (!hasDatabase)
                 throw new InvalidDataException(UiText.Main.DataRestoreMissingDatabase);
 
+            ValidateDatabaseEntry(archive);
             return new DataBackupRestorePlan(hasDatabase, hasSettings, logCount);
         }
 
@@ -101,6 +110,18 @@ namespace TimePilot.WinForms.KYS24
             }
 
             return new DataBackupRestoreResult(restoredFiles);
+        }
+
+        private static ZipArchive OpenBackupArchive(string zipFilePath)
+        {
+            try
+            {
+                return ZipFile.OpenRead(zipFilePath);
+            }
+            catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                throw new InvalidDataException(UiText.Main.DataRestoreInvalidBackup(ex.Message), ex);
+            }
         }
 
         private static void AddFileIfExists(
@@ -182,6 +203,79 @@ namespace TimePilot.WinForms.KYS24
 
             entry.ExtractToFile(destinationPath, overwrite: true);
             restoredFiles.Add(entryName);
+        }
+
+        private static void ValidateDatabaseEntry(ZipArchive archive)
+        {
+            var entry = archive.GetEntry(DatabaseEntryName);
+            if (entry is null)
+                throw new InvalidDataException(UiText.Main.DataRestoreMissingDatabase);
+
+            var tempPath = Path.Combine(
+                Path.GetTempPath(),
+                $"TimePilot-restore-validate-{Guid.NewGuid():N}.db");
+
+            try
+            {
+                entry.ExtractToFile(tempPath, overwrite: true);
+                using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+                {
+                    DataSource = tempPath,
+                    Mode = SqliteOpenMode.ReadOnly,
+                    Pooling = false
+                }.ToString());
+                connection.Open();
+
+                ValidateIntegrity(connection);
+                ValidateRequiredTables(connection);
+            }
+            catch (InvalidDataException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidDataException(UiText.Main.DataRestoreInvalidBackup(ex.Message), ex);
+            }
+            finally
+            {
+                SqliteConnection.ClearAllPools();
+                TryDeleteFile(tempPath);
+            }
+        }
+
+        private static void ValidateIntegrity(SqliteConnection connection)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "PRAGMA integrity_check;";
+            var result = Convert.ToString(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
+            if (!string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException(UiText.Main.DataRestoreInvalidBackup(result ?? ""));
+        }
+
+        private static void ValidateRequiredTables(SqliteConnection connection)
+        {
+            var missingTables = RequiredDatabaseTables
+                .Where(tableName => !TableExists(connection, tableName))
+                .ToList();
+            if (missingTables.Count == 0)
+                return;
+
+            throw new InvalidDataException(UiText.Main.DataRestoreInvalidBackup(
+                $"Missing tables: {string.Join(", ", missingTables)}"));
+        }
+
+        private static bool TableExists(SqliteConnection connection, string tableName)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT COUNT(*)
+                FROM sqlite_master
+                WHERE type = 'table'
+                  AND name = $tableName;
+                """;
+            command.Parameters.AddWithValue("$tableName", tableName);
+            return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
         }
 
         private static string BuildReadme(DateTimeOffset createdAt)
