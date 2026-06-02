@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 
 namespace TimePilot.WinForms.KYS24
@@ -7,6 +8,7 @@ namespace TimePilot.WinForms.KYS24
     internal sealed class DataBackupService
     {
         private const string ReadmeEntryName = "README.txt";
+        private const string MetadataEntryName = "metadata.json";
         private const string DatabaseEntryName = "timepilot.db";
         private const string SettingsEntryName = "settings.json";
         private const string LogsDirectoryName = "logs";
@@ -36,6 +38,9 @@ namespace TimePilot.WinForms.KYS24
             {
                 using (var archive = ZipFile.Open(tempFilePath, ZipArchiveMode.Create))
                 {
+                    WriteTextEntry(archive, MetadataEntryName, BuildMetadata(createdAt));
+                    entries.Add(MetadataEntryName);
+
                     WriteTextEntry(archive, ReadmeEntryName, BuildReadme(createdAt));
                     entries.Add(ReadmeEntryName);
 
@@ -71,12 +76,13 @@ namespace TimePilot.WinForms.KYS24
             var logCount = archive.Entries.Count(entry =>
                 entry.FullName.StartsWith($"{LogsDirectoryName}/", StringComparison.Ordinal)
                 && !string.IsNullOrWhiteSpace(entry.Name));
+            var createdAt = ReadMetadataCreatedAt(archive);
 
             if (!hasDatabase)
                 throw new InvalidDataException(UiText.Main.DataRestoreMissingDatabase);
 
             ValidateDatabaseEntry(archive);
-            return new DataBackupRestorePlan(hasDatabase, hasSettings, logCount);
+            return new DataBackupRestorePlan(hasDatabase, hasSettings, logCount, createdAt);
         }
 
         public DataBackupRestoreResult RestoreBackup(string zipFilePath)
@@ -288,10 +294,43 @@ namespace TimePilot.WinForms.KYS24
             builder.AppendLine(UiText.Main.DataBackupReadmePrivacyNotice);
             builder.AppendLine();
             builder.AppendLine(UiText.Main.DataBackupReadmeFileList);
+            builder.AppendLine($"- {MetadataEntryName}");
             builder.AppendLine($"- {DatabaseEntryName}");
             builder.AppendLine($"- {SettingsEntryName}");
             builder.AppendLine($"- {LogsDirectoryName}/");
             return builder.ToString();
+        }
+
+        private static string BuildMetadata(DateTimeOffset createdAt)
+        {
+            var metadata = new DataBackupMetadata(
+                SchemaVersion: 1,
+                CreatedAtUtc: createdAt.ToUniversalTime(),
+                CreatedAtLocal: createdAt.ToLocalTime(),
+                AppVersion: typeof(DataBackupService).Assembly.GetName().Version?.ToString());
+
+            return JsonSerializer.Serialize(metadata, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+        }
+
+        private static DateTimeOffset? ReadMetadataCreatedAt(ZipArchive archive)
+        {
+            var entry = archive.GetEntry(MetadataEntryName);
+            if (entry is null)
+                return null;
+
+            try
+            {
+                using var stream = entry.Open();
+                var metadata = JsonSerializer.Deserialize<DataBackupMetadata>(stream);
+                return metadata?.CreatedAtUtc;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static void WriteTextEntry(ZipArchive archive, string entryName, string content)
@@ -303,7 +342,17 @@ namespace TimePilot.WinForms.KYS24
         }
     }
 
-    internal sealed record DataBackupRestorePlan(bool HasDatabase, bool HasSettings, int LogCount);
+    internal sealed record DataBackupRestorePlan(
+        bool HasDatabase,
+        bool HasSettings,
+        int LogCount,
+        DateTimeOffset? CreatedAt);
 
     internal sealed record DataBackupRestoreResult(IReadOnlyList<string> RestoredFiles);
+
+    internal sealed record DataBackupMetadata(
+        int SchemaVersion,
+        DateTimeOffset CreatedAtUtc,
+        DateTimeOffset CreatedAtLocal,
+        string? AppVersion);
 }
