@@ -4875,8 +4875,8 @@ namespace TimePilot.WinForms
                     progressForm.SetStep(
                         2,
                         settings.UiLanguage == UiLanguage.English
-                            ? "Skipping safety backup..."
-                            : "안전 백업을 건너뛰는 중...");
+                            ? "Safety backup was not created by your choice."
+                            : "사용자 선택에 따라 안전 백업은 생성되지 않았습니다.");
                     await AllowUiToRenderAsync();
                 }
 
