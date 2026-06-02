@@ -248,8 +248,8 @@ namespace TimePilot.WinForms.KYS24
             public static string DataBackupCompleted(string filePath, int count) =>
                 current.Main.DataBackupCompleted(filePath, count);
             public static string DataBackupFailed(string message) => current.Main.DataBackupFailed(message);
-            public static string DataRestorePlan(bool hasSettings, int logCount) =>
-                current.Main.DataRestorePlan(hasSettings, logCount);
+            public static string DataRestorePlan(bool hasSettings, int logCount, DateTimeOffset? createdAt) =>
+                current.Main.DataRestorePlan(hasSettings, logCount, createdAt);
             public static string DataRestoreCompleted(int count, string safetyBackupPath) =>
                 current.Main.DataRestoreCompleted(count, safetyBackupPath);
             public static string DataRestoreCompletedWithoutSafetyBackup(int count) =>
@@ -636,8 +636,9 @@ namespace TimePilot.WinForms.KYS24
                         RawDataExportFailed: message => $"원본 데이터 내보내기에 실패했습니다.\n\n{message}",
                         DataBackupCompleted: (filePath, count) => $"백업 파일을 만들었습니다. 포함 파일 {count}개\n\n{filePath}",
                         DataBackupFailed: message => $"백업 만들기에 실패했습니다.\n\n{message}",
-                        DataRestorePlan: (hasSettings, logCount) =>
-                            $"이 전체 복원 백업에는 사용 기록 데이터베이스{(hasSettings ? ", 설정" : "")}{(logCount > 0 ? $", 로그 {logCount}개" : "")}가 포함되어 있습니다.",
+                        DataRestorePlan: (hasSettings, logCount, createdAt) =>
+                            $"이 전체 복원 백업에는 사용 기록 데이터베이스{(hasSettings ? ", 설정" : "")}{(logCount > 0 ? $", 로그 {logCount}개" : "")}가 포함되어 있습니다."
+                            + (createdAt is { } value ? $"\n백업 생성 시각: {value.ToLocalTime():yyyy-MM-dd HH:mm:ss}" : ""),
                         DataRestoreCompleted: (count, safetyBackupPath) => $"전체 복원이 완료되었습니다. 복원 파일 {count}개\n\n복원 전 안전 백업:\n{safetyBackupPath}\n\n방금 전 상태로 되돌리려면 이 안전 백업 파일을 다시 전체 복원하세요.",
                         DataRestoreCompletedWithoutSafetyBackup: count => $"전체 복원이 완료되었습니다. 복원 파일 {count}개\n\n안전 백업 없이 복원했습니다. 복원 직전 상태로 되돌릴 안전 백업 파일은 생성되지 않았습니다.",
                         DataRestoreFailed: message => $"전체 복원에 실패했습니다.\n\n{message}",
@@ -975,8 +976,9 @@ namespace TimePilot.WinForms.KYS24
                         RawDataExportFailed: message => $"Raw data export failed.\n\n{message}",
                         DataBackupCompleted: (filePath, count) => $"Created the backup file. Included files: {count}\n\n{filePath}",
                         DataBackupFailed: message => $"Backup failed.\n\n{message}",
-                        DataRestorePlan: (hasSettings, logCount) =>
-                            $"This full-restore backup includes the usage database{(hasSettings ? ", settings" : "")}{(logCount > 0 ? $", and {logCount} log file(s)" : "")}.",
+                        DataRestorePlan: (hasSettings, logCount, createdAt) =>
+                            $"This full-restore backup includes the usage database{(hasSettings ? ", settings" : "")}{(logCount > 0 ? $", and {logCount} log file(s)" : "")}."
+                            + (createdAt is { } value ? $"\nBackup created at: {value.ToLocalTime():yyyy-MM-dd HH:mm:ss}" : ""),
                         DataRestoreCompleted: (count, safetyBackupPath) => $"Full restore completed. Restored files: {count}\n\nSafety backup before restore:\n{safetyBackupPath}\n\nTo return to the state from just before this restore, full-restore this safety backup file.",
                         DataRestoreCompletedWithoutSafetyBackup: count => $"Full restore completed. Restored files: {count}\n\nRestored without a safety backup. No safety backup file was created for the state just before this restore.",
                         DataRestoreFailed: message => $"Full restore failed.\n\n{message}",
@@ -1278,7 +1280,7 @@ namespace TimePilot.WinForms.KYS24
             Func<string, string> RawDataExportFailed,
             Func<string, int, string> DataBackupCompleted,
             Func<string, string> DataBackupFailed,
-            Func<bool, int, string> DataRestorePlan,
+            Func<bool, int, DateTimeOffset?, string> DataRestorePlan,
             Func<int, string, string> DataRestoreCompleted,
             Func<int, string> DataRestoreCompletedWithoutSafetyBackup,
             Func<string, string> DataRestoreFailed,

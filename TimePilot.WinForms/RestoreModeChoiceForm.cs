@@ -58,7 +58,7 @@ namespace TimePilot.WinForms
                 AutoSize = false,
                 Dock = DockStyle.Top,
                 Height = 44,
-                Text = UiText.Main.DataRestorePlan(plan.HasSettings, plan.LogCount)
+                Text = UiText.Main.DataRestorePlan(plan.HasSettings, plan.LogCount, plan.CreatedAt)
             };
 
             var modesPanel = new TableLayoutPanel
