@@ -29,7 +29,7 @@ namespace TimePilot.WinForms
             MinimizeBox = false;
             ShowIcon = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(700, 540);
+            ClientSize = new Size(680, 500);
 
             var root = new TableLayoutPanel
             {
@@ -57,7 +57,7 @@ namespace TimePilot.WinForms
             {
                 AutoSize = false,
                 Dock = DockStyle.Top,
-                Height = 154,
+                Height = 116,
                 Text = BuildPlanText()
             };
 
@@ -169,41 +169,27 @@ namespace TimePilot.WinForms
         private string BuildPlanText()
         {
             var backupCounts = plan.BackupCounts;
-            var currentCounts = plan.CurrentCountsAfterBackup;
-            var preview = plan.PreviewAnalysis;
-            var importableCounts = preview.ImportableCounts;
-            var excludedCounts = preview.ExcludedOverlapCounts;
             if (isEnglish)
             {
                 var createdAt = plan.CreatedAt is { } value
                     ? $"\nBackup created at: {value.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
                     : "";
-                var currentAfter = plan.CreatedAt is null
-                    ? "Current records after this backup: unknown because this backup has no metadata."
-                    : $"Current records after this backup: usage records {currentCounts.TotalUsageRecords:N0}, apps {currentCounts.Apps:N0}";
 
                 return $"This full-restore backup includes the usage database{(plan.HasSettings ? ", settings" : "")}{(plan.LogCount > 0 ? $", and {plan.LogCount} log file(s)" : "")}."
                     + createdAt
                     + $"\nBackup records: usage records {backupCounts.TotalUsageRecords:N0}, apps {backupCounts.Apps:N0}"
-                    + $"\n{currentAfter}"
-                    + $"\nPreview: importable usage records {importableCounts.TotalUsageRecords:N0}, excluded overlapping records {excludedCounts.TotalUsageRecords:N0}"
-                    + $"\nApp preview: new apps {preview.NewAppCandidates:N0}, match conflicts {preview.AppMatchConflictCandidates:N0}";
+                    + "\nDetailed comparison with current data will be handled in a later step.";
             }
             else
             {
                 var createdAt = plan.CreatedAt is { } value
                     ? $"\n백업 생성 시각: {value.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
                     : "";
-                var currentAfter = plan.CreatedAt is null
-                    ? "현재 데이터의 백업 이후 기록: 메타데이터가 없어 확인할 수 없습니다."
-                    : $"현재 데이터의 백업 이후 기록: 사용 기록 {currentCounts.TotalUsageRecords:N0}개, 앱 {currentCounts.Apps:N0}개";
 
                 return $"이 전체 복원 백업에는 사용 기록 데이터베이스{(plan.HasSettings ? ", 설정" : "")}{(plan.LogCount > 0 ? $", 로그 {plan.LogCount}개" : "")}가 포함되어 있습니다."
                     + createdAt
                     + $"\n백업 기록: 사용 기록 {backupCounts.TotalUsageRecords:N0}개, 앱 {backupCounts.Apps:N0}개"
-                    + $"\n{currentAfter}"
-                    + $"\n미리보기: 가져올 수 있는 사용 기록 {importableCounts.TotalUsageRecords:N0}개, 겹쳐 제외될 기록 {excludedCounts.TotalUsageRecords:N0}개"
-                    + $"\n앱 미리보기: 새 앱 {preview.NewAppCandidates:N0}개, 매칭 충돌 후보 {preview.AppMatchConflictCandidates:N0}개";
+                    + "\n현재 데이터와의 상세 비교는 후속 단계에서 처리합니다.";
             }
         }
     }
