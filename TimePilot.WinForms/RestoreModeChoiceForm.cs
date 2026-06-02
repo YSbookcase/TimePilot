@@ -169,34 +169,27 @@ namespace TimePilot.WinForms
         private string BuildPlanText()
         {
             var backupCounts = plan.BackupCounts;
-            var currentCounts = plan.CurrentCountsAfterBackup;
             if (isEnglish)
             {
                 var createdAt = plan.CreatedAt is { } value
                     ? $"\nBackup created at: {value.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
                     : "";
-                var currentAfter = plan.CreatedAt is null
-                    ? "Current records after this backup: unknown because this backup has no metadata."
-                    : $"Current records after this backup: usage records {currentCounts.TotalUsageRecords:N0}, apps {currentCounts.Apps:N0}";
 
                 return $"This full-restore backup includes the usage database{(plan.HasSettings ? ", settings" : "")}{(plan.LogCount > 0 ? $", and {plan.LogCount} log file(s)" : "")}."
                     + createdAt
                     + $"\nBackup records: usage records {backupCounts.TotalUsageRecords:N0}, apps {backupCounts.Apps:N0}"
-                    + $"\n{currentAfter}";
+                    + "\nDetailed comparison with current data will be handled in a later step.";
             }
             else
             {
                 var createdAt = plan.CreatedAt is { } value
                     ? $"\n백업 생성 시각: {value.ToLocalTime():yyyy-MM-dd HH:mm:ss}"
                     : "";
-                var currentAfter = plan.CreatedAt is null
-                    ? "현재 데이터의 백업 이후 기록: 메타데이터가 없어 확인할 수 없습니다."
-                    : $"현재 데이터의 백업 이후 기록: 사용 기록 {currentCounts.TotalUsageRecords:N0}개, 앱 {currentCounts.Apps:N0}개";
 
                 return $"이 전체 복원 백업에는 사용 기록 데이터베이스{(plan.HasSettings ? ", 설정" : "")}{(plan.LogCount > 0 ? $", 로그 {plan.LogCount}개" : "")}가 포함되어 있습니다."
                     + createdAt
                     + $"\n백업 기록: 사용 기록 {backupCounts.TotalUsageRecords:N0}개, 앱 {backupCounts.Apps:N0}개"
-                    + $"\n{currentAfter}";
+                    + "\n현재 데이터와의 상세 비교는 후속 단계에서 처리합니다.";
             }
         }
     }

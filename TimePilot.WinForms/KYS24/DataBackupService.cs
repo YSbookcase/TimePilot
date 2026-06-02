@@ -81,15 +81,13 @@ namespace TimePilot.WinForms.KYS24
             if (!hasDatabase)
                 throw new InvalidDataException(UiText.Main.DataRestoreMissingDatabase);
 
-            var backupCounts = ValidateDatabaseEntry(archive);
-            var currentCountsAfterBackup = CountCurrentRecordsAfter(createdAt);
+            var backupCounts = InspectDatabaseEntry(archive);
             return new DataBackupRestorePlan(
                 hasDatabase,
                 hasSettings,
                 logCount,
                 createdAt,
-                backupCounts,
-                currentCountsAfterBackup);
+                backupCounts);
         }
 
         public DataBackupRestoreResult RestoreBackup(string zipFilePath)
@@ -218,7 +216,7 @@ namespace TimePilot.WinForms.KYS24
             restoredFiles.Add(entryName);
         }
 
-        private static DataBackupRecordCounts ValidateDatabaseEntry(ZipArchive archive)
+        private static DataBackupRecordCounts InspectDatabaseEntry(ZipArchive archive)
         {
             var entry = archive.GetEntry(DatabaseEntryName);
             if (entry is null)
@@ -258,39 +256,6 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
-        private static DataBackupRecordCounts CountCurrentRecordsAfter(DateTimeOffset? createdAt)
-        {
-            if (createdAt is null || !File.Exists(AppDataPaths.DatabasePath))
-                return DataBackupRecordCounts.Empty;
-
-            try
-            {
-                using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-                {
-                    DataSource = AppDataPaths.DatabasePath,
-                    Mode = SqliteOpenMode.ReadOnly,
-                    Pooling = false
-                }.ToString());
-                connection.Open();
-
-                return new DataBackupRecordCounts(
-                    Apps: CountRowsAfter(connection, "apps", "first_seen_at", createdAt.Value),
-                    ForegroundSessions: CountRowsAfter(connection, "foreground_sessions", "started_at", createdAt.Value),
-                    IdleSessions: CountRowsAfter(connection, "idle_sessions", "started_at", createdAt.Value),
-                    AppRuntimeSessions: CountRowsAfter(connection, "app_runtime_sessions", "started_at", createdAt.Value),
-                    ProcessRuntimeSessions: CountRowsAfter(connection, "process_runtime_sessions", "started_at", createdAt.Value),
-                    SystemEvents: CountRowsAfter(connection, "system_events", "occurred_at", createdAt.Value));
-            }
-            catch
-            {
-                return DataBackupRecordCounts.Empty;
-            }
-            finally
-            {
-                SqliteConnection.ClearAllPools();
-            }
-        }
-
         private static DataBackupRecordCounts CountDatabaseRecords(SqliteConnection connection)
         {
             return new DataBackupRecordCounts(
@@ -312,20 +277,6 @@ namespace TimePilot.WinForms.KYS24
             return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
         }
 
-        private static int CountRowsAfter(
-            SqliteConnection connection,
-            string tableName,
-            string columnName,
-            DateTimeOffset startedAfter)
-        {
-            if (!TableExists(connection, tableName))
-                return 0;
-
-            using var command = connection.CreateCommand();
-            command.CommandText = $"SELECT COUNT(*) FROM {tableName} WHERE {columnName} >= $startedAfter;";
-            command.Parameters.AddWithValue("$startedAfter", startedAfter.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture));
-            return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture);
-        }
 
         private static void ValidateIntegrity(SqliteConnection connection)
         {
@@ -350,14 +301,23 @@ namespace TimePilot.WinForms.KYS24
 
         private static bool TableExists(SqliteConnection connection, string tableName)
         {
+            var schemaName = "main";
+            var actualTableName = tableName;
+            var separatorIndex = tableName.IndexOf('.', StringComparison.Ordinal);
+            if (separatorIndex > 0 && separatorIndex < tableName.Length - 1)
+            {
+                schemaName = tableName[..separatorIndex];
+                actualTableName = tableName[(separatorIndex + 1)..];
+            }
+
             using var command = connection.CreateCommand();
-            command.CommandText = """
+            command.CommandText = $"""
                 SELECT COUNT(*)
-                FROM sqlite_master
+                FROM {schemaName}.sqlite_master
                 WHERE type = 'table'
                   AND name = $tableName;
                 """;
-            command.Parameters.AddWithValue("$tableName", tableName);
+            command.Parameters.AddWithValue("$tableName", actualTableName);
             return Convert.ToInt32(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
         }
 
@@ -424,8 +384,7 @@ namespace TimePilot.WinForms.KYS24
         bool HasSettings,
         int LogCount,
         DateTimeOffset? CreatedAt,
-        DataBackupRecordCounts BackupCounts,
-        DataBackupRecordCounts CurrentCountsAfterBackup);
+        DataBackupRecordCounts BackupCounts);
 
     internal sealed record DataBackupRestoreResult(IReadOnlyList<string> RestoredFiles);
 

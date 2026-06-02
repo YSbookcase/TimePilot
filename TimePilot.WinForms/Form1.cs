@@ -4816,16 +4816,22 @@ namespace TimePilot.WinForms
             DataBackupRestorePlan plan;
             try
             {
-                plan = service.InspectBackup(dialog.FileName);
+                SetExportRunning(true, UiText.Main.DataRestoreAnalyzingBackup);
+                await AllowUiToRenderAsync();
+                var selectedBackupPath = dialog.FileName;
+                plan = await Task.Run(() => service.InspectBackup(selectedBackupPath));
+                SetExportRunning(false, null);
             }
             catch (Exception ex)
             {
+                SetExportRunning(false, BuildExportFailedStatus(UiText.Main.DataRestoreTitle));
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.DataRestoreFailed(ex.Message),
                     UiText.Main.DataRestoreTitle,
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
+                ClearExportStatus();
                 return;
             }
 
