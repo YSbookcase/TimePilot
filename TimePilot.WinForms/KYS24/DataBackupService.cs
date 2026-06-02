@@ -82,14 +82,22 @@ namespace TimePilot.WinForms.KYS24
                 throw new InvalidDataException(UiText.Main.DataRestoreMissingDatabase);
 
             var backupCounts = InspectDatabaseEntry(archive);
-            var detailedComparison = InspectDetailedComparisonIfAvailable(archive);
             return new DataBackupRestorePlan(
                 hasDatabase,
                 hasSettings,
                 logCount,
                 createdAt,
                 backupCounts,
-                detailedComparison);
+                DetailedComparison: null);
+        }
+
+        public DataBackupDetailedComparison? InspectBackupDetailedComparison(string zipFilePath)
+        {
+            using var archive = OpenBackupArchive(zipFilePath);
+            if (archive.GetEntry(DatabaseEntryName) is null)
+                throw new InvalidDataException(UiText.Main.DataRestoreMissingDatabase);
+
+            return InspectDetailedComparisonIfAvailable(archive);
         }
 
         public DataBackupRestoreResult RestoreBackup(string zipFilePath)
