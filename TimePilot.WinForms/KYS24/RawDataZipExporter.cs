@@ -21,12 +21,27 @@ namespace TimePilot.WinForms.KYS24
                 Directory.CreateDirectory(directory);
 
             var tables = storage.GetRawDataExportTables();
-            using var archive = ZipFile.Open(zipFilePath, ZipArchiveMode.Create);
+            var tempFilePath = Path.Combine(
+                string.IsNullOrWhiteSpace(directory) ? Path.GetTempPath() : directory,
+                $"TimePilot-raw-data-{Guid.NewGuid():N}.tmp");
 
-            WriteTextEntry(archive, "README.txt", BuildReadme(tables));
-            foreach (var table in tables)
+            try
             {
-                WriteCsvEntry(archive, table);
+                using (var archive = ZipFile.Open(tempFilePath, ZipArchiveMode.Create))
+                {
+                    WriteTextEntry(archive, "README.txt", BuildReadme(tables));
+                    foreach (var table in tables)
+                    {
+                        WriteCsvEntry(archive, table);
+                    }
+                }
+
+                File.Move(tempFilePath, zipFilePath, overwrite: true);
+            }
+            finally
+            {
+                if (File.Exists(tempFilePath))
+                    File.Delete(tempFilePath);
             }
 
             return tables.Select(table => table.FileName)
