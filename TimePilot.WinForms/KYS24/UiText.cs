@@ -255,6 +255,7 @@ namespace TimePilot.WinForms.KYS24
             public static string DataRestoreCompletedWithoutSafetyBackup(int count) =>
                 current.Main.DataRestoreCompletedWithoutSafetyBackup(count);
             public static string DataRestoreFailed(string message) => current.Main.DataRestoreFailed(message);
+            public static string DataRestoreAnalyzingBackup => current.Main.DataRestoreAnalyzingBackup;
             public static string DataRestorePreparing => current.Main.DataRestorePreparing;
             public static string DataRestoreCreatingSafetyBackup => current.Main.DataRestoreCreatingSafetyBackup;
             public static string DataRestoreApplyingBackup => current.Main.DataRestoreApplyingBackup;
@@ -642,6 +643,7 @@ namespace TimePilot.WinForms.KYS24
                         DataRestoreCompleted: (count, safetyBackupPath) => $"전체 복원이 완료되었습니다. 복원 파일 {count}개\n\n복원 전 안전 백업:\n{safetyBackupPath}\n\n방금 전 상태로 되돌리려면 이 안전 백업 파일을 다시 전체 복원하세요.",
                         DataRestoreCompletedWithoutSafetyBackup: count => $"전체 복원이 완료되었습니다. 복원 파일 {count}개\n\n안전 백업 없이 복원했습니다. 복원 직전 상태로 되돌릴 안전 백업 파일은 생성되지 않았습니다.",
                         DataRestoreFailed: message => $"전체 복원에 실패했습니다.\n\n{message}",
+                        DataRestoreAnalyzingBackup: "백업 파일 분석 중...",
                         DataRestorePreparing: "전체 복원 준비 중...",
                         DataRestoreCreatingSafetyBackup: "복원 전 안전 백업 생성 중...",
                         DataRestoreApplyingBackup: "백업 데이터 적용 중...",
@@ -982,6 +984,7 @@ namespace TimePilot.WinForms.KYS24
                         DataRestoreCompleted: (count, safetyBackupPath) => $"Full restore completed. Restored files: {count}\n\nSafety backup before restore:\n{safetyBackupPath}\n\nTo return to the state from just before this restore, full-restore this safety backup file.",
                         DataRestoreCompletedWithoutSafetyBackup: count => $"Full restore completed. Restored files: {count}\n\nRestored without a safety backup. No safety backup file was created for the state just before this restore.",
                         DataRestoreFailed: message => $"Full restore failed.\n\n{message}",
+                        DataRestoreAnalyzingBackup: "Analyzing backup file...",
                         DataRestorePreparing: "Preparing full restore...",
                         DataRestoreCreatingSafetyBackup: "Creating safety backup before restore...",
                         DataRestoreApplyingBackup: "Applying backup data...",
@@ -1284,6 +1287,7 @@ namespace TimePilot.WinForms.KYS24
             Func<int, string, string> DataRestoreCompleted,
             Func<int, string> DataRestoreCompletedWithoutSafetyBackup,
             Func<string, string> DataRestoreFailed,
+            string DataRestoreAnalyzingBackup,
             string DataRestorePreparing,
             string DataRestoreCreatingSafetyBackup,
             string DataRestoreApplyingBackup,
