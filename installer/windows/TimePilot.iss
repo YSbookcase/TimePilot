@@ -2,7 +2,7 @@
 #define MyAppPublisher "YSbookcase"
 #define MyAppExeName "TimePilot.WinForms.exe"
 #ifndef AppVersion
-#define AppVersion "0.2.0"
+#define AppVersion "0.2.1"
 #endif
 #ifndef SourceDir
 #define SourceDir "..\..\artifacts\release\publish\win-x64"
