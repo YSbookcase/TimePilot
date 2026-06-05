@@ -8,9 +8,9 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>Assets\TimePilot.ico</ApplicationIcon>
-    <Version>0.2.0</Version>
-    <FileVersion>0.2.0.0</FileVersion>
-    <AssemblyVersion>0.2.0.0</AssemblyVersion>
+    <Version>0.2.1</Version>
+    <FileVersion>0.2.1.0</FileVersion>
+    <AssemblyVersion>0.2.1.0</AssemblyVersion>
     <Product>TimePilot</Product>
     <Description>A Windows desktop app for tracking and analyzing application usage time.</Description>
     <Authors>YSbookcase</Authors>
