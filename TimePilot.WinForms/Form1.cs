@@ -13,6 +13,8 @@ namespace TimePilot.WinForms
         private const long SlowOperationThresholdMs = 250;
         private static readonly TimeSpan PerformanceStatusDuration = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan SafeModeShortRuntimeThreshold = TimeSpan.FromMinutes(2);
+        private static readonly TimeSpan HeavyViewRefreshInterval = TimeSpan.FromSeconds(10);
+        private static readonly TimeSpan PastHeavyViewRefreshInterval = TimeSpan.FromMinutes(5);
 
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private readonly AppIconCache appIconCache = new();
@@ -77,6 +79,8 @@ namespace TimePilot.WinForms
         private long? selectedRuntimeAppId;
         private volatile bool isClosing;
         private volatile bool isProcessRuntimeSampleRunning;
+        private long timelineDataVersion;
+        private long processRuntimeDataVersion;
         private bool isExportRunning;
         private string statusText = string.Empty;
         private string? exportStatusText;
@@ -100,11 +104,19 @@ namespace TimePilot.WinForms
         private string? highlightedTimelineAppName;
         private TimelineSegmentSelectionKey? highlightedTimelineSegmentKey;
         private string? highlightedTimelineSegmentLabel;
+        private string? lastForegroundViewKey;
+        private bool? lastForegroundIdleState;
         private IReadOnlyList<ForegroundUsageSummary> currentTimelineForegroundUsage = Array.Empty<ForegroundUsageSummary>();
         private IReadOnlyList<ActivityTimelineRow> currentTimelineRows = Array.Empty<ActivityTimelineRow>();
         private IReadOnlyList<TimelineRange> currentTimelineWindowsRuntimeRanges = Array.Empty<TimelineRange>();
         private IReadOnlyList<SystemTimelineRange> currentTimelineSystemRanges = Array.Empty<SystemTimelineRange>();
         private IReadOnlyList<SystemTimelineEvent> currentTimelineSystemEvents = Array.Empty<SystemTimelineEvent>();
+        private ViewRefreshSnapshot? cachedTimelineSnapshot;
+        private HeavyViewRefreshKey? cachedTimelineSnapshotKey;
+        private DateTimeOffset? cachedTimelineSnapshotAt;
+        private ViewRefreshSnapshot? cachedDetailSnapshot;
+        private HeavyViewRefreshKey? cachedDetailSnapshotKey;
+        private DateTimeOffset? cachedDetailSnapshotAt;
         private Font? timelineHighlightedRowFont;
         private Form? recordedDatePickerPopupForm;
         private readonly Label timelineSystemEventFilterLabel = new();
@@ -190,6 +202,7 @@ namespace TimePilot.WinForms
             var idleThresholdMs = settings.IdleThresholdMs;
             var isIdle = UserIdleChecker.IsIdle(idleThresholdMs);
             var foregroundApp = ForegroundWindowReader.TryGetForegroundApp();
+            UpdateTimelineDataVersion(foregroundApp, isIdle);
 
             storage?.UpdateRuntimeHeartbeat(observedAt);
             idleSessionTracker?.Track(isIdle, foregroundApp, idleThresholdMs, observedAt);
@@ -1309,6 +1322,202 @@ namespace TimePilot.WinForms
             _ = RefreshViewsAsync(observedAt);
         }
 
+        private void UpdateTimelineDataVersion(AppMetadata? foregroundApp, bool isIdle)
+        {
+            var foregroundKey = foregroundApp is null
+                ? null
+                : $"{foregroundApp.ProcessName}|{foregroundApp.ExecutablePath}";
+            if (string.Equals(lastForegroundViewKey, foregroundKey, StringComparison.OrdinalIgnoreCase)
+                && lastForegroundIdleState == isIdle)
+                return;
+
+            lastForegroundViewKey = foregroundKey;
+            lastForegroundIdleState = isIdle;
+            Interlocked.Increment(ref timelineDataVersion);
+        }
+
+        private bool TryGetCachedHeavyViewSnapshot(
+            TabPage? selectedTab,
+            DateTime timelineDate,
+            DateTime detailDate,
+            long? selectedRuntimeAppId,
+            int timelineCategoryBucketMinutes,
+            DateTimeOffset observedAt,
+            out ViewRefreshSnapshot snapshot)
+        {
+            snapshot = default!;
+            if (selectedTab == timelineTab)
+            {
+                var key = HeavyViewRefreshKey.ForTimeline(
+                    timelineDate,
+                    timelineCategoryBucketMinutes,
+                    Interlocked.Read(ref timelineDataVersion));
+                if (cachedTimelineSnapshot is null
+                    || cachedTimelineSnapshotKey != key
+                    || IsHeavyViewCacheExpired(cachedTimelineSnapshotAt, timelineDate, observedAt))
+                    return false;
+
+                snapshot = RefreshCachedSnapshotForObservedAt(cachedTimelineSnapshot, observedAt) with { ReadElapsedMs = 0 };
+                return true;
+            }
+
+            if (selectedTab == detailTab)
+            {
+                var key = HeavyViewRefreshKey.ForDetail(
+                    detailDate,
+                    selectedRuntimeAppId,
+                    Interlocked.Read(ref processRuntimeDataVersion));
+                if (cachedDetailSnapshot is null
+                    || cachedDetailSnapshotKey != key
+                    || IsHeavyViewCacheExpired(cachedDetailSnapshotAt, detailDate, observedAt))
+                    return false;
+
+                snapshot = RefreshCachedSnapshotForObservedAt(cachedDetailSnapshot, observedAt) with { ReadElapsedMs = 0 };
+                return true;
+            }
+
+            return false;
+        }
+
+        private void CacheHeavyViewSnapshot(
+            TabPage? selectedTab,
+            DateTime timelineDate,
+            DateTime detailDate,
+            long? selectedRuntimeAppId,
+            int timelineCategoryBucketMinutes,
+            DateTimeOffset observedAt,
+            ViewRefreshSnapshot snapshot)
+        {
+            if (selectedTab == timelineTab && snapshot.TimelineRows is not null)
+            {
+                cachedTimelineSnapshot = snapshot;
+                cachedTimelineSnapshotKey = HeavyViewRefreshKey.ForTimeline(
+                    timelineDate,
+                    timelineCategoryBucketMinutes,
+                    Interlocked.Read(ref timelineDataVersion));
+                cachedTimelineSnapshotAt = observedAt;
+                return;
+            }
+
+            if (selectedTab == detailTab && snapshot.RuntimeRows is not null)
+            {
+                cachedDetailSnapshot = snapshot;
+                cachedDetailSnapshotKey = HeavyViewRefreshKey.ForDetail(
+                    detailDate,
+                    selectedRuntimeAppId,
+                    Interlocked.Read(ref processRuntimeDataVersion));
+                cachedDetailSnapshotAt = observedAt;
+            }
+        }
+
+        private static bool IsHeavyViewCacheExpired(
+            DateTimeOffset? cachedAt,
+            DateTime selectedDate,
+            DateTimeOffset observedAt)
+        {
+            if (cachedAt is null)
+                return true;
+
+            var interval = selectedDate.Date == observedAt.ToLocalTime().Date
+                ? HeavyViewRefreshInterval
+                : PastHeavyViewRefreshInterval;
+            return observedAt - cachedAt.Value >= interval;
+        }
+
+        private static ViewRefreshSnapshot RefreshCachedSnapshotForObservedAt(
+            ViewRefreshSnapshot snapshot,
+            DateTimeOffset observedAt)
+        {
+            return snapshot with
+            {
+                TimelineRows = RefreshTimelineRowsForObservedAt(snapshot.TimelineRows, observedAt),
+                WindowsRuntimeRanges = RefreshTimelineRangesForObservedAt(snapshot.WindowsRuntimeRanges, observedAt),
+                SystemTimelineRanges = RefreshSystemTimelineRangesForObservedAt(snapshot.SystemTimelineRanges, observedAt),
+                CategoryTimelineSegments = RefreshCategoryTimelineSegmentsForObservedAt(snapshot.CategoryTimelineSegments, observedAt),
+                RuntimeRows = RefreshRuntimeRowsForObservedAt(snapshot.RuntimeRows, observedAt),
+                RuntimeSegmentRows = RefreshRuntimeSegmentRowsForObservedAt(snapshot.RuntimeSegmentRows, observedAt)
+            };
+        }
+
+        private static IReadOnlyList<ActivityTimelineRow>? RefreshTimelineRowsForObservedAt(
+            IReadOnlyList<ActivityTimelineRow>? rows,
+            DateTimeOffset observedAt)
+        {
+            return rows?.Select(row =>
+            {
+                if (row.EndedAt is not null)
+                    return row;
+
+                return row with { DurationMs = GetDurationMs(row.StartedAt, observedAt) };
+            }).ToList();
+        }
+
+        private static IReadOnlyList<TimelineRange>? RefreshTimelineRangesForObservedAt(
+            IReadOnlyList<TimelineRange>? ranges,
+            DateTimeOffset observedAt)
+        {
+            return ranges?.Select(range =>
+                range.EndedAt > observedAt
+                    ? range with { EndedAt = observedAt }
+                    : range).ToList();
+        }
+
+        private static IReadOnlyList<SystemTimelineRange>? RefreshSystemTimelineRangesForObservedAt(
+            IReadOnlyList<SystemTimelineRange>? ranges,
+            DateTimeOffset observedAt)
+        {
+            return ranges?.Select(range =>
+                range.EndedAt > observedAt
+                    ? range with { EndedAt = observedAt }
+                    : range).ToList();
+        }
+
+        private static IReadOnlyList<CategoryTimelineSegment>? RefreshCategoryTimelineSegmentsForObservedAt(
+            IReadOnlyList<CategoryTimelineSegment>? segments,
+            DateTimeOffset observedAt)
+        {
+            return segments?.Select(segment =>
+                segment.EndedAt > observedAt
+                    ? segment with { EndedAt = observedAt }
+                    : segment).ToList();
+        }
+
+        private static IReadOnlyList<ProcessRuntimeSummaryRow>? RefreshRuntimeRowsForObservedAt(
+            IReadOnlyList<ProcessRuntimeSummaryRow>? rows,
+            DateTimeOffset observedAt)
+        {
+            return rows?.Select(row =>
+            {
+                if (!row.HasRunningSession)
+                    return row;
+
+                var baseEnd = row.LastObservedAt ?? row.FirstObservedAt ?? observedAt;
+                var deltaMs = Math.Max(0, (long)(observedAt - baseEnd).TotalMilliseconds);
+                return row with
+                {
+                    RuntimeMs = row.RuntimeMs + deltaMs
+                };
+            }).ToList();
+        }
+
+        private static IReadOnlyList<ProcessRuntimeSegmentRow>? RefreshRuntimeSegmentRowsForObservedAt(
+            IReadOnlyList<ProcessRuntimeSegmentRow>? rows,
+            DateTimeOffset observedAt)
+        {
+            return rows?.Select(row =>
+            {
+                if (row.EndedAt is not null)
+                    return row;
+
+                return row with { DurationMs = GetDurationMs(row.StartedAt, observedAt) };
+            }).ToList();
+        }
+
+        private static long GetDurationMs(DateTimeOffset startedAt, DateTimeOffset endedAt)
+        {
+            return Math.Max(0, (long)(endedAt - startedAt).TotalMilliseconds);
+        }
+
         private async Task RefreshViewsAsync(DateTimeOffset observedAt)
         {
             if (storage is null)
@@ -1336,97 +1545,119 @@ namespace TimePilot.WinForms
                 selectedSummaryCustomEndDate);
             var detailDate = selectedDetailDate;
             var timelineDate = selectedTimelineDate;
-            isViewRefreshRunning = true;
             ViewRefreshSnapshot snapshot;
-            try
+            if (TryGetCachedHeavyViewSnapshot(
+                selectedTab,
+                timelineDate,
+                detailDate,
+                appIdToRestore,
+                selectedTimelineCategoryBucketMinutes,
+                observedAt,
+                out var cachedSnapshot))
             {
-                snapshot = await Task.Run(() =>
+                snapshot = cachedSnapshot;
+            }
+            else
+            {
+                isViewRefreshRunning = true;
+                try
                 {
-                    var readStopwatch = Stopwatch.StartNew();
-                    var foregroundUsage = selectedTab == summaryTab
-                        ? storage.GetForegroundUsageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
-                        : null;
-                    var dailyUsageTrendRows = selectedTab == summaryTab
-                        ? storage.GetDailyUsageTrendForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
-                        : null;
-                    var idleUsage = selectedTab == summaryTab
-                        ? storage.GetIdleUsageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
-                        : null;
-                    var runtimeCoverage = selectedTab == summaryTab
-                        ? storage.GetRuntimeCoverageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End, observedAt)
-                        : null;
-                    var timelineRows = selectedTab == timelineTab
-                        ? storage.GetActivityTimelineForDate(timelineDate, observedAt)
-                        : null;
-                    var windowsRuntimeRanges = selectedTab == timelineTab
-                        ? storage.GetWindowsRuntimeRangesForDate(timelineDate, observedAt)
-                        : null;
-                    var systemTimelineEvents = selectedTab == timelineTab
-                        ? storage.GetSystemTimelineEventsForDate(timelineDate, observedAt)
-                        : null;
-                    var inferredSystemTimelineEvents = selectedTab == timelineTab
-                        ? storage.GetInferredSystemTimelineEventsForDate(timelineDate, observedAt)
-                        : null;
-                    var systemTimelineRanges = selectedTab == timelineTab
-                        ? storage.GetSystemTimelineRangesForDate(timelineDate, observedAt)
-                        : null;
-                    var categoryTimelineSegments = selectedTab == timelineTab
-                        ? storage.GetCategoryTimelineSegmentsForDate(
-                            timelineDate,
-                            observedAt,
-                            TimeSpan.FromMinutes(selectedTimelineCategoryBucketMinutes),
-                            selectedTimelineCategoryBucketMinutes == 0)
-                        : null;
-                    var timelineForegroundUsage = selectedTab == timelineTab
-                        ? storage.GetForegroundUsageForDate(timelineDate)
-                        : null;
-                    var timelineDateHasData = selectedTab == timelineTab
-                        ? storage.HasActivityDataForDate(timelineDate, observedAt)
-                        : (bool?)null;
-                    var runtimeRows = selectedTab == detailTab
-                        ? storage.GetProcessRuntimeUsageForDate(detailDate, observedAt)
-                        : null;
-                    var detailSummaryAppIds = selectedTab == detailTab
-                        ? storage.GetForegroundUsageForDate(detailDate)
-                            .Select(x => x.AppId)
-                            .ToHashSet()
-                        : null;
-                    var detailDateHasData = selectedTab == detailTab
-                        ? storage.HasActivityDataForDate(detailDate, observedAt)
-                        : (bool?)null;
-                    var runtimeSegmentRows = selectedTab == detailTab && appIdToRestore is { } appId
-                        ? storage.GetProcessRuntimeSegmentsForDate(appId, detailDate, observedAt)
-                        : null;
-                    readStopwatch.Stop();
+                    snapshot = await Task.Run(() =>
+                    {
+                        var readStopwatch = Stopwatch.StartNew();
+                        var foregroundUsage = selectedTab == summaryTab
+                            ? storage.GetForegroundUsageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
+                            : null;
+                        var dailyUsageTrendRows = selectedTab == summaryTab
+                            ? storage.GetDailyUsageTrendForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
+                            : null;
+                        var idleUsage = selectedTab == summaryTab
+                            ? storage.GetIdleUsageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
+                            : null;
+                        var runtimeCoverage = selectedTab == summaryTab
+                            ? storage.GetRuntimeCoverageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End, observedAt)
+                            : null;
+                        var timelineRows = selectedTab == timelineTab
+                            ? storage.GetActivityTimelineForDate(timelineDate, observedAt)
+                            : null;
+                        var windowsRuntimeRanges = selectedTab == timelineTab
+                            ? storage.GetWindowsRuntimeRangesForDate(timelineDate, observedAt)
+                            : null;
+                        var systemTimelineEvents = selectedTab == timelineTab
+                            ? storage.GetSystemTimelineEventsForDate(timelineDate, observedAt)
+                            : null;
+                        var inferredSystemTimelineEvents = selectedTab == timelineTab
+                            ? storage.GetInferredSystemTimelineEventsForDate(timelineDate, observedAt)
+                            : null;
+                        var systemTimelineRanges = selectedTab == timelineTab
+                            ? storage.GetSystemTimelineRangesForDate(timelineDate, observedAt)
+                            : null;
+                        var categoryTimelineSegments = selectedTab == timelineTab
+                            ? storage.GetCategoryTimelineSegmentsForDate(
+                                timelineDate,
+                                observedAt,
+                                TimeSpan.FromMinutes(selectedTimelineCategoryBucketMinutes),
+                                selectedTimelineCategoryBucketMinutes == 0)
+                            : null;
+                        var timelineForegroundUsage = selectedTab == timelineTab
+                            ? storage.GetForegroundUsageForDate(timelineDate)
+                            : null;
+                        var timelineDateHasData = selectedTab == timelineTab
+                            ? storage.HasActivityDataForDate(timelineDate, observedAt)
+                            : (bool?)null;
+                        var runtimeRows = selectedTab == detailTab
+                            ? storage.GetProcessRuntimeUsageForDate(detailDate, observedAt)
+                            : null;
+                        var detailSummaryAppIds = selectedTab == detailTab
+                            ? storage.GetForegroundUsageForDate(detailDate)
+                                .Select(x => x.AppId)
+                                .ToHashSet()
+                            : null;
+                        var detailDateHasData = selectedTab == detailTab
+                            ? storage.HasActivityDataForDate(detailDate, observedAt)
+                            : (bool?)null;
+                        var runtimeSegmentRows = selectedTab == detailTab && appIdToRestore is { } appId
+                            ? storage.GetProcessRuntimeSegmentsForDate(appId, detailDate, observedAt)
+                            : null;
+                        readStopwatch.Stop();
 
-                    return new ViewRefreshSnapshot(
-                        foregroundUsage,
-                        dailyUsageTrendRows,
-                        idleUsage,
-                        runtimeCoverage,
-                        summaryPeriodRange.ShowDateInTimestamps,
-                        detailDateHasData,
-                        timelineDateHasData,
-                        timelineRows,
-                        windowsRuntimeRanges,
-                        systemTimelineRanges,
-                        systemTimelineEvents,
-                        inferredSystemTimelineEvents,
-                        categoryTimelineSegments,
-                        timelineForegroundUsage,
-                        runtimeRows,
-                        detailSummaryAppIds,
-                        runtimeSegmentRows,
-                        readStopwatch.ElapsedMilliseconds);
-                });
-            }
-            catch
-            {
-                return;
-            }
-            finally
-            {
-                isViewRefreshRunning = false;
+                        return new ViewRefreshSnapshot(
+                            foregroundUsage,
+                            dailyUsageTrendRows,
+                            idleUsage,
+                            runtimeCoverage,
+                            summaryPeriodRange.ShowDateInTimestamps,
+                            detailDateHasData,
+                            timelineDateHasData,
+                            timelineRows,
+                            windowsRuntimeRanges,
+                            systemTimelineRanges,
+                            systemTimelineEvents,
+                            inferredSystemTimelineEvents,
+                            categoryTimelineSegments,
+                            timelineForegroundUsage,
+                            runtimeRows,
+                            detailSummaryAppIds,
+                            runtimeSegmentRows,
+                            readStopwatch.ElapsedMilliseconds);
+                    });
+                    CacheHeavyViewSnapshot(
+                        selectedTab,
+                        timelineDate,
+                        detailDate,
+                        appIdToRestore,
+                        selectedTimelineCategoryBucketMinutes,
+                        observedAt,
+                        snapshot);
+                }
+                catch
+                {
+                    return;
+                }
+                finally
+                {
+                    isViewRefreshRunning = false;
+                }
             }
 
             if (isClosing)
@@ -1712,11 +1943,16 @@ namespace TimePilot.WinForms
                         return;
 
                     var writeStopwatch = Stopwatch.StartNew();
+                    var changed = false;
                     lock (processRuntimeTrackingLock)
                     {
                         if (!isClosing)
-                            processRuntimeSessionTracker.Track(processes, scope, observedAt);
+                            changed = processRuntimeSessionTracker.Track(processes, scope, observedAt);
                     }
+
+                    if (changed)
+                        Interlocked.Increment(ref processRuntimeDataVersion);
+
                     writeStopwatch.Stop();
                     writeElapsedMs = writeStopwatch.ElapsedMilliseconds;
                 });
@@ -5188,6 +5424,30 @@ namespace TimePilot.WinForms
             IReadOnlySet<long>? DetailSummaryAppIds,
             IReadOnlyList<ProcessRuntimeSegmentRow>? RuntimeSegmentRows,
             long ReadElapsedMs);
+
+        private sealed record HeavyViewRefreshKey(
+            string ViewName,
+            DateTime Date,
+            long? SelectedAppId,
+            int TimelineCategoryBucketMinutes,
+            long DataVersion)
+        {
+            public static HeavyViewRefreshKey ForTimeline(
+                DateTime date,
+                int categoryBucketMinutes,
+                long dataVersion)
+            {
+                return new HeavyViewRefreshKey("timeline", date.Date, null, categoryBucketMinutes, dataVersion);
+            }
+
+            public static HeavyViewRefreshKey ForDetail(
+                DateTime date,
+                long? selectedAppId,
+                long dataVersion)
+            {
+                return new HeavyViewRefreshKey("detail", date.Date, selectedAppId, 0, dataVersion);
+            }
+        }
 
         private sealed record TimelineCategoryBucketOption(string Label, int Minutes)
         {

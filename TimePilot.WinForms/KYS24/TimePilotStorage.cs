@@ -1831,7 +1831,10 @@ namespace TimePilot.WinForms.KYS24
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT started_at,
-                       COALESCE(ended_at, last_heartbeat_at, $now)
+                       CASE
+                           WHEN ended_at IS NULL THEN $now
+                           ELSE ended_at
+                       END
                 FROM app_runtime_sessions
                 WHERE started_at < $periodEnd
                   AND COALESCE(ended_at, last_heartbeat_at, $now) > $periodStart
