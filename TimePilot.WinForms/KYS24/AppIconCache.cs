@@ -3,19 +3,27 @@ namespace TimePilot.WinForms.KYS24
     internal sealed class AppIconCache : IDisposable
     {
         private readonly Dictionary<string, Image> icons = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> missingIconPaths = new(StringComparer.OrdinalIgnoreCase);
         private readonly Image defaultIcon = SystemIcons.Application.ToBitmap();
         private bool disposed;
 
         public Image GetIcon(string? executablePath)
         {
-            if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
+            if (string.IsNullOrWhiteSpace(executablePath))
                 return defaultIcon;
 
             if (icons.TryGetValue(executablePath, out var cachedIcon))
                 return cachedIcon;
 
+            if (missingIconPaths.Contains(executablePath))
+                return defaultIcon;
+
             var icon = TryLoadIcon(executablePath) ?? defaultIcon;
-            icons[executablePath] = icon;
+            if (ReferenceEquals(icon, defaultIcon))
+                missingIconPaths.Add(executablePath);
+            else
+                icons[executablePath] = icon;
+
             return icon;
         }
 
@@ -37,6 +45,9 @@ namespace TimePilot.WinForms.KYS24
         {
             try
             {
+                if (!File.Exists(executablePath))
+                    return null;
+
                 using var icon = Icon.ExtractAssociatedIcon(executablePath);
                 return icon?.ToBitmap();
             }
