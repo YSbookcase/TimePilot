@@ -1336,6 +1336,18 @@ namespace TimePilot.WinForms
             Interlocked.Increment(ref timelineDataVersion);
         }
 
+        private void InvalidateCategoryDependentViewCaches()
+        {
+            Interlocked.Increment(ref timelineDataVersion);
+            Interlocked.Increment(ref processRuntimeDataVersion);
+            cachedTimelineSnapshot = null;
+            cachedTimelineSnapshotKey = null;
+            cachedTimelineSnapshotAt = null;
+            cachedDetailSnapshot = null;
+            cachedDetailSnapshotKey = null;
+            cachedDetailSnapshotAt = null;
+        }
+
         private bool TryGetCachedHeavyViewSnapshot(
             TabPage? selectedTab,
             DateTime timelineDate,
@@ -3956,6 +3968,7 @@ namespace TimePilot.WinForms
             if (selectRuntimeApp)
                 selectedRuntimeAppId = appId;
 
+            InvalidateCategoryDependentViewCaches();
             SetStatusText(UiText.Main.CategoryUpdated(appName, categoryName));
             RefreshViews(DateTimeOffset.UtcNow);
         }
