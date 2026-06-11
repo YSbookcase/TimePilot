@@ -52,7 +52,12 @@ namespace TimePilot.WinForms
 
             var topRows = namedRows.Take(MaxNamedSegments).ToList();
             var builtSegments = topRows
-                .Select((segment, index) => segment with { Color = SegmentColors[index % SegmentColors.Length] })
+                .Select((segment, index) => segment with
+                {
+                    Color = segment.Color.IsEmpty
+                        ? SegmentColors[index % SegmentColors.Length]
+                        : segment.Color
+                })
                 .ToList();
 
             var otherRatio = namedRows.Skip(MaxNamedSegments).Sum(row => row.Ratio);
@@ -84,7 +89,7 @@ namespace TimePilot.WinForms
                     .Select(group => new Segment(
                         group.Key,
                         group.Sum(row => row.UsageRatio),
-                        Color.Empty,
+                        GetCategoryColor(group.Select(row => row.CategoryColor)),
                         !string.IsNullOrWhiteSpace(highlightedCategory)
                             && string.Equals(group.Key, highlightedCategory, StringComparison.CurrentCulture)))
                     .OrderByDescending(segment => segment.Ratio)
@@ -206,6 +211,39 @@ namespace TimePilot.WinForms
 
             return !string.IsNullOrWhiteSpace(highlightedProcessName)
                 && string.Equals(row.ProcessName, highlightedProcessName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static Color GetCategoryColor(IEnumerable<string?> colors)
+        {
+            foreach (var color in colors)
+            {
+                if (TryParseHexColor(color, out var parsedColor))
+                    return parsedColor;
+            }
+
+            return Color.FromArgb(148, 163, 184);
+        }
+
+        private static bool TryParseHexColor(string? value, out Color color)
+        {
+            color = Color.Empty;
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            var text = value.Trim();
+            if (!text.StartsWith("#", StringComparison.Ordinal))
+                text = "#" + text;
+
+            try
+            {
+                color = ColorTranslator.FromHtml(text);
+                return color.A == 255;
+            }
+            catch (Exception)
+            {
+                color = Color.Empty;
+                return false;
+            }
         }
 
         private static string FormatRatio(double ratio)

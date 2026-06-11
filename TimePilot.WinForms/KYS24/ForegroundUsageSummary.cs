@@ -7,6 +7,7 @@ namespace TimePilot.WinForms.KYS24
         string? ExecutablePath,
         long? PrimaryCategoryId,
         string? CategoryName,
+        string? CategoryColor,
         long ActiveUsageMs,
         long IdleRecordedMs,
         int SwitchCount,

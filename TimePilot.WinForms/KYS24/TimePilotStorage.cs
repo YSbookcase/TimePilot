@@ -1072,6 +1072,7 @@ namespace TimePilot.WinForms.KYS24
                     a.executable_path,
                     a.primary_category_id,
                     c.name,
+                    c.color,
                     fs.started_at,
                     fs.ended_at,
                     fs.last_observed_at
@@ -1094,10 +1095,11 @@ namespace TimePilot.WinForms.KYS24
                 var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
                 var primaryCategoryId = reader.IsDBNull(4) ? (long?)null : reader.GetInt64(4);
                 var categoryName = reader.IsDBNull(5) ? null : reader.GetString(5);
-                var startedAt = ParseTimestamp(reader.GetString(6));
-                var endedAt = reader.IsDBNull(7)
-                    ? reader.IsDBNull(8) ? startedAt : ParseTimestamp(reader.GetString(8))
-                    : ParseTimestamp(reader.GetString(7));
+                var categoryColor = reader.IsDBNull(6) ? null : reader.GetString(6);
+                var startedAt = ParseTimestamp(reader.GetString(7));
+                var endedAt = reader.IsDBNull(8)
+                    ? reader.IsDBNull(9) ? startedAt : ParseTimestamp(reader.GetString(9))
+                    : ParseTimestamp(reader.GetString(8));
                 var effectiveStart = Max(startedAt, periodStart);
                 var effectiveEnd = Min(endedAt, periodEnd);
                 var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
@@ -1114,13 +1116,15 @@ namespace TimePilot.WinForms.KYS24
                         effectiveEnd,
                         executablePath,
                         primaryCategoryId,
-                        categoryName);
+                        categoryName,
+                        categoryColor);
                     totals[appId] = aggregation;
                 }
 
                 aggregation.ExecutablePath ??= executablePath;
                 aggregation.PrimaryCategoryId ??= primaryCategoryId;
                 aggregation.CategoryName ??= categoryName;
+                aggregation.CategoryColor ??= categoryColor;
                 aggregation.ActiveUsageMs += durationMs;
                 aggregation.SwitchCount++;
                 aggregation.FirstStartedAt = Min(aggregation.FirstStartedAt, effectiveStart);
@@ -1137,6 +1141,7 @@ namespace TimePilot.WinForms.KYS24
                     x.Value.ExecutablePath,
                     x.Value.PrimaryCategoryId,
                     x.Value.CategoryName,
+                    x.Value.CategoryColor,
                     x.Value.ActiveUsageMs,
                     x.Value.IdleRecordedMs,
                     x.Value.SwitchCount,
@@ -3375,7 +3380,8 @@ namespace TimePilot.WinForms.KYS24
                 DateTimeOffset lastObservedAt,
                 string? executablePath,
                 long? primaryCategoryId,
-                string? categoryName)
+                string? categoryName,
+                string? categoryColor)
             {
                 AppId = appId;
                 AppName = appName;
@@ -3385,6 +3391,7 @@ namespace TimePilot.WinForms.KYS24
                 ExecutablePath = executablePath;
                 PrimaryCategoryId = primaryCategoryId;
                 CategoryName = categoryName;
+                CategoryColor = categoryColor;
             }
 
             public long AppId { get; }
@@ -3402,6 +3409,8 @@ namespace TimePilot.WinForms.KYS24
             public long? PrimaryCategoryId { get; set; }
 
             public string? CategoryName { get; set; }
+
+            public string? CategoryColor { get; set; }
 
             public int SwitchCount { get; set; }
 

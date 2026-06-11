@@ -9,6 +9,7 @@ namespace TimePilot.WinForms.KYS24
         string? ExecutablePath,
         long? PrimaryCategoryId,
         string? CategoryName,
+        string? CategoryColor,
         long ActiveUsageMs,
         long IdleRecordedMs,
         double UsageRatio,
@@ -39,6 +40,40 @@ namespace TimePilot.WinForms.KYS24
                 executablePath,
                 primaryCategoryId,
                 categoryName,
+                null,
+                activeUsageMs,
+                usageRatio,
+                switchCount,
+                appIcon,
+                firstStartedAt,
+                lastObservedAt,
+                showDateInTimestamps)
+        {
+        }
+
+        public UsageSummaryRow(
+            long? appId,
+            string appName,
+            string processName,
+            string? executablePath,
+            long? primaryCategoryId,
+            string? categoryName,
+            string? categoryColor,
+            long activeUsageMs,
+            double usageRatio,
+            int switchCount,
+            Image? appIcon = null,
+            DateTimeOffset? firstStartedAt = null,
+            DateTimeOffset? lastObservedAt = null,
+            bool showDateInTimestamps = false)
+            : this(
+                appId,
+                appName,
+                processName,
+                executablePath,
+                primaryCategoryId,
+                categoryName,
+                categoryColor,
                 activeUsageMs,
                 0,
                 usageRatio,
