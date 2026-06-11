@@ -27,6 +27,10 @@ namespace TimePilot.WinForms
         private readonly ContextMenuStrip appCategoryMenu = new();
         private readonly ContextMenuStrip usageGridMenu = new();
         private readonly ContextMenuStrip timelineGridMenu = new();
+        private readonly FlowLayoutPanel summaryUsageBarsModePanel = new();
+        private readonly Label summaryUsageBarsModeLabel = new();
+        private readonly ComboBox summaryUsageBarsModeComboBox = new();
+        private readonly SummaryUsageBarsControl summaryUsageBarsControl = new();
         private readonly TableLayoutPanel runtimeSegmentPanel = new();
         private readonly TableLayoutPanel runtimeSegmentTimelinePanel = new();
         private readonly Label runtimeSegmentObservationFilterLabel = new();
@@ -69,6 +73,7 @@ namespace TimePilot.WinForms
         private SortOrder runtimeSegmentSortOrder = SortOrder.Descending;
         private DetailRuntimeFilter selectedDetailRuntimeFilter = DetailRuntimeFilter.SummaryApps;
         private RuntimeSegmentObservationFilter selectedRuntimeSegmentObservationFilter = RuntimeSegmentObservationFilter.All;
+        private SummaryUsageBarMode selectedSummaryUsageBarMode = SummaryUsageBarMode.App;
         private bool showRunningRuntimeOnly;
         private bool isRefreshingRuntimeGrid;
         private bool isSelectingRuntimeGridRow;
@@ -169,6 +174,8 @@ namespace TimePilot.WinForms
             usageGrid.CellMouseEnter += OnGridCellMouseEnter;
             usageGrid.CellMouseLeave += OnGridCellMouseLeave;
             usageGrid.CellMouseDown += OnUsageGridCellMouseDown;
+            usageGrid.SelectionChanged += OnUsageGridSelectionChanged;
+            InitializeSummaryUsageBars();
             timelineGrid.CellMouseDown += OnTimelineGridCellMouseDown;
             timelineGrid.RowPrePaint += OnTimelineGridRowPrePaint;
             timelineGrid.RowPostPaint += OnTimelineGridRowPostPaint;
@@ -1050,6 +1057,103 @@ namespace TimePilot.WinForms
             UpdateSummaryIdleAnalysisPanelHeight();
         }
 
+        private void InitializeSummaryUsageBars()
+        {
+            summaryUsageBarsModePanel.Dock = DockStyle.Top;
+            summaryUsageBarsModePanel.Height = 30;
+            summaryUsageBarsModePanel.Padding = new Padding(0, 0, 0, 2);
+            summaryUsageBarsModePanel.WrapContents = false;
+
+            summaryUsageBarsModeLabel.AutoSize = true;
+            summaryUsageBarsModeLabel.Margin = new Padding(0, 6, 8, 0);
+            summaryUsageBarsModePanel.Controls.Add(summaryUsageBarsModeLabel);
+
+            summaryUsageBarsModeComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            summaryUsageBarsModeComboBox.Width = 110;
+            summaryUsageBarsModeComboBox.SelectedIndexChanged += OnSummaryUsageBarsModeComboBoxSelectedIndexChanged;
+            summaryUsageBarsModePanel.Controls.Add(summaryUsageBarsModeComboBox);
+
+            summaryUsageBarsControl.Dock = DockStyle.Fill;
+            summaryUsageBarsControl.Font = usageGrid.Font;
+            summaryUsageBarsPanel.Controls.Add(summaryUsageBarsControl);
+            summaryUsageBarsPanel.Controls.Add(summaryUsageBarsModePanel);
+            summaryUsageBarsModePanel.BringToFront();
+            RefreshSummaryUsageBarsModeOptions();
+        }
+
+        private void SetSummaryUsageBars(IReadOnlyList<UsageSummaryRow> rows)
+        {
+            summaryUsageBarsControl.SetRows(rows, GetSelectedUsageSummaryRow(), selectedSummaryUsageBarMode);
+            summaryUsageBarsPanel.Visible = rows.Count > 0;
+        }
+
+        private void RefreshSummaryUsageBarsModeOptions()
+        {
+            summaryUsageBarsModeLabel.Text = UiText.CurrentLanguage == UiLanguage.English ? "Bar" : "\uB9C9\uB300";
+            summaryUsageBarsModeComboBox.BeginUpdate();
+            try
+            {
+                summaryUsageBarsModeComboBox.Items.Clear();
+                summaryUsageBarsModeComboBox.Items.Add(UiText.CurrentLanguage == UiLanguage.English ? "App" : "\uC571");
+                summaryUsageBarsModeComboBox.Items.Add(UiText.CurrentLanguage == UiLanguage.English ? "Category" : "\uBD84\uB958");
+                summaryUsageBarsModeComboBox.SelectedIndex = selectedSummaryUsageBarMode == SummaryUsageBarMode.Category ? 1 : 0;
+            }
+            finally
+            {
+                summaryUsageBarsModeComboBox.EndUpdate();
+            }
+        }
+
+        private void OnSummaryUsageBarsModeComboBoxSelectedIndexChanged(object? sender, EventArgs e)
+        {
+            selectedSummaryUsageBarMode = summaryUsageBarsModeComboBox.SelectedIndex == 1
+                ? SummaryUsageBarMode.Category
+                : SummaryUsageBarMode.App;
+
+            if (usageGrid.DataSource is IReadOnlyList<UsageSummaryRow> rows)
+                SetSummaryUsageBars(rows);
+        }
+
+        private void RestoreUsageGridSelection(UsageSummaryRow? previousSelection)
+        {
+            if (previousSelection is null || usageGrid.Rows.Count == 0)
+                return;
+
+            for (var i = 0; i < usageGrid.Rows.Count; i++)
+            {
+                if (usageGrid.Rows[i].DataBoundItem is not UsageSummaryRow row || !IsSameUsageSummaryApp(row, previousSelection))
+                    continue;
+
+                var columnIndex = Math.Max(GetFirstDisplayedColumnIndex(usageGrid), 0);
+                columnIndex = Math.Min(columnIndex, usageGrid.Columns.Count - 1);
+                usageGrid.ClearSelection();
+                usageGrid.Rows[i].Selected = true;
+                usageGrid.CurrentCell = usageGrid.Rows[i].Cells[columnIndex];
+                return;
+            }
+        }
+
+        private static bool IsSameUsageSummaryApp(UsageSummaryRow left, UsageSummaryRow right)
+        {
+            if (left.AppId is { } leftAppId && right.AppId is { } rightAppId)
+                return leftAppId == rightAppId;
+
+            return string.Equals(left.ProcessName, right.ProcessName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void OnUsageGridSelectionChanged(object? sender, EventArgs e)
+        {
+            if (usageGrid.DataSource is not IReadOnlyList<UsageSummaryRow> rows)
+                return;
+
+            summaryUsageBarsControl.SetRows(rows, GetSelectedUsageSummaryRow(), selectedSummaryUsageBarMode);
+        }
+
+        private UsageSummaryRow? GetSelectedUsageSummaryRow()
+        {
+            return usageGrid.CurrentRow?.DataBoundItem as UsageSummaryRow;
+        }
+
         private void SetRuntimeCoverageSummaryParts(params string[] parts)
         {
             SetRuntimeCoverageSummaryParts((IEnumerable<string>)parts);
@@ -1164,6 +1268,7 @@ namespace TimePilot.WinForms
             summarySpecificDateCalendarButton.Text = UiText.Main.Calendar;
             summaryCustomRangeButton.Text = UiText.SummaryPeriod.CustomRangeButton;
             UpdateSummaryCustomRangeLabel();
+            RefreshSummaryUsageBarsModeOptions();
             detailDateLabel.Text = UiText.Main.Date;
             detailCalendarButton.Text = UiText.Main.Calendar;
             detailTodayButton.Text = UiText.Main.Today;
@@ -1680,14 +1785,19 @@ namespace TimePilot.WinForms
             {
                 SetRuntimeCoverageSummary(snapshot.RuntimeCoverage);
                 SetSummaryIdleAnalysis(snapshot.ForegroundUsage, snapshot.IdleUsage);
+                var previousUsageSelection = GetSelectedUsageSummaryRow();
+                var usageRows = AddIcons(SortUsageSummaryRows(UsageSummaryRowBuilder.FromForegroundUsage(
+                    snapshot.ForegroundUsage,
+                    snapshot.ShowDateInUsageTimestamps)));
                 SetGridDataSourcePreservingView(
                     usageGrid,
-                    AddIcons(SortUsageSummaryRows(UsageSummaryRowBuilder.FromForegroundUsage(
-                        snapshot.ForegroundUsage,
-                        snapshot.ShowDateInUsageTimestamps))));
+                    usageRows);
+                RestoreUsageGridSelection(previousUsageSelection);
+                SetSummaryUsageBars(usageRows);
                 SetGridDataSourcePreservingView(
                     dailyUsageTrendGrid,
                     SortDailyUsageTrendRows(snapshot.DailyUsageTrendRows ?? Array.Empty<DailyUsageTrendRow>()));
+                usageGrid.Invalidate();
             }
 
             if (snapshot.TimelineRows is not null)

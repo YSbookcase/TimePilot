@@ -47,6 +47,7 @@
             runtimeCoverageSummaryPanel = new FlowLayoutPanel();
             summaryIdleAnalysisPanel = new FlowLayoutPanel();
             summaryIdleAnalysisLabel = new Label();
+            summaryUsageBarsPanel = new Panel();
             runtimeCoverageSummaryToolTip = new ToolTip(components);
             summarySplitContainer = new SplitContainer();
             usageGrid = new BufferedDataGridView();
@@ -293,6 +294,7 @@
             // summaryTab
             // 
             summaryTab.Controls.Add(summarySplitContainer);
+            summaryTab.Controls.Add(summaryUsageBarsPanel);
             summaryTab.Controls.Add(summaryIdleAnalysisPanel);
             summaryTab.Controls.Add(runtimeCoverageSummaryPanel);
             summaryTab.Controls.Add(summaryPeriodPanel);
@@ -431,10 +433,20 @@
             summaryIdleAnalysisLabel.Size = new Size(0, 15);
             summaryIdleAnalysisLabel.TabIndex = 0;
             //
+            // summaryUsageBarsPanel
+            //
+            summaryUsageBarsPanel.Dock = DockStyle.Top;
+            summaryUsageBarsPanel.Location = new Point(3, 111);
+            summaryUsageBarsPanel.Name = "summaryUsageBarsPanel";
+            summaryUsageBarsPanel.Padding = new Padding(8, 4, 8, 6);
+            summaryUsageBarsPanel.Size = new Size(706, 124);
+            summaryUsageBarsPanel.TabIndex = 6;
+            summaryUsageBarsPanel.Visible = false;
+            //
             // summarySplitContainer
             //
             summarySplitContainer.Dock = DockStyle.Fill;
-            summarySplitContainer.Location = new Point(3, 119);
+            summarySplitContainer.Location = new Point(3, 243);
             summarySplitContainer.Name = "summarySplitContainer";
             summarySplitContainer.Orientation = Orientation.Horizontal;
             //
@@ -445,8 +457,8 @@
             // summarySplitContainer.Panel2
             //
             summarySplitContainer.Panel2.Controls.Add(dailyUsageTrendGrid);
-            summarySplitContainer.Size = new Size(706, 298);
-            summarySplitContainer.SplitterDistance = 166;
+            summarySplitContainer.Size = new Size(706, 174);
+            summarySplitContainer.SplitterDistance = 95;
             summarySplitContainer.TabIndex = 5;
             //
             // usageGrid
@@ -1561,6 +1573,7 @@
         private FlowLayoutPanel runtimeCoverageSummaryPanel;
         private FlowLayoutPanel summaryIdleAnalysisPanel;
         private Label summaryIdleAnalysisLabel;
+        private Panel summaryUsageBarsPanel;
         private ToolTip runtimeCoverageSummaryToolTip;
         private SplitContainer summarySplitContainer;
         private DataGridView usageGrid;
