@@ -75,6 +75,8 @@ namespace TimePilot.WinForms
 
         private string NoCategoryText => IsEnglish ? "(Uncategorized)" : "(미분류)";
 
+        private string IdentityReviewText => IsEnglish ? "App match check needed" : "앱 구분 확인 필요";
+
         private void InitializeComponent()
         {
             var topPanel = new FlowLayoutPanel();
@@ -217,6 +219,7 @@ namespace TimePilot.WinForms
                 CreateTextColumn(nameof(AppCategoryManagementRow.UserAliasText), IsEnglish ? "Custom name" : "사용자 이름", 150, nameof(AppCategoryManagementRow.UserAlias)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.ProcessName), IsEnglish ? "Process" : "프로세스", 130),
                 CreateTextColumn(nameof(AppCategoryManagementRow.TrackingTypeText), IsEnglish ? "Observed as" : "관측 유형", 110),
+                CreateTextColumn(nameof(AppCategoryManagementRow.IdentityStatusText), IsEnglish ? "App match" : "앱 구분", 110, nameof(AppCategoryManagementRow.IdentityStatusText)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.FileDescriptionText), IsEnglish ? "Description" : "파일 설명", 180, nameof(AppCategoryManagementRow.FileDescription)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.ProductNameText), IsEnglish ? "Product" : "제품명", 160, nameof(AppCategoryManagementRow.ProductName)),
                 CreateTextColumn(nameof(AppCategoryManagementRow.CompanyNameText), IsEnglish ? "Company" : "회사", 150, nameof(AppCategoryManagementRow.CompanyName)),
@@ -233,6 +236,9 @@ namespace TimePilot.WinForms
             appsGrid.Columns[nameof(AppCategoryManagementRow.TrackingTypeText) + "Column"].ToolTipText = IsEnglish
                 ? "Shows whether the app was observed as a visible app, user process, or all-process item."
                 : "앱이 화면 앱, 사용자 프로세스, 전체 프로세스 항목 중 어떤 방식으로 관측되었는지 보여줍니다.";
+            appsGrid.Columns[nameof(AppCategoryManagementRow.IdentityStatusText) + "Column"].ToolTipText = IsEnglish
+                ? "Shows whether TimePilot can safely treat records with this name as the same app."
+                : "TimePilot이 이 이름의 기록을 같은 앱으로 보아도 되는지 확인할 수 있게 보여줍니다.";
             appsGrid.Columns[nameof(AppCategoryManagementRow.RecommendedCategoryText) + "Column"].ToolTipText = IsEnglish
                 ? "Shows a conservative local category suggestion for unclassified apps."
                 : "미분류 앱에 대해 보수적인 로컬 분류 추천을 보여줍니다.";
@@ -571,6 +577,7 @@ namespace TimePilot.WinForms
                     ImportantUnclassifiedText,
                     CategorizedText,
                     RecommendationsText,
+                    IdentityReviewText,
                     SpecificCategoryText
                 });
                 filterComboBox.SelectedItem = selectedFilter is not null && filterComboBox.Items.Contains(selectedFilter)
@@ -637,6 +644,8 @@ namespace TimePilot.WinForms
                 rows = rows.Where(x => x.PrimaryCategoryId is not null);
             else if (selectedFilter == RecommendationsText)
                 rows = rows.Where(x => x.HasRecommendation);
+            else if (selectedFilter == IdentityReviewText)
+                rows = rows.Where(x => x.NeedsIdentityReview);
             else if (selectedFilter == SpecificCategoryText
                 && filterCategoryComboBox.SelectedItem is CategorySelectionOption category)
                 rows = rows.Where(x => x.PrimaryCategoryId == category.Id);
@@ -650,6 +659,7 @@ namespace TimePilot.WinForms
                     || (x.UserAlias?.Contains(searchText, StringComparison.CurrentCultureIgnoreCase) ?? false)
                     || x.ProcessName.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)
                     || x.CategoryText.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)
+                    || x.IdentityStatusText.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)
                     || (x.FileDescription?.Contains(searchText, StringComparison.CurrentCultureIgnoreCase) ?? false)
                     || (x.ProductName?.Contains(searchText, StringComparison.CurrentCultureIgnoreCase) ?? false)
                     || (x.CompanyName?.Contains(searchText, StringComparison.CurrentCultureIgnoreCase) ?? false)
@@ -723,6 +733,7 @@ namespace TimePilot.WinForms
                 nameof(AppCategoryManagementRow.UserAlias) => OrderRows(rows, x => x.UserAlias ?? ""),
                 nameof(AppCategoryManagementRow.ProcessName) => OrderRows(rows, x => x.ProcessName),
                 nameof(AppCategoryManagementRow.TrackingTypeText) => OrderRows(rows, x => x.TrackingTypeText),
+                nameof(AppCategoryManagementRow.IdentityStatusText) => OrderRows(rows, x => x.IdentityStatusText),
                 nameof(AppCategoryManagementRow.HasAppIcon) => OrderRows(rows, x => x.HasAppIcon),
                 nameof(AppCategoryManagementRow.FileDescription) => OrderRows(rows, x => x.FileDescription ?? ""),
                 nameof(AppCategoryManagementRow.ProductName) => OrderRows(rows, x => x.ProductName ?? ""),
@@ -1547,6 +1558,13 @@ namespace TimePilot.WinForms
             }
 
             categoryMenu.Items.Add(new ToolStripSeparator());
+            var identityItem = new ToolStripMenuItem(IsEnglish ? "Show app match info" : "앱 구분 정보 보기")
+            {
+                Enabled = !isBulkSelection
+            };
+            identityItem.Click += (_, _) => ShowIdentityInfo(row);
+            categoryMenu.Items.Add(identityItem);
+            categoryMenu.Items.Add(new ToolStripSeparator());
             var searchWebItem = new ToolStripMenuItem(IsEnglish ? "Search web" : "웹에서 검색");
             searchWebItem.Click += (_, _) => OpenWebSearch(row);
             categoryMenu.Items.Add(searchWebItem);
@@ -1555,6 +1573,40 @@ namespace TimePilot.WinForms
             if (selectedRows.Count > 1)
                 BeginInvoke(new Action(() => RestoreSelectionByAppIds(selectedRows.Select(row => row.AppId).ToHashSet(), row.AppId)));
             contextMenuRows = null;
+        }
+
+        private void ShowIdentityInfo(AppCategoryManagementRow row)
+        {
+            var observations = storage.GetAppIdentityObservations(row.AppId);
+            var observationText = observations.Count == 0
+                ? IsEnglish ? "No detailed observations yet." : "아직 상세 관측 정보가 없습니다."
+                : string.Join(
+                    Environment.NewLine,
+                    observations.Select(observation =>
+                        $"- {observation.DisplayName} / {observation.ProcessName} / {observation.ExecutablePath ?? (IsEnglish ? "(no path)" : "(경로 없음)")} / {observation.LastSeenAt.ToLocalTime():yyyy-MM-dd HH:mm:ss} / {observation.ObservedCount:N0}"));
+            var message = string.Join(
+                Environment.NewLine + Environment.NewLine,
+                IsEnglish
+                    ? $"App match: {row.IdentityStatusText}"
+                    : $"앱 구분: {row.IdentityStatusText}",
+                IsEnglish
+                    ? "This is a reference signal for checking whether records with the same name can be treated as the same app. In this version, records with the same name are still grouped as one app. You can set a category or use web search to identify the app. Splitting records into separate apps will be considered in a later version."
+                    : "이 표시는 같은 이름의 기록을 같은 앱으로 보아도 되는지 확인하기 위한 참고 정보입니다. 현재 버전에서는 같은 이름의 기록이 하나의 앱으로 묶입니다. 필요하면 분류를 지정하거나 웹 검색으로 앱을 확인할 수 있습니다. 서로 다른 앱으로 분리하는 기능은 이후 버전에서 검토합니다.",
+                row.IdentityDetailText,
+                IsEnglish
+                    ? $"Process: {row.ProcessName}"
+                    : $"프로세스: {row.ProcessName}",
+                IsEnglish
+                    ? $"Path: {row.ExecutablePath ?? "(none)"}"
+                    : $"경로: {row.ExecutablePath ?? "(없음)"}",
+                IsEnglish ? $"Observed entries:{Environment.NewLine}{observationText}" : $"관측 항목:{Environment.NewLine}{observationText}");
+
+            MessageBox.Show(
+                this,
+                message,
+                IsEnglish ? "App match information" : "앱 구분 정보",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
         }
 
         private void EditCustomName(AppCategoryManagementRow row)

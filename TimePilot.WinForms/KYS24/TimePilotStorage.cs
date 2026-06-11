@@ -8,6 +8,7 @@ namespace TimePilot.WinForms.KYS24
     {
         private readonly string databasePath;
         private readonly string connectionString;
+        private readonly HashSet<string> appObservationKeys = new(StringComparer.OrdinalIgnoreCase);
         private long? runtimeSessionId;
         private bool disposed;
         private static readonly TimeSpan CurrentTimelineSessionTolerance = TimeSpan.FromSeconds(5);
@@ -62,6 +63,22 @@ namespace TimePilot.WinForms.KYS24
                     is_excluded INTEGER NOT NULL DEFAULT 0,
                     FOREIGN KEY (primary_category_id) REFERENCES app_categories(id),
                     FOREIGN KEY (recommended_category_id) REFERENCES app_categories(id)
+                );
+
+                CREATE TABLE IF NOT EXISTS app_observations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_id INTEGER NOT NULL,
+                    process_name TEXT NOT NULL COLLATE NOCASE,
+                    display_name TEXT NOT NULL,
+                    executable_path TEXT NULL,
+                    normalized_executable_path TEXT NULL COLLATE NOCASE,
+                    file_description TEXT NULL,
+                    product_name TEXT NULL,
+                    company_name TEXT NULL,
+                    first_seen_at TEXT NOT NULL,
+                    last_seen_at TEXT NOT NULL,
+                    observed_count INTEGER NOT NULL DEFAULT 1,
+                    FOREIGN KEY (app_id) REFERENCES apps(id)
                 );
 
                 CREATE TABLE IF NOT EXISTS app_runtime_sessions (
@@ -138,6 +155,12 @@ namespace TimePilot.WinForms.KYS24
                 CREATE INDEX IF NOT EXISTS idx_system_events_occurred_at
                     ON system_events(occurred_at);
 
+                CREATE INDEX IF NOT EXISTS idx_app_observations_app_id
+                    ON app_observations(app_id);
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_app_observations_identity
+                    ON app_observations(app_id, process_name, COALESCE(normalized_executable_path, ''));
+
                 """;
             command.ExecuteNonQuery();
 
@@ -146,6 +169,7 @@ namespace TimePilot.WinForms.KYS24
             EnsureForegroundSessionColumns(connection);
             EnsureIdleSessionColumns(connection);
             EnsureProcessRuntimeSessionColumns(connection);
+            SeedAppObservationsFromApps(connection);
             RenameBuiltinAppCategoriesToCanonical(connection, now);
             SeedDefaultAppCategories(connection, now);
             MarkUnexpectedRuntimeSessions(now, systemBootedAt);
@@ -446,6 +470,7 @@ namespace TimePilot.WinForms.KYS24
                 "foreground_sessions",
                 "idle_sessions",
                 "app_runtime_sessions",
+                "app_observations",
                 "apps"
             })
             {
@@ -465,12 +490,14 @@ namespace TimePilot.WinForms.KYS24
                     'foreground_sessions',
                     'idle_sessions',
                     'app_runtime_sessions',
+                    'app_observations',
                     'apps'
                 );
                 """;
             sequenceCommand.ExecuteNonQuery();
 
             transaction.Commit();
+            appObservationKeys.Clear();
         }
 
         public bool HasRecentRepeatedShortUnexpectedRuntimeSessions(int requiredCount, TimeSpan maxDuration)
@@ -814,7 +841,10 @@ namespace TimePilot.WinForms.KYS24
                     r.segment_count,
                     r.last_observed_at,
                     r.has_main_window,
-                    r.is_current_session_process
+                    r.is_current_session_process,
+                    o.observation_count,
+                    o.path_count,
+                    o.missing_path_count
                 FROM apps a
                 LEFT JOIN app_categories c ON c.id = a.primary_category_id
                 LEFT JOIN (
@@ -837,6 +867,15 @@ namespace TimePilot.WinForms.KYS24
                     FROM process_runtime_sessions
                     GROUP BY app_id
                 ) r ON r.app_id = a.id
+                LEFT JOIN (
+                    SELECT
+                        app_id,
+                        SUM(observed_count) AS observation_count,
+                        COUNT(DISTINCT normalized_executable_path) AS path_count,
+                        SUM(CASE WHEN normalized_executable_path IS NULL OR TRIM(normalized_executable_path) = '' THEN 1 ELSE 0 END) AS missing_path_count
+                    FROM app_observations
+                    GROUP BY app_id
+                ) o ON o.app_id = a.id
                 ORDER BY COALESCE(f.last_observed_at, r.last_observed_at, '') DESC,
                          COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name) COLLATE NOCASE;
                 """;
@@ -867,7 +906,44 @@ namespace TimePilot.WinForms.KYS24
                     HasForegroundActivity: !reader.IsDBNull(8) && reader.GetInt64(8) > 0,
                     HasMainWindow: !reader.IsDBNull(14) && reader.GetInt64(14) != 0,
                     IsCurrentSessionProcess: !reader.IsDBNull(15) && reader.GetInt64(15) != 0,
-                    HasRuntimeObservation: !reader.IsDBNull(12) && reader.GetInt64(12) > 0));
+                    HasRuntimeObservation: !reader.IsDBNull(12) && reader.GetInt64(12) > 0,
+                    ObservationCount: reader.IsDBNull(16) ? 0 : Convert.ToInt32(reader.GetInt64(16)),
+                    ObservationPathCount: reader.IsDBNull(17) ? 0 : Convert.ToInt32(reader.GetInt64(17)),
+                    HasMissingObservationPath: !reader.IsDBNull(18) && reader.GetInt64(18) > 0));
+            }
+
+            return rows;
+        }
+
+        public IReadOnlyList<AppIdentityObservationRow> GetAppIdentityObservations(long appId)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    display_name,
+                    process_name,
+                    executable_path,
+                    first_seen_at,
+                    last_seen_at,
+                    observed_count
+                FROM app_observations
+                WHERE app_id = $appId
+                ORDER BY last_seen_at DESC, executable_path COLLATE NOCASE;
+                """;
+            command.Parameters.AddWithValue("$appId", appId);
+
+            var rows = new List<AppIdentityObservationRow>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                rows.Add(new AppIdentityObservationRow(
+                    reader.GetString(0),
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2),
+                    ParseTimestamp(reader.GetString(3)),
+                    ParseTimestamp(reader.GetString(4)),
+                    Convert.ToInt32(reader.GetInt64(5))));
             }
 
             return rows;
@@ -906,6 +982,22 @@ namespace TimePilot.WinForms.KYS24
                         "recommended_category_updated_at",
                         "user_alias",
                         "is_excluded"
+                    ]),
+                GetRawDataExportTable(
+                    "app_observations",
+                    [
+                        "id",
+                        "app_id",
+                        "process_name",
+                        "display_name",
+                        "executable_path",
+                        "normalized_executable_path",
+                        "file_description",
+                        "product_name",
+                        "company_name",
+                        "first_seen_at",
+                        "last_seen_at",
+                        "observed_count"
                     ]),
                 GetRawDataExportTable(
                     "app_runtime_sessions",
@@ -2259,6 +2351,34 @@ namespace TimePilot.WinForms.KYS24
             command.ExecuteNonQuery();
         }
 
+        private static void SeedAppObservationsFromApps(SqliteConnection connection)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT OR IGNORE INTO app_observations (
+                    app_id,
+                    process_name,
+                    display_name,
+                    executable_path,
+                    normalized_executable_path,
+                    first_seen_at,
+                    last_seen_at,
+                    observed_count
+                )
+                SELECT
+                    id,
+                    process_name,
+                    display_name,
+                    executable_path,
+                    LOWER(REPLACE(executable_path, '/', '\')),
+                    first_seen_at,
+                    last_seen_at,
+                    1
+                FROM apps;
+                """;
+            command.ExecuteNonQuery();
+        }
+
         private static void SeedDefaultAppCategories(SqliteConnection connection, DateTimeOffset now)
         {
             var timestamp = FormatTimestamp(now);
@@ -2410,6 +2530,16 @@ namespace TimePilot.WinForms.KYS24
                 AppCategorySource.System => AppCategorySource.System,
                 _ => AppCategorySource.User
             };
+        }
+
+        private static string? NormalizeExecutablePath(string? executablePath)
+        {
+            if (string.IsNullOrWhiteSpace(executablePath))
+                return null;
+
+            return executablePath.Trim()
+                .Replace('/', '\\')
+                .ToLowerInvariant();
         }
 
         private static void EnsureRuntimeSessionColumns(SqliteConnection connection)
@@ -2721,7 +2851,77 @@ namespace TimePilot.WinForms.KYS24
                 WHERE process_name = $processName;
                 """;
             selectCommand.Parameters.AddWithValue("$processName", app.ProcessName);
-            return (long)selectCommand.ExecuteScalar()!;
+            var appId = (long)selectCommand.ExecuteScalar()!;
+            RecordAppObservation(connection, appId, app, observedAt, transaction);
+            return appId;
+        }
+
+        private void RecordAppObservation(
+            SqliteConnection connection,
+            long appId,
+            AppMetadata app,
+            DateTimeOffset observedAt,
+            SqliteTransaction? transaction)
+        {
+            var normalizedPath = NormalizeExecutablePath(app.ExecutablePath);
+            var cacheKey = $"{appId}|{app.ProcessName}|{normalizedPath ?? ""}";
+            if (!appObservationKeys.Add(cacheKey))
+                return;
+
+            using var updateCommand = connection.CreateCommand();
+            updateCommand.Transaction = transaction;
+            updateCommand.CommandText = """
+                UPDATE app_observations
+                SET display_name = $displayName,
+                    executable_path = COALESCE($executablePath, executable_path),
+                    last_seen_at = $lastSeenAt,
+                    observed_count = observed_count + 1
+                WHERE app_id = $appId
+                  AND process_name = $processName
+                  AND COALESCE(normalized_executable_path, '') = COALESCE($normalizedExecutablePath, '');
+                """;
+            updateCommand.Parameters.AddWithValue("$displayName", app.DisplayName);
+            updateCommand.Parameters.AddWithValue("$executablePath", (object?)app.ExecutablePath ?? DBNull.Value);
+            updateCommand.Parameters.AddWithValue("$lastSeenAt", FormatTimestamp(observedAt));
+            updateCommand.Parameters.AddWithValue("$appId", appId);
+            updateCommand.Parameters.AddWithValue("$processName", app.ProcessName);
+            updateCommand.Parameters.AddWithValue("$normalizedExecutablePath", (object?)normalizedPath ?? DBNull.Value);
+            var updated = updateCommand.ExecuteNonQuery();
+            if (updated > 0)
+                return;
+
+            using var insertCommand = connection.CreateCommand();
+            insertCommand.Transaction = transaction;
+            insertCommand.CommandText = """
+                INSERT OR IGNORE INTO app_observations (
+                    app_id,
+                    process_name,
+                    display_name,
+                    executable_path,
+                    normalized_executable_path,
+                    first_seen_at,
+                    last_seen_at,
+                    observed_count
+                )
+                VALUES (
+                    $appId,
+                    $processName,
+                    $displayName,
+                    $executablePath,
+                    $normalizedExecutablePath,
+                    $firstSeenAt,
+                    $lastSeenAt,
+                    1
+                );
+                """;
+            insertCommand.Parameters.AddWithValue("$appId", appId);
+            insertCommand.Parameters.AddWithValue("$processName", app.ProcessName);
+            insertCommand.Parameters.AddWithValue("$displayName", app.DisplayName);
+            insertCommand.Parameters.AddWithValue("$executablePath", (object?)app.ExecutablePath ?? DBNull.Value);
+            insertCommand.Parameters.AddWithValue("$normalizedExecutablePath", (object?)normalizedPath ?? DBNull.Value);
+            insertCommand.Parameters.AddWithValue("$firstSeenAt", FormatTimestamp(observedAt));
+            insertCommand.Parameters.AddWithValue("$lastSeenAt", FormatTimestamp(observedAt));
+            insertCommand.ExecuteNonQuery();
         }
 
         private void AddForegroundTimelineRows(
