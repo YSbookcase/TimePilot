@@ -142,6 +142,8 @@ Future refactoring should introduce extension points for:
 - feature availability checks
 - Community fallback behavior when Pro modules are absent
 
+Optional detail tracking should be treated as an early add-on readiness test case. The public repository may prepare the policy, UI contracts, storage boundaries, and extension hooks for it, but Pro-only detail collection code should stay outside the public Community implementation.
+
 Example direction:
 
 ```csharp

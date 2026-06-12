@@ -271,3 +271,7 @@ Needed controls:
 - Browser domain tracking requires more research.
 - Full URL tracking is deferred.
 - Detail tracking data should be stored in separate tables.
+- Optional detail tracking is a Pro candidate feature.
+- The public Community repository should keep policy, UX expectations, storage contracts, and extension points only.
+- Actual detail collection for window titles, browser domains, URLs, or document names should remain in a private Pro module or a separately approved future implementation.
+- When Pro modules are absent, Community UI should hide, disable, or clearly explain unavailable detail tracking features.
