@@ -15,7 +15,8 @@ This feature can be valuable, but it also increases privacy sensitivity. It must
 - The default mode records app-level usage only.
 - Window titles, document names, browser domains, and URLs are not stored by default.
 - Detail tracking should be offered as staged opt-in levels.
-- Detail tracking should prefer per-app opt-in instead of a single global enable-all switch.
+- Detail tracking should prefer per-app opt-in, but global apply can be offered when the user explicitly chooses it.
+- Enabling global apply must show a confirmation dialog about sensitive data collection.
 - Per-app detail tracking is disabled by default.
 - Detail data remains local.
 - Enabling detail tracking must show a privacy notice.
@@ -203,17 +204,16 @@ Visual Studio        [ ]             -         -
 Microsoft Word       [ ]             -         -
 ```
 
-The global detail tracking switch and the actual target apps should be managed separately.
+Detail tracking should present per-app management as the primary workflow, while still allowing global apply when the user needs it.
 
-- The global switch only controls whether detail tracking is available.
-- It must not automatically enable detail tracking for every app.
-- Actual recording follows the per-app allow list.
-- If global detail tracking is disabled, no app records detail data.
-- If global detail tracking is enabled, apps without per-app permission still record app-level data only.
+- Per-app settings are the default management model.
+- If global apply is enabled, the selected detail tracking level can apply to all target apps, so a strong confirmation dialog is required.
+- Global apply must be explicitly selected by the user and disabled by default.
+- Per-app settings should show a basic notice explaining what data will be recorded for that app.
 - Browser domain or URL options should be shown or enabled only for browser apps.
 - Per-app settings can be linked from App Category Management or a dedicated detail tracking management screen.
 
-Enabling detail tracking globally or for a specific app should show a notice.
+Enabling global detail tracking should show a confirmation dialog. Enabling detail tracking for a specific app should show a basic notice, with an additional confirmation if needed.
 
 Example:
 
@@ -266,7 +266,7 @@ Needed controls:
 
 - The default remains app-level tracking.
 - Detail tracking is disabled by default.
-- Detail tracking should use per-app opt-in by default.
+- Detail tracking should prefer per-app opt-in, while global apply can be used after a strong confirmation.
 - The first implementation candidate is window title tracking.
 - Browser domain tracking requires more research.
 - Full URL tracking is deferred.
