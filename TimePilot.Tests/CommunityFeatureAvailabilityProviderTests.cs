@@ -41,6 +41,20 @@ namespace TimePilot.Tests
             Assert.NotNull(registry.FindFeature(TestFeatureModule.FeatureId));
         }
 
+        [Fact]
+        public void Registry_AllowsFutureModulesToRegisterExtensionPoints()
+        {
+            var registry = TimePilotFeatureRegistry.CreateCommunityRegistry();
+
+            registry.RegisterModule(new TestFeatureModule());
+
+            Assert.Equal("Tools/Detail Tracking", Assert.Single(registry.MenuRegistrations).MenuPath);
+            Assert.Equal("detail-tracking", Assert.Single(registry.TabRegistrations).TabKey);
+            Assert.Equal("detail-tracking", Assert.Single(registry.SettingsSectionRegistrations).SectionKey);
+            Assert.Equal("detail-summary", Assert.Single(registry.AnalyticsPanelRegistrations).PanelKey);
+            Assert.Equal("export-detail-data", Assert.Single(registry.ExportActionRegistrations).ActionKey);
+        }
+
         private static CommunityFeatureAvailabilityProvider CreateProvider()
         {
             return new CommunityFeatureAvailabilityProvider(TimePilotFeatureRegistry.CreateCommunityRegistry());
@@ -59,6 +73,31 @@ namespace TimePilot.Tests
                     "Future module feature",
                     TimePilotEdition.Pro,
                     "Feature registered by a future module."));
+                registry.RegisterMenu(new TimePilotMenuRegistration(
+                    FeatureId,
+                    "Tools/Detail Tracking",
+                    "Detail Tracking",
+                    100));
+                registry.RegisterTab(new TimePilotTabRegistration(
+                    FeatureId,
+                    "detail-tracking",
+                    "Detail Tracking",
+                    100));
+                registry.RegisterSettingsSection(new TimePilotSettingsSectionRegistration(
+                    FeatureId,
+                    "detail-tracking",
+                    "Detail Tracking",
+                    100));
+                registry.RegisterAnalyticsPanel(new TimePilotAnalyticsPanelRegistration(
+                    FeatureId,
+                    "detail-summary",
+                    "Detail Summary",
+                    100));
+                registry.RegisterExportAction(new TimePilotExportActionRegistration(
+                    FeatureId,
+                    "export-detail-data",
+                    "Export Detail Data",
+                    100));
             }
         }
     }
