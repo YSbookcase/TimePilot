@@ -123,6 +123,8 @@ last_observed_at
 
 Window titles are privacy-sensitive and should not be stored by default.
 
+Optional detail tracking, such as window title, browser domain, or URL tracking, is defined separately in `docs/features/OPTIONAL_DETAIL_TRACKING.md`.
+
 ### 3.4 idle_sessions
 
 Idle periods.
