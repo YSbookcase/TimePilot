@@ -15,6 +15,8 @@ This feature can be valuable, but it also increases privacy sensitivity. It must
 - The default mode records app-level usage only.
 - Window titles, document names, browser domains, and URLs are not stored by default.
 - Detail tracking should be offered as staged opt-in levels.
+- Detail tracking should prefer per-app opt-in instead of a single global enable-all switch.
+- Per-app detail tracking is disabled by default.
 - Detail data remains local.
 - Enabling detail tracking must show a privacy notice.
 - Detail data needs separate deletion, export, backup, and restore handling.
@@ -192,12 +194,23 @@ Example:
 
 ```text
 Detail tracking
-[ ] Record window titles
-[ ] Record browser domains
-[ ] Record full URLs
+[ ] Enable detail tracking
+
+Per-app detail tracking
+App name              Window title    Domain    URL
+Google Chrome        [ ]             [ ]       [ ]
+Visual Studio        [ ]             -         -
+Microsoft Word       [ ]             -         -
 ```
 
-Enabling detail tracking should show a notice.
+The global detail tracking switch and the actual target apps should be managed separately.
+
+- If global detail tracking is disabled, no app records detail data.
+- If global detail tracking is enabled, apps without per-app permission still record app-level data only.
+- Browser domain or URL options should be shown or enabled only for browser apps.
+- Per-app settings can be linked from App Category Management or a dedicated detail tracking management screen.
+
+Enabling detail tracking globally or for a specific app should show a notice.
 
 Example:
 
@@ -250,8 +263,8 @@ Needed controls:
 
 - The default remains app-level tracking.
 - Detail tracking is disabled by default.
+- Detail tracking should use per-app opt-in by default.
 - The first implementation candidate is window title tracking.
 - Browser domain tracking requires more research.
 - Full URL tracking is deferred.
 - Detail tracking data should be stored in separate tables.
-
