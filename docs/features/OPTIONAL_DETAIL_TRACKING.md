@@ -205,6 +205,9 @@ Microsoft Word       [ ]             -         -
 
 The global detail tracking switch and the actual target apps should be managed separately.
 
+- The global switch only controls whether detail tracking is available.
+- It must not automatically enable detail tracking for every app.
+- Actual recording follows the per-app allow list.
 - If global detail tracking is disabled, no app records detail data.
 - If global detail tracking is enabled, apps without per-app permission still record app-level data only.
 - Browser domain or URL options should be shown or enabled only for browser apps.
