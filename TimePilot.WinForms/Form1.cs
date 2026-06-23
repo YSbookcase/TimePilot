@@ -4,6 +4,7 @@ using Microsoft.Win32;
 using TimePilot.WinForms.Details;
 using TimePilot.WinForms.KYS24;
 using TimePilot.WinForms.Menus;
+using TimePilot.WinForms.Tables;
 using TimePilot.WinForms.Timeline;
 
 namespace TimePilot.WinForms
@@ -329,15 +330,15 @@ namespace TimePilot.WinForms
 
         private void ApplySavedTableSortState()
         {
-            usageSortProperty = NormalizeUsageSortProperty(settings.UsageSortProperty);
+            usageSortProperty = GridSortPropertyResolver.NormalizeUsageSortProperty(settings.UsageSortProperty);
             usageSortOrder = GetSavedSortOrder(settings.UsageSortDescending, SortOrder.Descending);
-            dailyUsageTrendSortProperty = NormalizeDailyUsageTrendSortProperty(settings.DailyUsageTrendSortProperty);
+            dailyUsageTrendSortProperty = GridSortPropertyResolver.NormalizeDailyUsageTrendSortProperty(settings.DailyUsageTrendSortProperty);
             dailyUsageTrendSortOrder = GetSavedSortOrder(settings.DailyUsageTrendSortDescending, SortOrder.Descending);
-            timelineSortProperty = NormalizeTimelineSortProperty(settings.TimelineSortProperty);
+            timelineSortProperty = GridSortPropertyResolver.NormalizeTimelineSortProperty(settings.TimelineSortProperty);
             timelineSortOrder = GetSavedSortOrder(settings.TimelineSortDescending, SortOrder.Descending);
-            runtimeSortProperty = NormalizeRuntimeSortProperty(settings.RuntimeSortProperty);
+            runtimeSortProperty = GridSortPropertyResolver.NormalizeRuntimeSortProperty(settings.RuntimeSortProperty);
             runtimeSortOrder = GetSavedSortOrder(settings.RuntimeSortDescending, SortOrder.Descending);
-            runtimeSegmentSortProperty = NormalizeRuntimeSegmentSortProperty(settings.RuntimeSegmentSortProperty);
+            runtimeSegmentSortProperty = GridSortPropertyResolver.NormalizeRuntimeSegmentSortProperty(settings.RuntimeSegmentSortProperty);
             runtimeSegmentSortOrder = GetSavedSortOrder(settings.RuntimeSegmentSortDescending, SortOrder.Descending);
         }
 
@@ -2275,7 +2276,7 @@ namespace TimePilot.WinForms
             if (e.ColumnIndex < 0)
                 return;
 
-            var propertyName = GetUsageSortPropertyName(usageGrid.Columns[e.ColumnIndex]);
+            var propertyName = GridSortPropertyResolver.GetUsageSortPropertyName(usageGrid.Columns[e.ColumnIndex].Name);
             if (propertyName is null)
                 return;
 
@@ -2292,7 +2293,7 @@ namespace TimePilot.WinForms
             if (e.ColumnIndex < 0)
                 return;
 
-            var propertyName = GetDailyUsageTrendSortPropertyName(dailyUsageTrendGrid.Columns[e.ColumnIndex]);
+            var propertyName = GridSortPropertyResolver.GetDailyUsageTrendSortPropertyName(dailyUsageTrendGrid.Columns[e.ColumnIndex].Name);
             if (propertyName is null)
                 return;
 
@@ -2412,7 +2413,7 @@ namespace TimePilot.WinForms
             if (e.ColumnIndex < 0)
                 return;
 
-            var propertyName = GetTimelineSortPropertyName(timelineGrid.Columns[e.ColumnIndex]);
+            var propertyName = GridSortPropertyResolver.GetTimelineSortPropertyName(timelineGrid.Columns[e.ColumnIndex].Name);
             if (propertyName is null)
                 return;
 
@@ -3654,7 +3655,7 @@ namespace TimePilot.WinForms
             if (e.ColumnIndex < 0)
                 return;
 
-            var propertyName = GetRuntimeSortPropertyName(runtimeGrid.Columns[e.ColumnIndex]);
+            var propertyName = GridSortPropertyResolver.GetRuntimeSortPropertyName(runtimeGrid.Columns[e.ColumnIndex].Name);
             if (propertyName is null)
                 return;
 
@@ -3808,7 +3809,7 @@ namespace TimePilot.WinForms
                 return;
 
             var selectionKey = runtimeSegmentSelectionCoordinator.GetCurrentOrStoredKey();
-            var propertyName = GetRuntimeSegmentSortPropertyName(runtimeSegmentsGrid.Columns[e.ColumnIndex]);
+            var propertyName = GridSortPropertyResolver.GetRuntimeSegmentSortPropertyName(runtimeSegmentsGrid.Columns[e.ColumnIndex].Name);
             if (propertyName is null)
                 return;
 
@@ -3911,67 +3912,6 @@ namespace TimePilot.WinForms
                     + "구간이 많이 겹치거나 촘촘한 앱은 한눈에 구분하기 어려울 수 있습니다. 정확한 위치를 보려면 해당 범위를 확대해서 확인하세요.";
         }
 
-        private string? GetUsageSortPropertyName(DataGridViewColumn column)
-        {
-            return column.Name switch
-            {
-                nameof(appNameColumn) => nameof(UsageSummaryRow.AppName),
-                nameof(appCategoryColumn) => nameof(UsageSummaryRow.CategoryText),
-                nameof(firstStartedAtColumn) => nameof(UsageSummaryRow.FirstStartedAt),
-                nameof(lastObservedAtColumn) => nameof(UsageSummaryRow.LastObservedAt),
-                nameof(activeUsageTimeColumn) => nameof(UsageSummaryRow.ActiveUsageMs),
-                nameof(idleRecordedTimeColumn) => nameof(UsageSummaryRow.IdleRecordedMs),
-                nameof(usageRatioColumn) => nameof(UsageSummaryRow.UsageRatio),
-                nameof(switchCountColumn) => nameof(UsageSummaryRow.SwitchCount),
-                _ => null
-            };
-        }
-
-        private string? GetDailyUsageTrendSortPropertyName(DataGridViewColumn column)
-        {
-            return column.Name switch
-            {
-                nameof(dailyUsageDateColumn) => nameof(DailyUsageTrendRow.Date),
-                nameof(dailyUsageActiveTimeColumn) => nameof(DailyUsageTrendRow.ActiveUsageMs),
-                nameof(dailyUsageTopAppColumn) => nameof(DailyUsageTrendRow.TopAppName),
-                nameof(dailyUsageTopAppTimeColumn) => nameof(DailyUsageTrendRow.TopAppUsageMs),
-                _ => null
-            };
-        }
-
-        private string? GetTimelineSortPropertyName(DataGridViewColumn column)
-        {
-            return column.Name switch
-            {
-                nameof(timelineTypeColumn) => nameof(ActivityTimelineRow.ActivityType),
-                nameof(timelineStartedAtColumn) => nameof(ActivityTimelineRow.StartedAt),
-                nameof(timelineEndedAtColumn) => nameof(ActivityTimelineRow.EndedAt),
-                nameof(timelineDurationColumn) => nameof(ActivityTimelineRow.DurationMs),
-                nameof(timelineDisplayNameColumn) => nameof(ActivityTimelineRow.DisplayName),
-                nameof(timelineCategoryColumn) => nameof(ActivityTimelineRow.CategoryText),
-                _ => null
-            };
-        }
-
-        private string? GetRuntimeSortPropertyName(DataGridViewColumn column)
-        {
-            return column.Name switch
-            {
-                nameof(runtimeAppNameColumn) => nameof(ProcessRuntimeSummaryRow.AppName),
-                nameof(runtimeCategoryColumn) => nameof(ProcessRuntimeSummaryRow.CategoryText),
-                nameof(runtimeTrackingTypeColumn) => nameof(ProcessRuntimeSummaryRow.TrackingTypeText),
-                nameof(runtimeFirstObservedAtColumn) => nameof(ProcessRuntimeSummaryRow.FirstObservedAt),
-                nameof(runtimeLastObservedAtColumn) => nameof(ProcessRuntimeSummaryRow.LastObservedAt),
-                nameof(runtimeDurationColumn) => nameof(ProcessRuntimeSummaryRow.RuntimeMs),
-                nameof(runtimeActiveUsageColumn) => nameof(ProcessRuntimeSummaryRow.ActiveUsageMs),
-                nameof(runtimeIdleRecordedColumn) => nameof(ProcessRuntimeSummaryRow.IdleRecordedMs),
-                nameof(runtimeActualUsageRatioColumn) => nameof(ProcessRuntimeSummaryRow.ActualUsageRatio),
-                nameof(runtimeSessionCountColumn) => nameof(ProcessRuntimeSummaryRow.RuntimeSegmentCount),
-                nameof(runtimeStatusColumn) => nameof(ProcessRuntimeSummaryRow.StatusText),
-                _ => null
-            };
-        }
-
         private bool IsInCurrentTrackingScope(ProcessRuntimeSummaryRow row)
         {
             return settings.ProcessRuntimeTrackingScope switch
@@ -3982,53 +3922,39 @@ namespace TimePilot.WinForms
             };
         }
 
-        private string? GetRuntimeSegmentSortPropertyName(DataGridViewColumn column)
-        {
-            return column.Name switch
-            {
-                nameof(runtimeSegmentStartedAtColumn) => nameof(ProcessRuntimeSegmentRow.StartedAt),
-                nameof(runtimeSegmentEndedAtColumn) => nameof(ProcessRuntimeSegmentRow.EndedAt),
-                nameof(runtimeSegmentDurationColumn) => nameof(ProcessRuntimeSegmentRow.DurationMs),
-                nameof(runtimeSegmentStatusColumn) => nameof(ProcessRuntimeSegmentRow.IsRunning),
-                nameof(runtimeSegmentObservationTypeColumn) => nameof(ProcessRuntimeSegmentRow.ObservationTypeText),
-                nameof(runtimeSegmentProcessIdColumn) => nameof(ProcessRuntimeSegmentRow.ProcessId),
-                _ => null
-            };
-        }
-
         private void UpdateSortGlyphs()
         {
             foreach (DataGridViewColumn column in usageGrid.Columns)
             {
-                column.HeaderCell.SortGlyphDirection = GetUsageSortPropertyName(column) == usageSortProperty
+                column.HeaderCell.SortGlyphDirection = GridSortPropertyResolver.GetUsageSortPropertyName(column.Name) == usageSortProperty
                     ? usageSortOrder
                     : SortOrder.None;
             }
 
             foreach (DataGridViewColumn column in dailyUsageTrendGrid.Columns)
             {
-                column.HeaderCell.SortGlyphDirection = GetDailyUsageTrendSortPropertyName(column) == dailyUsageTrendSortProperty
+                column.HeaderCell.SortGlyphDirection = GridSortPropertyResolver.GetDailyUsageTrendSortPropertyName(column.Name) == dailyUsageTrendSortProperty
                     ? dailyUsageTrendSortOrder
                     : SortOrder.None;
             }
 
             foreach (DataGridViewColumn column in timelineGrid.Columns)
             {
-                column.HeaderCell.SortGlyphDirection = GetTimelineSortPropertyName(column) == timelineSortProperty
+                column.HeaderCell.SortGlyphDirection = GridSortPropertyResolver.GetTimelineSortPropertyName(column.Name) == timelineSortProperty
                     ? timelineSortOrder
                     : SortOrder.None;
             }
 
             foreach (DataGridViewColumn column in runtimeGrid.Columns)
             {
-                column.HeaderCell.SortGlyphDirection = GetRuntimeSortPropertyName(column) == runtimeSortProperty
+                column.HeaderCell.SortGlyphDirection = GridSortPropertyResolver.GetRuntimeSortPropertyName(column.Name) == runtimeSortProperty
                     ? runtimeSortOrder
                     : SortOrder.None;
             }
 
             foreach (DataGridViewColumn column in runtimeSegmentsGrid.Columns)
             {
-                column.HeaderCell.SortGlyphDirection = GetRuntimeSegmentSortPropertyName(column) == runtimeSegmentSortProperty
+                column.HeaderCell.SortGlyphDirection = GridSortPropertyResolver.GetRuntimeSegmentSortPropertyName(column.Name) == runtimeSegmentSortProperty
                     ? runtimeSegmentSortOrder
                     : SortOrder.None;
             }
@@ -4262,76 +4188,6 @@ namespace TimePilot.WinForms
             return descending is null
                 ? defaultSortOrder
                 : descending.Value ? SortOrder.Descending : SortOrder.Ascending;
-        }
-
-        private static string NormalizeUsageSortProperty(string? value)
-        {
-            return value switch
-            {
-                nameof(UsageSummaryRow.AppName) => value,
-                nameof(UsageSummaryRow.CategoryText) => value,
-                nameof(UsageSummaryRow.FirstStartedAt) => value,
-                nameof(UsageSummaryRow.LastObservedAt) => value,
-                nameof(UsageSummaryRow.IdleRecordedMs) => value,
-                nameof(UsageSummaryRow.UsageRatio) => value,
-                nameof(UsageSummaryRow.SwitchCount) => value,
-                _ => nameof(UsageSummaryRow.ActiveUsageMs)
-            };
-        }
-
-        private static string NormalizeDailyUsageTrendSortProperty(string? value)
-        {
-            return value switch
-            {
-                nameof(DailyUsageTrendRow.ActiveUsageMs) => value,
-                nameof(DailyUsageTrendRow.TopAppName) => value,
-                nameof(DailyUsageTrendRow.TopAppUsageMs) => value,
-                _ => nameof(DailyUsageTrendRow.Date)
-            };
-        }
-
-        private static string NormalizeTimelineSortProperty(string? value)
-        {
-            return value switch
-            {
-                nameof(ActivityTimelineRow.ActivityType) => value,
-                nameof(ActivityTimelineRow.EndedAt) => value,
-                nameof(ActivityTimelineRow.DurationMs) => value,
-                nameof(ActivityTimelineRow.DisplayName) => value,
-                nameof(ActivityTimelineRow.CategoryText) => value,
-                _ => nameof(ActivityTimelineRow.StartedAt)
-            };
-        }
-
-        private static string NormalizeRuntimeSortProperty(string? value)
-        {
-            return value switch
-            {
-                nameof(ProcessRuntimeSummaryRow.AppName) => value,
-                nameof(ProcessRuntimeSummaryRow.CategoryText) => value,
-                nameof(ProcessRuntimeSummaryRow.TrackingTypeText) => value,
-                nameof(ProcessRuntimeSummaryRow.FirstObservedAt) => value,
-                nameof(ProcessRuntimeSummaryRow.LastObservedAt) => value,
-                nameof(ProcessRuntimeSummaryRow.ActiveUsageMs) => value,
-                nameof(ProcessRuntimeSummaryRow.IdleRecordedMs) => value,
-                nameof(ProcessRuntimeSummaryRow.ActualUsageRatio) => value,
-                nameof(ProcessRuntimeSummaryRow.RuntimeSegmentCount) => value,
-                nameof(ProcessRuntimeSummaryRow.StatusText) => value,
-                _ => nameof(ProcessRuntimeSummaryRow.RuntimeMs)
-            };
-        }
-
-        private static string NormalizeRuntimeSegmentSortProperty(string? value)
-        {
-            return value switch
-            {
-                nameof(ProcessRuntimeSegmentRow.EndedAt) => value,
-                nameof(ProcessRuntimeSegmentRow.DurationMs) => value,
-                nameof(ProcessRuntimeSegmentRow.IsRunning) => value,
-                nameof(ProcessRuntimeSegmentRow.ObservationTypeText) => value,
-                nameof(ProcessRuntimeSegmentRow.ProcessId) => value,
-                _ => nameof(ProcessRuntimeSegmentRow.StartedAt)
-            };
         }
 
         private static void SetGridDataSourcePreservingView<T>(
