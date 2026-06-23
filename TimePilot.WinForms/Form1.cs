@@ -111,10 +111,7 @@ namespace TimePilot.WinForms
         private bool isInitializingDateSelectors;
         private bool isApplyingTableColumnLayouts;
         private bool systemEventHandlersRegistered;
-        private string? highlightedTimelineProcessName;
-        private string? highlightedTimelineAppName;
-        private TimelineSegmentSelectionKey? highlightedTimelineSegmentKey;
-        private string? highlightedTimelineSegmentLabel;
+        private TimelineHighlightState timelineHighlightState = TimelineHighlightState.Empty;
         private string? lastForegroundViewKey;
         private bool? lastForegroundIdleState;
         private IReadOnlyList<ForegroundUsageSummary> currentTimelineForegroundUsage = Array.Empty<ForegroundUsageSummary>();
@@ -2437,12 +2434,11 @@ namespace TimePilot.WinForms
             if (row is null || string.IsNullOrWhiteSpace(row.ProcessName))
                 return;
 
-            highlightedTimelineProcessName = row.ProcessName;
-            highlightedTimelineAppName = row.AppName;
+            timelineHighlightState = TimelineHighlightState.ForApp(row.ProcessName, row.AppName);
             selectedTimelineDate = GetTimelineDateForSummarySelection(row);
             SetDatePickerValue(timelineDatePicker, selectedTimelineDate);
             mainTabs.SelectedTab = timelineTab;
-            timelineOverviewControl.SetHighlightedProcessName(highlightedTimelineProcessName);
+            timelineOverviewControl.SetHighlightedProcessName(timelineHighlightState.ProcessName);
             UpdateTimelineHighlightUi();
             RefreshViews(DateTimeOffset.UtcNow);
         }
@@ -2452,11 +2448,8 @@ namespace TimePilot.WinForms
             if (row is null || string.IsNullOrWhiteSpace(row.ProcessName))
                 return;
 
-            highlightedTimelineSegmentKey = null;
-            highlightedTimelineSegmentLabel = null;
-            highlightedTimelineProcessName = row.ProcessName;
-            highlightedTimelineAppName = row.DisplayName;
-            timelineOverviewControl.SetHighlightedProcessName(highlightedTimelineProcessName);
+            timelineHighlightState = TimelineHighlightState.ForApp(row.ProcessName, row.DisplayName);
+            timelineOverviewControl.SetHighlightedProcessName(timelineHighlightState.ProcessName);
             UpdateTimelineHighlightUi();
             timelineGrid.Invalidate();
         }
@@ -2467,10 +2460,7 @@ namespace TimePilot.WinForms
                 return;
 
             SetTimelineTypeHighlight(TimelineActivityTypeHighlight.None);
-            highlightedTimelineProcessName = null;
-            highlightedTimelineAppName = null;
-            highlightedTimelineSegmentKey = TimelineSegmentSelectionKey.From(row);
-            highlightedTimelineSegmentLabel = GetTimelineSegmentHighlightLabel(row);
+            timelineHighlightState = TimelineHighlightState.ForSegment(row);
             timelineOverviewControl.SetHighlightedActivitySegment(row);
             UpdateTimelineHighlightUi();
             timelineGrid.Invalidate();
@@ -2484,19 +2474,6 @@ namespace TimePilot.WinForms
         private static string GetHighlightTimelineAppMenuText()
         {
             return UiText.CurrentLanguage == UiLanguage.English ? "Highlight this app" : "이 앱 강조";
-        }
-
-        private static string GetTimelineSegmentHighlightLabel(ActivityTimelineRow row)
-        {
-            return $"{row.DisplayName} {row.StartedAtText}-{row.EndedAtText}";
-        }
-
-        private string GetTimelineSegmentHighlightText()
-        {
-            var label = highlightedTimelineSegmentLabel ?? "";
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? $"Highlight segment: {label}"
-                : $"구간 강조: {label}";
         }
 
         private DateTime GetTimelineDateForSummarySelection(UsageSummaryRow row)
@@ -3069,8 +3046,8 @@ namespace TimePilot.WinForms
             }
 
             timelineGridMenu.Items.Add(CreateSearchWebMenuItem(row.DisplayName, row.ProcessName));
-            if (highlightedTimelineSegmentKey is not null
-                || string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase))
+            if (timelineHighlightState.HasSegmentHighlight
+                || string.Equals(row.ProcessName, timelineHighlightState.ProcessName, StringComparison.OrdinalIgnoreCase))
             {
                 var clearHighlightItem = new ToolStripMenuItem(UiText.Main.ClearTimelineHighlight);
                 clearHighlightItem.Click += (_, _) => ClearTimelineHighlights(resetTypeHighlight: true);
@@ -3082,10 +3059,7 @@ namespace TimePilot.WinForms
 
         private void ClearTimelineHighlights(bool resetTypeHighlight)
         {
-            highlightedTimelineProcessName = null;
-            highlightedTimelineAppName = null;
-            highlightedTimelineSegmentKey = null;
-            highlightedTimelineSegmentLabel = null;
+            timelineHighlightState = TimelineHighlightState.Empty;
             timelineOverviewControl.SetHighlightedProcessName(null);
             timelineOverviewControl.SetHighlightedActivitySegment(null);
             if (resetTypeHighlight)
@@ -3326,28 +3300,17 @@ namespace TimePilot.WinForms
 
         private void UpdateTimelineHighlightUi()
         {
-            var hasHighlight = highlightedTimelineSegmentKey is not null
-                || !string.IsNullOrWhiteSpace(highlightedTimelineProcessName);
+            var hasHighlight = timelineHighlightState.HasHighlight;
             timelineHighlightLabel.Visible = hasHighlight;
             timelineHighlightClearButton.Visible = hasHighlight;
             timelineHighlightHintLabel.Visible = !hasHighlight;
-            timelineHighlightLabel.Text = highlightedTimelineSegmentKey is not null
-                ? GetTimelineSegmentHighlightText()
-                : hasHighlight
-                    ? UiText.Main.TimelineHighlight(highlightedTimelineAppName ?? highlightedTimelineProcessName!)
-                    : "";
+            timelineHighlightLabel.Text = hasHighlight ? timelineHighlightState.GetDisplayText() : "";
             UpdateTimelineHighlightSummary();
         }
 
         private string? GetTimelineHighlightedActivityTypeText()
         {
-            return selectedTimelineActivityTypeHighlight switch
-            {
-                TimelineActivityTypeHighlight.Active => UiText.Main.Active,
-                TimelineActivityTypeHighlight.Idle => UiText.Main.Idle,
-                TimelineActivityTypeHighlight.Untracked => UiText.Main.Untracked,
-                _ => null
-            };
+            return TimelineHighlightMatcher.GetActivityTypeText(selectedTimelineActivityTypeHighlight);
         }
 
         private void ApplyTimelineActivityTypeHighlight()
@@ -3359,23 +3322,22 @@ namespace TimePilot.WinForms
 
         private void ApplyTimelineHighlightToOverview()
         {
-            if (highlightedTimelineSegmentKey is not null)
+            if (timelineHighlightState.SegmentKey is { } segmentKey)
             {
-                var highlightedRow = currentTimelineRows.FirstOrDefault(row => highlightedTimelineSegmentKey.Value.Matches(row));
+                var highlightedRow = currentTimelineRows.FirstOrDefault(row => segmentKey.Matches(row));
                 if (highlightedRow is not null)
                 {
-                    highlightedTimelineSegmentLabel = GetTimelineSegmentHighlightLabel(highlightedRow);
+                    timelineHighlightState = TimelineHighlightState.ForSegment(highlightedRow);
                     timelineOverviewControl.SetHighlightedActivitySegment(highlightedRow);
                     return;
                 }
 
-                highlightedTimelineSegmentKey = null;
-                highlightedTimelineSegmentLabel = null;
+                timelineHighlightState = TimelineHighlightState.Empty;
             }
 
-            if (!string.IsNullOrWhiteSpace(highlightedTimelineProcessName))
+            if (!string.IsNullOrWhiteSpace(timelineHighlightState.ProcessName))
             {
-                timelineOverviewControl.SetHighlightedProcessName(highlightedTimelineProcessName);
+                timelineOverviewControl.SetHighlightedProcessName(timelineHighlightState.ProcessName);
                 return;
             }
 
@@ -3384,33 +3346,17 @@ namespace TimePilot.WinForms
 
         private bool HasTimelineHighlight()
         {
-            return highlightedTimelineSegmentKey is not null
-                || !string.IsNullOrWhiteSpace(highlightedTimelineProcessName)
-                || selectedTimelineActivityTypeHighlight != TimelineActivityTypeHighlight.None;
+            return TimelineHighlightMatcher.HasHighlight(
+                timelineHighlightState,
+                selectedTimelineActivityTypeHighlight);
         }
 
         private bool IsTimelineRowHighlighted(ActivityTimelineRow row)
         {
-            if (highlightedTimelineSegmentKey is not null)
-                return highlightedTimelineSegmentKey.Value.Matches(row);
-
-            if (selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows
-                && string.IsNullOrWhiteSpace(highlightedTimelineProcessName))
-                return false;
-
-            var processMatches = string.IsNullOrWhiteSpace(highlightedTimelineProcessName)
-                || string.Equals(row.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase);
-            var typeText = GetTimelineHighlightedActivityTypeText();
-            var typeMatches = typeText is null
-                || string.Equals(row.ActivityType, typeText, StringComparison.Ordinal);
-
-            if (selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Untracked)
-            {
-                typeMatches = string.Equals(row.ActivityType, UiText.Main.Untracked, StringComparison.Ordinal)
-                    || string.Equals(row.ActivityType, UiText.Main.TimePilotUntracked, StringComparison.Ordinal);
-            }
-
-            return processMatches && typeMatches;
+            return TimelineHighlightMatcher.IsRowHighlighted(
+                row,
+                timelineHighlightState,
+                selectedTimelineActivityTypeHighlight);
         }
 
         private IReadOnlyList<SystemTimelineEvent> FilterSystemTimelineEvents(IReadOnlyList<SystemTimelineEvent> events)
@@ -3647,40 +3593,19 @@ namespace TimePilot.WinForms
 
         private void UpdateTimelineHighlightSummary()
         {
-            if (string.IsNullOrWhiteSpace(highlightedTimelineProcessName))
+            var summaryText = TimelineHighlightSummaryBuilder.Build(
+                timelineHighlightState,
+                currentTimelineForegroundUsage,
+                currentTimelineRows,
+                FormatDiagnosticDuration);
+            if (summaryText is null)
             {
                 timelineHighlightSummaryPanel.Visible = false;
                 timelineHighlightSummaryLabel.Text = "";
                 return;
             }
 
-            var usage = currentTimelineForegroundUsage.FirstOrDefault(x =>
-                string.Equals(x.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase));
-            var highlightedRows = currentTimelineRows
-                .Where(x => string.Equals(x.ProcessName, highlightedTimelineProcessName, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            if (usage is null && highlightedRows.Count == 0)
-            {
-                timelineHighlightSummaryPanel.Visible = false;
-                timelineHighlightSummaryLabel.Text = "";
-                return;
-            }
-
-            var activeUsageMs = usage?.ActiveUsageMs ?? 0;
-            var totalActiveUsageMs = currentTimelineForegroundUsage.Sum(x => x.ActiveUsageMs);
-            var usageRatio = activeUsageMs > 0 && totalActiveUsageMs > 0
-                ? (double)activeUsageMs / totalActiveUsageMs
-                : 0;
-            var switchCount = usage?.SwitchCount ?? 0;
-            var segmentCount = highlightedRows.Count;
-            var longestSegmentMs = highlightedRows.Count == 0 ? 0 : highlightedRows.Max(x => x.DurationMs);
-
-            timelineHighlightSummaryLabel.Text = UiText.Main.TimelineHighlightSummary(
-                FormatDiagnosticDuration(activeUsageMs),
-                usageRatio,
-                switchCount,
-                segmentCount,
-                FormatDiagnosticDuration(longestSegmentMs));
+            timelineHighlightSummaryLabel.Text = summaryText;
             timelineHighlightSummaryPanel.Visible = true;
         }
 
@@ -3706,7 +3631,7 @@ namespace TimePilot.WinForms
                 return;
 
             var isHighlighted = IsTimelineRowHighlighted(row);
-            if (highlightedTimelineSegmentKey is not null && !isHighlighted)
+            if (timelineHighlightState.HasSegmentHighlight && !isHighlighted)
             {
                 gridRow.DefaultCellStyle.ForeColor = SystemColors.WindowText;
                 gridRow.DefaultCellStyle.BackColor = SystemColors.Window;
@@ -5591,36 +5516,6 @@ namespace TimePilot.WinForms
             string PreviousIntervalText,
             string RelationText,
             string DetailsText);
-
-        private readonly record struct TimelineSegmentSelectionKey(
-            string ActivityType,
-            DateTimeOffset StartedAt,
-            DateTimeOffset? EndedAt,
-            string DisplayName,
-            string ProcessName,
-            long? AppId)
-        {
-            public static TimelineSegmentSelectionKey From(ActivityTimelineRow row)
-            {
-                return new TimelineSegmentSelectionKey(
-                    row.ActivityType,
-                    row.StartedAt,
-                    row.EndedAt,
-                    row.DisplayName,
-                    row.ProcessName,
-                    row.AppId);
-            }
-
-            public bool Matches(ActivityTimelineRow row)
-            {
-                return string.Equals(ActivityType, row.ActivityType, StringComparison.Ordinal)
-                    && StartedAt == row.StartedAt
-                    && EndedAt == row.EndedAt
-                    && string.Equals(DisplayName, row.DisplayName, StringComparison.Ordinal)
-                    && string.Equals(ProcessName, row.ProcessName, StringComparison.OrdinalIgnoreCase)
-                    && AppId == row.AppId;
-            }
-        }
 
         private readonly record struct RuntimeSegmentSelectionKey(
             DateTimeOffset StartedAt,
