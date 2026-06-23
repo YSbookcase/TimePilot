@@ -3849,16 +3849,9 @@ namespace TimePilot.WinForms
 
         private void OnDetailHelpButtonClick(object? sender, EventArgs e)
         {
-            var currentSelection = GetDetailRuntimeFilterText(selectedDetailRuntimeFilter);
-            var currentDescription = GetDetailRuntimeFilterDescription(selectedDetailRuntimeFilter);
-            var message = UiText.Main.DetailHelpCurrentSelection(currentSelection, currentDescription)
-                + Environment.NewLine
-                + Environment.NewLine
-                + UiText.Main.DetailHelpMessage;
-
             CenteredMessageDialog.Show(
                 this,
-                message,
+                DetailHelpContentBuilder.BuildMessage(selectedDetailRuntimeFilter),
                 UiText.Main.DetailHelpTitle,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
@@ -3916,30 +3909,6 @@ namespace TimePilot.WinForms
                     + "- Esc 또는 전체: 하루 전체 보기로 되돌립니다.\n"
                     + "- 실행 구간 목록의 행을 선택하면 해당 구간이 그래프에서 강조됩니다.\n\n"
                     + "구간이 많이 겹치거나 촘촘한 앱은 한눈에 구분하기 어려울 수 있습니다. 정확한 위치를 보려면 해당 범위를 확대해서 확인하세요.";
-        }
-
-        private static string GetDetailRuntimeFilterText(DetailRuntimeFilter filter)
-        {
-            return filter switch
-            {
-                DetailRuntimeFilter.CurrentTrackingScope => UiText.Main.DetailFilterCurrentScope,
-                DetailRuntimeFilter.VisibleApps => UiText.Main.DetailFilterVisibleApps,
-                DetailRuntimeFilter.UserProcesses => UiText.Main.DetailFilterUserProcesses,
-                DetailRuntimeFilter.AllRecords => UiText.Main.DetailFilterAllRecords,
-                _ => UiText.Main.DetailFilterSummaryApps
-            };
-        }
-
-        private static string GetDetailRuntimeFilterDescription(DetailRuntimeFilter filter)
-        {
-            return filter switch
-            {
-                DetailRuntimeFilter.CurrentTrackingScope => UiText.Main.DetailFilterCurrentScopeDescription,
-                DetailRuntimeFilter.VisibleApps => UiText.Main.DetailFilterVisibleAppsDescription,
-                DetailRuntimeFilter.UserProcesses => UiText.Main.DetailFilterUserProcessesDescription,
-                DetailRuntimeFilter.AllRecords => UiText.Main.DetailFilterAllRecordsDescription,
-                _ => UiText.Main.DetailFilterSummaryAppsDescription
-            };
         }
 
         private string? GetUsageSortPropertyName(DataGridViewColumn column)
