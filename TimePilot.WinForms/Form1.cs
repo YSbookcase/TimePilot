@@ -22,6 +22,7 @@ namespace TimePilot.WinForms
         private readonly MainMenuController mainMenuController;
         private readonly TimelineSelectorCoordinator timelineSelectorCoordinator;
         private readonly TimelineZoomCoordinator timelineZoomCoordinator;
+        private readonly RuntimeSegmentZoomCoordinator runtimeSegmentZoomCoordinator;
         private readonly AppIconCache appIconCache = new();
         private readonly object processRuntimeTrackingLock = new();
         private readonly Form headerToolTipForm = new();
@@ -50,7 +51,6 @@ namespace TimePilot.WinForms
         private readonly Button runtimeSegmentResetButton = new();
         private readonly Button runtimeSegmentHelpButton = new();
         private readonly HScrollBar runtimeSegmentZoomScrollBar = new();
-        private bool isUpdatingRuntimeSegmentScrollBar;
         private RuntimeSegmentSelectionKey? selectedRuntimeSegmentKey;
         private readonly bool startMinimizedToTray;
         private Dictionary<string, List<AppSettings.TableColumnLayout>> defaultTableColumnLayouts = new();
@@ -142,6 +142,7 @@ namespace TimePilot.WinForms
             mainMenuController = CreateMainMenuController();
             timelineSelectorCoordinator = CreateTimelineSelectorCoordinator();
             timelineZoomCoordinator = CreateTimelineZoomCoordinator();
+            runtimeSegmentZoomCoordinator = CreateRuntimeSegmentZoomCoordinator();
             InitializeRuntimeSegmentTimeline();
             defaultTableColumnLayouts = CaptureTableColumnLayouts();
             ApplySavedWindowPlacement();
@@ -156,6 +157,7 @@ namespace TimePilot.WinForms
             InitializeTimelineTypeHighlightSelector();
             InitializeTimelineSelectors();
             timelineZoomCoordinator.Initialize();
+            runtimeSegmentZoomCoordinator.Initialize();
             ApplyUiText();
 
             if (IsRunningInDesigner())
@@ -828,11 +830,11 @@ namespace TimePilot.WinForms
             runtimeSegmentZoomRangeLabel.AutoSize = true;
             runtimeSegmentZoomRangeLabel.ForeColor = SystemColors.GrayText;
             runtimeSegmentZoomRangeLabel.Margin = new Padding(0, 7, 12, 0);
-            ConfigureRuntimeSegmentZoomButton(runtimeSegmentZoomOutButton, OnRuntimeSegmentZoomOutButtonClick);
-            ConfigureRuntimeSegmentZoomButton(runtimeSegmentZoomInButton, OnRuntimeSegmentZoomInButtonClick);
-            ConfigureRuntimeSegmentZoomButton(runtimeSegmentPreviousButton, OnRuntimeSegmentPreviousButtonClick);
-            ConfigureRuntimeSegmentZoomButton(runtimeSegmentNextButton, OnRuntimeSegmentNextButtonClick);
-            ConfigureRuntimeSegmentZoomButton(runtimeSegmentResetButton, OnRuntimeSegmentResetButtonClick, width: 52);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentZoomOutButton);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentZoomInButton);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentPreviousButton);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentNextButton);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentResetButton, width: 52);
 
             runtimeSegmentTimelineControl.Dock = DockStyle.Fill;
             runtimeSegmentTimelineControl.ViewRangeChanged += OnRuntimeSegmentTimelineViewRangeChanged;
@@ -851,7 +853,6 @@ namespace TimePilot.WinForms
             runtimeSegmentZoomScrollBar.Minimum = 0;
             runtimeSegmentZoomScrollBar.Maximum = 1000;
             runtimeSegmentZoomScrollBar.LargeChange = 1000;
-            runtimeSegmentZoomScrollBar.Scroll += OnRuntimeSegmentZoomScrollBarScroll;
             runtimeSegmentsGrid.Dock = DockStyle.Fill;
             runtimeSegmentTimelineControl.SetSegments(
                 selectedDetailDate,
@@ -1235,13 +1236,9 @@ namespace TimePilot.WinForms
             detailTrackingDisabledLabel.Text = UiText.Main.DetailTrackingDisabledMessage;
             detailTrackingDisabledPreferencesButton.Text = UiText.Main.DetailTrackingDisabledOpenPreferences;
             runtimeSegmentTimelineControl.Invalidate();
-            runtimeSegmentZoomOutButton.Text = UiText.Main.TimelineZoomOut;
-            runtimeSegmentZoomInButton.Text = UiText.Main.TimelineZoomIn;
-            runtimeSegmentPreviousButton.Text = UiText.Main.TimelinePanPrevious;
-            runtimeSegmentNextButton.Text = UiText.Main.TimelinePanNext;
             runtimeSegmentObservationFilterLabel.Text = GetRuntimeSegmentObservationFilterLabelText();
-            runtimeSegmentResetButton.Text = GetRuntimeSegmentResetText();
             runtimeSegmentHelpButton.Text = UiText.Main.DetailHelp;
+            runtimeSegmentZoomCoordinator.ApplyText();
             UpdateRuntimeSegmentZoomControls();
             timelineDateLabel.Text = UiText.Main.Date;
             timelineCalendarButton.Text = UiText.Main.Calendar;
@@ -2620,31 +2617,6 @@ namespace TimePilot.WinForms
                 MessageBoxIcon.Information);
         }
 
-        private void OnRuntimeSegmentResetButtonClick(object? sender, EventArgs e)
-        {
-            runtimeSegmentTimelineControl.ResetView();
-        }
-
-        private void OnRuntimeSegmentZoomOutButtonClick(object? sender, EventArgs e)
-        {
-            runtimeSegmentTimelineControl.ZoomOut();
-        }
-
-        private void OnRuntimeSegmentZoomInButtonClick(object? sender, EventArgs e)
-        {
-            runtimeSegmentTimelineControl.ZoomIn();
-        }
-
-        private void OnRuntimeSegmentPreviousButtonClick(object? sender, EventArgs e)
-        {
-            runtimeSegmentTimelineControl.PanPrevious();
-        }
-
-        private void OnRuntimeSegmentNextButtonClick(object? sender, EventArgs e)
-        {
-            runtimeSegmentTimelineControl.PanNext();
-        }
-
         private void OnRuntimeSegmentHelpButtonClick(object? sender, EventArgs e)
         {
             CenteredMessageDialog.Show(
@@ -2663,14 +2635,6 @@ namespace TimePilot.WinForms
 
             selectedRuntimeSegmentObservationFilter = option.Value;
             RefreshRuntimeSegments(DateTimeOffset.UtcNow);
-        }
-
-        private void OnRuntimeSegmentZoomScrollBarScroll(object? sender, ScrollEventArgs e)
-        {
-            if (isUpdatingRuntimeSegmentScrollBar)
-                return;
-
-            runtimeSegmentTimelineControl.SetViewStartRatio(e.NewValue / 1000d);
         }
 
         private void OnTimelineHighlightClearButtonClick(object? sender, EventArgs e)
@@ -3265,37 +3229,7 @@ namespace TimePilot.WinForms
 
         private void UpdateRuntimeSegmentZoomControls()
         {
-            runtimeSegmentZoomRangeLabel.Text = GetRuntimeSegmentViewRangeText();
-            runtimeSegmentZoomOutButton.Enabled = runtimeSegmentTimelineControl.IsZoomed;
-            runtimeSegmentZoomInButton.Enabled = true;
-            runtimeSegmentPreviousButton.Enabled = runtimeSegmentTimelineControl.CanPanPrevious;
-            runtimeSegmentNextButton.Enabled = runtimeSegmentTimelineControl.CanPanNext;
-            runtimeSegmentResetButton.Enabled = runtimeSegmentTimelineControl.IsZoomed;
-            UpdateRuntimeSegmentZoomScrollBar();
-        }
-
-        private void UpdateRuntimeSegmentZoomScrollBar()
-        {
-            isUpdatingRuntimeSegmentScrollBar = true;
-            try
-            {
-                const int scale = 1000;
-                var width = Math.Clamp((int)Math.Round(runtimeSegmentTimelineControl.ViewWidthRatio * scale), 1, scale);
-                var maxValue = Math.Max(0, scale - width);
-                var value = Math.Clamp((int)Math.Round(runtimeSegmentTimelineControl.ViewStartRatio * scale), 0, maxValue);
-
-                runtimeSegmentZoomScrollBar.Visible = runtimeSegmentTimelineControl.IsZoomed;
-                runtimeSegmentZoomScrollBar.Enabled = runtimeSegmentTimelineControl.IsZoomed;
-                runtimeSegmentZoomScrollBar.Minimum = 0;
-                runtimeSegmentZoomScrollBar.Maximum = scale;
-                runtimeSegmentZoomScrollBar.LargeChange = width;
-                runtimeSegmentZoomScrollBar.SmallChange = Math.Max(1, width / 10);
-                runtimeSegmentZoomScrollBar.Value = value;
-            }
-            finally
-            {
-                isUpdatingRuntimeSegmentScrollBar = false;
-            }
+            runtimeSegmentZoomCoordinator.Update();
         }
 
         private void UpdateTimelineHighlightUi()
@@ -4065,25 +3999,11 @@ namespace TimePilot.WinForms
 
         private static void ConfigureRuntimeSegmentZoomButton(
             Button button,
-            EventHandler clickHandler,
             int width = 32)
         {
             button.Size = new Size(width, 24);
             button.Margin = new Padding(3, 2, 3, 0);
             button.UseVisualStyleBackColor = true;
-            button.Click += clickHandler;
-        }
-
-        private string GetRuntimeSegmentViewRangeText()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? $"Runtime view: {runtimeSegmentTimelineControl.ViewRangeText}"
-                : $"실행 구간 보기: {runtimeSegmentTimelineControl.ViewRangeText}";
-        }
-
-        private static string GetRuntimeSegmentResetText()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English ? "Full" : "전체";
         }
 
         private static string GetRuntimeSegmentObservationFilterLabelText()
