@@ -1202,7 +1202,7 @@ namespace TimePilot.WinForms
             detailTrackingDisabledLabel.Text = UiText.Main.DetailTrackingDisabledMessage;
             detailTrackingDisabledPreferencesButton.Text = UiText.Main.DetailTrackingDisabledOpenPreferences;
             runtimeSegmentTimelineControl.Invalidate();
-            runtimeSegmentObservationFilterLabel.Text = GetRuntimeSegmentObservationFilterLabelText();
+            runtimeSegmentObservationFilterLabel.Text = RuntimeSegmentHelpContentBuilder.GetObservationFilterLabelText();
             runtimeSegmentHelpButton.Text = UiText.Main.DetailHelp;
             runtimeSegmentZoomCoordinator.ApplyText();
             UpdateRuntimeSegmentZoomControls();
@@ -1287,8 +1287,8 @@ namespace TimePilot.WinForms
             runtimeCoverageSummaryToolTip.SetToolTip(detailCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(detailRuntimeFilterComboBox, UiText.Main.RuntimeTrackingTypeTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(detailHelpButton, UiText.Main.DetailHelpTitle);
-            runtimeCoverageSummaryToolTip.SetToolTip(runtimeSegmentResetButton, GetRuntimeSegmentResetTooltip());
-            runtimeCoverageSummaryToolTip.SetToolTip(runtimeSegmentHelpButton, GetRuntimeSegmentHelpTitle());
+            runtimeCoverageSummaryToolTip.SetToolTip(runtimeSegmentResetButton, RuntimeSegmentHelpContentBuilder.GetResetTooltip());
+            runtimeCoverageSummaryToolTip.SetToolTip(runtimeSegmentHelpButton, RuntimeSegmentHelpContentBuilder.GetHelpTitle());
             runtimeCoverageSummaryToolTip.SetToolTip(detailDescriptionLabel, UiText.Main.DetailDescription);
             runtimeCoverageSummaryToolTip.SetToolTip(timelineCalendarButton, UiText.Main.RecordedDateCalendarTooltip);
             runtimeCoverageSummaryToolTip.SetToolTip(timelineHelpButton, UiText.Main.TimelineHelpTitle);
@@ -2516,8 +2516,8 @@ namespace TimePilot.WinForms
         {
             CenteredMessageDialog.Show(
                 this,
-                GetRuntimeSegmentHelpMessage(),
-                GetRuntimeSegmentHelpTitle(),
+                RuntimeSegmentHelpContentBuilder.GetHelpMessage(),
+                RuntimeSegmentHelpContentBuilder.GetHelpTitle(),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }
@@ -3870,46 +3870,6 @@ namespace TimePilot.WinForms
             button.Size = new Size(width, 24);
             button.Margin = new Padding(3, 2, 3, 0);
             button.UseVisualStyleBackColor = true;
-        }
-
-        private static string GetRuntimeSegmentObservationFilterLabelText()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English ? "Basis" : "관측 기준";
-        }
-
-        private static string GetRuntimeSegmentResetTooltip()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? "Return the selected app runtime chart to the full-day view."
-                : "선택 앱 실행 구간 그래프를 하루 전체 보기로 되돌립니다.";
-        }
-
-        private static string GetRuntimeSegmentHelpTitle()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? "Selected App Runtime Chart Help"
-                : "선택 앱 실행 구간 도움말";
-        }
-
-        private static string GetRuntimeSegmentHelpMessage()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? "Selected app runtime chart controls\n\n"
-                    + "- Drag the chart: zoom into the selected time range.\n"
-                    + "- Ctrl+wheel: zoom around the pointer.\n"
-                    + "- Shift+wheel: pan left/right in the zoomed view.\n"
-                    + "- Left / Right keys: pan left/right after clicking the chart.\n"
-                    + "- Esc or Full: return to the full-day view.\n"
-                    + "- Selecting a runtime segment row highlights that segment on the chart.\n\n"
-                    + "Overlapping or dense segments may look close together. Zoom into the range when you need to inspect the exact position."
-                : "선택 앱 실행 구간 그래프 조작\n\n"
-                    + "- 그래프 드래그: 선택한 시간 범위로 확대합니다.\n"
-                    + "- Ctrl+휠: 마우스 위치를 기준으로 확대/축소합니다.\n"
-                    + "- Shift+휠: 확대한 보기에서 좌우로 이동합니다.\n"
-                    + "- 왼쪽/오른쪽 방향키: 그래프를 클릭한 뒤 좌우로 이동합니다.\n"
-                    + "- Esc 또는 전체: 하루 전체 보기로 되돌립니다.\n"
-                    + "- 실행 구간 목록의 행을 선택하면 해당 구간이 그래프에서 강조됩니다.\n\n"
-                    + "구간이 많이 겹치거나 촘촘한 앱은 한눈에 구분하기 어려울 수 있습니다. 정확한 위치를 보려면 해당 범위를 확대해서 확인하세요.";
         }
 
         private bool IsInCurrentTrackingScope(ProcessRuntimeSummaryRow row)
