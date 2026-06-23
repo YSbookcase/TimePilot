@@ -48,7 +48,7 @@ namespace TimePilot.Tests
 
             registry.RegisterModule(new TestFeatureModule());
 
-            Assert.Equal("Tools/Detail Tracking", Assert.Single(registry.MenuRegistrations).MenuPath);
+            Assert.Equal("Tools", Assert.Single(registry.MenuRegistrations).MenuPath);
             Assert.Equal("detail-tracking", Assert.Single(registry.TabRegistrations).TabKey);
             Assert.Equal("detail-tracking", Assert.Single(registry.SettingsSectionRegistrations).SectionKey);
             Assert.Equal("detail-summary", Assert.Single(registry.AnalyticsPanelRegistrations).PanelKey);
@@ -88,7 +88,7 @@ namespace TimePilot.Tests
             Assert.Empty(snapshot.SettingsSections);
             Assert.Empty(snapshot.AnalyticsPanels);
             Assert.Empty(snapshot.ExportActions);
-            Assert.Equal("Tools/Detail Tracking", Assert.Single(snapshot.UnavailableMenus).Registration.MenuPath);
+            Assert.Equal("Tools", Assert.Single(snapshot.UnavailableMenus).Registration.MenuPath);
             Assert.Equal("detail-tracking", Assert.Single(snapshot.UnavailableTabs).Registration.TabKey);
             Assert.Equal("detail-tracking", Assert.Single(snapshot.UnavailableSettingsSections).Registration.SectionKey);
             Assert.Equal("detail-summary", Assert.Single(snapshot.UnavailableAnalyticsPanels).Registration.PanelKey);
@@ -140,7 +140,7 @@ namespace TimePilot.Tests
                     "Feature registered by a future module."));
                 registry.RegisterMenu(new TimePilotMenuRegistration(
                     FeatureId,
-                    "Tools/Detail Tracking",
+                    "Tools",
                     "Detail Tracking",
                     100));
                 registry.RegisterTab(new TimePilotTabRegistration(

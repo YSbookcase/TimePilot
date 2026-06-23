@@ -183,35 +183,30 @@
             exportCsvMenuItem.Name = "exportCsvMenuItem";
             exportCsvMenuItem.Size = new Size(180, 22);
             exportCsvMenuItem.Text = UiText.Main.ExportCsv;
-            exportCsvMenuItem.Click += OnExportCsvMenuItemClick;
             //
             // exportRawDataMenuItem
             //
             exportRawDataMenuItem.Name = "exportRawDataMenuItem";
             exportRawDataMenuItem.Size = new Size(180, 22);
             exportRawDataMenuItem.Text = UiText.Main.ExportRawData;
-            exportRawDataMenuItem.Click += OnExportRawDataMenuItemClick;
             //
             // createDataBackupMenuItem
             //
             createDataBackupMenuItem.Name = "createDataBackupMenuItem";
             createDataBackupMenuItem.Size = new Size(180, 22);
             createDataBackupMenuItem.Text = UiText.Main.CreateDataBackup;
-            createDataBackupMenuItem.Click += OnCreateDataBackupMenuItemClick;
             //
             // restoreDataBackupMenuItem
             //
             restoreDataBackupMenuItem.Name = "restoreDataBackupMenuItem";
             restoreDataBackupMenuItem.Size = new Size(180, 22);
             restoreDataBackupMenuItem.Text = UiText.Main.RestoreDataBackup;
-            restoreDataBackupMenuItem.Click += OnRestoreDataBackupMenuItemClick;
             // 
             // exitMenuItem
             // 
             exitMenuItem.Name = "exitMenuItem";
             exitMenuItem.Size = new Size(180, 22);
             exitMenuItem.Text = UiText.Main.Exit;
-            exitMenuItem.Click += OnExitMenuItemClick;
             // 
             // settingsMenuItem
             // 
@@ -225,21 +220,18 @@
             preferencesMenuItem.Name = "preferencesMenuItem";
             preferencesMenuItem.Size = new Size(146, 22);
             preferencesMenuItem.Text = UiText.Main.Preferences;
-            preferencesMenuItem.Click += OnPreferencesMenuItemClick;
             // 
             // appCategoryManagementMenuItem
             //
             appCategoryManagementMenuItem.Name = "appCategoryManagementMenuItem";
             appCategoryManagementMenuItem.Size = new Size(180, 22);
             appCategoryManagementMenuItem.Text = "앱 분류 관리...";
-            appCategoryManagementMenuItem.Click += OnAppCategoryManagementMenuItemClick;
             //
             // resetTableSortMenuItem
             //
             resetTableSortMenuItem.Name = "resetTableSortMenuItem";
             resetTableSortMenuItem.Size = new Size(180, 22);
             resetTableSortMenuItem.Text = "화면 정렬 초기화";
-            resetTableSortMenuItem.Click += OnResetTableSortMenuItemClick;
             //
             // helpMenuItem
             // 
@@ -253,21 +245,18 @@
             runtimeDiagnosticsMenuItem.Name = "runtimeDiagnosticsMenuItem";
             runtimeDiagnosticsMenuItem.Size = new Size(180, 22);
             runtimeDiagnosticsMenuItem.Text = UiText.Main.RuntimeDiagnostics;
-            runtimeDiagnosticsMenuItem.Click += OnRuntimeDiagnosticsMenuItemClick;
             //
             // sponsorMenuItem
             //
             sponsorMenuItem.Name = "sponsorMenuItem";
             sponsorMenuItem.Size = new Size(180, 22);
             sponsorMenuItem.Text = UiText.Main.Sponsor;
-            sponsorMenuItem.Click += OnSponsorMenuItemClick;
             // 
             // aboutMenuItem
             // 
             aboutMenuItem.Name = "aboutMenuItem";
             aboutMenuItem.Size = new Size(180, 22);
             aboutMenuItem.Text = UiText.Main.About;
-            aboutMenuItem.Click += OnAboutMenuItemClick;
             // 
             // statusLabel
             // 

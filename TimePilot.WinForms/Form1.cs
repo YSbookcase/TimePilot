@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using Microsoft.Win32;
 using TimePilot.WinForms.KYS24;
+using TimePilot.WinForms.Menus;
 
 namespace TimePilot.WinForms
 {
@@ -17,6 +18,7 @@ namespace TimePilot.WinForms
         private static readonly TimeSpan PastHeavyViewRefreshInterval = TimeSpan.FromMinutes(5);
 
         private readonly System.Windows.Forms.Timer sampleTimer = new();
+        private readonly MainMenuController mainMenuController;
         private readonly AppIconCache appIconCache = new();
         private readonly object processRuntimeTrackingLock = new();
         private readonly Form headerToolTipForm = new();
@@ -138,6 +140,7 @@ namespace TimePilot.WinForms
 
             UiText.UseLanguage(settings.UiLanguage);
             InitializeComponent();
+            mainMenuController = CreateMainMenuController();
             InitializeRuntimeSegmentTimeline();
             defaultTableColumnLayouts = CaptureTableColumnLayouts();
             ApplySavedWindowPlacement();
@@ -1251,20 +1254,7 @@ namespace TimePilot.WinForms
         private void ApplyUiText()
         {
             Text = UiText.AppName;
-            fileMenuItem.Text = UiText.Main.FileMenu;
-            exportCsvMenuItem.Text = UiText.Main.ExportCsv;
-            exportRawDataMenuItem.Text = UiText.Main.ExportRawData;
-            createDataBackupMenuItem.Text = UiText.Main.CreateDataBackup;
-            restoreDataBackupMenuItem.Text = UiText.Main.RestoreDataBackup;
-            exitMenuItem.Text = UiText.Main.Exit;
-            settingsMenuItem.Text = UiText.Main.SettingsMenu;
-            preferencesMenuItem.Text = UiText.Main.Preferences;
-            appCategoryManagementMenuItem.Text = GetAppCategoryManagementMenuText();
-            resetTableSortMenuItem.Text = GetResetTableSortMenuText();
-            helpMenuItem.Text = UiText.Main.HelpMenu;
-            runtimeDiagnosticsMenuItem.Text = UiText.Main.RuntimeDiagnostics;
-            sponsorMenuItem.Text = UiText.Main.Sponsor;
-            aboutMenuItem.Text = UiText.Main.About;
+            mainMenuController.ApplyText(CreateMainMenuText());
 
             summaryTab.Text = UiText.Main.SummaryTab;
             detailTab.Text = UiText.Main.DetailTab;
@@ -5086,10 +5076,7 @@ namespace TimePilot.WinForms
         {
             isExportRunning = isRunning;
             exportStatusText = message;
-            exportCsvMenuItem.Enabled = !isRunning;
-            exportRawDataMenuItem.Enabled = !isRunning;
-            createDataBackupMenuItem.Enabled = !isRunning;
-            restoreDataBackupMenuItem.Enabled = !isRunning;
+            mainMenuController.SetDataOperationsEnabled(!isRunning);
             UpdateWaitCursor();
             RefreshStatusLabel();
         }
