@@ -1060,7 +1060,7 @@ namespace TimePilot.WinForms
                 if (usageGrid.Rows[i].DataBoundItem is not UsageSummaryRow row || !IsSameUsageSummaryApp(row, previousSelection))
                     continue;
 
-                var columnIndex = Math.Max(GetFirstDisplayedColumnIndex(usageGrid), 0);
+                var columnIndex = Math.Max(GridViewStatePreserver.GetFirstDisplayedColumnIndex(usageGrid), 0);
                 columnIndex = Math.Min(columnIndex, usageGrid.Columns.Count - 1);
                 usageGrid.ClearSelection();
                 usageGrid.Rows[i].Selected = true;
@@ -1608,9 +1608,9 @@ namespace TimePilot.WinForms
 
             var totalStopwatch = Stopwatch.StartNew();
             var appIdToRestore = selectedRuntimeAppId ?? GetSelectedRuntimeAppId();
-            var runtimeFirstDisplayedRowIndex = GetFirstDisplayedRowIndex(runtimeGrid);
-            var runtimeFirstDisplayedColumnIndex = GetFirstDisplayedColumnIndex(runtimeGrid);
-            var runtimeHorizontalOffset = GetHorizontalScrollingOffset(runtimeGrid);
+            var runtimeFirstDisplayedRowIndex = GridViewStatePreserver.GetFirstDisplayedRowIndex(runtimeGrid);
+            var runtimeFirstDisplayedColumnIndex = GridViewStatePreserver.GetFirstDisplayedColumnIndex(runtimeGrid);
+            var runtimeHorizontalOffset = GridViewStatePreserver.GetHorizontalScrollingOffset(runtimeGrid);
             var selectedTab = mainTabs.SelectedTab;
             RefreshSummaryPeriodOptionsIfDateChanged(observedAt);
             RefreshDateSelectorsIfDateChanged(observedAt);
@@ -1756,12 +1756,12 @@ namespace TimePilot.WinForms
                 var usageRows = AddIcons(SortUsageSummaryRows(UsageSummaryRowBuilder.FromForegroundUsage(
                     snapshot.ForegroundUsage,
                     snapshot.ShowDateInUsageTimestamps)));
-                SetGridDataSourcePreservingView(
+                GridViewStatePreserver.SetDataSourcePreservingView(
                     usageGrid,
                     usageRows);
                 RestoreUsageGridSelection(previousUsageSelection);
                 SetSummaryUsageBars(usageRows);
-                SetGridDataSourcePreservingView(
+                GridViewStatePreserver.SetDataSourcePreservingView(
                     dailyUsageTrendGrid,
                     SortDailyUsageTrendRows(snapshot.DailyUsageTrendRows ?? Array.Empty<DailyUsageTrendRow>()));
                 usageGrid.Invalidate();
@@ -1789,7 +1789,7 @@ namespace TimePilot.WinForms
                     snapshot.CategoryTimelineSegments ?? Array.Empty<CategoryTimelineSegment>());
                 timelineOverviewControl.SetSystemEventHighlightEnabled(selectedTimelineSystemEventFilter != TimelineSystemEventFilter.All);
                 ApplyTimelineHighlightToOverview();
-                SetGridDataSourcePreservingView(
+                GridViewStatePreserver.SetDataSourcePreservingView(
                     timelineGrid,
                     AddIcons(SortTimelineRows(snapshot.TimelineRows)));
                 UpdateTimelineHighlightUi();
@@ -1803,7 +1803,7 @@ namespace TimePilot.WinForms
                 try
                 {
                     var runtimeRows = ApplyCurrentTrackingScope(snapshot.RuntimeRows);
-                    SetGridDataSourcePreservingView(
+                    GridViewStatePreserver.SetDataSourcePreservingView(
                         runtimeGrid,
                         AddIcons(SortRuntimeSummaryRows(FilterRuntimeSummaryRows(
                             runtimeRows,
@@ -1868,7 +1868,7 @@ namespace TimePilot.WinForms
             if (selectedRow is null)
             {
                 runtimeSegmentSelectionCoordinator.Clear();
-                SetGridDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
+                GridViewStatePreserver.SetDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
                 UpdateRuntimeSegmentTimeline(null, Array.Empty<ProcessRuntimeSegmentRow>());
                 return;
             }
@@ -1898,7 +1898,7 @@ namespace TimePilot.WinForms
         {
             runtimeSegmentSelectionCoordinator.RunWithoutSelectionEvents(() =>
             {
-                SetGridDataSourcePreservingView(
+                GridViewStatePreserver.SetDataSourcePreservingView(
                     runtimeSegmentsGrid,
                     segmentRows,
                     preserveSelection: false);
@@ -4058,7 +4058,7 @@ namespace TimePilot.WinForms
             grid.ClearSelection();
             var targetColumnIndex = columnIndex >= 0
                 ? columnIndex
-                : GetFirstDisplayedColumnIndex(grid);
+                : GridViewStatePreserver.GetFirstDisplayedColumnIndex(grid);
             targetColumnIndex = Math.Clamp(targetColumnIndex, 0, grid.Columns.Count - 1);
             grid.CurrentCell = grid.Rows[rowIndex].Cells[targetColumnIndex];
             grid.Rows[rowIndex].Selected = true;
@@ -4078,7 +4078,7 @@ namespace TimePilot.WinForms
                 runtimeGrid.ClearSelection();
                 var targetColumnIndex = columnIndex >= 0
                     ? columnIndex
-                    : GetFirstDisplayedColumnIndex(runtimeGrid);
+                    : GridViewStatePreserver.GetFirstDisplayedColumnIndex(runtimeGrid);
                 targetColumnIndex = Math.Clamp(targetColumnIndex, 0, runtimeGrid.Columns.Count - 1);
                 runtimeGrid.CurrentCell = runtimeGrid.Rows[rowIndex].Cells[targetColumnIndex];
                 runtimeGrid.Rows[rowIndex].Selected = true;
@@ -4115,9 +4115,9 @@ namespace TimePilot.WinForms
                     Math.Max(firstDisplayedColumnIndex, 0),
                     runtimeGrid.Columns.Count - 1);
                 runtimeGrid.CurrentCell = row.Cells[currentCellIndex];
-                TrySetFirstDisplayedRowIndex(runtimeGrid, firstDisplayedRowIndex);
-                TrySetFirstDisplayedColumnIndex(runtimeGrid, firstDisplayedColumnIndex);
-                TrySetHorizontalScrollingOffset(runtimeGrid, horizontalScrollingOffset);
+                GridViewStatePreserver.TrySetFirstDisplayedRowIndex(runtimeGrid, firstDisplayedRowIndex);
+                GridViewStatePreserver.TrySetFirstDisplayedColumnIndex(runtimeGrid, firstDisplayedColumnIndex);
+                GridViewStatePreserver.TrySetHorizontalScrollingOffset(runtimeGrid, horizontalScrollingOffset);
                 return;
             }
         }
@@ -4127,9 +4127,9 @@ namespace TimePilot.WinForms
             int firstDisplayedColumnIndex,
             int horizontalScrollingOffset)
         {
-            TrySetFirstDisplayedRowIndex(runtimeGrid, firstDisplayedRowIndex);
-            TrySetFirstDisplayedColumnIndex(runtimeGrid, firstDisplayedColumnIndex);
-            TrySetHorizontalScrollingOffset(runtimeGrid, horizontalScrollingOffset);
+            GridViewStatePreserver.TrySetFirstDisplayedRowIndex(runtimeGrid, firstDisplayedRowIndex);
+            GridViewStatePreserver.TrySetFirstDisplayedColumnIndex(runtimeGrid, firstDisplayedColumnIndex);
+            GridViewStatePreserver.TrySetHorizontalScrollingOffset(runtimeGrid, horizontalScrollingOffset);
         }
 
         private void ScheduleRuntimeGridViewRestore(
@@ -4164,114 +4164,6 @@ namespace TimePilot.WinForms
             return descending is null
                 ? defaultSortOrder
                 : descending.Value ? SortOrder.Descending : SortOrder.Ascending;
-        }
-
-        private static void SetGridDataSourcePreservingView<T>(
-            DataGridView grid,
-            IReadOnlyList<T> rows,
-            bool preserveSelection = true)
-        {
-            var firstDisplayedRowIndex = GetFirstDisplayedRowIndex(grid);
-            var firstDisplayedColumnIndex = GetFirstDisplayedColumnIndex(grid);
-            var horizontalScrollingOffset = GetHorizontalScrollingOffset(grid);
-            var selectedIndex = grid.CurrentRow?.Index ?? -1;
-
-            grid.DataSource = rows;
-
-            if (grid.Rows.Count == 0)
-                return;
-
-            var restoredFirstRowIndex = Math.Min(firstDisplayedRowIndex, grid.Rows.Count - 1);
-            var restoredFirstColumnIndex = Math.Min(firstDisplayedColumnIndex, grid.Columns.Count - 1);
-            TrySetFirstDisplayedRowIndex(grid, restoredFirstRowIndex);
-            TrySetFirstDisplayedColumnIndex(grid, restoredFirstColumnIndex);
-            TrySetHorizontalScrollingOffset(grid, horizontalScrollingOffset);
-
-            if (!preserveSelection || selectedIndex < 0)
-                return;
-
-            var restoredSelectedIndex = Math.Min(selectedIndex, grid.Rows.Count - 1);
-            var restoredSelectedColumnIndex = Math.Min(restoredFirstColumnIndex, grid.Columns.Count - 1);
-            grid.ClearSelection();
-            grid.Rows[restoredSelectedIndex].Selected = true;
-            grid.CurrentCell = grid.Rows[restoredSelectedIndex].Cells[restoredSelectedColumnIndex];
-            TrySetFirstDisplayedRowIndex(grid, restoredFirstRowIndex);
-            TrySetFirstDisplayedColumnIndex(grid, restoredFirstColumnIndex);
-            TrySetHorizontalScrollingOffset(grid, horizontalScrollingOffset);
-        }
-
-        private static int GetFirstDisplayedRowIndex(DataGridView grid)
-        {
-            try
-            {
-                return Math.Max(grid.FirstDisplayedScrollingRowIndex, 0);
-            }
-            catch (InvalidOperationException)
-            {
-                return 0;
-            }
-        }
-
-        private static int GetFirstDisplayedColumnIndex(DataGridView grid)
-        {
-            try
-            {
-                return Math.Max(grid.FirstDisplayedScrollingColumnIndex, 0);
-            }
-            catch (InvalidOperationException)
-            {
-                return 0;
-            }
-        }
-
-        private static int GetHorizontalScrollingOffset(DataGridView grid)
-        {
-            try
-            {
-                return Math.Max(grid.HorizontalScrollingOffset, 0);
-            }
-            catch (InvalidOperationException)
-            {
-                return 0;
-            }
-        }
-
-        private static void TrySetFirstDisplayedRowIndex(DataGridView grid, int rowIndex)
-        {
-            try
-            {
-                grid.FirstDisplayedScrollingRowIndex = rowIndex;
-            }
-            catch (InvalidOperationException)
-            {
-            }
-        }
-
-        private static void TrySetFirstDisplayedColumnIndex(DataGridView grid, int columnIndex)
-        {
-            try
-            {
-                if (columnIndex >= 0 && grid.Columns.Count > 0)
-                    grid.FirstDisplayedScrollingColumnIndex = columnIndex;
-            }
-            catch (InvalidOperationException)
-            {
-            }
-        }
-
-        private static void TrySetHorizontalScrollingOffset(DataGridView grid, int offset)
-        {
-            try
-            {
-                if (offset >= 0)
-                    grid.HorizontalScrollingOffset = offset;
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-            }
-            catch (InvalidOperationException)
-            {
-            }
         }
 
         private static bool IsRunningInDesigner()
@@ -4391,8 +4283,8 @@ namespace TimePilot.WinForms
                 cachedDetailSnapshotKey = null;
                 cachedDetailSnapshotAt = null;
 
-                SetGridDataSourcePreservingView(usageGrid, Array.Empty<UsageSummaryRow>());
-                SetGridDataSourcePreservingView(dailyUsageTrendGrid, Array.Empty<DailyUsageTrendRow>());
+                GridViewStatePreserver.SetDataSourcePreservingView(usageGrid, Array.Empty<UsageSummaryRow>());
+                GridViewStatePreserver.SetDataSourcePreservingView(dailyUsageTrendGrid, Array.Empty<DailyUsageTrendRow>());
                 SetRuntimeCoverageSummary(null);
                 timelineOverviewControl.SetTimeline(
                     selectedTimelineDate,
@@ -4401,14 +4293,14 @@ namespace TimePilot.WinForms
                     Array.Empty<SystemTimelineRange>(),
                     Array.Empty<SystemTimelineEvent>(),
                     Array.Empty<CategoryTimelineSegment>());
-                SetGridDataSourcePreservingView(timelineGrid, Array.Empty<ActivityTimelineRow>());
+                GridViewStatePreserver.SetDataSourcePreservingView(timelineGrid, Array.Empty<ActivityTimelineRow>());
                 currentTimelineForegroundUsage = Array.Empty<ForegroundUsageSummary>();
                 currentTimelineRows = Array.Empty<ActivityTimelineRow>();
                 currentTimelineWindowsRuntimeRanges = Array.Empty<TimelineRange>();
                 currentTimelineSystemRanges = Array.Empty<SystemTimelineRange>();
                 currentTimelineSystemEvents = Array.Empty<SystemTimelineEvent>();
-                SetGridDataSourcePreservingView(runtimeGrid, Array.Empty<ProcessRuntimeSummaryRow>());
-                SetGridDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
+                GridViewStatePreserver.SetDataSourcePreservingView(runtimeGrid, Array.Empty<ProcessRuntimeSummaryRow>());
+                GridViewStatePreserver.SetDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
                 SetStatusText(UiText.Main.UsageDataCleared);
             }
             finally
