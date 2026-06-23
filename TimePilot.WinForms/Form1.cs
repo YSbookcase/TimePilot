@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using Microsoft.Win32;
+using TimePilot.WinForms.Details;
 using TimePilot.WinForms.KYS24;
 using TimePilot.WinForms.Menus;
 using TimePilot.WinForms.Timeline;
@@ -24,6 +25,8 @@ namespace TimePilot.WinForms
         private readonly TimelineZoomCoordinator timelineZoomCoordinator;
         private readonly RuntimeSegmentZoomCoordinator runtimeSegmentZoomCoordinator;
         private readonly RuntimeSegmentSelectionCoordinator runtimeSegmentSelectionCoordinator;
+        private readonly DetailRuntimeFilterCoordinator detailRuntimeFilterCoordinator;
+        private readonly RuntimeSegmentObservationFilterCoordinator runtimeSegmentObservationFilterCoordinator;
         private readonly AppIconCache appIconCache = new();
         private readonly object processRuntimeTrackingLock = new();
         private readonly Form headerToolTipForm = new();
@@ -82,7 +85,6 @@ namespace TimePilot.WinForms
         private bool showRunningRuntimeOnly;
         private bool isRefreshingRuntimeGrid;
         private bool isSelectingRuntimeGridRow;
-        private bool isUpdatingDetailRuntimeFilterOptions;
         private bool isExplicitExitRequested;
         private volatile bool isViewRefreshRunning;
         private long? selectedRuntimeAppId;
@@ -143,6 +145,8 @@ namespace TimePilot.WinForms
             timelineZoomCoordinator = CreateTimelineZoomCoordinator();
             runtimeSegmentZoomCoordinator = CreateRuntimeSegmentZoomCoordinator();
             runtimeSegmentSelectionCoordinator = CreateRuntimeSegmentSelectionCoordinator();
+            detailRuntimeFilterCoordinator = CreateDetailRuntimeFilterCoordinator();
+            runtimeSegmentObservationFilterCoordinator = CreateRuntimeSegmentObservationFilterCoordinator();
             InitializeRuntimeSegmentTimeline();
             defaultTableColumnLayouts = CaptureTableColumnLayouts();
             ApplySavedWindowPlacement();
@@ -658,40 +662,12 @@ namespace TimePilot.WinForms
 
         private void RefreshDetailRuntimeFilterOptions()
         {
-            isUpdatingDetailRuntimeFilterOptions = true;
-            detailRuntimeFilterComboBox.BeginUpdate();
-            try
-            {
-                detailRuntimeFilterComboBox.Items.Clear();
-                detailRuntimeFilterComboBox.Items.AddRange(new object[]
-                {
-                    UiText.Main.DetailFilterSummaryApps,
-                    UiText.Main.DetailFilterCurrentScope,
-                    UiText.Main.DetailFilterVisibleApps,
-                    UiText.Main.DetailFilterUserProcesses,
-                    UiText.Main.DetailFilterAllRecords
-                });
-                SyncDetailRuntimeFilterComboBoxSelection();
-            }
-            finally
-            {
-                detailRuntimeFilterComboBox.EndUpdate();
-                isUpdatingDetailRuntimeFilterOptions = false;
-            }
+            detailRuntimeFilterCoordinator.RefreshOptions(selectedDetailRuntimeFilter);
         }
 
         private void SyncDetailRuntimeFilterComboBoxSelection()
         {
-            if (detailRuntimeFilterComboBox.Items.Count == 0)
-                return;
-
-            var selectedIndex = Math.Clamp(
-                (int)selectedDetailRuntimeFilter,
-                0,
-                detailRuntimeFilterComboBox.Items.Count - 1);
-
-            if (detailRuntimeFilterComboBox.SelectedIndex != selectedIndex)
-                detailRuntimeFilterComboBox.SelectedIndex = selectedIndex;
+            detailRuntimeFilterCoordinator.SyncSelection(selectedDetailRuntimeFilter);
         }
 
         private void RefreshSummaryPeriodOptions(DateTime today)
@@ -895,20 +871,9 @@ namespace TimePilot.WinForms
 
         private void RefreshRuntimeSegmentObservationFilterOptions()
         {
-            var options = RuntimeSegmentObservationFilterOption.GetOptions();
-            var selectedIndex = Array.FindIndex(options.ToArray(), option => option.Value == selectedRuntimeSegmentObservationFilter);
-            runtimeSegmentObservationFilterComboBox.BeginUpdate();
-            try
-            {
-                runtimeSegmentObservationFilterComboBox.Items.Clear();
-                runtimeSegmentObservationFilterComboBox.Items.AddRange(options.Cast<object>().ToArray());
-                runtimeSegmentObservationFilterComboBox.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
-                selectedRuntimeSegmentObservationFilter = ((RuntimeSegmentObservationFilterOption)runtimeSegmentObservationFilterComboBox.SelectedItem!).Value;
-            }
-            finally
-            {
-                runtimeSegmentObservationFilterComboBox.EndUpdate();
-            }
+            runtimeSegmentObservationFilterCoordinator.RefreshOptions(selectedRuntimeSegmentObservationFilter);
+            if (runtimeSegmentObservationFilterCoordinator.TryGetSelectedFilter(out var selectedFilter))
+                selectedRuntimeSegmentObservationFilter = selectedFilter;
         }
 
         private void InitializeRecordedDateCalendar()
@@ -2463,15 +2428,8 @@ namespace TimePilot.WinForms
         {
             if (mainTabs.SelectedTab == detailTab)
             {
-                isUpdatingDetailRuntimeFilterOptions = true;
-                try
-                {
-                    SyncDetailRuntimeFilterComboBoxSelection();
-                }
-                finally
-                {
-                    isUpdatingDetailRuntimeFilterOptions = false;
-                }
+                detailRuntimeFilterCoordinator.RunWithoutSelectionEvents(
+                    SyncDetailRuntimeFilterComboBoxSelection);
             }
 
             RefreshViews(DateTimeOffset.UtcNow);
@@ -2565,11 +2523,11 @@ namespace TimePilot.WinForms
 
         private void OnRuntimeSegmentObservationFilterComboBoxSelectedIndexChanged(object? sender, EventArgs e)
         {
-            if (runtimeSegmentObservationFilterComboBox.SelectedItem is not RuntimeSegmentObservationFilterOption option
-                || option.Value == selectedRuntimeSegmentObservationFilter)
+            if (!runtimeSegmentObservationFilterCoordinator.TryGetSelectedFilter(out var selectedFilter)
+                || selectedFilter == selectedRuntimeSegmentObservationFilter)
                 return;
 
-            selectedRuntimeSegmentObservationFilter = option.Value;
+            selectedRuntimeSegmentObservationFilter = selectedFilter;
             RefreshRuntimeSegments(DateTimeOffset.UtcNow);
         }
 
@@ -3874,25 +3832,18 @@ namespace TimePilot.WinForms
 
         private void OnDetailRuntimeFilterComboBoxSelectedIndexChanged(object? sender, EventArgs e)
         {
-            if (isUpdatingDetailRuntimeFilterOptions || detailRuntimeFilterComboBox.SelectedIndex < 0)
+            if (detailRuntimeFilterCoordinator.IsUpdating
+                || !detailRuntimeFilterCoordinator.TryGetSelectedFilter(out var selectedFilter))
                 return;
 
             if (mainTabs.SelectedTab != detailTab)
             {
-                isUpdatingDetailRuntimeFilterOptions = true;
-                try
-                {
-                    SyncDetailRuntimeFilterComboBoxSelection();
-                }
-                finally
-                {
-                    isUpdatingDetailRuntimeFilterOptions = false;
-                }
-
+                detailRuntimeFilterCoordinator.RunWithoutSelectionEvents(
+                    SyncDetailRuntimeFilterComboBoxSelection);
                 return;
             }
 
-            selectedDetailRuntimeFilter = (DetailRuntimeFilter)detailRuntimeFilterComboBox.SelectedIndex;
+            selectedDetailRuntimeFilter = selectedFilter;
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
@@ -5329,23 +5280,6 @@ namespace TimePilot.WinForms
                     range.Start.ToLocalTime().Date,
                     range.End.ToLocalTime().Date,
                     dataVersion);
-            }
-        }
-
-        private sealed record RuntimeSegmentObservationFilterOption(string Label, RuntimeSegmentObservationFilter Value)
-        {
-            public override string ToString() => Label;
-
-            public static IReadOnlyList<RuntimeSegmentObservationFilterOption> GetOptions()
-            {
-                var isEnglish = UiText.CurrentLanguage == UiLanguage.English;
-                return
-                [
-                    new(isEnglish ? "All basis" : "전체 기준", RuntimeSegmentObservationFilter.All),
-                    new(UiText.Main.WindowedApp, RuntimeSegmentObservationFilter.VisibleApps),
-                    new(UiText.Main.UserProcess, RuntimeSegmentObservationFilter.UserProcesses),
-                    new(UiText.Main.AllProcesses, RuntimeSegmentObservationFilter.AllProcesses)
-                ];
             }
         }
 
