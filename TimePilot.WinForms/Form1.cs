@@ -87,8 +87,10 @@ namespace TimePilot.WinForms
         private long timelineDataVersion;
         private long processRuntimeDataVersion;
         private bool isExportRunning;
+        private bool isViewRefreshWaitCursorActive;
         private string statusText = string.Empty;
         private string? exportStatusText;
+        private string? viewRefreshStatusText;
         private string? performanceStatusText;
         private DateTimeOffset? performanceStatusExpiresAt;
         private DataGridView? hoveredHeaderGrid;
@@ -119,6 +121,9 @@ namespace TimePilot.WinForms
         private ViewRefreshSnapshot? cachedTimelineSnapshot;
         private HeavyViewRefreshKey? cachedTimelineSnapshotKey;
         private DateTimeOffset? cachedTimelineSnapshotAt;
+        private ViewRefreshSnapshot? cachedSummarySnapshot;
+        private SummaryViewRefreshKey? cachedSummarySnapshotKey;
+        private DateTimeOffset? cachedSummarySnapshotAt;
         private ViewRefreshSnapshot? cachedDetailSnapshot;
         private HeavyViewRefreshKey? cachedDetailSnapshotKey;
         private DateTimeOffset? cachedDetailSnapshotAt;
@@ -1445,6 +1450,9 @@ namespace TimePilot.WinForms
         {
             Interlocked.Increment(ref timelineDataVersion);
             Interlocked.Increment(ref processRuntimeDataVersion);
+            cachedSummarySnapshot = null;
+            cachedSummarySnapshotKey = null;
+            cachedSummarySnapshotAt = null;
             cachedTimelineSnapshot = null;
             cachedTimelineSnapshotKey = null;
             cachedTimelineSnapshotAt = null;
@@ -1455,6 +1463,7 @@ namespace TimePilot.WinForms
 
         private bool TryGetCachedHeavyViewSnapshot(
             TabPage? selectedTab,
+            SummaryPeriodRange summaryPeriodRange,
             DateTime timelineDate,
             DateTime detailDate,
             long? selectedRuntimeAppId,
@@ -1463,6 +1472,20 @@ namespace TimePilot.WinForms
             out ViewRefreshSnapshot snapshot)
         {
             snapshot = default!;
+            if (selectedTab == summaryTab)
+            {
+                var key = SummaryViewRefreshKey.FromRange(
+                    summaryPeriodRange,
+                    Interlocked.Read(ref timelineDataVersion));
+                if (cachedSummarySnapshot is null
+                    || cachedSummarySnapshotKey != key
+                    || IsSummaryViewCacheExpired(cachedSummarySnapshotAt, summaryPeriodRange, observedAt))
+                    return false;
+
+                snapshot = cachedSummarySnapshot with { ReadElapsedMs = 0 };
+                return true;
+            }
+
             if (selectedTab == timelineTab)
             {
                 var key = HeavyViewRefreshKey.ForTimeline(
@@ -1498,6 +1521,7 @@ namespace TimePilot.WinForms
 
         private void CacheHeavyViewSnapshot(
             TabPage? selectedTab,
+            SummaryPeriodRange summaryPeriodRange,
             DateTime timelineDate,
             DateTime detailDate,
             long? selectedRuntimeAppId,
@@ -1505,6 +1529,16 @@ namespace TimePilot.WinForms
             DateTimeOffset observedAt,
             ViewRefreshSnapshot snapshot)
         {
+            if (selectedTab == summaryTab && snapshot.ForegroundUsage is not null)
+            {
+                cachedSummarySnapshot = snapshot;
+                cachedSummarySnapshotKey = SummaryViewRefreshKey.FromRange(
+                    summaryPeriodRange,
+                    Interlocked.Read(ref timelineDataVersion));
+                cachedSummarySnapshotAt = observedAt;
+                return;
+            }
+
             if (selectedTab == timelineTab && snapshot.TimelineRows is not null)
             {
                 cachedTimelineSnapshot = snapshot;
@@ -1536,6 +1570,24 @@ namespace TimePilot.WinForms
                 return true;
 
             var interval = selectedDate.Date == observedAt.ToLocalTime().Date
+                ? HeavyViewRefreshInterval
+                : PastHeavyViewRefreshInterval;
+            return observedAt - cachedAt.Value >= interval;
+        }
+
+        private static bool IsSummaryViewCacheExpired(
+            DateTimeOffset? cachedAt,
+            SummaryPeriodRange range,
+            DateTimeOffset observedAt)
+        {
+            if (cachedAt is null)
+                return true;
+
+            var today = observedAt.ToLocalTime().Date;
+            var todayStart = new DateTimeOffset(today, TimeZoneInfo.Local.GetUtcOffset(today));
+            var includesToday = range.Start < observedAt
+                && range.End > todayStart;
+            var interval = includesToday
                 ? HeavyViewRefreshInterval
                 : PastHeavyViewRefreshInterval;
             return observedAt - cachedAt.Value >= interval;
@@ -1665,6 +1717,7 @@ namespace TimePilot.WinForms
             ViewRefreshSnapshot snapshot;
             if (TryGetCachedHeavyViewSnapshot(
                 selectedTab,
+                summaryPeriodRange,
                 timelineDate,
                 detailDate,
                 appIdToRestore,
@@ -1677,17 +1730,20 @@ namespace TimePilot.WinForms
             else
             {
                 isViewRefreshRunning = true;
+                var showSummaryLoading = selectedTab == summaryTab;
+                if (showSummaryLoading)
+                    SetViewRefreshRunning(true, BuildViewRefreshInProgressStatus());
+
                 try
                 {
                     snapshot = await Task.Run(() =>
                     {
                         var readStopwatch = Stopwatch.StartNew();
-                        var foregroundUsage = selectedTab == summaryTab
-                            ? storage.GetForegroundUsageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
+                        var summaryUsage = selectedTab == summaryTab
+                            ? storage.GetForegroundUsageWithDailyTrendForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
                             : null;
-                        var dailyUsageTrendRows = selectedTab == summaryTab
-                            ? storage.GetDailyUsageTrendForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
-                            : null;
+                        var foregroundUsage = summaryUsage?.ForegroundUsage;
+                        var dailyUsageTrendRows = summaryUsage?.DailyUsageTrendRows;
                         var idleUsage = selectedTab == summaryTab
                             ? storage.GetIdleUsageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
                             : null;
@@ -1760,6 +1816,7 @@ namespace TimePilot.WinForms
                     });
                     CacheHeavyViewSnapshot(
                         selectedTab,
+                        summaryPeriodRange,
                         timelineDate,
                         detailDate,
                         appIdToRestore,
@@ -1774,6 +1831,8 @@ namespace TimePilot.WinForms
                 finally
                 {
                     isViewRefreshRunning = false;
+                    if (showSummaryLoading)
+                        SetViewRefreshRunning(false, null);
                 }
             }
 
@@ -2097,6 +2156,26 @@ namespace TimePilot.WinForms
             RefreshStatusLabel();
         }
 
+        private void SetViewRefreshRunning(bool isRunning, string? message)
+        {
+            isViewRefreshWaitCursorActive = isRunning;
+            viewRefreshStatusText = message;
+            UpdateWaitCursor();
+            RefreshStatusLabel();
+        }
+
+        private static string BuildViewRefreshInProgressStatus()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? "Loading summary..."
+                : "요약 불러오는 중...";
+        }
+
+        private void UpdateWaitCursor()
+        {
+            UseWaitCursor = isExportRunning || isViewRefreshWaitCursorActive;
+        }
+
         private void ReportPerformanceTimings(params (string Name, long ElapsedMs)[] timings)
         {
             if (!settings.PerformanceDiagnosticsEnabled)
@@ -2139,6 +2218,8 @@ namespace TimePilot.WinForms
             var parts = new List<string> { statusText };
             if (!string.IsNullOrWhiteSpace(exportStatusText))
                 parts.Add(exportStatusText);
+            if (!string.IsNullOrWhiteSpace(viewRefreshStatusText))
+                parts.Add(viewRefreshStatusText);
             if (!string.IsNullOrWhiteSpace(performanceStatusText))
                 parts.Add(performanceStatusText);
 
@@ -4813,7 +4894,10 @@ namespace TimePilot.WinForms
             using var form = new AppCategoryManagementForm(storage, settings, settings.UiLanguage);
             form.Icon = Icon;
             if (form.ShowDialog(this) == DialogResult.OK && form.CategoriesChanged)
+            {
+                InvalidateCategoryDependentViewCaches();
                 RefreshViews(DateTimeOffset.UtcNow);
+            }
         }
 
         private void ShowPreferencesDialog()
@@ -4891,6 +4975,18 @@ namespace TimePilot.WinForms
                 selectedRuntimeAppId = null;
                 performanceStatusText = null;
                 performanceStatusExpiresAt = null;
+                viewRefreshStatusText = null;
+                isViewRefreshWaitCursorActive = false;
+                UpdateWaitCursor();
+                cachedSummarySnapshot = null;
+                cachedSummarySnapshotKey = null;
+                cachedSummarySnapshotAt = null;
+                cachedTimelineSnapshot = null;
+                cachedTimelineSnapshotKey = null;
+                cachedTimelineSnapshotAt = null;
+                cachedDetailSnapshot = null;
+                cachedDetailSnapshotKey = null;
+                cachedDetailSnapshotAt = null;
 
                 SetGridDataSourcePreservingView(usageGrid, Array.Empty<UsageSummaryRow>());
                 SetGridDataSourcePreservingView(dailyUsageTrendGrid, Array.Empty<DailyUsageTrendRow>());
@@ -4994,7 +5090,7 @@ namespace TimePilot.WinForms
             exportRawDataMenuItem.Enabled = !isRunning;
             createDataBackupMenuItem.Enabled = !isRunning;
             restoreDataBackupMenuItem.Enabled = !isRunning;
-            UseWaitCursor = isRunning;
+            UpdateWaitCursor();
             RefreshStatusLabel();
         }
 
@@ -5569,6 +5665,22 @@ namespace TimePilot.WinForms
                 long dataVersion)
             {
                 return new HeavyViewRefreshKey("detail", date.Date, selectedAppId, 0, dataVersion);
+            }
+        }
+
+        private sealed record SummaryViewRefreshKey(
+            DateTime StartDate,
+            DateTime EndDate,
+            long DataVersion)
+        {
+            public static SummaryViewRefreshKey FromRange(
+                SummaryPeriodRange range,
+                long dataVersion)
+            {
+                return new SummaryViewRefreshKey(
+                    range.Start.ToLocalTime().Date,
+                    range.End.ToLocalTime().Date,
+                    dataVersion);
             }
         }
 

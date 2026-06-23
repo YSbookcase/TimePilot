@@ -1154,6 +1154,13 @@ namespace TimePilot.WinForms.KYS24
             DateTimeOffset periodStart,
             DateTimeOffset periodEnd)
         {
+            return GetForegroundUsageWithDailyTrendForPeriod(periodStart, periodEnd).ForegroundUsage;
+        }
+
+        public ForegroundUsagePeriodSummary GetForegroundUsageWithDailyTrendForPeriod(
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd)
+        {
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText = """
@@ -1178,6 +1185,7 @@ namespace TimePilot.WinForms.KYS24
             command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
 
             var totals = new Dictionary<long, UsageAggregation>();
+            var dailyTotals = new Dictionary<DateTime, DailyUsageTrendAggregation>();
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -1198,6 +1206,7 @@ namespace TimePilot.WinForms.KYS24
                 if (durationMs <= 0)
                     continue;
 
+                AddDailyUsageTrend(dailyTotals, appName, effectiveStart, effectiveEnd);
                 if (!totals.TryGetValue(appId, out var aggregation))
                 {
                     aggregation = new UsageAggregation(
@@ -1225,7 +1234,8 @@ namespace TimePilot.WinForms.KYS24
 
             AddIdleRecordedTimeToUsageAggregations(connection, totals, periodStart, periodEnd, DateTimeOffset.Now);
 
-            return totals
+            return new ForegroundUsagePeriodSummary(
+                totals
                 .Select(x => new ForegroundUsageSummary(
                     x.Value.AppId,
                     x.Value.AppName,
@@ -1240,7 +1250,8 @@ namespace TimePilot.WinForms.KYS24
                     x.Value.FirstStartedAt,
                     x.Value.LastObservedAt))
                 .OrderByDescending(x => x.ActiveUsageMs)
-                .ToList();
+                .ToList(),
+                CreateDailyUsageTrendRows(dailyTotals));
         }
 
         public IdleUsageSummary GetIdleUsageForPeriod(DateTimeOffset periodStart, DateTimeOffset periodEnd)
@@ -1312,22 +1323,7 @@ namespace TimePilot.WinForms.KYS24
                 AddDailyUsageTrend(totals, appName, effectiveStart, effectiveEnd);
             }
 
-            return totals
-                .OrderByDescending(x => x.Key)
-                .Select(x =>
-                {
-                    var topApp = x.Value.AppTotals
-                        .OrderByDescending(app => app.Value)
-                        .ThenBy(app => app.Key, StringComparer.CurrentCultureIgnoreCase)
-                        .FirstOrDefault();
-
-                    return new DailyUsageTrendRow(
-                        x.Key,
-                        x.Value.ActiveUsageMs,
-                        topApp.Key ?? "",
-                        topApp.Value);
-                })
-                .ToList();
+            return CreateDailyUsageTrendRows(totals);
         }
 
         public IReadOnlyList<ActivityTimelineRow> GetActivityTimelineForDay(DateTimeOffset now)
@@ -3309,6 +3305,27 @@ namespace TimePilot.WinForms.KYS24
 
                 cursor = segmentEnd;
             }
+        }
+
+        private static IReadOnlyList<DailyUsageTrendRow> CreateDailyUsageTrendRows(
+            IReadOnlyDictionary<DateTime, DailyUsageTrendAggregation> totals)
+        {
+            return totals
+                .OrderByDescending(x => x.Key)
+                .Select(x =>
+                {
+                    var topApp = x.Value.AppTotals
+                        .OrderByDescending(app => app.Value)
+                        .ThenBy(app => app.Key, StringComparer.CurrentCultureIgnoreCase)
+                        .FirstOrDefault();
+
+                    return new DailyUsageTrendRow(
+                        x.Key,
+                        x.Value.ActiveUsageMs,
+                        topApp.Key ?? "",
+                        topApp.Value);
+                })
+                .ToList();
         }
 
         private static void AddCategoryBucketDurations(
