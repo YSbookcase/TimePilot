@@ -1329,7 +1329,6 @@
             timelineCategoryBucketComboBox.Name = "timelineCategoryBucketComboBox";
             timelineCategoryBucketComboBox.Size = new Size(86, 23);
             timelineCategoryBucketComboBox.TabIndex = 8;
-            timelineCategoryBucketComboBox.SelectedIndexChanged += OnTimelineCategoryBucketComboBoxSelectedIndexChanged;
             //
             // timelineTypeHighlightLabel
             //
@@ -1349,8 +1348,6 @@
             timelineTypeHighlightComboBox.Name = "timelineTypeHighlightComboBox";
             timelineTypeHighlightComboBox.Size = new Size(96, 23);
             timelineTypeHighlightComboBox.TabIndex = 10;
-            timelineTypeHighlightComboBox.DropDownClosed += OnTimelineTypeHighlightComboBoxDropDownClosed;
-            timelineTypeHighlightComboBox.SelectedIndexChanged += OnTimelineTypeHighlightComboBoxSelectedIndexChanged;
             //
             // timelineHighlightSummaryPanel
             //

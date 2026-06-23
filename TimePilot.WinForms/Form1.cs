@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Microsoft.Win32;
 using TimePilot.WinForms.KYS24;
 using TimePilot.WinForms.Menus;
+using TimePilot.WinForms.Timeline;
 
 namespace TimePilot.WinForms
 {
@@ -19,6 +20,7 @@ namespace TimePilot.WinForms
 
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private readonly MainMenuController mainMenuController;
+        private readonly TimelineSelectorCoordinator timelineSelectorCoordinator;
         private readonly AppIconCache appIconCache = new();
         private readonly object processRuntimeTrackingLock = new();
         private readonly Form headerToolTipForm = new();
@@ -141,6 +143,7 @@ namespace TimePilot.WinForms
             UiText.UseLanguage(settings.UiLanguage);
             InitializeComponent();
             mainMenuController = CreateMainMenuController();
+            timelineSelectorCoordinator = CreateTimelineSelectorCoordinator();
             InitializeRuntimeSegmentTimeline();
             defaultTableColumnLayouts = CaptureTableColumnLayouts();
             ApplySavedWindowPlacement();
@@ -153,7 +156,7 @@ namespace TimePilot.WinForms
             InitializeDateSelectors();
             InitializeTimelineCategoryBucketSelector();
             InitializeTimelineTypeHighlightSelector();
-            InitializeTimelineSystemEventFilterSelector();
+            InitializeTimelineSelectors();
             ApplyUiText();
 
             if (IsRunningInDesigner())
@@ -777,20 +780,8 @@ namespace TimePilot.WinForms
 
         private void RefreshTimelineCategoryBucketOptions()
         {
-            var options = TimelineCategoryBucketOption.GetOptions();
-            var selectedIndex = Array.FindIndex(options.ToArray(), option => option.Minutes == selectedTimelineCategoryBucketMinutes);
-            timelineCategoryBucketComboBox.BeginUpdate();
-            try
-            {
-                timelineCategoryBucketComboBox.Items.Clear();
-                timelineCategoryBucketComboBox.Items.AddRange(options.Cast<object>().ToArray());
-                timelineCategoryBucketComboBox.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 1;
-                selectedTimelineCategoryBucketMinutes = ((TimelineCategoryBucketOption)timelineCategoryBucketComboBox.SelectedItem!).Minutes;
-            }
-            finally
-            {
-                timelineCategoryBucketComboBox.EndUpdate();
-            }
+            selectedTimelineCategoryBucketMinutes = timelineSelectorCoordinator.RefreshCategoryBucketOptions(
+                selectedTimelineCategoryBucketMinutes);
         }
 
         private void InitializeTimelineTypeHighlightSelector()
@@ -798,17 +789,13 @@ namespace TimePilot.WinForms
             RefreshTimelineTypeHighlightOptions();
         }
 
-        private void InitializeTimelineSystemEventFilterSelector()
+        private void InitializeTimelineSelectors()
         {
-            timelineSystemEventFilterLabel.AutoSize = true;
-            timelineSystemEventFilterLabel.Margin = new Padding(12, 7, 3, 0);
-            timelineSystemEventFilterComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
-            timelineSystemEventFilterComboBox.Width = 112;
-            timelineSystemEventFilterComboBox.SelectedIndexChanged += OnTimelineSystemEventFilterComboBoxSelectedIndexChanged;
-            timelineZoomPanel.WrapContents = false;
-            timelineZoomPanel.Height = 32;
-            timelineZoomPanel.Controls.Add(timelineSystemEventFilterLabel);
-            timelineZoomPanel.Controls.Add(timelineSystemEventFilterComboBox);
+            timelineSelectorCoordinator.Initialize(
+                OnTimelineCategoryBucketComboBoxSelectedIndexChanged,
+                OnTimelineTypeHighlightComboBoxSelectedIndexChanged,
+                OnTimelineTypeHighlightComboBoxDropDownClosed,
+                OnTimelineSystemEventFilterComboBoxSelectedIndexChanged);
             RefreshTimelineSystemEventFilterOptions();
         }
 
@@ -896,39 +883,15 @@ namespace TimePilot.WinForms
 
         private void RefreshTimelineTypeHighlightOptions()
         {
-            var options = TimelineActivityTypeHighlightOption.GetOptions();
-            var selectedIndex = Array.FindIndex(options.ToArray(), option => option.Value == selectedTimelineActivityTypeHighlight);
-            timelineTypeHighlightComboBox.BeginUpdate();
-            try
-            {
-                timelineTypeHighlightComboBox.Items.Clear();
-                timelineTypeHighlightComboBox.Items.AddRange(options.Cast<object>().ToArray());
-                timelineTypeHighlightComboBox.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
-                selectedTimelineActivityTypeHighlight = ((TimelineActivityTypeHighlightOption)timelineTypeHighlightComboBox.SelectedItem!).Value;
-                ApplyTimelineActivityTypeHighlight();
-            }
-            finally
-            {
-                timelineTypeHighlightComboBox.EndUpdate();
-            }
+            selectedTimelineActivityTypeHighlight = timelineSelectorCoordinator.RefreshTypeHighlightOptions(
+                selectedTimelineActivityTypeHighlight);
+            ApplyTimelineActivityTypeHighlight();
         }
 
         private void RefreshTimelineSystemEventFilterOptions()
         {
-            var options = TimelineSystemEventFilterOption.GetOptions();
-            var selectedIndex = Array.FindIndex(options.ToArray(), option => option.Value == selectedTimelineSystemEventFilter);
-            timelineSystemEventFilterComboBox.BeginUpdate();
-            try
-            {
-                timelineSystemEventFilterComboBox.Items.Clear();
-                timelineSystemEventFilterComboBox.Items.AddRange(options.Cast<object>().ToArray());
-                timelineSystemEventFilterComboBox.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
-                selectedTimelineSystemEventFilter = ((TimelineSystemEventFilterOption)timelineSystemEventFilterComboBox.SelectedItem!).Value;
-            }
-            finally
-            {
-                timelineSystemEventFilterComboBox.EndUpdate();
-            }
+            selectedTimelineSystemEventFilter = timelineSelectorCoordinator.RefreshSystemEventFilterOptions(
+                selectedTimelineSystemEventFilter);
         }
 
         private void RefreshRuntimeSegmentObservationFilterOptions()
@@ -1293,9 +1256,7 @@ namespace TimePilot.WinForms
             timelineZoomNextButton.Text = UiText.Main.TimelinePanNext;
             timelineZoomResetButton.Text = UiText.Main.TimelineResetView;
             timelineHelpButton.Text = UiText.Main.TimelineHelp;
-            timelineCategoryBucketLabel.Text = UiText.Main.TimelineCategoryBucket;
-            timelineTypeHighlightLabel.Text = settings.UiLanguage == UiLanguage.English ? "Highlight type" : "유형 강조";
-            timelineSystemEventFilterLabel.Text = settings.UiLanguage == UiLanguage.English ? "System event" : "시스템 이벤트";
+            timelineSelectorCoordinator.ApplyText(settings.UiLanguage);
             timelineOverviewControl.Invalidate();
             UpdateTimelineZoomControls();
             UpdateTimelineHighlightUi();
@@ -5668,65 +5629,6 @@ namespace TimePilot.WinForms
                     range.Start.ToLocalTime().Date,
                     range.End.ToLocalTime().Date,
                     dataVersion);
-            }
-        }
-
-        private sealed record TimelineCategoryBucketOption(string Label, int Minutes)
-        {
-            public override string ToString() => Label;
-
-            public static IReadOnlyList<TimelineCategoryBucketOption> GetOptions()
-            {
-                return
-                [
-                    new(UiText.Main.TimelineCategoryBucketAll, 0),
-                    new(UiText.Main.TimelineCategoryBucketMinutes(15), 15),
-                    new(GetDefaultBucketLabel(), 30),
-                    new(UiText.Main.TimelineCategoryBucketHours(1), 60),
-                    new(UiText.Main.TimelineCategoryBucketHours(2), 120)
-                ];
-            }
-
-            private static string GetDefaultBucketLabel()
-            {
-                return UiText.CurrentLanguage == UiLanguage.English
-                    ? $"{UiText.Main.TimelineCategoryBucketMinutes(30)} (Default)"
-                    : $"{UiText.Main.TimelineCategoryBucketMinutes(30)} (기본)";
-            }
-        }
-
-        private sealed record TimelineActivityTypeHighlightOption(string Label, TimelineActivityTypeHighlight Value)
-        {
-            public override string ToString() => Label;
-
-            public static IReadOnlyList<TimelineActivityTypeHighlightOption> GetOptions()
-            {
-                return
-                [
-                    new(UiText.Main.ClearTimelineHighlight, TimelineActivityTypeHighlight.None),
-                    new(UiText.Main.Active, TimelineActivityTypeHighlight.Active),
-                    new(UiText.Main.Idle, TimelineActivityTypeHighlight.Idle),
-                    new(UiText.Main.Untracked, TimelineActivityTypeHighlight.Untracked),
-                    new(UiText.Main.WindowsRuntimeTrack, TimelineActivityTypeHighlight.Windows)
-                ];
-            }
-        }
-
-        private sealed record TimelineSystemEventFilterOption(string Label, TimelineSystemEventFilter Value)
-        {
-            public override string ToString() => Label;
-
-            public static IReadOnlyList<TimelineSystemEventFilterOption> GetOptions()
-            {
-                var isEnglish = UiText.CurrentLanguage == UiLanguage.English;
-                return
-                [
-                    new(isEnglish ? "All events" : "전체 이벤트", TimelineSystemEventFilter.All),
-                    new(isEnglish ? "Lock/logon" : "잠금/로그온", TimelineSystemEventFilter.Lock),
-                    new(isEnglish ? "Sleep/resume" : "절전/복귀", TimelineSystemEventFilter.Power),
-                    new(isEnglish ? "Shutdown" : "종료/재시작", TimelineSystemEventFilter.Shutdown),
-                    new(isEnglish ? "TimePilot" : "TimePilot", TimelineSystemEventFilter.TimePilot)
-                ];
             }
         }
 
