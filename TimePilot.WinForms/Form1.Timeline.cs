@@ -15,5 +15,32 @@ namespace TimePilot.WinForms
                 timelineSystemEventFilterLabel,
                 timelineSystemEventFilterComboBox));
         }
+
+        private TimelineZoomCoordinator CreateTimelineZoomCoordinator()
+        {
+            return new TimelineZoomCoordinator(
+                new TimelineZoomControls(
+                    timelineZoomRangeLabel,
+                    timelineZoomOutButton,
+                    timelineZoomInButton,
+                    timelineZoomPreviousButton,
+                    timelineZoomNextButton,
+                    timelineZoomResetButton,
+                    timelineZoomScrollBar),
+                new TimelineZoomActions(
+                    timelineOverviewControl.ZoomOut,
+                    timelineOverviewControl.ZoomIn,
+                    timelineOverviewControl.PanPrevious,
+                    timelineOverviewControl.PanNext,
+                    timelineOverviewControl.ResetView,
+                    timelineOverviewControl.SetViewStartRatio),
+                () => new TimelineZoomState(
+                    timelineOverviewControl.ViewRangeText,
+                    timelineOverviewControl.IsZoomed,
+                    timelineOverviewControl.CanPanPrevious,
+                    timelineOverviewControl.CanPanNext,
+                    timelineOverviewControl.ViewWidthRatio,
+                    timelineOverviewControl.ViewStartRatio));
+        }
     }
 }

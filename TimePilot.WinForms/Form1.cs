@@ -21,6 +21,7 @@ namespace TimePilot.WinForms
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private readonly MainMenuController mainMenuController;
         private readonly TimelineSelectorCoordinator timelineSelectorCoordinator;
+        private readonly TimelineZoomCoordinator timelineZoomCoordinator;
         private readonly AppIconCache appIconCache = new();
         private readonly object processRuntimeTrackingLock = new();
         private readonly Form headerToolTipForm = new();
@@ -108,7 +109,6 @@ namespace TimePilot.WinForms
         private bool processRuntimeSafeModeActivated;
         private bool isInitializingSummaryPeriodSelector;
         private bool isInitializingDateSelectors;
-        private bool isUpdatingTimelineScrollBar;
         private bool isApplyingTableColumnLayouts;
         private bool systemEventHandlersRegistered;
         private string? highlightedTimelineProcessName;
@@ -144,6 +144,7 @@ namespace TimePilot.WinForms
             InitializeComponent();
             mainMenuController = CreateMainMenuController();
             timelineSelectorCoordinator = CreateTimelineSelectorCoordinator();
+            timelineZoomCoordinator = CreateTimelineZoomCoordinator();
             InitializeRuntimeSegmentTimeline();
             defaultTableColumnLayouts = CaptureTableColumnLayouts();
             ApplySavedWindowPlacement();
@@ -157,6 +158,7 @@ namespace TimePilot.WinForms
             InitializeTimelineCategoryBucketSelector();
             InitializeTimelineTypeHighlightSelector();
             InitializeTimelineSelectors();
+            timelineZoomCoordinator.Initialize();
             ApplyUiText();
 
             if (IsRunningInDesigner())
@@ -190,7 +192,6 @@ namespace TimePilot.WinForms
             timelineGrid.CellMouseDown += OnTimelineGridCellMouseDown;
             timelineGrid.RowPrePaint += OnTimelineGridRowPrePaint;
             timelineGrid.RowPostPaint += OnTimelineGridRowPostPaint;
-            timelineZoomScrollBar.Scroll += OnTimelineZoomScrollBarScroll;
             timelineOverviewControl.ActivitySegmentContextRequested += OnTimelineOverviewActivitySegmentContextRequested;
             timelineOverviewControl.CategorySegmentContextRequested += OnTimelineOverviewCategorySegmentContextRequested;
             timelineOverviewControl.WindowsTrackContextRequested += OnTimelineOverviewWindowsTrackContextRequested;
@@ -1250,11 +1251,7 @@ namespace TimePilot.WinForms
             timelineTodayButton.Text = UiText.Main.Today;
             timelineHighlightClearButton.Text = UiText.Main.ClearTimelineHighlight;
             timelineHighlightHintLabel.Text = UiText.Main.TimelineHighlightHint;
-            timelineZoomOutButton.Text = UiText.Main.TimelineZoomOut;
-            timelineZoomInButton.Text = UiText.Main.TimelineZoomIn;
-            timelineZoomPreviousButton.Text = UiText.Main.TimelinePanPrevious;
-            timelineZoomNextButton.Text = UiText.Main.TimelinePanNext;
-            timelineZoomResetButton.Text = UiText.Main.TimelineResetView;
+            timelineZoomCoordinator.ApplyText();
             timelineHelpButton.Text = UiText.Main.TimelineHelp;
             timelineSelectorCoordinator.ApplyText(settings.UiLanguage);
             timelineOverviewControl.Invalidate();
@@ -2636,31 +2633,6 @@ namespace TimePilot.WinForms
             UpdateRuntimeSegmentZoomControls();
         }
 
-        private void OnTimelineZoomOutButtonClick(object? sender, EventArgs e)
-        {
-            timelineOverviewControl.ZoomOut();
-        }
-
-        private void OnTimelineZoomInButtonClick(object? sender, EventArgs e)
-        {
-            timelineOverviewControl.ZoomIn();
-        }
-
-        private void OnTimelineZoomPreviousButtonClick(object? sender, EventArgs e)
-        {
-            timelineOverviewControl.PanPrevious();
-        }
-
-        private void OnTimelineZoomNextButtonClick(object? sender, EventArgs e)
-        {
-            timelineOverviewControl.PanNext();
-        }
-
-        private void OnTimelineZoomResetButtonClick(object? sender, EventArgs e)
-        {
-            timelineOverviewControl.ResetView();
-        }
-
         private void OnTimelineHelpButtonClick(object? sender, EventArgs e)
         {
             CenteredMessageDialog.Show(
@@ -2722,14 +2694,6 @@ namespace TimePilot.WinForms
                 return;
 
             runtimeSegmentTimelineControl.SetViewStartRatio(e.NewValue / 1000d);
-        }
-
-        private void OnTimelineZoomScrollBarScroll(object? sender, ScrollEventArgs e)
-        {
-            if (isUpdatingTimelineScrollBar)
-                return;
-
-            timelineOverviewControl.SetViewStartRatio(e.NewValue / 1000d);
         }
 
         private void OnTimelineHighlightClearButtonClick(object? sender, EventArgs e)
@@ -3322,37 +3286,7 @@ namespace TimePilot.WinForms
 
         private void UpdateTimelineZoomControls()
         {
-            timelineZoomRangeLabel.Text = UiText.Main.TimelineViewRange(timelineOverviewControl.ViewRangeText);
-            timelineZoomOutButton.Enabled = timelineOverviewControl.IsZoomed;
-            timelineZoomInButton.Enabled = true;
-            timelineZoomPreviousButton.Enabled = timelineOverviewControl.CanPanPrevious;
-            timelineZoomNextButton.Enabled = timelineOverviewControl.CanPanNext;
-            timelineZoomResetButton.Enabled = timelineOverviewControl.IsZoomed;
-            UpdateTimelineZoomScrollBar();
-        }
-
-        private void UpdateTimelineZoomScrollBar()
-        {
-            isUpdatingTimelineScrollBar = true;
-            try
-            {
-                const int scale = 1000;
-                var width = Math.Clamp((int)Math.Round(timelineOverviewControl.ViewWidthRatio * scale), 1, scale);
-                var maxValue = Math.Max(0, scale - width);
-                var value = Math.Clamp((int)Math.Round(timelineOverviewControl.ViewStartRatio * scale), 0, maxValue);
-
-                timelineZoomScrollBar.Visible = timelineOverviewControl.IsZoomed;
-                timelineZoomScrollBar.Enabled = timelineOverviewControl.IsZoomed;
-                timelineZoomScrollBar.Minimum = 0;
-                timelineZoomScrollBar.Maximum = scale;
-                timelineZoomScrollBar.LargeChange = width;
-                timelineZoomScrollBar.SmallChange = Math.Max(1, width / 10);
-                timelineZoomScrollBar.Value = value;
-            }
-            finally
-            {
-                isUpdatingTimelineScrollBar = false;
-            }
+            timelineZoomCoordinator.Update();
         }
 
         private void UpdateRuntimeSegmentZoomControls()

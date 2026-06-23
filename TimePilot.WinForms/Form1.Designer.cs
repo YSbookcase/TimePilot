@@ -1256,7 +1256,6 @@
             timelineZoomOutButton.TabIndex = 1;
             timelineZoomOutButton.Text = UiText.Main.TimelineZoomOut;
             timelineZoomOutButton.UseVisualStyleBackColor = true;
-            timelineZoomOutButton.Click += OnTimelineZoomOutButtonClick;
             //
             // timelineZoomInButton
             //
@@ -1266,7 +1265,6 @@
             timelineZoomInButton.TabIndex = 2;
             timelineZoomInButton.Text = UiText.Main.TimelineZoomIn;
             timelineZoomInButton.UseVisualStyleBackColor = true;
-            timelineZoomInButton.Click += OnTimelineZoomInButtonClick;
             //
             // timelineZoomPreviousButton
             //
@@ -1277,7 +1275,6 @@
             timelineZoomPreviousButton.TabIndex = 3;
             timelineZoomPreviousButton.Text = UiText.Main.TimelinePanPrevious;
             timelineZoomPreviousButton.UseVisualStyleBackColor = true;
-            timelineZoomPreviousButton.Click += OnTimelineZoomPreviousButtonClick;
             //
             // timelineZoomNextButton
             //
@@ -1288,7 +1285,6 @@
             timelineZoomNextButton.TabIndex = 4;
             timelineZoomNextButton.Text = UiText.Main.TimelinePanNext;
             timelineZoomNextButton.UseVisualStyleBackColor = true;
-            timelineZoomNextButton.Click += OnTimelineZoomNextButtonClick;
             //
             // timelineZoomResetButton
             //
@@ -1299,7 +1295,6 @@
             timelineZoomResetButton.TabIndex = 5;
             timelineZoomResetButton.Text = UiText.Main.TimelineResetView;
             timelineZoomResetButton.UseVisualStyleBackColor = true;
-            timelineZoomResetButton.Click += OnTimelineZoomResetButtonClick;
             //
             // timelineHelpButton
             //
