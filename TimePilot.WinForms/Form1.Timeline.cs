@@ -69,5 +69,12 @@ namespace TimePilot.WinForms
                     runtimeSegmentTimelineControl.ViewWidthRatio,
                     runtimeSegmentTimelineControl.ViewStartRatio));
         }
+
+        private RuntimeSegmentSelectionCoordinator CreateRuntimeSegmentSelectionCoordinator()
+        {
+            return new RuntimeSegmentSelectionCoordinator(
+                runtimeSegmentsGrid,
+                runtimeSegmentTimelineControl);
+        }
     }
 }

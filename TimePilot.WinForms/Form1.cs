@@ -23,6 +23,7 @@ namespace TimePilot.WinForms
         private readonly TimelineSelectorCoordinator timelineSelectorCoordinator;
         private readonly TimelineZoomCoordinator timelineZoomCoordinator;
         private readonly RuntimeSegmentZoomCoordinator runtimeSegmentZoomCoordinator;
+        private readonly RuntimeSegmentSelectionCoordinator runtimeSegmentSelectionCoordinator;
         private readonly AppIconCache appIconCache = new();
         private readonly object processRuntimeTrackingLock = new();
         private readonly Form headerToolTipForm = new();
@@ -51,7 +52,6 @@ namespace TimePilot.WinForms
         private readonly Button runtimeSegmentResetButton = new();
         private readonly Button runtimeSegmentHelpButton = new();
         private readonly HScrollBar runtimeSegmentZoomScrollBar = new();
-        private RuntimeSegmentSelectionKey? selectedRuntimeSegmentKey;
         private readonly bool startMinimizedToTray;
         private Dictionary<string, List<AppSettings.TableColumnLayout>> defaultTableColumnLayouts = new();
         private AppSettings settings = AppSettings.LoadDefault();
@@ -82,7 +82,6 @@ namespace TimePilot.WinForms
         private bool showRunningRuntimeOnly;
         private bool isRefreshingRuntimeGrid;
         private bool isSelectingRuntimeGridRow;
-        private bool isRestoringRuntimeSegmentSelection;
         private bool isUpdatingDetailRuntimeFilterOptions;
         private bool isExplicitExitRequested;
         private volatile bool isViewRefreshRunning;
@@ -143,6 +142,7 @@ namespace TimePilot.WinForms
             timelineSelectorCoordinator = CreateTimelineSelectorCoordinator();
             timelineZoomCoordinator = CreateTimelineZoomCoordinator();
             runtimeSegmentZoomCoordinator = CreateRuntimeSegmentZoomCoordinator();
+            runtimeSegmentSelectionCoordinator = CreateRuntimeSegmentSelectionCoordinator();
             InitializeRuntimeSegmentTimeline();
             defaultTableColumnLayouts = CaptureTableColumnLayouts();
             ApplySavedWindowPlacement();
@@ -158,6 +158,7 @@ namespace TimePilot.WinForms
             InitializeTimelineSelectors();
             timelineZoomCoordinator.Initialize();
             runtimeSegmentZoomCoordinator.Initialize();
+            runtimeSegmentSelectionCoordinator.Initialize();
             ApplyUiText();
 
             if (IsRunningInDesigner())
@@ -875,7 +876,6 @@ namespace TimePilot.WinForms
             runtimeSegmentPanel.ResumeLayout();
 
             detailSplitContainer.Panel2.Controls.Add(runtimeSegmentPanel);
-            runtimeSegmentsGrid.SelectionChanged += OnRuntimeSegmentsGridSelectionChanged;
             RefreshRuntimeSegmentObservationFilterOptions();
             UpdateRuntimeSegmentZoomControls();
         }
@@ -1859,7 +1859,10 @@ namespace TimePilot.WinForms
                 {
                     var sortedSegments = SortRuntimeSegmentRows(FilterRuntimeSegmentRows(snapshot.RuntimeSegmentRows));
                     SetRuntimeSegmentsDataSource(sortedSegments);
-                    RestoreRuntimeSegmentSelection(selectedRuntimeSegmentKey, selectFirstWhenMissing: selectedRuntimeSegmentKey is null);
+                    var keyToRestore = runtimeSegmentSelectionCoordinator.CurrentKey;
+                    runtimeSegmentSelectionCoordinator.RestoreSelection(
+                        keyToRestore,
+                        selectFirstWhenMissing: keyToRestore is null);
                     UpdateRuntimeSegmentTimeline(GetRuntimeRowForSelectedApp(), sortedSegments);
                 }
                 else
@@ -1898,7 +1901,7 @@ namespace TimePilot.WinForms
             var selectedRow = GetRuntimeRowForSelectedApp();
             if (selectedRow is null)
             {
-                selectedRuntimeSegmentKey = null;
+                runtimeSegmentSelectionCoordinator.Clear();
                 SetGridDataSourcePreservingView(runtimeSegmentsGrid, Array.Empty<ProcessRuntimeSegmentRow>());
                 UpdateRuntimeSegmentTimeline(null, Array.Empty<ProcessRuntimeSegmentRow>());
                 return;
@@ -1906,9 +1909,11 @@ namespace TimePilot.WinForms
 
             var segmentRows = SortRuntimeSegmentRows(FilterRuntimeSegmentRows(
                 storage.GetProcessRuntimeSegmentsForDate(selectedRow.AppId, selectedDetailDate, observedAt)));
-            var keyToRestore = selectionKeyToRestore ?? selectedRuntimeSegmentKey;
+            var keyToRestore = selectionKeyToRestore ?? runtimeSegmentSelectionCoordinator.CurrentKey;
             SetRuntimeSegmentsDataSource(segmentRows);
-            RestoreRuntimeSegmentSelection(keyToRestore, selectFirstWhenMissing: selectFirstWhenMissing && keyToRestore is null);
+            runtimeSegmentSelectionCoordinator.RestoreSelection(
+                keyToRestore,
+                selectFirstWhenMissing: selectFirstWhenMissing && keyToRestore is null);
             UpdateRuntimeSegmentTimeline(selectedRow, segmentRows);
         }
 
@@ -1925,8 +1930,7 @@ namespace TimePilot.WinForms
 
         private void SetRuntimeSegmentsDataSource(IReadOnlyList<ProcessRuntimeSegmentRow> segmentRows)
         {
-            isRestoringRuntimeSegmentSelection = true;
-            try
+            runtimeSegmentSelectionCoordinator.RunWithoutSelectionEvents(() =>
             {
                 SetGridDataSourcePreservingView(
                     runtimeSegmentsGrid,
@@ -1934,75 +1938,7 @@ namespace TimePilot.WinForms
                     preserveSelection: false);
                 runtimeSegmentsGrid.ClearSelection();
                 runtimeSegmentsGrid.CurrentCell = null;
-            }
-            finally
-            {
-                isRestoringRuntimeSegmentSelection = false;
-            }
-        }
-
-        private bool RestoreRuntimeSegmentSelection(RuntimeSegmentSelectionKey? key, bool selectFirstWhenMissing)
-        {
-            if (runtimeSegmentsGrid.Rows.Count == 0)
-            {
-                selectedRuntimeSegmentKey = null;
-                runtimeSegmentTimelineControl.SetHighlightedSegment(null);
-                return false;
-            }
-
-            if (key is null)
-                return SelectFirstRuntimeSegmentIfNeeded(selectFirstWhenMissing);
-
-            foreach (DataGridViewRow row in runtimeSegmentsGrid.Rows)
-            {
-                if (row.DataBoundItem is not ProcessRuntimeSegmentRow segment || !key.Value.Matches(segment))
-                    continue;
-
-                isRestoringRuntimeSegmentSelection = true;
-                try
-                {
-                    runtimeSegmentsGrid.ClearSelection();
-                    row.Selected = true;
-                    runtimeSegmentsGrid.CurrentCell = null;
-                    selectedRuntimeSegmentKey = key;
-                    runtimeSegmentTimelineControl.SetHighlightedSegment(segment);
-                }
-                finally
-                {
-                    isRestoringRuntimeSegmentSelection = false;
-                }
-
-                return true;
-            }
-
-            selectedRuntimeSegmentKey = null;
-            runtimeSegmentTimelineControl.SetHighlightedSegment(null);
-            return SelectFirstRuntimeSegmentIfNeeded(selectFirstWhenMissing);
-        }
-
-        private bool SelectFirstRuntimeSegmentIfNeeded(bool shouldSelect)
-        {
-            if (!shouldSelect || runtimeSegmentsGrid.CurrentRow is not null || runtimeSegmentsGrid.Rows.Count == 0)
-                return false;
-
-            isRestoringRuntimeSegmentSelection = true;
-            try
-            {
-                runtimeSegmentsGrid.ClearSelection();
-                runtimeSegmentsGrid.Rows[0].Selected = true;
-                runtimeSegmentsGrid.CurrentCell = null;
-                if (runtimeSegmentsGrid.Rows[0].DataBoundItem is ProcessRuntimeSegmentRow segment)
-                {
-                    selectedRuntimeSegmentKey = RuntimeSegmentSelectionKey.From(segment);
-                    runtimeSegmentTimelineControl.SetHighlightedSegment(segment);
-                }
-            }
-            finally
-            {
-                isRestoringRuntimeSegmentSelection = false;
-            }
-
-            return true;
+            });
         }
 
         private static void SetDateStatus(Label label, bool? hasData)
@@ -3778,7 +3714,7 @@ namespace TimePilot.WinForms
                 return;
 
             selectedRuntimeAppId = GetSelectedRuntimeAppId();
-            selectedRuntimeSegmentKey = null;
+            runtimeSegmentSelectionCoordinator.Clear();
             RefreshRuntimeSegments(DateTimeOffset.UtcNow);
         }
 
@@ -3913,9 +3849,7 @@ namespace TimePilot.WinForms
             if (e.ColumnIndex < 0)
                 return;
 
-            var selectionKey = (runtimeSegmentsGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSegmentRow) is { } selectedSegment
-                ? RuntimeSegmentSelectionKey.From(selectedSegment)
-                : selectedRuntimeSegmentKey;
+            var selectionKey = runtimeSegmentSelectionCoordinator.GetCurrentOrStoredKey();
             var propertyName = GetRuntimeSegmentSortPropertyName(runtimeSegmentsGrid.Columns[e.ColumnIndex]);
             if (propertyName is null)
                 return;
@@ -3930,19 +3864,6 @@ namespace TimePilot.WinForms
                 selectionKeyToRestore: selectionKey,
                 selectFirstWhenMissing: false);
             UpdateSortGlyphs();
-        }
-
-        private void OnRuntimeSegmentsGridSelectionChanged(object? sender, EventArgs e)
-        {
-            if (isRestoringRuntimeSegmentSelection)
-                return;
-
-            if (runtimeSegmentsGrid.CurrentRow is null && runtimeSegmentsGrid.Rows.Count > 0)
-                return;
-
-            var selectedSegment = runtimeSegmentsGrid.CurrentRow?.DataBoundItem as ProcessRuntimeSegmentRow;
-            selectedRuntimeSegmentKey = selectedSegment is null ? null : RuntimeSegmentSelectionKey.From(selectedSegment);
-            runtimeSegmentTimelineControl.SetHighlightedSegment(selectedSegment);
         }
 
         private void OnRunningRuntimeOnlyCheckBoxCheckedChanged(object? sender, EventArgs e)
@@ -5436,33 +5357,6 @@ namespace TimePilot.WinForms
             string PreviousIntervalText,
             string RelationText,
             string DetailsText);
-
-        private readonly record struct RuntimeSegmentSelectionKey(
-            DateTimeOffset StartedAt,
-            DateTimeOffset? EndedAt,
-            int ProcessId,
-            bool HasMainWindow,
-            bool IsCurrentSessionProcess)
-        {
-            public static RuntimeSegmentSelectionKey From(ProcessRuntimeSegmentRow segment)
-            {
-                return new RuntimeSegmentSelectionKey(
-                    segment.StartedAt,
-                    segment.EndedAt,
-                    segment.ProcessId,
-                    segment.HasMainWindow,
-                    segment.IsCurrentSessionProcess);
-            }
-
-            public bool Matches(ProcessRuntimeSegmentRow segment)
-            {
-                return StartedAt == segment.StartedAt
-                    && EndedAt == segment.EndedAt
-                    && ProcessId == segment.ProcessId
-                    && HasMainWindow == segment.HasMainWindow
-                    && IsCurrentSessionProcess == segment.IsCurrentSessionProcess;
-            }
-        }
 
     }
 }
