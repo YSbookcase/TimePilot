@@ -4012,31 +4012,7 @@ namespace TimePilot.WinForms
 
         private string? GetHeaderToolTipText(DataGridView grid, DataGridViewColumn column)
         {
-            if (grid == usageGrid && column == usageRatioColumn)
-                return UiText.Main.UsageRatioTooltip;
-
-            if (grid == usageGrid && column == idleRecordedTimeColumn)
-                return UiText.Main.IdleRecordedTimeTooltip;
-
-            if (grid == runtimeGrid && column == runtimeLastObservedAtColumn)
-                return UiText.Main.RuntimeLastObservedTooltip;
-
-            if (grid == runtimeGrid && column == runtimeDurationColumn)
-                return UiText.Main.RuntimeDurationTooltip;
-
-            if (grid == runtimeGrid && column == runtimeIdleRecordedColumn)
-                return UiText.Main.IdleRecordedTimeTooltip;
-
-            if (grid == runtimeGrid && column == runtimeActualUsageRatioColumn)
-                return UiText.Main.RuntimeActualUsageRatioTooltip;
-
-            if (grid == runtimeGrid && column == runtimeSessionCountColumn)
-                return UiText.Main.RuntimeSegmentCountTooltip;
-
-            if (grid == runtimeGrid && column == runtimeStatusColumn)
-                return UiText.Main.RuntimeStatusTooltip;
-
-            return null;
+            return GridHeaderTooltipResolver.GetTooltipText(grid.Name, column.Name);
         }
 
         private void PositionHeaderToolTip(DataGridView grid, int columnIndex)
