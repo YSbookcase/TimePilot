@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using TimePilot.WinForms.KYS24;
+using TimePilot.WinForms.Tables;
 
 namespace TimePilot.WinForms
 {
@@ -776,7 +777,7 @@ namespace TimePilot.WinForms
                 return;
 
             sortOrder = string.Equals(sortProperty, propertyName, StringComparison.Ordinal)
-                ? ToggleSortOrder(sortOrder)
+                ? GridSortOrderHelper.Toggle(sortOrder)
                 : SortOrder.Descending;
             sortProperty = propertyName;
             SortVisibleRowsPreservingView();
@@ -903,11 +904,6 @@ namespace TimePilot.WinForms
                     ? sortOrder
                     : SortOrder.None;
             }
-        }
-
-        private static SortOrder ToggleSortOrder(SortOrder current)
-        {
-            return current == SortOrder.Descending ? SortOrder.Ascending : SortOrder.Descending;
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)

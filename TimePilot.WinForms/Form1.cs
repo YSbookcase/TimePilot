@@ -331,15 +331,15 @@ namespace TimePilot.WinForms
         private void ApplySavedTableSortState()
         {
             usageSortProperty = GridSortPropertyResolver.NormalizeUsageSortProperty(settings.UsageSortProperty);
-            usageSortOrder = GetSavedSortOrder(settings.UsageSortDescending, SortOrder.Descending);
+            usageSortOrder = GridSortOrderHelper.FromSavedDescending(settings.UsageSortDescending, SortOrder.Descending);
             dailyUsageTrendSortProperty = GridSortPropertyResolver.NormalizeDailyUsageTrendSortProperty(settings.DailyUsageTrendSortProperty);
-            dailyUsageTrendSortOrder = GetSavedSortOrder(settings.DailyUsageTrendSortDescending, SortOrder.Descending);
+            dailyUsageTrendSortOrder = GridSortOrderHelper.FromSavedDescending(settings.DailyUsageTrendSortDescending, SortOrder.Descending);
             timelineSortProperty = GridSortPropertyResolver.NormalizeTimelineSortProperty(settings.TimelineSortProperty);
-            timelineSortOrder = GetSavedSortOrder(settings.TimelineSortDescending, SortOrder.Descending);
+            timelineSortOrder = GridSortOrderHelper.FromSavedDescending(settings.TimelineSortDescending, SortOrder.Descending);
             runtimeSortProperty = GridSortPropertyResolver.NormalizeRuntimeSortProperty(settings.RuntimeSortProperty);
-            runtimeSortOrder = GetSavedSortOrder(settings.RuntimeSortDescending, SortOrder.Descending);
+            runtimeSortOrder = GridSortOrderHelper.FromSavedDescending(settings.RuntimeSortDescending, SortOrder.Descending);
             runtimeSegmentSortProperty = GridSortPropertyResolver.NormalizeRuntimeSegmentSortProperty(settings.RuntimeSegmentSortProperty);
-            runtimeSegmentSortOrder = GetSavedSortOrder(settings.RuntimeSegmentSortDescending, SortOrder.Descending);
+            runtimeSegmentSortOrder = GridSortOrderHelper.FromSavedDescending(settings.RuntimeSegmentSortDescending, SortOrder.Descending);
         }
 
         private void SaveTableSortState()
@@ -2281,7 +2281,7 @@ namespace TimePilot.WinForms
                 return;
 
             usageSortOrder = string.Equals(usageSortProperty, propertyName, StringComparison.Ordinal)
-                ? ToggleSortOrder(usageSortOrder)
+                ? GridSortOrderHelper.Toggle(usageSortOrder)
                 : SortOrder.Descending;
             usageSortProperty = propertyName;
             SaveTableSortState();
@@ -2298,7 +2298,7 @@ namespace TimePilot.WinForms
                 return;
 
             dailyUsageTrendSortOrder = string.Equals(dailyUsageTrendSortProperty, propertyName, StringComparison.Ordinal)
-                ? ToggleSortOrder(dailyUsageTrendSortOrder)
+                ? GridSortOrderHelper.Toggle(dailyUsageTrendSortOrder)
                 : SortOrder.Descending;
             dailyUsageTrendSortProperty = propertyName;
             SaveTableSortState();
@@ -2418,7 +2418,7 @@ namespace TimePilot.WinForms
                 return;
 
             timelineSortOrder = string.Equals(timelineSortProperty, propertyName, StringComparison.Ordinal)
-                ? ToggleSortOrder(timelineSortOrder)
+                ? GridSortOrderHelper.Toggle(timelineSortOrder)
                 : SortOrder.Descending;
             timelineSortProperty = propertyName;
             SaveTableSortState();
@@ -3660,7 +3660,7 @@ namespace TimePilot.WinForms
                 return;
 
             runtimeSortOrder = string.Equals(runtimeSortProperty, propertyName, StringComparison.Ordinal)
-                ? ToggleSortOrder(runtimeSortOrder)
+                ? GridSortOrderHelper.Toggle(runtimeSortOrder)
                 : SortOrder.Descending;
             runtimeSortProperty = propertyName;
             SaveTableSortState();
@@ -3814,7 +3814,7 @@ namespace TimePilot.WinForms
                 return;
 
             runtimeSegmentSortOrder = string.Equals(runtimeSegmentSortProperty, propertyName, StringComparison.Ordinal)
-                ? ToggleSortOrder(runtimeSegmentSortOrder)
+                ? GridSortOrderHelper.Toggle(runtimeSegmentSortOrder)
                 : SortOrder.Descending;
             runtimeSegmentSortProperty = propertyName;
             SaveTableSortState();
@@ -4081,20 +4081,6 @@ namespace TimePilot.WinForms
                     firstDisplayedColumnIndex,
                     horizontalScrollingOffset);
             }));
-        }
-
-        private static SortOrder ToggleSortOrder(SortOrder sortOrder)
-        {
-            return sortOrder == SortOrder.Descending
-                ? SortOrder.Ascending
-                : SortOrder.Descending;
-        }
-
-        private static SortOrder GetSavedSortOrder(bool? descending, SortOrder defaultSortOrder)
-        {
-            return descending is null
-                ? defaultSortOrder
-                : descending.Value ? SortOrder.Descending : SortOrder.Ascending;
         }
 
         private static bool IsRunningInDesigner()
