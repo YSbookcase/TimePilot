@@ -3884,40 +3884,11 @@ namespace TimePilot.WinForms
 
         private void UpdateSortGlyphs()
         {
-            foreach (DataGridViewColumn column in usageGrid.Columns)
-            {
-                column.HeaderCell.SortGlyphDirection = GridSortPropertyResolver.GetUsageSortPropertyName(column.Name) == usageSortProperty
-                    ? usageSortOrder
-                    : SortOrder.None;
-            }
-
-            foreach (DataGridViewColumn column in dailyUsageTrendGrid.Columns)
-            {
-                column.HeaderCell.SortGlyphDirection = GridSortPropertyResolver.GetDailyUsageTrendSortPropertyName(column.Name) == dailyUsageTrendSortProperty
-                    ? dailyUsageTrendSortOrder
-                    : SortOrder.None;
-            }
-
-            foreach (DataGridViewColumn column in timelineGrid.Columns)
-            {
-                column.HeaderCell.SortGlyphDirection = GridSortPropertyResolver.GetTimelineSortPropertyName(column.Name) == timelineSortProperty
-                    ? timelineSortOrder
-                    : SortOrder.None;
-            }
-
-            foreach (DataGridViewColumn column in runtimeGrid.Columns)
-            {
-                column.HeaderCell.SortGlyphDirection = GridSortPropertyResolver.GetRuntimeSortPropertyName(column.Name) == runtimeSortProperty
-                    ? runtimeSortOrder
-                    : SortOrder.None;
-            }
-
-            foreach (DataGridViewColumn column in runtimeSegmentsGrid.Columns)
-            {
-                column.HeaderCell.SortGlyphDirection = GridSortPropertyResolver.GetRuntimeSegmentSortPropertyName(column.Name) == runtimeSegmentSortProperty
-                    ? runtimeSegmentSortOrder
-                    : SortOrder.None;
-            }
+            GridSortGlyphUpdater.UpdateGlyphs(usageGrid, GridSortPropertyResolver.GetUsageSortPropertyName, usageSortProperty, usageSortOrder);
+            GridSortGlyphUpdater.UpdateGlyphs(dailyUsageTrendGrid, GridSortPropertyResolver.GetDailyUsageTrendSortPropertyName, dailyUsageTrendSortProperty, dailyUsageTrendSortOrder);
+            GridSortGlyphUpdater.UpdateGlyphs(timelineGrid, GridSortPropertyResolver.GetTimelineSortPropertyName, timelineSortProperty, timelineSortOrder);
+            GridSortGlyphUpdater.UpdateGlyphs(runtimeGrid, GridSortPropertyResolver.GetRuntimeSortPropertyName, runtimeSortProperty, runtimeSortOrder);
+            GridSortGlyphUpdater.UpdateGlyphs(runtimeSegmentsGrid, GridSortPropertyResolver.GetRuntimeSegmentSortPropertyName, runtimeSegmentSortProperty, runtimeSegmentSortOrder);
         }
 
         private void ConfigureHeaderToolTip()
