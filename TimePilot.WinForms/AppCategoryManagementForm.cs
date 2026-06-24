@@ -755,9 +755,7 @@ namespace TimePilot.WinForms
             IEnumerable<AppCategoryManagementRow> rows,
             Func<AppCategoryManagementRow, TKey> keySelector)
         {
-            return sortOrder == SortOrder.Ascending
-                ? rows.OrderBy(keySelector)
-                : rows.OrderByDescending(keySelector);
+            return GridRowOrderer.OrderRows(rows, keySelector, sortOrder);
         }
 
         private void OnAppsGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)

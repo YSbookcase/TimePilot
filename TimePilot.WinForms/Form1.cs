@@ -2230,45 +2230,35 @@ namespace TimePilot.WinForms
             IReadOnlyList<UsageSummaryRow> rows,
             Func<UsageSummaryRow, TKey> keySelector)
         {
-            return usageSortOrder == SortOrder.Ascending
-                ? rows.OrderBy(keySelector)
-                : rows.OrderByDescending(keySelector);
+            return GridRowOrderer.OrderRows(rows, keySelector, usageSortOrder);
         }
 
         private IOrderedEnumerable<DailyUsageTrendRow> OrderDailyUsageTrendRows<TKey>(
             IReadOnlyList<DailyUsageTrendRow> rows,
             Func<DailyUsageTrendRow, TKey> keySelector)
         {
-            return dailyUsageTrendSortOrder == SortOrder.Ascending
-                ? rows.OrderBy(keySelector)
-                : rows.OrderByDescending(keySelector);
+            return GridRowOrderer.OrderRows(rows, keySelector, dailyUsageTrendSortOrder);
         }
 
         private IOrderedEnumerable<ActivityTimelineRow> OrderTimelineRows<TKey>(
             IReadOnlyList<ActivityTimelineRow> rows,
             Func<ActivityTimelineRow, TKey> keySelector)
         {
-            return timelineSortOrder == SortOrder.Ascending
-                ? rows.OrderBy(keySelector)
-                : rows.OrderByDescending(keySelector);
+            return GridRowOrderer.OrderRows(rows, keySelector, timelineSortOrder);
         }
 
         private IOrderedEnumerable<ProcessRuntimeSummaryRow> OrderRuntimeRows<TKey>(
             IReadOnlyList<ProcessRuntimeSummaryRow> rows,
             Func<ProcessRuntimeSummaryRow, TKey> keySelector)
         {
-            return runtimeSortOrder == SortOrder.Ascending
-                ? rows.OrderBy(keySelector)
-                : rows.OrderByDescending(keySelector);
+            return GridRowOrderer.OrderRows(rows, keySelector, runtimeSortOrder);
         }
 
         private IOrderedEnumerable<ProcessRuntimeSegmentRow> OrderRuntimeSegmentRows<TKey>(
             IReadOnlyList<ProcessRuntimeSegmentRow> rows,
             Func<ProcessRuntimeSegmentRow, TKey> keySelector)
         {
-            return runtimeSegmentSortOrder == SortOrder.Ascending
-                ? rows.OrderBy(keySelector)
-                : rows.OrderByDescending(keySelector);
+            return GridRowOrderer.OrderRows(rows, keySelector, runtimeSegmentSortOrder);
         }
 
         private void OnUsageGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
