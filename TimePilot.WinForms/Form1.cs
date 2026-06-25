@@ -4220,7 +4220,7 @@ namespace TimePilot.WinForms
             if (rangeDialog.ShowDialog(this) != DialogResult.OK)
                 return;
 
-            var rangeText = FormatCsvExportRangeForFileName(rangeDialog.StartDate, rangeDialog.EndDate);
+            var rangeText = DataOperationStatusFormatter.FormatCsvExportRangeForFileName(rangeDialog.StartDate, rangeDialog.EndDate);
             using var dialog = new SaveFileDialog
             {
                 AddExtension = true,
@@ -4238,7 +4238,7 @@ namespace TimePilot.WinForms
             var endDate = rangeDialog.EndDate;
             try
             {
-                SetExportRunning(true, BuildExportInProgressStatus(UiText.Main.CsvExportTitle));
+                SetExportRunning(true, DataOperationStatusFormatter.BuildInProgressStatus(UiText.Main.CsvExportTitle));
                 var fileName = dialog.FileName;
                 var exportedFiles = await Task.Run(() =>
                 {
@@ -4246,7 +4246,7 @@ namespace TimePilot.WinForms
                     return exporter.ExportRange(fileName, startDate, endDate, now);
                 });
 
-                SetExportRunning(false, BuildExportCompletedStatus(UiText.Main.CsvExportTitle));
+                SetExportRunning(false, DataOperationStatusFormatter.BuildCompletedStatus(UiText.Main.CsvExportTitle));
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.CsvExportCompleted(exportedFiles.Count, Path.GetDirectoryName(dialog.FileName)),
@@ -4257,7 +4257,7 @@ namespace TimePilot.WinForms
             }
             catch (Exception ex)
             {
-                SetExportRunning(false, BuildExportFailedStatus(UiText.Main.CsvExportTitle));
+                SetExportRunning(false, DataOperationStatusFormatter.BuildFailedStatus(UiText.Main.CsvExportTitle));
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.CsvExportFailed(ex.Message),
@@ -4268,13 +4268,6 @@ namespace TimePilot.WinForms
             }
         }
 
-        private static string FormatCsvExportRangeForFileName(DateTime startDate, DateTime endDate)
-        {
-            return startDate.Date == endDate.Date
-                ? startDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
-                : $"{startDate:yyyy-MM-dd}_to_{endDate:yyyy-MM-dd}";
-        }
-
         private void SetExportRunning(bool isRunning, string? message)
         {
             isExportRunning = isRunning;
@@ -4282,27 +4275,6 @@ namespace TimePilot.WinForms
             mainMenuController.SetDataOperationsEnabled(!isRunning);
             UpdateWaitCursor();
             RefreshStatusLabel();
-        }
-
-        private static string BuildExportInProgressStatus(string title)
-        {
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? $"{title} in progress..."
-                : $"{title} 진행 중...";
-        }
-
-        private static string BuildExportCompletedStatus(string title)
-        {
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? $"{title} completed."
-                : $"{title} 완료.";
-        }
-
-        private static string BuildExportFailedStatus(string title)
-        {
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? $"{title} failed."
-                : $"{title} 실패.";
         }
 
         private void ClearExportStatus()
@@ -4342,7 +4314,7 @@ namespace TimePilot.WinForms
 
             try
             {
-                SetExportRunning(true, BuildExportInProgressStatus(UiText.Main.RawDataExportTitle));
+                SetExportRunning(true, DataOperationStatusFormatter.BuildInProgressStatus(UiText.Main.RawDataExportTitle));
                 var fileName = dialog.FileName;
                 var exportedFiles = await Task.Run(() =>
                 {
@@ -4350,7 +4322,7 @@ namespace TimePilot.WinForms
                     return exporter.Export(fileName);
                 });
 
-                SetExportRunning(false, BuildExportCompletedStatus(UiText.Main.RawDataExportTitle));
+                SetExportRunning(false, DataOperationStatusFormatter.BuildCompletedStatus(UiText.Main.RawDataExportTitle));
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.RawDataExportCompleted(dialog.FileName, exportedFiles.Count),
@@ -4361,7 +4333,7 @@ namespace TimePilot.WinForms
             }
             catch (Exception ex)
             {
-                SetExportRunning(false, BuildExportFailedStatus(UiText.Main.RawDataExportTitle));
+                SetExportRunning(false, DataOperationStatusFormatter.BuildFailedStatus(UiText.Main.RawDataExportTitle));
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.RawDataExportFailed(ex.Message),
@@ -4403,7 +4375,7 @@ namespace TimePilot.WinForms
             var wasTimerEnabled = sampleTimer.Enabled;
             try
             {
-                SetExportRunning(true, BuildExportInProgressStatus(UiText.Main.DataBackupTitle));
+                SetExportRunning(true, DataOperationStatusFormatter.BuildInProgressStatus(UiText.Main.DataBackupTitle));
                 sampleTimer.Stop();
                 storage.UpdateRuntimeHeartbeat(now);
 
@@ -4414,7 +4386,7 @@ namespace TimePilot.WinForms
                     return service.CreateBackup(fileName, now);
                 });
 
-                SetExportRunning(false, BuildExportCompletedStatus(UiText.Main.DataBackupTitle));
+                SetExportRunning(false, DataOperationStatusFormatter.BuildCompletedStatus(UiText.Main.DataBackupTitle));
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.DataBackupCompleted(dialog.FileName, entries.Count),
@@ -4425,7 +4397,7 @@ namespace TimePilot.WinForms
             }
             catch (Exception ex)
             {
-                SetExportRunning(false, BuildExportFailedStatus(UiText.Main.DataBackupTitle));
+                SetExportRunning(false, DataOperationStatusFormatter.BuildFailedStatus(UiText.Main.DataBackupTitle));
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.DataBackupFailed(ex.Message),
@@ -4469,7 +4441,7 @@ namespace TimePilot.WinForms
             }
             catch (Exception ex)
             {
-                SetExportRunning(false, BuildExportFailedStatus(UiText.Main.DataRestoreTitle));
+                SetExportRunning(false, DataOperationStatusFormatter.BuildFailedStatus(UiText.Main.DataRestoreTitle));
                 CenteredMessageDialog.Show(
                     this,
                     UiText.Main.DataRestoreFailed(ex.Message),
@@ -4539,7 +4511,7 @@ namespace TimePilot.WinForms
                 await AllowUiToRenderAsync();
                 ReinitializeStorageAfterDataRestore(DateTimeOffset.UtcNow);
 
-                SetExportRunning(false, BuildExportCompletedStatus(UiText.Main.DataRestoreTitle));
+                SetExportRunning(false, DataOperationStatusFormatter.BuildCompletedStatus(UiText.Main.DataRestoreTitle));
                 progressForm.ShowCompleted(
                     safetyBackupPath is null
                         ? UiText.Main.DataRestoreCompletedWithoutSafetyBackup(result.RestoredFiles.Count)
@@ -4550,7 +4522,7 @@ namespace TimePilot.WinForms
             catch (Exception ex)
             {
                 TryReinitializeStorageAfterRestoreFailure();
-                SetExportRunning(false, BuildExportFailedStatus(UiText.Main.DataRestoreTitle));
+                SetExportRunning(false, DataOperationStatusFormatter.BuildFailedStatus(UiText.Main.DataRestoreTitle));
                 progressForm.ShowFailed(UiText.Main.DataRestoreFailed(ex.Message));
                 ClearExportStatus();
                 await progressForm.WaitForCloseAsync();
