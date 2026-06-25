@@ -3626,18 +3626,9 @@ namespace TimePilot.WinForms
 
         private void UpdateSummaryCustomRangeLabel()
         {
-            summaryCustomRangeLabel.Text = FormatSummaryCustomRangeLabel(
+            summaryCustomRangeLabel.Text = SummaryCustomRangeLabelFormatter.Format(
                 selectedSummaryCustomStartDate,
                 selectedSummaryCustomEndDate);
-        }
-
-        private static string FormatSummaryCustomRangeLabel(DateTime startDate, DateTime endDate)
-        {
-            var dateText = startDate.Date == endDate.Date
-                ? startDate.ToString("yyyy-MM-dd (ddd)")
-                : $"{startDate:yyyy-MM-dd (ddd)} ~ {endDate:yyyy-MM-dd (ddd)}";
-            var durationText = CalendarRangeDurationFormatter.Format(startDate, endDate, includePrefix: false);
-            return $"{dateText} · {durationText}";
         }
 
         private void OnRuntimeGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
