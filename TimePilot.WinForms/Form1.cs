@@ -985,8 +985,8 @@ namespace TimePilot.WinForms
 
             var inputActivityRatio = (double)activeMs / totalMs;
             summaryIdleAnalysisLabel.Text = UiText.Main.SummaryIdleAnalysis(
-                FormatDiagnosticDuration(activeMs),
-                FormatDiagnosticDuration(idleMs),
+                RuntimeDiagnosticsMessageBuilder.FormatDuration(activeMs),
+                RuntimeDiagnosticsMessageBuilder.FormatDuration(idleMs),
                 inputActivityRatio,
                 settings.IdleThresholdMinutes);
             summaryIdleAnalysisPanel.Visible = true;
@@ -3211,11 +3211,11 @@ namespace TimePilot.WinForms
             {
                 var intervalText = previousEvent is null
                     ? "-"
-                    : FormatDiagnosticDuration((long)(systemEvent.OccurredAt - previousEvent.OccurredAt).TotalMilliseconds);
+                    : RuntimeDiagnosticsMessageBuilder.FormatDuration((long)(systemEvent.OccurredAt - previousEvent.OccurredAt).TotalMilliseconds);
                 rows.Add(new SystemTimelineEventRow(
                     systemEvent.OccurredAt,
                     systemEvent.OccurredAt.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture),
-                    GetSystemEventTypeText(systemEvent.EventType),
+                    RuntimeDiagnosticsMessageBuilder.GetSystemEventTypeText(systemEvent.EventType),
                     previousEvent is null ? -1 : (long)(systemEvent.OccurredAt - previousEvent.OccurredAt).TotalMilliseconds,
                     intervalText,
                     GetSystemEventRelationText(systemEvent.EventType),
@@ -3271,8 +3271,8 @@ namespace TimePilot.WinForms
         {
             var start = segment.StartedAt.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture);
             var end = segment.EndedAt.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture);
-            var duration = FormatDiagnosticDuration((long)(segment.EndedAt - segment.StartedAt).TotalMilliseconds);
-            var activeUsage = FormatDiagnosticDuration(segment.ActiveUsageMs);
+            var duration = RuntimeDiagnosticsMessageBuilder.FormatDuration((long)(segment.EndedAt - segment.StartedAt).TotalMilliseconds);
+            var activeUsage = RuntimeDiagnosticsMessageBuilder.FormatDuration(segment.ActiveUsageMs);
             var stateSummary = GetTimelineSegmentStateSummary(segment);
             return UiText.CurrentLanguage == UiLanguage.English
                 ? $"{segment.CategoryName} | {start}-{end} | segment {duration} | recorded active {activeUsage} | {segment.DetailText}\n{stateSummary}"
@@ -3292,8 +3292,8 @@ namespace TimePilot.WinForms
             var lockMs = SumSystemTimelineRangeDuration(segment, SystemTimelineRangeType.LockSession);
 
             return UiText.CurrentLanguage == UiLanguage.English
-                ? $"Status: active apps {FormatDiagnosticDuration(activeMs)} | idle {FormatDiagnosticDuration(idleMs)} | not tracked {FormatDiagnosticDuration(untrackedMs)} | Windows runtime {FormatDiagnosticDuration(windowsRuntimeMs)} | sleep estimate {FormatDiagnosticDuration(sleepMs)} | lock {FormatDiagnosticDuration(lockMs)}"
-                : $"상태: 활성 앱 {FormatDiagnosticDuration(activeMs)} | 유휴 {FormatDiagnosticDuration(idleMs)} | 미기록 {FormatDiagnosticDuration(untrackedMs)} | Windows 실행 {FormatDiagnosticDuration(windowsRuntimeMs)} | 절전 추정 {FormatDiagnosticDuration(sleepMs)} | 잠금 {FormatDiagnosticDuration(lockMs)}";
+                ? $"Status: active apps {RuntimeDiagnosticsMessageBuilder.FormatDuration(activeMs)} | idle {RuntimeDiagnosticsMessageBuilder.FormatDuration(idleMs)} | not tracked {RuntimeDiagnosticsMessageBuilder.FormatDuration(untrackedMs)} | Windows runtime {RuntimeDiagnosticsMessageBuilder.FormatDuration(windowsRuntimeMs)} | sleep estimate {RuntimeDiagnosticsMessageBuilder.FormatDuration(sleepMs)} | lock {RuntimeDiagnosticsMessageBuilder.FormatDuration(lockMs)}"
+                : $"상태: 활성 앱 {RuntimeDiagnosticsMessageBuilder.FormatDuration(activeMs)} | 유휴 {RuntimeDiagnosticsMessageBuilder.FormatDuration(idleMs)} | 미기록 {RuntimeDiagnosticsMessageBuilder.FormatDuration(untrackedMs)} | Windows 실행 {RuntimeDiagnosticsMessageBuilder.FormatDuration(windowsRuntimeMs)} | 절전 추정 {RuntimeDiagnosticsMessageBuilder.FormatDuration(sleepMs)} | 잠금 {RuntimeDiagnosticsMessageBuilder.FormatDuration(lockMs)}";
         }
 
         private long SumTimelineRowDuration(CategoryTimelineSegment segment, Func<ActivityTimelineRow, bool> predicate)
@@ -3388,8 +3388,8 @@ namespace TimePilot.WinForms
             {
                 var reason = systemEvent.Details["Reason:".Length..];
                 return UiText.CurrentLanguage == UiLanguage.English
-                    ? $"Reason: {GetShutdownReasonText(reason)}"
-                    : $"사유: {GetShutdownReasonText(reason)}";
+                    ? $"Reason: {RuntimeDiagnosticsMessageBuilder.GetShutdownReasonText(reason)}"
+                    : $"사유: {RuntimeDiagnosticsMessageBuilder.GetShutdownReasonText(reason)}";
             }
 
             return systemEvent.Details;
@@ -3416,7 +3416,7 @@ namespace TimePilot.WinForms
                 timelineHighlightState,
                 currentTimelineForegroundUsage,
                 currentTimelineRows,
-                FormatDiagnosticDuration);
+                RuntimeDiagnosticsMessageBuilder.FormatDuration);
             if (summaryText is null)
             {
                 timelineHighlightSummaryPanel.Visible = false;
@@ -4646,144 +4646,13 @@ namespace TimePilot.WinForms
 
             var sessions = storage.GetRecentRuntimeSessionDiagnostics(10);
             var systemEvents = storage.GetRecentSystemEventDiagnostics(5);
-            var message = BuildRuntimeDiagnosticsMessage(sessions, systemEvents);
+            var message = RuntimeDiagnosticsMessageBuilder.BuildMessage(sessions, systemEvents);
             CenteredMessageDialog.Show(
                 this,
                 message,
                 UiText.Main.RuntimeDiagnosticsTitle,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
-        }
-
-        private static string BuildRuntimeDiagnosticsMessage(
-            IReadOnlyList<AppRuntimeSessionDiagnostic> sessions,
-            IReadOnlyList<SystemEventDiagnostic> systemEvents)
-        {
-            if (sessions.Count == 0)
-            {
-                if (systemEvents.Count == 0)
-                    return UiText.Main.RuntimeDiagnosticsNoHistory;
-
-                var eventOnlyLines = new List<string>
-                {
-                    UiText.Main.RuntimeDiagnosticsNoHistory,
-                    string.Empty
-                };
-                AddSystemEventDiagnostics(eventOnlyLines, systemEvents);
-                return string.Join(Environment.NewLine, eventOnlyLines);
-            }
-
-            var lastSession = sessions[0];
-            var unexpectedCount = sessions.Count(x => IsShutdownReason(x, "unexpected"));
-            var lines = new List<string>
-            {
-                UiText.Main.RuntimeDiagnosticsLastRun,
-                UiText.Main.RuntimeDiagnosticsStartedAt(FormatDiagnosticDateTime(lastSession.StartedAt)),
-                UiText.Main.RuntimeDiagnosticsEndedAt(FormatDiagnosticDateTime(lastSession.EndedAt)),
-                UiText.Main.RuntimeDiagnosticsDuration(FormatDiagnosticDuration(lastSession)),
-                UiText.Main.RuntimeDiagnosticsShutdownReason(GetShutdownReasonText(lastSession.ShutdownReason)),
-                UiText.Main.RuntimeDiagnosticsRecentUnexpectedCount(unexpectedCount, sessions.Count),
-                string.Empty,
-                UiText.Main.RuntimeDiagnosticsHistory
-            };
-
-            foreach (var session in sessions.Take(5))
-            {
-                lines.Add(UiText.Main.RuntimeDiagnosticsHistoryItem(
-                    FormatDiagnosticDateTime(session.StartedAt),
-                    FormatDiagnosticDateTime(session.EndedAt),
-                    GetShutdownReasonText(session.ShutdownReason),
-                    FormatDiagnosticDuration(session)));
-            }
-
-            AddSystemEventDiagnostics(lines, systemEvents);
-
-            lines.AddRange(new[]
-            {
-                string.Empty,
-                UiText.Main.RuntimeDiagnosticsNote
-            });
-
-            return string.Join(Environment.NewLine, lines);
-        }
-
-        private static void AddSystemEventDiagnostics(
-            List<string> lines,
-            IReadOnlyList<SystemEventDiagnostic> systemEvents)
-        {
-            if (systemEvents.Count == 0)
-                return;
-
-            lines.Add(string.Empty);
-            lines.Add(UiText.Main.RuntimeDiagnosticsSystemEvents);
-            foreach (var systemEvent in systemEvents)
-            {
-                lines.Add(UiText.Main.RuntimeDiagnosticsSystemEventItem(
-                    FormatDiagnosticDateTime(systemEvent.OccurredAt),
-                    GetSystemEventTypeText(systemEvent.EventType),
-                    systemEvent.Details ?? "-"));
-            }
-        }
-
-        private static bool IsShutdownReason(AppRuntimeSessionDiagnostic session, string reason)
-        {
-            return string.Equals(session.ShutdownReason, reason, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string GetShutdownReasonText(string? reason)
-        {
-            return reason?.ToLowerInvariant() switch
-            {
-                "normal" => UiText.Main.ShutdownReasonNormal,
-                "unexpected" => UiText.Main.ShutdownReasonUnexpected,
-                "system-shutdown" => UiText.Main.ShutdownReasonSystemShutdown,
-                "clear-data" => UiText.Main.ShutdownReasonClearData,
-                "running" => UiText.Main.ShutdownReasonRunning,
-                _ => UiText.Main.ShutdownReasonUnknown
-            };
-        }
-
-        private static string GetSystemEventTypeText(string eventType)
-        {
-            return eventType.ToLowerInvariant() switch
-            {
-                "lock" => UiText.Main.SystemEventLock,
-                "unlock" => UiText.Main.SystemEventUnlock,
-                "logon" => UiText.Main.SystemEventLogon,
-                "logoff" => UiText.Main.SystemEventLogoff,
-                "suspend" => UiText.Main.SystemEventSuspend,
-                "resume" => UiText.Main.SystemEventResume,
-                "timepilot-start" => UiText.Main.SystemEventTimePilotStart,
-                "timepilot-exit" => UiText.Main.SystemEventTimePilotExit,
-                "system-shutdown" => UiText.Main.ShutdownReasonSystemShutdown,
-                "windows-boot-estimate" => UiText.CurrentLanguage == UiLanguage.English ? "Windows startup estimate" : "Windows 시작 추정",
-                "recording-end-estimate" => UiText.CurrentLanguage == UiLanguage.English ? "Recording end estimate" : "기록 종료 추정",
-                _ => eventType
-            };
-        }
-
-        private static string FormatDiagnosticDateTime(DateTimeOffset? timestamp)
-        {
-            return timestamp?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture)
-                ?? "-";
-        }
-
-        private static string FormatDiagnosticDuration(AppRuntimeSessionDiagnostic session)
-        {
-            var durationMs = session.DurationMs;
-            if (durationMs is null && session.EndedAt is { } endedAt)
-                durationMs = Math.Max(0, (long)(endedAt - session.StartedAt).TotalMilliseconds);
-
-            return durationMs is null ? "-" : FormatDiagnosticDuration(durationMs.Value);
-        }
-
-        private static string FormatDiagnosticDuration(long durationMs)
-        {
-            var duration = TimeSpan.FromMilliseconds(Math.Max(0, durationMs));
-            if (duration.TotalHours >= 1)
-                return $"{(int)duration.TotalHours:D2}:{duration.Minutes:D2}:{duration.Seconds:D2}";
-
-            return $"{duration.Minutes:D2}:{duration.Seconds:D2}";
         }
 
         private sealed record ViewRefreshSnapshot(
