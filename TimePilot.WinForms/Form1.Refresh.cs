@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using TimePilot.WinForms.KYS24;
 using TimePilot.WinForms.Refresh;
 using TimePilot.WinForms.Tables;
@@ -7,6 +8,223 @@ namespace TimePilot.WinForms
 {
     public partial class Form1
     {
+        private void RefreshViews(DateTimeOffset observedAt)
+        {
+            _ = RefreshViewsAsync(observedAt);
+        }
+
+        private void UpdateTimelineDataVersion(AppMetadata? foregroundApp, bool isIdle)
+        {
+            var foregroundKey = foregroundApp is null
+                ? null
+                : $"{foregroundApp.ProcessName}|{foregroundApp.ExecutablePath}";
+            if (string.Equals(lastForegroundViewKey, foregroundKey, StringComparison.OrdinalIgnoreCase)
+                && lastForegroundIdleState == isIdle)
+                return;
+
+            lastForegroundViewKey = foregroundKey;
+            lastForegroundIdleState = isIdle;
+            viewRefreshCache.MarkTimelineDataChanged();
+        }
+
+        private void InvalidateCategoryDependentViewCaches()
+        {
+            viewRefreshCache.InvalidateCategoryDependentViews();
+        }
+
+        private bool TryGetCachedHeavyViewSnapshot(
+            TabPage? selectedTab,
+            SummaryPeriodRange summaryPeriodRange,
+            DateTime timelineDate,
+            DateTime detailDate,
+            long? selectedRuntimeAppId,
+            int timelineCategoryBucketMinutes,
+            DateTimeOffset observedAt,
+            out ViewRefreshSnapshot snapshot)
+        {
+            snapshot = default!;
+            if (selectedTab == summaryTab)
+                return viewRefreshCache.TryGetSummary(summaryPeriodRange, observedAt, out snapshot);
+
+            if (selectedTab == timelineTab)
+            {
+                return viewRefreshCache.TryGetTimeline(
+                    timelineDate,
+                    timelineCategoryBucketMinutes,
+                    observedAt,
+                    out snapshot);
+            }
+
+            if (selectedTab == detailTab)
+            {
+                return viewRefreshCache.TryGetDetail(
+                    detailDate,
+                    selectedRuntimeAppId,
+                    observedAt,
+                    out snapshot);
+            }
+
+            return false;
+        }
+
+        private void CacheHeavyViewSnapshot(
+            TabPage? selectedTab,
+            SummaryPeriodRange summaryPeriodRange,
+            DateTime timelineDate,
+            DateTime detailDate,
+            long? selectedRuntimeAppId,
+            int timelineCategoryBucketMinutes,
+            DateTimeOffset observedAt,
+            ViewRefreshSnapshot snapshot)
+        {
+            if (selectedTab == summaryTab && snapshot.ForegroundUsage is not null)
+            {
+                viewRefreshCache.StoreSummary(summaryPeriodRange, observedAt, snapshot);
+                return;
+            }
+
+            if (selectedTab == timelineTab && snapshot.TimelineRows is not null)
+            {
+                viewRefreshCache.StoreTimeline(
+                    timelineDate,
+                    timelineCategoryBucketMinutes,
+                    observedAt,
+                    snapshot);
+                return;
+            }
+
+            if (selectedTab == detailTab && snapshot.RuntimeRows is not null)
+            {
+                viewRefreshCache.StoreDetail(
+                    detailDate,
+                    selectedRuntimeAppId,
+                    observedAt,
+                    snapshot);
+            }
+        }
+
+        private async Task RefreshViewsAsync(DateTimeOffset observedAt)
+        {
+            if (storage is null)
+                return;
+
+            if (isViewRefreshRunning)
+            {
+                ReportPerformanceEvents("view-skip");
+                return;
+            }
+
+            var totalStopwatch = Stopwatch.StartNew();
+            var appIdToRestore = selectedRuntimeAppId ?? GetSelectedRuntimeAppId();
+            var runtimeFirstDisplayedRowIndex =
+                GridViewStatePreserver.GetFirstDisplayedRowIndex(runtimeGrid);
+            var runtimeFirstDisplayedColumnIndex =
+                GridViewStatePreserver.GetFirstDisplayedColumnIndex(runtimeGrid);
+            var runtimeHorizontalOffset =
+                GridViewStatePreserver.GetHorizontalScrollingOffset(runtimeGrid);
+            var selectedTab = mainTabs.SelectedTab;
+            RefreshSummaryPeriodOptionsIfDateChanged(observedAt);
+            RefreshDateSelectorsIfDateChanged(observedAt);
+            var summaryPeriodRange = SummaryPeriodCalculator.GetRange(
+                observedAt,
+                selectedSummaryPeriod,
+                selectedSummarySpecificDate,
+                selectedSummaryCustomStartDate,
+                selectedSummaryCustomEndDate);
+            var detailDate = selectedDetailDate;
+            var timelineDate = selectedTimelineDate;
+            var refreshTarget = selectedTab == summaryTab
+                ? ViewRefreshTarget.Summary
+                : selectedTab == timelineTab
+                    ? ViewRefreshTarget.Timeline
+                    : selectedTab == detailTab
+                        ? ViewRefreshTarget.Detail
+                        : ViewRefreshTarget.None;
+            var refreshRequest = new ViewRefreshRequest(
+                refreshTarget,
+                summaryPeriodRange,
+                timelineDate,
+                detailDate,
+                appIdToRestore,
+                selectedTimelineCategoryBucketMinutes,
+                observedAt);
+            ViewRefreshSnapshot snapshot;
+            if (TryGetCachedHeavyViewSnapshot(
+                selectedTab,
+                summaryPeriodRange,
+                timelineDate,
+                detailDate,
+                appIdToRestore,
+                selectedTimelineCategoryBucketMinutes,
+                observedAt,
+                out var cachedSnapshot))
+            {
+                snapshot = cachedSnapshot;
+            }
+            else
+            {
+                isViewRefreshRunning = true;
+                var showSummaryLoading = selectedTab == summaryTab;
+                if (showSummaryLoading)
+                    SetViewRefreshRunning(true, BuildViewRefreshInProgressStatus());
+
+                try
+                {
+                    snapshot = await Task.Run(() =>
+                        ViewRefreshSnapshotReader.Read(storage, refreshRequest));
+                    CacheHeavyViewSnapshot(
+                        selectedTab,
+                        summaryPeriodRange,
+                        timelineDate,
+                        detailDate,
+                        appIdToRestore,
+                        selectedTimelineCategoryBucketMinutes,
+                        observedAt,
+                        snapshot);
+                }
+                catch
+                {
+                    return;
+                }
+                finally
+                {
+                    isViewRefreshRunning = false;
+                    if (showSummaryLoading)
+                        SetViewRefreshRunning(false, null);
+                }
+            }
+
+            if (isClosing)
+                return;
+
+            var applyStopwatch = Stopwatch.StartNew();
+            if (snapshot.ForegroundUsage is not null)
+                ApplySummarySnapshot(snapshot);
+
+            if (snapshot.TimelineRows is not null)
+                ApplyTimelineSnapshot(snapshot);
+
+            if (snapshot.RuntimeRows is not null)
+            {
+                ApplyDetailSnapshot(
+                    snapshot,
+                    observedAt,
+                    appIdToRestore,
+                    runtimeFirstDisplayedRowIndex,
+                    runtimeFirstDisplayedColumnIndex,
+                    runtimeHorizontalOffset);
+            }
+
+            UpdateSortGlyphs();
+            RepositionHeaderToolTip();
+            applyStopwatch.Stop();
+            totalStopwatch.Stop();
+            ReportPerformanceTimings(
+                ("view-read", snapshot.ReadElapsedMs),
+                ("view-apply", applyStopwatch.ElapsedMilliseconds),
+                ("view-total", totalStopwatch.ElapsedMilliseconds));
+        }
+
         private void ApplySummarySnapshot(ViewRefreshSnapshot snapshot)
         {
             SetRuntimeCoverageSummary(snapshot.RuntimeCoverage);
