@@ -2625,37 +2625,13 @@ namespace TimePilot.WinForms
                 storage?.GetForegroundUsageForPeriod(segment.StartedAt, segment.EndedAt)
                     ?? Array.Empty<ForegroundUsageSummary>());
 
-            var popup = new Form
-            {
-                Text = TimelineCategorySegmentStatsPresenter.GetTitle(),
-                ShowInTaskbar = false,
-                StartPosition = FormStartPosition.Manual,
-                Size = new Size(720, 300),
-                MinimizeBox = false,
-                MaximizeBox = false,
-                FormBorderStyle = FormBorderStyle.SizableToolWindow
-            };
-            popup.Icon = Icon;
-
-            var label = new Label
-            {
-                Dock = DockStyle.Top,
-                Height = 64,
-                Padding = new Padding(8, 6, 8, 0),
-                Text = TimelineCategorySegmentStatsPresenter.BuildDescription(
-                    segment,
-                    currentTimelineRows,
-                    currentTimelineWindowsRuntimeRanges,
-                    currentTimelineSystemRanges)
-            };
-
-            var grid = CreateTimelineCategorySegmentAppStatsGrid();
-            grid.DataSource = rows;
-            popup.Controls.Add(grid);
-            popup.Controls.Add(label);
-
-            var screenLocation = owner.PointToScreen(location);
-            popup.Location = KeepPopupOnScreen(new Point(screenLocation.X + 8, screenLocation.Y + 8), popup.Size);
+            var description = TimelineCategorySegmentStatsPresenter.BuildDescription(
+                segment,
+                currentTimelineRows,
+                currentTimelineWindowsRuntimeRanges,
+                currentTimelineSystemRanges);
+            var popup = TimelinePopupFactory.CreateCategorySegmentStatsPopup(Icon, description, rows);
+            popup.Location = TimelinePopupFactory.GetPopupLocation(owner, location, popup.Size);
             popup.Show(this);
         }
 
@@ -2670,201 +2646,12 @@ namespace TimePilot.WinForms
 
         private void ShowTimelineSystemEventsPopup(Control owner, Point location)
         {
-            var popup = new Form
-            {
-                Text = SystemTimelineEventTextFormatter.GetListTitle(selectedTimelineDate),
-                ShowInTaskbar = false,
-                StartPosition = FormStartPosition.Manual,
-                Size = new Size(720, 260),
-                MinimizeBox = false,
-                MaximizeBox = false,
-                FormBorderStyle = FormBorderStyle.SizableToolWindow
-            };
-            popup.Icon = Icon;
-
-            var label = new Label
-            {
-                Dock = DockStyle.Top,
-                Height = 28,
-                Padding = new Padding(8, 6, 8, 0),
-                Text = SystemTimelineEventTextFormatter.GetListDescription(selectedTimelineDate)
-            };
-
-            var grid = CreateTimelineSystemEventsGrid();
-            grid.DataSource = TimelineSystemEventPresenter.BuildRows(currentTimelineSystemEvents);
-            popup.Controls.Add(grid);
-            popup.Controls.Add(label);
-
-            var screenLocation = owner.PointToScreen(location);
-            popup.Location = KeepPopupOnScreen(new Point(screenLocation.X + 8, screenLocation.Y + 8), popup.Size);
+            var popup = TimelinePopupFactory.CreateSystemEventsPopup(
+                Icon,
+                selectedTimelineDate,
+                currentTimelineSystemEvents);
+            popup.Location = TimelinePopupFactory.GetPopupLocation(owner, location, popup.Size);
             popup.Show(this);
-        }
-
-        private static DataGridView CreateTimelineSystemEventsGrid()
-        {
-            var grid = new BufferedDataGridView
-            {
-                AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false,
-                AllowUserToOrderColumns = true,
-                AllowUserToResizeRows = false,
-                AutoGenerateColumns = false,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
-                BackgroundColor = SystemColors.Window,
-                BorderStyle = BorderStyle.None,
-                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
-                Dock = DockStyle.Fill,
-                MultiSelect = false,
-                ReadOnly = true,
-                RowHeadersVisible = false,
-                ScrollBars = ScrollBars.Both,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect
-            };
-
-            grid.Columns.AddRange(
-                CreateTextColumn(nameof(SystemTimelineEventRow.OccurredAtText), SystemTimelineEventTextFormatter.GetTimeHeaderText(), 90),
-                CreateTextColumn(nameof(SystemTimelineEventRow.EventTypeText), UiText.Main.Type, 110),
-                CreateTextColumn(nameof(SystemTimelineEventRow.PreviousIntervalText), SystemTimelineEventTextFormatter.GetPreviousIntervalHeaderText(), 110),
-                CreateTextColumn(nameof(SystemTimelineEventRow.RelationText), SystemTimelineEventTextFormatter.GetRelationHeaderText(), 150),
-                CreateTextColumn(nameof(SystemTimelineEventRow.DetailsText), SystemTimelineEventTextFormatter.GetDetailsHeaderText(), 220));
-            grid.ColumnHeaderMouseClick += OnTimelineSystemEventsGridColumnHeaderMouseClick;
-
-            return grid;
-        }
-
-        private static DataGridView CreateTimelineCategorySegmentAppStatsGrid()
-        {
-            var grid = new BufferedDataGridView
-            {
-                AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false,
-                AllowUserToOrderColumns = true,
-                AllowUserToResizeRows = false,
-                AutoGenerateColumns = false,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
-                BackgroundColor = SystemColors.Window,
-                BorderStyle = BorderStyle.None,
-                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize,
-                Dock = DockStyle.Fill,
-                MultiSelect = false,
-                ReadOnly = true,
-                RowHeadersVisible = false,
-                ScrollBars = ScrollBars.Both,
-                SelectionMode = DataGridViewSelectionMode.FullRowSelect
-            };
-
-            grid.Columns.AddRange(
-                CreateTextColumn(nameof(UsageSummaryRow.AppName), UiText.Main.App, 180),
-                CreateTextColumn(nameof(UsageSummaryRow.CategoryText), UiText.Main.Category, 120),
-                CreateTextColumn(nameof(UsageSummaryRow.ActiveUsageTimeText), UiText.Main.ActiveUsageTime, 120),
-                CreateTextColumn(nameof(UsageSummaryRow.UsageRatioText), UiText.Main.ActiveRatio, 90),
-                CreateTextColumn(nameof(UsageSummaryRow.SwitchCountText), UiText.Main.SwitchCount, 90),
-                CreateTextColumn(nameof(UsageSummaryRow.FirstStartedAtText), UiText.Main.FirstStartedAt, 110),
-                CreateTextColumn(nameof(UsageSummaryRow.LastObservedAtText), UiText.Main.LastObservedAt, 110));
-            grid.ColumnHeaderMouseClick += OnTimelineCategorySegmentAppStatsGridColumnHeaderMouseClick;
-
-            return grid;
-        }
-
-        private static void OnTimelineCategorySegmentAppStatsGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
-        {
-            if (sender is not DataGridView grid
-                || e.ColumnIndex < 0
-                || e.ColumnIndex >= grid.Columns.Count)
-                return;
-
-            var column = grid.Columns[e.ColumnIndex];
-            var direction = column.HeaderCell.SortGlyphDirection == SortOrder.Ascending
-                ? ListSortDirection.Descending
-                : ListSortDirection.Ascending;
-
-            var rows = grid.Rows
-                .Cast<DataGridViewRow>()
-                .Select(row => row.DataBoundItem)
-                .OfType<UsageSummaryRow>()
-                .ToList();
-            grid.DataSource = SortTimelineCategorySegmentAppStatsRows(rows, column.DataPropertyName, direction);
-            foreach (DataGridViewColumn gridColumn in grid.Columns)
-            {
-                if (gridColumn.SortMode != DataGridViewColumnSortMode.Programmatic)
-                    continue;
-
-                gridColumn.HeaderCell.SortGlyphDirection = gridColumn.Index == e.ColumnIndex
-                    ? (direction == ListSortDirection.Ascending ? SortOrder.Ascending : SortOrder.Descending)
-                    : SortOrder.None;
-            }
-        }
-
-        private static IReadOnlyList<UsageSummaryRow> SortTimelineCategorySegmentAppStatsRows(
-            IReadOnlyList<UsageSummaryRow> rows,
-            string propertyName,
-            ListSortDirection direction)
-        {
-            IOrderedEnumerable<UsageSummaryRow> orderedRows = propertyName switch
-            {
-                nameof(UsageSummaryRow.AppName) => rows.OrderBy(row => row.AppName, StringComparer.CurrentCulture),
-                nameof(UsageSummaryRow.CategoryText) => rows.OrderBy(row => row.CategoryText, StringComparer.CurrentCulture),
-                nameof(UsageSummaryRow.ActiveUsageTimeText) => rows.OrderBy(row => row.ActiveUsageMs),
-                nameof(UsageSummaryRow.UsageRatioText) => rows.OrderBy(row => row.UsageRatio),
-                nameof(UsageSummaryRow.SwitchCountText) => rows.OrderBy(row => row.SwitchCount),
-                nameof(UsageSummaryRow.FirstStartedAtText) => rows.OrderBy(row => row.FirstStartedAt),
-                nameof(UsageSummaryRow.LastObservedAtText) => rows.OrderBy(row => row.LastObservedAt),
-                _ => rows.OrderBy(row => row.ActiveUsageMs)
-            };
-
-            return direction == ListSortDirection.Ascending
-                ? orderedRows.ToList()
-                : orderedRows.Reverse().ToList();
-        }
-
-        private static DataGridViewTextBoxColumn CreateTextColumn(string propertyName, string headerText, int width)
-        {
-            return new DataGridViewTextBoxColumn
-            {
-                DataPropertyName = propertyName,
-                HeaderText = headerText,
-                Name = propertyName,
-                ReadOnly = true,
-                SortMode = DataGridViewColumnSortMode.Programmatic,
-                Width = width
-            };
-        }
-
-        private static Point KeepPopupOnScreen(Point location, Size size)
-        {
-            var workingArea = Screen.FromPoint(location).WorkingArea;
-            var x = Math.Min(location.X, workingArea.Right - size.Width);
-            var y = Math.Min(location.Y, workingArea.Bottom - size.Height);
-            return new Point(Math.Max(workingArea.Left, x), Math.Max(workingArea.Top, y));
-        }
-
-        private static void OnTimelineSystemEventsGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
-        {
-            if (sender is not DataGridView grid
-                || e.ColumnIndex < 0
-                || e.ColumnIndex >= grid.Columns.Count)
-                return;
-
-            var column = grid.Columns[e.ColumnIndex];
-            var direction = column.HeaderCell.SortGlyphDirection == SortOrder.Ascending
-                ? ListSortDirection.Descending
-                : ListSortDirection.Ascending;
-
-            var rows = grid.Rows
-                .Cast<DataGridViewRow>()
-                .Select(row => row.DataBoundItem)
-                .OfType<SystemTimelineEventRow>()
-                .ToList();
-            grid.DataSource = TimelineSystemEventPresenter.SortRows(rows, column.DataPropertyName, direction);
-            foreach (DataGridViewColumn gridColumn in grid.Columns)
-            {
-                if (gridColumn.SortMode != DataGridViewColumnSortMode.Programmatic)
-                    continue;
-
-                gridColumn.HeaderCell.SortGlyphDirection = gridColumn.Index == e.ColumnIndex
-                    ? (direction == ListSortDirection.Ascending ? SortOrder.Ascending : SortOrder.Descending)
-                    : SortOrder.None;
-            }
         }
 
         private void ShowTimelineActivityContextMenu(ActivityTimelineRow row, Control owner, Point location)
