@@ -3184,7 +3184,9 @@ namespace TimePilot.WinForms
                 return events;
 
             return events
-                .Where(systemEvent => MatchesTimelineSystemEventFilter(systemEvent.EventType, selectedTimelineSystemEventFilter))
+                .Where(systemEvent => TimelineSystemEventFilterMatcher.Matches(
+                    systemEvent.EventType,
+                    selectedTimelineSystemEventFilter))
                 .ToList();
         }
 
@@ -3226,19 +3228,6 @@ namespace TimePilot.WinForms
             return rows
                 .OrderByDescending(row => row.OccurredAt)
                 .ToList();
-        }
-
-        private static bool MatchesTimelineSystemEventFilter(string eventType, TimelineSystemEventFilter filter)
-        {
-            var normalized = eventType.ToLowerInvariant();
-            return filter switch
-            {
-                TimelineSystemEventFilter.Lock => normalized is "lock" or "unlock" or "logon" or "logoff",
-                TimelineSystemEventFilter.Power => normalized is "suspend" or "resume" or "power-status-change" or "power-mode",
-                TimelineSystemEventFilter.Shutdown => normalized is "system-shutdown" or "recording-end-estimate",
-                TimelineSystemEventFilter.TimePilot => normalized is "timepilot-start" or "timepilot-exit" or "windows-boot-estimate" or "recording-end-estimate",
-                _ => true
-            };
         }
 
         private static string GetTimelineSystemEventsTitle(DateTime date)
