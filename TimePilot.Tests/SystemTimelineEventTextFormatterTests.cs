@@ -22,6 +22,32 @@ namespace TimePilot.Tests
         }
 
         [Fact]
+        public void GetListTitle_FormatsSelectedDate()
+        {
+            var text = SystemTimelineEventTextFormatter.GetListTitle(new DateTime(2026, 6, 28));
+
+            Assert.Equal("System event list (2026-06-28)", text);
+        }
+
+        [Fact]
+        public void GetListDescription_ExplainsEventIntervals()
+        {
+            var text = SystemTimelineEventTextFormatter.GetListDescription(new DateTime(2026, 6, 28));
+
+            Assert.Contains("Selected date: 2026-06-28", text);
+            Assert.Contains("not confirmed causes", text);
+        }
+
+        [Fact]
+        public void GetHeaderTexts_ReturnEnglishColumnLabels()
+        {
+            Assert.Equal("Time", SystemTimelineEventTextFormatter.GetTimeHeaderText());
+            Assert.Equal("Since previous", SystemTimelineEventTextFormatter.GetPreviousIntervalHeaderText());
+            Assert.Equal("Hint", SystemTimelineEventTextFormatter.GetRelationHeaderText());
+            Assert.Equal("Details", SystemTimelineEventTextFormatter.GetDetailsHeaderText());
+        }
+
+        [Fact]
         public void FormatDetails_FormatsTimePilotStartedAtDetail()
         {
             var systemEvent = new SystemTimelineEvent(
