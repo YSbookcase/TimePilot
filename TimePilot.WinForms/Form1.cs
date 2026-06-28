@@ -1449,6 +1449,21 @@ namespace TimePilot.WinForms
                 selectedSummaryCustomEndDate);
             var detailDate = selectedDetailDate;
             var timelineDate = selectedTimelineDate;
+            var refreshTarget = selectedTab == summaryTab
+                ? ViewRefreshTarget.Summary
+                : selectedTab == timelineTab
+                    ? ViewRefreshTarget.Timeline
+                    : selectedTab == detailTab
+                        ? ViewRefreshTarget.Detail
+                        : ViewRefreshTarget.None;
+            var refreshRequest = new ViewRefreshRequest(
+                refreshTarget,
+                summaryPeriodRange,
+                timelineDate,
+                detailDate,
+                appIdToRestore,
+                selectedTimelineCategoryBucketMinutes,
+                observedAt);
             ViewRefreshSnapshot snapshot;
             if (TryGetCachedHeavyViewSnapshot(
                 selectedTab,
@@ -1472,83 +1487,7 @@ namespace TimePilot.WinForms
                 try
                 {
                     snapshot = await Task.Run(() =>
-                    {
-                        var readStopwatch = Stopwatch.StartNew();
-                        var summaryUsage = selectedTab == summaryTab
-                            ? storage.GetForegroundUsageWithDailyTrendForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
-                            : null;
-                        var foregroundUsage = summaryUsage?.ForegroundUsage;
-                        var dailyUsageTrendRows = summaryUsage?.DailyUsageTrendRows;
-                        var idleUsage = selectedTab == summaryTab
-                            ? storage.GetIdleUsageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End)
-                            : null;
-                        var runtimeCoverage = selectedTab == summaryTab
-                            ? storage.GetRuntimeCoverageForPeriod(summaryPeriodRange.Start, summaryPeriodRange.End, observedAt)
-                            : null;
-                        var timelineRows = selectedTab == timelineTab
-                            ? storage.GetActivityTimelineForDate(timelineDate, observedAt)
-                            : null;
-                        var windowsRuntimeRanges = selectedTab == timelineTab
-                            ? storage.GetWindowsRuntimeRangesForDate(timelineDate, observedAt)
-                            : null;
-                        var systemTimelineEvents = selectedTab == timelineTab
-                            ? storage.GetSystemTimelineEventsForDate(timelineDate, observedAt)
-                            : null;
-                        var inferredSystemTimelineEvents = selectedTab == timelineTab
-                            ? storage.GetInferredSystemTimelineEventsForDate(timelineDate, observedAt)
-                            : null;
-                        var systemTimelineRanges = selectedTab == timelineTab
-                            ? storage.GetSystemTimelineRangesForDate(timelineDate, observedAt)
-                            : null;
-                        var categoryTimelineSegments = selectedTab == timelineTab
-                            ? storage.GetCategoryTimelineSegmentsForDate(
-                                timelineDate,
-                                observedAt,
-                                TimeSpan.FromMinutes(selectedTimelineCategoryBucketMinutes),
-                                selectedTimelineCategoryBucketMinutes == 0)
-                            : null;
-                        var timelineForegroundUsage = selectedTab == timelineTab
-                            ? storage.GetForegroundUsageForDate(timelineDate)
-                            : null;
-                        var timelineDateHasData = selectedTab == timelineTab
-                            ? storage.HasActivityDataForDate(timelineDate, observedAt)
-                            : (bool?)null;
-                        var runtimeRows = selectedTab == detailTab
-                            ? storage.GetProcessRuntimeUsageForDate(detailDate, observedAt)
-                            : null;
-                        var detailSummaryAppIds = selectedTab == detailTab
-                            ? storage.GetForegroundUsageForDate(detailDate)
-                                .Select(x => x.AppId)
-                                .ToHashSet()
-                            : null;
-                        var detailDateHasData = selectedTab == detailTab
-                            ? storage.HasActivityDataForDate(detailDate, observedAt)
-                            : (bool?)null;
-                        var runtimeSegmentRows = selectedTab == detailTab && appIdToRestore is { } appId
-                            ? storage.GetProcessRuntimeSegmentsForDate(appId, detailDate, observedAt)
-                            : null;
-                        readStopwatch.Stop();
-
-                        return new ViewRefreshSnapshot(
-                            foregroundUsage,
-                            dailyUsageTrendRows,
-                            idleUsage,
-                            runtimeCoverage,
-                            summaryPeriodRange.ShowDateInTimestamps,
-                            detailDateHasData,
-                            timelineDateHasData,
-                            timelineRows,
-                            windowsRuntimeRanges,
-                            systemTimelineRanges,
-                            systemTimelineEvents,
-                            inferredSystemTimelineEvents,
-                            categoryTimelineSegments,
-                            timelineForegroundUsage,
-                            runtimeRows,
-                            detailSummaryAppIds,
-                            runtimeSegmentRows,
-                            readStopwatch.ElapsedMilliseconds);
-                    });
+                        ViewRefreshSnapshotReader.Read(storage, refreshRequest));
                     CacheHeavyViewSnapshot(
                         selectedTab,
                         summaryPeriodRange,
