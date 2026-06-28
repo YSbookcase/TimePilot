@@ -1568,82 +1568,6 @@ namespace TimePilot.WinForms
                 .ToList();
         }
 
-        private IReadOnlyList<ProcessRuntimeSummaryRow> FilterRuntimeSummaryRows(
-            IReadOnlyList<ProcessRuntimeSummaryRow> rows,
-            IReadOnlySet<long>? summaryAppIds)
-        {
-            IEnumerable<ProcessRuntimeSummaryRow> filteredRows = rows;
-
-            filteredRows = selectedDetailRuntimeFilter switch
-            {
-                DetailRuntimeFilter.SummaryApps => filteredRows.Where(x => summaryAppIds?.Contains(x.AppId) == true),
-                DetailRuntimeFilter.CurrentTrackingScope => filteredRows.Where(x => x.IsInCurrentTrackingScope),
-                DetailRuntimeFilter.VisibleApps => filteredRows.Where(x => x.HasMainWindow),
-                DetailRuntimeFilter.UserProcesses => filteredRows.Where(x => x.IsCurrentSessionProcess),
-                _ => filteredRows
-            };
-
-            if (showRunningRuntimeOnly)
-                filteredRows = filteredRows.Where(x => x.HasRunningSession);
-
-            return filteredRows.ToList();
-        }
-
-        private IReadOnlyList<ProcessRuntimeSegmentRow> FilterRuntimeSegmentRows(
-            IReadOnlyList<ProcessRuntimeSegmentRow> rows)
-        {
-            IEnumerable<ProcessRuntimeSegmentRow> filteredRows = rows;
-
-            filteredRows = selectedRuntimeSegmentObservationFilter switch
-            {
-                RuntimeSegmentObservationFilter.VisibleApps => filteredRows.Where(x => x.HasMainWindow),
-                RuntimeSegmentObservationFilter.UserProcesses => filteredRows.Where(x => !x.HasMainWindow && x.IsCurrentSessionProcess),
-                RuntimeSegmentObservationFilter.AllProcesses => filteredRows.Where(x => !x.HasMainWindow && !x.IsCurrentSessionProcess),
-                _ => filteredRows
-            };
-
-            return filteredRows.ToList();
-        }
-
-        private IReadOnlyList<ProcessRuntimeSummaryRow> SortRuntimeSummaryRows(IReadOnlyList<ProcessRuntimeSummaryRow> rows)
-        {
-            IOrderedEnumerable<ProcessRuntimeSummaryRow> sortedRows = runtimeSortProperty switch
-            {
-                nameof(ProcessRuntimeSummaryRow.AppName) => OrderRuntimeRows(rows, x => x.AppName),
-                nameof(ProcessRuntimeSummaryRow.CategoryText) => OrderRuntimeRows(rows, x => x.CategoryText),
-                nameof(ProcessRuntimeSummaryRow.FirstObservedAt) => OrderRuntimeRows(rows, x => x.FirstObservedAt),
-                nameof(ProcessRuntimeSummaryRow.LastObservedAt) => OrderRuntimeRows(rows, x => x.LastObservedAt),
-                nameof(ProcessRuntimeSummaryRow.ActiveUsageMs) => OrderRuntimeRows(rows, x => x.ActiveUsageMs),
-                nameof(ProcessRuntimeSummaryRow.IdleRecordedMs) => OrderRuntimeRows(rows, x => x.IdleRecordedMs),
-                nameof(ProcessRuntimeSummaryRow.ActualUsageRatio) => OrderRuntimeRows(rows, x => x.ActualUsageRatio ?? -1),
-                nameof(ProcessRuntimeSummaryRow.RuntimeSegmentCount) => OrderRuntimeRows(rows, x => x.RuntimeSegmentCount),
-                nameof(ProcessRuntimeSummaryRow.TrackingTypeText) => OrderRuntimeRows(rows, x => x.TrackingTypeText),
-                nameof(ProcessRuntimeSummaryRow.StatusText) => OrderRuntimeRows(rows, x => x.StatusText),
-                _ => OrderRuntimeRows(rows, x => x.RuntimeMs)
-            };
-
-            return sortedRows
-                .ThenBy(x => x.AppName)
-                .ToList();
-        }
-
-        private IReadOnlyList<ProcessRuntimeSegmentRow> SortRuntimeSegmentRows(IReadOnlyList<ProcessRuntimeSegmentRow> rows)
-        {
-            IOrderedEnumerable<ProcessRuntimeSegmentRow> sortedRows = runtimeSegmentSortProperty switch
-            {
-                nameof(ProcessRuntimeSegmentRow.EndedAt) => OrderRuntimeSegmentRows(rows, x => x.EndedAt),
-                nameof(ProcessRuntimeSegmentRow.DurationMs) => OrderRuntimeSegmentRows(rows, x => x.DurationMs),
-                nameof(ProcessRuntimeSegmentRow.IsRunning) => OrderRuntimeSegmentRows(rows, x => x.IsRunning),
-                nameof(ProcessRuntimeSegmentRow.ObservationTypeText) => OrderRuntimeSegmentRows(rows, x => x.ObservationTypeText),
-                nameof(ProcessRuntimeSegmentRow.ProcessId) => OrderRuntimeSegmentRows(rows, x => x.ProcessId),
-                _ => OrderRuntimeSegmentRows(rows, x => x.StartedAt)
-            };
-
-            return sortedRows
-                .ThenByDescending(x => x.StartedAt)
-                .ToList();
-        }
-
         private IOrderedEnumerable<UsageSummaryRow> OrderUsageRows<TKey>(
             IReadOnlyList<UsageSummaryRow> rows,
             Func<UsageSummaryRow, TKey> keySelector)
@@ -1663,20 +1587,6 @@ namespace TimePilot.WinForms
             Func<ActivityTimelineRow, TKey> keySelector)
         {
             return GridRowOrderer.OrderRows(rows, keySelector, timelineSortOrder);
-        }
-
-        private IOrderedEnumerable<ProcessRuntimeSummaryRow> OrderRuntimeRows<TKey>(
-            IReadOnlyList<ProcessRuntimeSummaryRow> rows,
-            Func<ProcessRuntimeSummaryRow, TKey> keySelector)
-        {
-            return GridRowOrderer.OrderRows(rows, keySelector, runtimeSortOrder);
-        }
-
-        private IOrderedEnumerable<ProcessRuntimeSegmentRow> OrderRuntimeSegmentRows<TKey>(
-            IReadOnlyList<ProcessRuntimeSegmentRow> rows,
-            Func<ProcessRuntimeSegmentRow, TKey> keySelector)
-        {
-            return GridRowOrderer.OrderRows(rows, keySelector, runtimeSegmentSortOrder);
         }
 
         private void OnUsageGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
@@ -1928,16 +1838,6 @@ namespace TimePilot.WinForms
                 RuntimeSegmentHelpContentBuilder.GetHelpTitle(),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
-        }
-
-        private void OnRuntimeSegmentObservationFilterComboBoxSelectedIndexChanged(object? sender, EventArgs e)
-        {
-            if (!runtimeSegmentObservationFilterCoordinator.TryGetSelectedFilter(out var selectedFilter)
-                || selectedFilter == selectedRuntimeSegmentObservationFilter)
-                return;
-
-            selectedRuntimeSegmentObservationFilter = selectedFilter;
-            RefreshRuntimeSegments(DateTimeOffset.UtcNow);
         }
 
         private void OnTimelineHighlightClearButtonClick(object? sender, EventArgs e)
@@ -2577,33 +2477,6 @@ namespace TimePilot.WinForms
                 selectedSummaryCustomEndDate);
         }
 
-        private void OnRuntimeGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
-        {
-            if (e.ColumnIndex < 0)
-                return;
-
-            var propertyName = GridSortPropertyResolver.GetRuntimeSortPropertyName(runtimeGrid.Columns[e.ColumnIndex].Name);
-            if (propertyName is null)
-                return;
-
-            runtimeSortOrder = string.Equals(runtimeSortProperty, propertyName, StringComparison.Ordinal)
-                ? GridSortOrderHelper.Toggle(runtimeSortOrder)
-                : SortOrder.Descending;
-            runtimeSortProperty = propertyName;
-            SaveTableSortState();
-            RefreshViews(DateTimeOffset.UtcNow);
-        }
-
-        private void OnRuntimeGridSelectionChanged(object? sender, EventArgs e)
-        {
-            if (isRefreshingRuntimeGrid || isSelectingRuntimeGridRow)
-                return;
-
-            selectedRuntimeAppId = GetSelectedRuntimeAppId();
-            runtimeSegmentSelectionCoordinator.Clear();
-            RefreshRuntimeSegments(DateTimeOffset.UtcNow);
-        }
-
         private void OnRuntimeGridCellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
         {
             if (e.Button != MouseButtons.Right || e.RowIndex < 0)
@@ -2727,51 +2600,6 @@ namespace TimePilot.WinForms
 
             InvalidateCategoryDependentViewCaches();
             SetStatusText(UiText.Main.CategoryUpdated(appName, categoryName));
-            RefreshViews(DateTimeOffset.UtcNow);
-        }
-
-        private void OnRuntimeSegmentsGridColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
-        {
-            if (e.ColumnIndex < 0)
-                return;
-
-            var selectionKey = runtimeSegmentSelectionCoordinator.GetCurrentOrStoredKey();
-            var propertyName = GridSortPropertyResolver.GetRuntimeSegmentSortPropertyName(runtimeSegmentsGrid.Columns[e.ColumnIndex].Name);
-            if (propertyName is null)
-                return;
-
-            runtimeSegmentSortOrder = string.Equals(runtimeSegmentSortProperty, propertyName, StringComparison.Ordinal)
-                ? GridSortOrderHelper.Toggle(runtimeSegmentSortOrder)
-                : SortOrder.Descending;
-            runtimeSegmentSortProperty = propertyName;
-            SaveTableSortState();
-            RefreshRuntimeSegments(
-                DateTimeOffset.UtcNow,
-                selectionKeyToRestore: selectionKey,
-                selectFirstWhenMissing: false);
-            UpdateSortGlyphs();
-        }
-
-        private void OnRunningRuntimeOnlyCheckBoxCheckedChanged(object? sender, EventArgs e)
-        {
-            showRunningRuntimeOnly = runningRuntimeOnlyCheckBox.Checked;
-            RefreshViews(DateTimeOffset.UtcNow);
-        }
-
-        private void OnDetailRuntimeFilterComboBoxSelectedIndexChanged(object? sender, EventArgs e)
-        {
-            if (detailRuntimeFilterCoordinator.IsUpdating
-                || !detailRuntimeFilterCoordinator.TryGetSelectedFilter(out var selectedFilter))
-                return;
-
-            if (mainTabs.SelectedTab != detailTab)
-            {
-                detailRuntimeFilterCoordinator.RunWithoutSelectionEvents(
-                    SyncDetailRuntimeFilterComboBoxSelection);
-                return;
-            }
-
-            selectedDetailRuntimeFilter = selectedFilter;
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
