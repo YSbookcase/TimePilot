@@ -5,6 +5,7 @@ using TimePilot.WinForms.Details;
 using TimePilot.WinForms.KYS24;
 using TimePilot.WinForms.Menus;
 using TimePilot.WinForms.Navigation;
+using TimePilot.WinForms.Refresh;
 using TimePilot.WinForms.Tables;
 using TimePilot.WinForms.Timeline;
 
@@ -1406,7 +1407,7 @@ namespace TimePilot.WinForms
                     || IsHeavyViewCacheExpired(cachedTimelineSnapshotAt, timelineDate, observedAt))
                     return false;
 
-                snapshot = RefreshCachedSnapshotForObservedAt(cachedTimelineSnapshot, observedAt) with { ReadElapsedMs = 0 };
+                snapshot = LiveViewSnapshotRefresher.Refresh(cachedTimelineSnapshot, observedAt) with { ReadElapsedMs = 0 };
                 return true;
             }
 
@@ -1421,7 +1422,7 @@ namespace TimePilot.WinForms
                     || IsHeavyViewCacheExpired(cachedDetailSnapshotAt, detailDate, observedAt))
                     return false;
 
-                snapshot = RefreshCachedSnapshotForObservedAt(cachedDetailSnapshot, observedAt) with { ReadElapsedMs = 0 };
+                snapshot = LiveViewSnapshotRefresher.Refresh(cachedDetailSnapshot, observedAt) with { ReadElapsedMs = 0 };
                 return true;
             }
 
@@ -1500,100 +1501,6 @@ namespace TimePilot.WinForms
                 ? HeavyViewRefreshInterval
                 : PastHeavyViewRefreshInterval;
             return observedAt - cachedAt.Value >= interval;
-        }
-
-        private static ViewRefreshSnapshot RefreshCachedSnapshotForObservedAt(
-            ViewRefreshSnapshot snapshot,
-            DateTimeOffset observedAt)
-        {
-            return snapshot with
-            {
-                TimelineRows = RefreshTimelineRowsForObservedAt(snapshot.TimelineRows, observedAt),
-                WindowsRuntimeRanges = RefreshTimelineRangesForObservedAt(snapshot.WindowsRuntimeRanges, observedAt),
-                SystemTimelineRanges = RefreshSystemTimelineRangesForObservedAt(snapshot.SystemTimelineRanges, observedAt),
-                CategoryTimelineSegments = RefreshCategoryTimelineSegmentsForObservedAt(snapshot.CategoryTimelineSegments, observedAt),
-                RuntimeRows = RefreshRuntimeRowsForObservedAt(snapshot.RuntimeRows, observedAt),
-                RuntimeSegmentRows = RefreshRuntimeSegmentRowsForObservedAt(snapshot.RuntimeSegmentRows, observedAt)
-            };
-        }
-
-        private static IReadOnlyList<ActivityTimelineRow>? RefreshTimelineRowsForObservedAt(
-            IReadOnlyList<ActivityTimelineRow>? rows,
-            DateTimeOffset observedAt)
-        {
-            return rows?.Select(row =>
-            {
-                if (row.EndedAt is not null)
-                    return row;
-
-                return row with { DurationMs = GetDurationMs(row.StartedAt, observedAt) };
-            }).ToList();
-        }
-
-        private static IReadOnlyList<TimelineRange>? RefreshTimelineRangesForObservedAt(
-            IReadOnlyList<TimelineRange>? ranges,
-            DateTimeOffset observedAt)
-        {
-            return ranges?.Select(range =>
-                range.EndedAt > observedAt
-                    ? range with { EndedAt = observedAt }
-                    : range).ToList();
-        }
-
-        private static IReadOnlyList<SystemTimelineRange>? RefreshSystemTimelineRangesForObservedAt(
-            IReadOnlyList<SystemTimelineRange>? ranges,
-            DateTimeOffset observedAt)
-        {
-            return ranges?.Select(range =>
-                range.EndedAt > observedAt
-                    ? range with { EndedAt = observedAt }
-                    : range).ToList();
-        }
-
-        private static IReadOnlyList<CategoryTimelineSegment>? RefreshCategoryTimelineSegmentsForObservedAt(
-            IReadOnlyList<CategoryTimelineSegment>? segments,
-            DateTimeOffset observedAt)
-        {
-            return segments?.Select(segment =>
-                segment.EndedAt > observedAt
-                    ? segment with { EndedAt = observedAt }
-                    : segment).ToList();
-        }
-
-        private static IReadOnlyList<ProcessRuntimeSummaryRow>? RefreshRuntimeRowsForObservedAt(
-            IReadOnlyList<ProcessRuntimeSummaryRow>? rows,
-            DateTimeOffset observedAt)
-        {
-            return rows?.Select(row =>
-            {
-                if (!row.HasRunningSession)
-                    return row;
-
-                var baseEnd = row.LastObservedAt ?? row.FirstObservedAt ?? observedAt;
-                var deltaMs = Math.Max(0, (long)(observedAt - baseEnd).TotalMilliseconds);
-                return row with
-                {
-                    RuntimeMs = row.RuntimeMs + deltaMs
-                };
-            }).ToList();
-        }
-
-        private static IReadOnlyList<ProcessRuntimeSegmentRow>? RefreshRuntimeSegmentRowsForObservedAt(
-            IReadOnlyList<ProcessRuntimeSegmentRow>? rows,
-            DateTimeOffset observedAt)
-        {
-            return rows?.Select(row =>
-            {
-                if (row.EndedAt is not null)
-                    return row;
-
-                return row with { DurationMs = GetDurationMs(row.StartedAt, observedAt) };
-            }).ToList();
-        }
-
-        private static long GetDurationMs(DateTimeOffset startedAt, DateTimeOffset endedAt)
-        {
-            return Math.Max(0, (long)(endedAt - startedAt).TotalMilliseconds);
         }
 
         private async Task RefreshViewsAsync(DateTimeOffset observedAt)
@@ -4188,26 +4095,6 @@ namespace TimePilot.WinForms
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }
-
-        private sealed record ViewRefreshSnapshot(
-            IReadOnlyList<ForegroundUsageSummary>? ForegroundUsage,
-            IReadOnlyList<DailyUsageTrendRow>? DailyUsageTrendRows,
-            IdleUsageSummary? IdleUsage,
-            RuntimeCoverageSummary? RuntimeCoverage,
-            bool ShowDateInUsageTimestamps,
-            bool? DetailDateHasData,
-            bool? TimelineDateHasData,
-            IReadOnlyList<ActivityTimelineRow>? TimelineRows,
-            IReadOnlyList<TimelineRange>? WindowsRuntimeRanges,
-            IReadOnlyList<SystemTimelineRange>? SystemTimelineRanges,
-            IReadOnlyList<SystemTimelineEvent>? SystemTimelineEvents,
-            IReadOnlyList<SystemTimelineEvent>? InferredSystemTimelineEvents,
-            IReadOnlyList<CategoryTimelineSegment>? CategoryTimelineSegments,
-            IReadOnlyList<ForegroundUsageSummary>? TimelineForegroundUsage,
-            IReadOnlyList<ProcessRuntimeSummaryRow>? RuntimeRows,
-            IReadOnlySet<long>? DetailSummaryAppIds,
-            IReadOnlyList<ProcessRuntimeSegmentRow>? RuntimeSegmentRows,
-            long ReadElapsedMs);
 
         private sealed record HeavyViewRefreshKey(
             string ViewName,
