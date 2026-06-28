@@ -19,8 +19,6 @@ namespace TimePilot.WinForms
         private const long SlowOperationThresholdMs = 250;
         private static readonly TimeSpan PerformanceStatusDuration = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan SafeModeShortRuntimeThreshold = TimeSpan.FromMinutes(2);
-        private static readonly TimeSpan HeavyViewRefreshInterval = TimeSpan.FromSeconds(10);
-        private static readonly TimeSpan PastHeavyViewRefreshInterval = TimeSpan.FromMinutes(5);
 
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private readonly MainMenuController mainMenuController;
@@ -30,6 +28,7 @@ namespace TimePilot.WinForms
         private readonly RuntimeSegmentSelectionCoordinator runtimeSegmentSelectionCoordinator;
         private readonly DetailRuntimeFilterCoordinator detailRuntimeFilterCoordinator;
         private readonly RuntimeSegmentObservationFilterCoordinator runtimeSegmentObservationFilterCoordinator;
+        private readonly ViewRefreshCache viewRefreshCache = new();
         private readonly AppIconCache appIconCache = new();
         private readonly object processRuntimeTrackingLock = new();
         private readonly Form headerToolTipForm = new();
@@ -93,8 +92,6 @@ namespace TimePilot.WinForms
         private long? selectedRuntimeAppId;
         private volatile bool isClosing;
         private volatile bool isProcessRuntimeSampleRunning;
-        private long timelineDataVersion;
-        private long processRuntimeDataVersion;
         private bool isExportRunning;
         private bool isViewRefreshWaitCursorActive;
         private string statusText = string.Empty;
@@ -123,15 +120,6 @@ namespace TimePilot.WinForms
         private IReadOnlyList<TimelineRange> currentTimelineWindowsRuntimeRanges = Array.Empty<TimelineRange>();
         private IReadOnlyList<SystemTimelineRange> currentTimelineSystemRanges = Array.Empty<SystemTimelineRange>();
         private IReadOnlyList<SystemTimelineEvent> currentTimelineSystemEvents = Array.Empty<SystemTimelineEvent>();
-        private ViewRefreshSnapshot? cachedTimelineSnapshot;
-        private HeavyViewRefreshKey? cachedTimelineSnapshotKey;
-        private DateTimeOffset? cachedTimelineSnapshotAt;
-        private ViewRefreshSnapshot? cachedSummarySnapshot;
-        private SummaryViewRefreshKey? cachedSummarySnapshotKey;
-        private DateTimeOffset? cachedSummarySnapshotAt;
-        private ViewRefreshSnapshot? cachedDetailSnapshot;
-        private HeavyViewRefreshKey? cachedDetailSnapshotKey;
-        private DateTimeOffset? cachedDetailSnapshotAt;
         private Font? timelineHighlightedRowFont;
         private Form? recordedDatePickerPopupForm;
         private readonly Label timelineSystemEventFilterLabel = new();
@@ -1353,22 +1341,12 @@ namespace TimePilot.WinForms
 
             lastForegroundViewKey = foregroundKey;
             lastForegroundIdleState = isIdle;
-            Interlocked.Increment(ref timelineDataVersion);
+            viewRefreshCache.MarkTimelineDataChanged();
         }
 
         private void InvalidateCategoryDependentViewCaches()
         {
-            Interlocked.Increment(ref timelineDataVersion);
-            Interlocked.Increment(ref processRuntimeDataVersion);
-            cachedSummarySnapshot = null;
-            cachedSummarySnapshotKey = null;
-            cachedSummarySnapshotAt = null;
-            cachedTimelineSnapshot = null;
-            cachedTimelineSnapshotKey = null;
-            cachedTimelineSnapshotAt = null;
-            cachedDetailSnapshot = null;
-            cachedDetailSnapshotKey = null;
-            cachedDetailSnapshotAt = null;
+            viewRefreshCache.InvalidateCategoryDependentViews();
         }
 
         private bool TryGetCachedHeavyViewSnapshot(
@@ -1384,46 +1362,25 @@ namespace TimePilot.WinForms
             snapshot = default!;
             if (selectedTab == summaryTab)
             {
-                var key = SummaryViewRefreshKey.FromRange(
-                    summaryPeriodRange,
-                    Interlocked.Read(ref timelineDataVersion));
-                if (cachedSummarySnapshot is null
-                    || cachedSummarySnapshotKey != key
-                    || IsSummaryViewCacheExpired(cachedSummarySnapshotAt, summaryPeriodRange, observedAt))
-                    return false;
-
-                snapshot = cachedSummarySnapshot with { ReadElapsedMs = 0 };
-                return true;
+                return viewRefreshCache.TryGetSummary(summaryPeriodRange, observedAt, out snapshot);
             }
 
             if (selectedTab == timelineTab)
             {
-                var key = HeavyViewRefreshKey.ForTimeline(
+                return viewRefreshCache.TryGetTimeline(
                     timelineDate,
                     timelineCategoryBucketMinutes,
-                    Interlocked.Read(ref timelineDataVersion));
-                if (cachedTimelineSnapshot is null
-                    || cachedTimelineSnapshotKey != key
-                    || IsHeavyViewCacheExpired(cachedTimelineSnapshotAt, timelineDate, observedAt))
-                    return false;
-
-                snapshot = LiveViewSnapshotRefresher.Refresh(cachedTimelineSnapshot, observedAt) with { ReadElapsedMs = 0 };
-                return true;
+                    observedAt,
+                    out snapshot);
             }
 
             if (selectedTab == detailTab)
             {
-                var key = HeavyViewRefreshKey.ForDetail(
+                return viewRefreshCache.TryGetDetail(
                     detailDate,
                     selectedRuntimeAppId,
-                    Interlocked.Read(ref processRuntimeDataVersion));
-                if (cachedDetailSnapshot is null
-                    || cachedDetailSnapshotKey != key
-                    || IsHeavyViewCacheExpired(cachedDetailSnapshotAt, detailDate, observedAt))
-                    return false;
-
-                snapshot = LiveViewSnapshotRefresher.Refresh(cachedDetailSnapshot, observedAt) with { ReadElapsedMs = 0 };
-                return true;
+                    observedAt,
+                    out snapshot);
             }
 
             return false;
@@ -1441,66 +1398,28 @@ namespace TimePilot.WinForms
         {
             if (selectedTab == summaryTab && snapshot.ForegroundUsage is not null)
             {
-                cachedSummarySnapshot = snapshot;
-                cachedSummarySnapshotKey = SummaryViewRefreshKey.FromRange(
-                    summaryPeriodRange,
-                    Interlocked.Read(ref timelineDataVersion));
-                cachedSummarySnapshotAt = observedAt;
+                viewRefreshCache.StoreSummary(summaryPeriodRange, observedAt, snapshot);
                 return;
             }
 
             if (selectedTab == timelineTab && snapshot.TimelineRows is not null)
             {
-                cachedTimelineSnapshot = snapshot;
-                cachedTimelineSnapshotKey = HeavyViewRefreshKey.ForTimeline(
+                viewRefreshCache.StoreTimeline(
                     timelineDate,
                     timelineCategoryBucketMinutes,
-                    Interlocked.Read(ref timelineDataVersion));
-                cachedTimelineSnapshotAt = observedAt;
+                    observedAt,
+                    snapshot);
                 return;
             }
 
             if (selectedTab == detailTab && snapshot.RuntimeRows is not null)
             {
-                cachedDetailSnapshot = snapshot;
-                cachedDetailSnapshotKey = HeavyViewRefreshKey.ForDetail(
+                viewRefreshCache.StoreDetail(
                     detailDate,
                     selectedRuntimeAppId,
-                    Interlocked.Read(ref processRuntimeDataVersion));
-                cachedDetailSnapshotAt = observedAt;
+                    observedAt,
+                    snapshot);
             }
-        }
-
-        private static bool IsHeavyViewCacheExpired(
-            DateTimeOffset? cachedAt,
-            DateTime selectedDate,
-            DateTimeOffset observedAt)
-        {
-            if (cachedAt is null)
-                return true;
-
-            var interval = selectedDate.Date == observedAt.ToLocalTime().Date
-                ? HeavyViewRefreshInterval
-                : PastHeavyViewRefreshInterval;
-            return observedAt - cachedAt.Value >= interval;
-        }
-
-        private static bool IsSummaryViewCacheExpired(
-            DateTimeOffset? cachedAt,
-            SummaryPeriodRange range,
-            DateTimeOffset observedAt)
-        {
-            if (cachedAt is null)
-                return true;
-
-            var today = observedAt.ToLocalTime().Date;
-            var todayStart = new DateTimeOffset(today, TimeZoneInfo.Local.GetUtcOffset(today));
-            var includesToday = range.Start < observedAt
-                && range.End > todayStart;
-            var interval = includesToday
-                ? HeavyViewRefreshInterval
-                : PastHeavyViewRefreshInterval;
-            return observedAt - cachedAt.Value >= interval;
         }
 
         private async Task RefreshViewsAsync(DateTimeOffset observedAt)
@@ -1889,7 +1808,7 @@ namespace TimePilot.WinForms
                     }
 
                     if (changed)
-                        Interlocked.Increment(ref processRuntimeDataVersion);
+                        viewRefreshCache.MarkProcessRuntimeDataChanged();
 
                     writeStopwatch.Stop();
                     writeElapsedMs = writeStopwatch.ElapsedMilliseconds;
@@ -3612,15 +3531,7 @@ namespace TimePilot.WinForms
                 viewRefreshStatusText = null;
                 isViewRefreshWaitCursorActive = false;
                 UpdateWaitCursor();
-                cachedSummarySnapshot = null;
-                cachedSummarySnapshotKey = null;
-                cachedSummarySnapshotAt = null;
-                cachedTimelineSnapshot = null;
-                cachedTimelineSnapshotKey = null;
-                cachedTimelineSnapshotAt = null;
-                cachedDetailSnapshot = null;
-                cachedDetailSnapshotKey = null;
-                cachedDetailSnapshotAt = null;
+                viewRefreshCache.Clear();
 
                 GridViewStatePreserver.SetDataSourcePreservingView(usageGrid, Array.Empty<UsageSummaryRow>());
                 GridViewStatePreserver.SetDataSourcePreservingView(dailyUsageTrendGrid, Array.Empty<DailyUsageTrendRow>());
@@ -4094,46 +4005,6 @@ namespace TimePilot.WinForms
                 UiText.Main.RuntimeDiagnosticsTitle,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
-        }
-
-        private sealed record HeavyViewRefreshKey(
-            string ViewName,
-            DateTime Date,
-            long? SelectedAppId,
-            int TimelineCategoryBucketMinutes,
-            long DataVersion)
-        {
-            public static HeavyViewRefreshKey ForTimeline(
-                DateTime date,
-                int categoryBucketMinutes,
-                long dataVersion)
-            {
-                return new HeavyViewRefreshKey("timeline", date.Date, null, categoryBucketMinutes, dataVersion);
-            }
-
-            public static HeavyViewRefreshKey ForDetail(
-                DateTime date,
-                long? selectedAppId,
-                long dataVersion)
-            {
-                return new HeavyViewRefreshKey("detail", date.Date, selectedAppId, 0, dataVersion);
-            }
-        }
-
-        private sealed record SummaryViewRefreshKey(
-            DateTime StartDate,
-            DateTime EndDate,
-            long DataVersion)
-        {
-            public static SummaryViewRefreshKey FromRange(
-                SummaryPeriodRange range,
-                long dataVersion)
-            {
-                return new SummaryViewRefreshKey(
-                    range.Start.ToLocalTime().Date,
-                    range.End.ToLocalTime().Date,
-                    dataVersion);
-            }
         }
 
     }
