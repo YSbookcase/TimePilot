@@ -1515,107 +1515,19 @@ namespace TimePilot.WinForms
 
             var applyStopwatch = Stopwatch.StartNew();
             if (snapshot.ForegroundUsage is not null)
-            {
-                SetRuntimeCoverageSummary(snapshot.RuntimeCoverage);
-                SetSummaryIdleAnalysis(snapshot.ForegroundUsage, snapshot.IdleUsage);
-                var previousUsageSelection = GetSelectedUsageSummaryRow();
-                var usageRows = AddIcons(SortUsageSummaryRows(UsageSummaryRowBuilder.FromForegroundUsage(
-                    snapshot.ForegroundUsage,
-                    snapshot.ShowDateInUsageTimestamps)));
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    usageGrid,
-                    usageRows);
-                RestoreUsageGridSelection(previousUsageSelection);
-                SetSummaryUsageBars(usageRows);
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    dailyUsageTrendGrid,
-                    SortDailyUsageTrendRows(snapshot.DailyUsageTrendRows ?? Array.Empty<DailyUsageTrendRow>()));
-                usageGrid.Invalidate();
-            }
+                ApplySummarySnapshot(snapshot);
 
             if (snapshot.TimelineRows is not null)
-            {
-                currentTimelineRows = snapshot.TimelineRows;
-                currentTimelineForegroundUsage = snapshot.TimelineForegroundUsage ?? Array.Empty<ForegroundUsageSummary>();
-                SetDateStatus(timelineDateStatusLabel, snapshot.TimelineDateHasData);
-                var filteredSystemRanges = TimelineSystemEventPresenter.FilterRanges(
-                    snapshot.SystemTimelineRanges ?? Array.Empty<SystemTimelineRange>(),
-                    selectedTimelineSystemEventFilter);
-                var filteredSystemEvents = TimelineSystemEventPresenter.FilterEvents(
-                    snapshot.SystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>(),
-                    selectedTimelineSystemEventFilter);
-                currentTimelineWindowsRuntimeRanges = snapshot.WindowsRuntimeRanges ?? Array.Empty<TimelineRange>();
-                currentTimelineSystemRanges = snapshot.SystemTimelineRanges ?? Array.Empty<SystemTimelineRange>();
-                currentTimelineSystemEvents = TimelineSystemEventPresenter.FilterEvents(
-                    (snapshot.SystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>())
-                        .Concat(snapshot.InferredSystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>())
-                        .ToList(),
-                    selectedTimelineSystemEventFilter);
-                timelineOverviewControl.SetTimeline(
-                    selectedTimelineDate,
-                    snapshot.TimelineRows,
-                    currentTimelineWindowsRuntimeRanges,
-                    filteredSystemRanges,
-                    filteredSystemEvents,
-                    snapshot.CategoryTimelineSegments ?? Array.Empty<CategoryTimelineSegment>());
-                timelineOverviewControl.SetSystemEventHighlightEnabled(selectedTimelineSystemEventFilter != TimelineSystemEventFilter.All);
-                ApplyTimelineHighlightToOverview();
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    timelineGrid,
-                    AddIcons(SortTimelineRows(snapshot.TimelineRows)));
-                UpdateTimelineHighlightUi();
-            }
+                ApplyTimelineSnapshot(snapshot);
 
             if (snapshot.RuntimeRows is not null)
-            {
-                SetDateStatus(detailDateStatusLabel, snapshot.DetailDateHasData);
-                var appIdToRestoreOnApply = selectedRuntimeAppId ?? appIdToRestore;
-                isRefreshingRuntimeGrid = true;
-                try
-                {
-                    var runtimeRows = ApplyCurrentTrackingScope(snapshot.RuntimeRows);
-                    GridViewStatePreserver.SetDataSourcePreservingView(
-                        runtimeGrid,
-                        AddIcons(SortRuntimeSummaryRows(FilterRuntimeSummaryRows(
-                            runtimeRows,
-                            snapshot.DetailSummaryAppIds))),
-                        preserveSelection: false);
-                    RestoreRuntimeSelection(
-                        appIdToRestoreOnApply,
-                        runtimeFirstDisplayedRowIndex,
-                        runtimeFirstDisplayedColumnIndex,
-                        runtimeHorizontalOffset);
-                }
-                finally
-                {
-                    isRefreshingRuntimeGrid = false;
-                }
-
-                selectedRuntimeAppId = appIdToRestoreOnApply ?? GetSelectedRuntimeAppId();
-                if (selectedRuntimeAppId == appIdToRestore && snapshot.RuntimeSegmentRows is not null)
-                {
-                    var sortedSegments = SortRuntimeSegmentRows(FilterRuntimeSegmentRows(snapshot.RuntimeSegmentRows));
-                    SetRuntimeSegmentsDataSource(sortedSegments);
-                    var keyToRestore = runtimeSegmentSelectionCoordinator.CurrentKey;
-                    runtimeSegmentSelectionCoordinator.RestoreSelection(
-                        keyToRestore,
-                        selectFirstWhenMissing: keyToRestore is null);
-                    UpdateRuntimeSegmentTimeline(GetRuntimeRowForSelectedApp(), sortedSegments);
-                }
-                else
-                {
-                    RefreshRuntimeSegments(observedAt);
-                }
-
-                RestoreRuntimeGridView(
+                ApplyDetailSnapshot(
+                    snapshot,
+                    observedAt,
+                    appIdToRestore,
                     runtimeFirstDisplayedRowIndex,
                     runtimeFirstDisplayedColumnIndex,
                     runtimeHorizontalOffset);
-                ScheduleRuntimeGridViewRestore(
-                    runtimeFirstDisplayedRowIndex,
-                    runtimeFirstDisplayedColumnIndex,
-                    runtimeHorizontalOffset);
-            }
 
             UpdateSortGlyphs();
             RepositionHeaderToolTip();
