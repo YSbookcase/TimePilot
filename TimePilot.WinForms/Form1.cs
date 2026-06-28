@@ -2613,7 +2613,7 @@ namespace TimePilot.WinForms
         private void ShowTimelineCategorySegmentContextMenu(CategoryTimelineSegment segment, Control owner, Point location)
         {
             timelineGridMenu.Items.Clear();
-            var appStatsItem = new ToolStripMenuItem(GetTimelineCategorySegmentAppStatsMenuText());
+            var appStatsItem = new ToolStripMenuItem(TimelineCategorySegmentStatsPresenter.GetMenuText());
             appStatsItem.Click += (_, _) => ShowTimelineCategorySegmentAppStatsPopup(segment, owner, location);
             timelineGridMenu.Items.Add(appStatsItem);
             timelineGridMenu.Show(owner, location);
@@ -2627,7 +2627,7 @@ namespace TimePilot.WinForms
 
             var popup = new Form
             {
-                Text = GetTimelineCategorySegmentAppStatsTitle(),
+                Text = TimelineCategorySegmentStatsPresenter.GetTitle(),
                 ShowInTaskbar = false,
                 StartPosition = FormStartPosition.Manual,
                 Size = new Size(720, 300),
@@ -2642,7 +2642,11 @@ namespace TimePilot.WinForms
                 Dock = DockStyle.Top,
                 Height = 64,
                 Padding = new Padding(8, 6, 8, 0),
-                Text = GetTimelineCategorySegmentAppStatsDescription(segment)
+                Text = TimelineCategorySegmentStatsPresenter.BuildDescription(
+                    segment,
+                    currentTimelineRows,
+                    currentTimelineWindowsRuntimeRanges,
+                    currentTimelineSystemRanges)
             };
 
             var grid = CreateTimelineCategorySegmentAppStatsGrid();
@@ -3161,81 +3165,6 @@ namespace TimePilot.WinForms
                 row,
                 timelineHighlightState,
                 selectedTimelineActivityTypeHighlight);
-        }
-
-        private static string GetTimelineCategorySegmentAppStatsMenuText()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English ? "Segment app stats" : "구간 앱 통계";
-        }
-
-        private static string GetTimelineCategorySegmentAppStatsTitle()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English ? "Timeline Segment App Stats" : "타임라인 구간 앱 통계";
-        }
-
-        private string GetTimelineCategorySegmentAppStatsDescription(CategoryTimelineSegment segment)
-        {
-            var start = segment.StartedAt.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture);
-            var end = segment.EndedAt.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture);
-            var duration = RuntimeDiagnosticsMessageBuilder.FormatDuration((long)(segment.EndedAt - segment.StartedAt).TotalMilliseconds);
-            var activeUsage = RuntimeDiagnosticsMessageBuilder.FormatDuration(segment.ActiveUsageMs);
-            var stateSummary = GetTimelineSegmentStateSummary(segment);
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? $"{segment.CategoryName} | {start}-{end} | segment {duration} | recorded active {activeUsage} | {segment.DetailText}\n{stateSummary}"
-                : $"{segment.CategoryName} | {start}-{end} | 구간 {duration} | 기록된 활성 {activeUsage} | {segment.DetailText}\n{stateSummary}";
-        }
-
-        private string GetTimelineSegmentStateSummary(CategoryTimelineSegment segment)
-        {
-            var activeMs = SumTimelineRowDuration(segment, row =>
-                !string.Equals(row.ActivityType, UiText.Main.Idle, StringComparison.Ordinal)
-                && !IsUntrackedTimelineActivity(row));
-            var idleMs = SumTimelineRowDuration(segment, row =>
-                string.Equals(row.ActivityType, UiText.Main.Idle, StringComparison.Ordinal));
-            var untrackedMs = SumTimelineRowDuration(segment, IsUntrackedTimelineActivity);
-            var windowsRuntimeMs = SumTimelineRangeDuration(segment, currentTimelineWindowsRuntimeRanges);
-            var sleepMs = SumSystemTimelineRangeDuration(segment, SystemTimelineRangeType.SleepEstimate);
-            var lockMs = SumSystemTimelineRangeDuration(segment, SystemTimelineRangeType.LockSession);
-
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? $"Status: active apps {RuntimeDiagnosticsMessageBuilder.FormatDuration(activeMs)} | idle {RuntimeDiagnosticsMessageBuilder.FormatDuration(idleMs)} | not tracked {RuntimeDiagnosticsMessageBuilder.FormatDuration(untrackedMs)} | Windows runtime {RuntimeDiagnosticsMessageBuilder.FormatDuration(windowsRuntimeMs)} | sleep estimate {RuntimeDiagnosticsMessageBuilder.FormatDuration(sleepMs)} | lock {RuntimeDiagnosticsMessageBuilder.FormatDuration(lockMs)}"
-                : $"상태: 활성 앱 {RuntimeDiagnosticsMessageBuilder.FormatDuration(activeMs)} | 유휴 {RuntimeDiagnosticsMessageBuilder.FormatDuration(idleMs)} | 미기록 {RuntimeDiagnosticsMessageBuilder.FormatDuration(untrackedMs)} | Windows 실행 {RuntimeDiagnosticsMessageBuilder.FormatDuration(windowsRuntimeMs)} | 절전 추정 {RuntimeDiagnosticsMessageBuilder.FormatDuration(sleepMs)} | 잠금 {RuntimeDiagnosticsMessageBuilder.FormatDuration(lockMs)}";
-        }
-
-        private long SumTimelineRowDuration(CategoryTimelineSegment segment, Func<ActivityTimelineRow, bool> predicate)
-        {
-            return currentTimelineRows
-                .Where(predicate)
-                .Sum(row => GetOverlapDurationMs(segment.StartedAt, segment.EndedAt, row.StartedAt, row.EndedAt ?? segment.EndedAt));
-        }
-
-        private long SumTimelineRangeDuration(CategoryTimelineSegment segment, IEnumerable<TimelineRange> ranges)
-        {
-            return ranges.Sum(range => GetOverlapDurationMs(segment.StartedAt, segment.EndedAt, range.StartedAt, range.EndedAt));
-        }
-
-        private long SumSystemTimelineRangeDuration(CategoryTimelineSegment segment, SystemTimelineRangeType rangeType)
-        {
-            return currentTimelineSystemRanges
-                .Where(range => range.RangeType == rangeType)
-                .Sum(range => GetOverlapDurationMs(segment.StartedAt, segment.EndedAt, range.StartedAt, range.EndedAt));
-        }
-
-        private static bool IsUntrackedTimelineActivity(ActivityTimelineRow row)
-        {
-            return string.Equals(row.ActivityType, UiText.Main.Untracked, StringComparison.Ordinal)
-                || string.Equals(row.ActivityType, UiText.Main.TimePilotUntracked, StringComparison.Ordinal);
-        }
-
-        private static long GetOverlapDurationMs(
-            DateTimeOffset leftStart,
-            DateTimeOffset leftEnd,
-            DateTimeOffset rightStart,
-            DateTimeOffset rightEnd)
-        {
-            var start = leftStart > rightStart ? leftStart : rightStart;
-            var end = leftEnd < rightEnd ? leftEnd : rightEnd;
-            return end <= start ? 0 : (long)(end - start).TotalMilliseconds;
         }
 
         private void UpdateTimelineHighlightSummary()
