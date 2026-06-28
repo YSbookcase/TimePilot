@@ -1772,14 +1772,19 @@ namespace TimePilot.WinForms
                 currentTimelineRows = snapshot.TimelineRows;
                 currentTimelineForegroundUsage = snapshot.TimelineForegroundUsage ?? Array.Empty<ForegroundUsageSummary>();
                 SetDateStatus(timelineDateStatusLabel, snapshot.TimelineDateHasData);
-                var filteredSystemRanges = FilterSystemTimelineRanges(snapshot.SystemTimelineRanges ?? Array.Empty<SystemTimelineRange>());
-                var filteredSystemEvents = FilterSystemTimelineEvents(snapshot.SystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>());
+                var filteredSystemRanges = TimelineSystemEventPresenter.FilterRanges(
+                    snapshot.SystemTimelineRanges ?? Array.Empty<SystemTimelineRange>(),
+                    selectedTimelineSystemEventFilter);
+                var filteredSystemEvents = TimelineSystemEventPresenter.FilterEvents(
+                    snapshot.SystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>(),
+                    selectedTimelineSystemEventFilter);
                 currentTimelineWindowsRuntimeRanges = snapshot.WindowsRuntimeRanges ?? Array.Empty<TimelineRange>();
                 currentTimelineSystemRanges = snapshot.SystemTimelineRanges ?? Array.Empty<SystemTimelineRange>();
-                currentTimelineSystemEvents = FilterSystemTimelineEvents(
+                currentTimelineSystemEvents = TimelineSystemEventPresenter.FilterEvents(
                     (snapshot.SystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>())
-                    .Concat(snapshot.InferredSystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>())
-                    .ToList());
+                        .Concat(snapshot.InferredSystemTimelineEvents ?? Array.Empty<SystemTimelineEvent>())
+                        .ToList(),
+                    selectedTimelineSystemEventFilter);
                 timelineOverviewControl.SetTimeline(
                     selectedTimelineDate,
                     snapshot.TimelineRows,
@@ -2682,7 +2687,7 @@ namespace TimePilot.WinForms
             };
 
             var grid = CreateTimelineSystemEventsGrid();
-            grid.DataSource = BuildSystemTimelineEventRows(currentTimelineSystemEvents);
+            grid.DataSource = TimelineSystemEventPresenter.BuildRows(currentTimelineSystemEvents);
             popup.Controls.Add(grid);
             popup.Controls.Add(label);
 
@@ -2846,7 +2851,7 @@ namespace TimePilot.WinForms
                 .Select(row => row.DataBoundItem)
                 .OfType<SystemTimelineEventRow>()
                 .ToList();
-            grid.DataSource = SortSystemTimelineEventRows(rows, column.DataPropertyName, direction);
+            grid.DataSource = TimelineSystemEventPresenter.SortRows(rows, column.DataPropertyName, direction);
             foreach (DataGridViewColumn gridColumn in grid.Columns)
             {
                 if (gridColumn.SortMode != DataGridViewColumnSortMode.Programmatic)
@@ -2856,26 +2861,6 @@ namespace TimePilot.WinForms
                     ? (direction == ListSortDirection.Ascending ? SortOrder.Ascending : SortOrder.Descending)
                     : SortOrder.None;
             }
-        }
-
-        private static IReadOnlyList<SystemTimelineEventRow> SortSystemTimelineEventRows(
-            IReadOnlyList<SystemTimelineEventRow> rows,
-            string propertyName,
-            ListSortDirection direction)
-        {
-            IOrderedEnumerable<SystemTimelineEventRow> orderedRows = propertyName switch
-            {
-                nameof(SystemTimelineEventRow.OccurredAtText) => rows.OrderBy(row => row.OccurredAt),
-                nameof(SystemTimelineEventRow.PreviousIntervalText) => rows.OrderBy(row => row.PreviousIntervalMs),
-                nameof(SystemTimelineEventRow.EventTypeText) => rows.OrderBy(row => row.EventTypeText, StringComparer.CurrentCulture),
-                nameof(SystemTimelineEventRow.RelationText) => rows.OrderBy(row => row.RelationText, StringComparer.CurrentCulture),
-                nameof(SystemTimelineEventRow.DetailsText) => rows.OrderBy(row => row.DetailsText, StringComparer.CurrentCulture),
-                _ => rows.OrderBy(row => row.OccurredAt)
-            };
-
-            return direction == ListSortDirection.Ascending
-                ? orderedRows.ToList()
-                : orderedRows.Reverse().ToList();
         }
 
         private void ShowTimelineActivityContextMenu(ActivityTimelineRow row, Control owner, Point location)
@@ -3176,58 +3161,6 @@ namespace TimePilot.WinForms
                 row,
                 timelineHighlightState,
                 selectedTimelineActivityTypeHighlight);
-        }
-
-        private IReadOnlyList<SystemTimelineEvent> FilterSystemTimelineEvents(IReadOnlyList<SystemTimelineEvent> events)
-        {
-            if (selectedTimelineSystemEventFilter == TimelineSystemEventFilter.All)
-                return events;
-
-            return events
-                .Where(systemEvent => TimelineSystemEventFilterMatcher.Matches(
-                    systemEvent.EventType,
-                    selectedTimelineSystemEventFilter))
-                .ToList();
-        }
-
-        private IReadOnlyList<SystemTimelineRange> FilterSystemTimelineRanges(IReadOnlyList<SystemTimelineRange> ranges)
-        {
-            return selectedTimelineSystemEventFilter switch
-            {
-                TimelineSystemEventFilter.All => ranges,
-                TimelineSystemEventFilter.Lock => ranges.Where(range => range.RangeType == SystemTimelineRangeType.LockSession).ToList(),
-                TimelineSystemEventFilter.Power => ranges.Where(range => range.RangeType == SystemTimelineRangeType.SleepEstimate).ToList(),
-                _ => Array.Empty<SystemTimelineRange>()
-            };
-        }
-
-        private static IReadOnlyList<SystemTimelineEventRow> BuildSystemTimelineEventRows(IReadOnlyList<SystemTimelineEvent> events)
-        {
-            var orderedEvents = events
-                .OrderBy(systemEvent => systemEvent.OccurredAt)
-                .ToList();
-            var rows = new List<SystemTimelineEventRow>(orderedEvents.Count);
-            SystemTimelineEvent? previousEvent = null;
-
-            foreach (var systemEvent in orderedEvents)
-            {
-                var intervalText = previousEvent is null
-                    ? "-"
-                    : RuntimeDiagnosticsMessageBuilder.FormatDuration((long)(systemEvent.OccurredAt - previousEvent.OccurredAt).TotalMilliseconds);
-                rows.Add(new SystemTimelineEventRow(
-                    systemEvent.OccurredAt,
-                    systemEvent.OccurredAt.ToLocalTime().ToString("HH:mm:ss", System.Globalization.CultureInfo.CurrentCulture),
-                    RuntimeDiagnosticsMessageBuilder.GetSystemEventTypeText(systemEvent.EventType),
-                    previousEvent is null ? -1 : (long)(systemEvent.OccurredAt - previousEvent.OccurredAt).TotalMilliseconds,
-                    intervalText,
-                    SystemTimelineEventTextFormatter.GetRelationText(systemEvent.EventType),
-                    SystemTimelineEventTextFormatter.FormatDetails(systemEvent)));
-                previousEvent = systemEvent;
-            }
-
-            return rows
-                .OrderByDescending(row => row.OccurredAt)
-                .ToList();
         }
 
         private static string GetTimelineCategorySegmentAppStatsMenuText()
@@ -4609,15 +4542,6 @@ namespace TimePilot.WinForms
                     dataVersion);
             }
         }
-
-        private sealed record SystemTimelineEventRow(
-            DateTimeOffset OccurredAt,
-            string OccurredAtText,
-            string EventTypeText,
-            long PreviousIntervalMs,
-            string PreviousIntervalText,
-            string RelationText,
-            string DetailsText);
 
     }
 }
