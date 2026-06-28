@@ -2,6 +2,42 @@ namespace TimePilot.WinForms.KYS24
 {
     internal static class SystemTimelineEventTextFormatter
     {
+        public static string GetListTitle(DateTime date)
+        {
+            var dateText = date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.CurrentCulture);
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"System event list ({dateText})"
+                : $"시스템 이벤트 목록 ({dateText})";
+        }
+
+        public static string GetListDescription(DateTime date)
+        {
+            var dateText = date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.CurrentCulture);
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"Selected date: {dateText}. Event intervals are hints for interpretation, not confirmed causes of missing records."
+                : $"선택 날짜: {dateText}. 이벤트 간격은 해석 보조 정보이며, 미기록 원인을 확정하지 않습니다.";
+        }
+
+        public static string GetTimeHeaderText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Time" : "시각";
+        }
+
+        public static string GetPreviousIntervalHeaderText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Since previous" : "직전 간격";
+        }
+
+        public static string GetRelationHeaderText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Hint" : "해석 단서";
+        }
+
+        public static string GetDetailsHeaderText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English ? "Details" : "상세";
+        }
+
         public static string GetRelationText(string eventType)
         {
             var isEnglish = UiText.CurrentLanguage == UiLanguage.English;

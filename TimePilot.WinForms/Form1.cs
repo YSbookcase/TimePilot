@@ -2653,7 +2653,7 @@ namespace TimePilot.WinForms
         private void ShowTimelineWindowsContextMenu(Control owner, Point location)
         {
             timelineGridMenu.Items.Clear();
-            var eventListItem = new ToolStripMenuItem(GetTimelineSystemEventsTitle(selectedTimelineDate));
+            var eventListItem = new ToolStripMenuItem(SystemTimelineEventTextFormatter.GetListTitle(selectedTimelineDate));
             eventListItem.Click += (_, _) => ShowTimelineSystemEventsPopup(owner, location);
             timelineGridMenu.Items.Add(eventListItem);
             timelineGridMenu.Show(owner, location);
@@ -2663,7 +2663,7 @@ namespace TimePilot.WinForms
         {
             var popup = new Form
             {
-                Text = GetTimelineSystemEventsTitle(selectedTimelineDate),
+                Text = SystemTimelineEventTextFormatter.GetListTitle(selectedTimelineDate),
                 ShowInTaskbar = false,
                 StartPosition = FormStartPosition.Manual,
                 Size = new Size(720, 260),
@@ -2678,7 +2678,7 @@ namespace TimePilot.WinForms
                 Dock = DockStyle.Top,
                 Height = 28,
                 Padding = new Padding(8, 6, 8, 0),
-                Text = GetTimelineSystemEventsPopupDescription(selectedTimelineDate)
+                Text = SystemTimelineEventTextFormatter.GetListDescription(selectedTimelineDate)
             };
 
             var grid = CreateTimelineSystemEventsGrid();
@@ -2713,11 +2713,11 @@ namespace TimePilot.WinForms
             };
 
             grid.Columns.AddRange(
-                CreateTextColumn(nameof(SystemTimelineEventRow.OccurredAtText), GetTimelineSystemEventTimeHeaderText(), 90),
+                CreateTextColumn(nameof(SystemTimelineEventRow.OccurredAtText), SystemTimelineEventTextFormatter.GetTimeHeaderText(), 90),
                 CreateTextColumn(nameof(SystemTimelineEventRow.EventTypeText), UiText.Main.Type, 110),
-                CreateTextColumn(nameof(SystemTimelineEventRow.PreviousIntervalText), GetTimelineSystemEventPreviousIntervalHeaderText(), 110),
-                CreateTextColumn(nameof(SystemTimelineEventRow.RelationText), GetTimelineSystemEventRelationHeaderText(), 150),
-                CreateTextColumn(nameof(SystemTimelineEventRow.DetailsText), GetTimelineSystemEventDetailsHeaderText(), 220));
+                CreateTextColumn(nameof(SystemTimelineEventRow.PreviousIntervalText), SystemTimelineEventTextFormatter.GetPreviousIntervalHeaderText(), 110),
+                CreateTextColumn(nameof(SystemTimelineEventRow.RelationText), SystemTimelineEventTextFormatter.GetRelationHeaderText(), 150),
+                CreateTextColumn(nameof(SystemTimelineEventRow.DetailsText), SystemTimelineEventTextFormatter.GetDetailsHeaderText(), 220));
             grid.ColumnHeaderMouseClick += OnTimelineSystemEventsGridColumnHeaderMouseClick;
 
             return grid;
@@ -3230,22 +3230,6 @@ namespace TimePilot.WinForms
                 .ToList();
         }
 
-        private static string GetTimelineSystemEventsTitle(DateTime date)
-        {
-            var dateText = date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.CurrentCulture);
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? $"System event list ({dateText})"
-                : $"시스템 이벤트 목록 ({dateText})";
-        }
-
-        private static string GetTimelineSystemEventsPopupDescription(DateTime date)
-        {
-            var dateText = date.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.CurrentCulture);
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? $"Selected date: {dateText}. Event intervals are hints for interpretation, not confirmed causes of missing records."
-                : $"선택 날짜: {dateText}. 이벤트 간격은 해석 보조 정보이며, 미기록 원인을 확정하지 않습니다.";
-        }
-
         private static string GetTimelineCategorySegmentAppStatsMenuText()
         {
             return UiText.CurrentLanguage == UiLanguage.English ? "Segment app stats" : "구간 앱 통계";
@@ -3319,26 +3303,6 @@ namespace TimePilot.WinForms
             var start = leftStart > rightStart ? leftStart : rightStart;
             var end = leftEnd < rightEnd ? leftEnd : rightEnd;
             return end <= start ? 0 : (long)(end - start).TotalMilliseconds;
-        }
-
-        private static string GetTimelineSystemEventTimeHeaderText()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English ? "Time" : "시각";
-        }
-
-        private static string GetTimelineSystemEventPreviousIntervalHeaderText()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English ? "Since previous" : "직전 간격";
-        }
-
-        private static string GetTimelineSystemEventRelationHeaderText()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English ? "Hint" : "해석 단서";
-        }
-
-        private static string GetTimelineSystemEventDetailsHeaderText()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English ? "Details" : "상세";
         }
 
         private void UpdateTimelineHighlightSummary()
