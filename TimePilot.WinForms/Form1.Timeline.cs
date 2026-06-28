@@ -43,38 +43,5 @@ namespace TimePilot.WinForms
                     timelineOverviewControl.ViewStartRatio));
         }
 
-        private RuntimeSegmentZoomCoordinator CreateRuntimeSegmentZoomCoordinator()
-        {
-            return new RuntimeSegmentZoomCoordinator(
-                new TimelineZoomControls(
-                    runtimeSegmentZoomRangeLabel,
-                    runtimeSegmentZoomOutButton,
-                    runtimeSegmentZoomInButton,
-                    runtimeSegmentPreviousButton,
-                    runtimeSegmentNextButton,
-                    runtimeSegmentResetButton,
-                    runtimeSegmentZoomScrollBar),
-                new TimelineZoomActions(
-                    runtimeSegmentTimelineControl.ZoomOut,
-                    runtimeSegmentTimelineControl.ZoomIn,
-                    runtimeSegmentTimelineControl.PanPrevious,
-                    runtimeSegmentTimelineControl.PanNext,
-                    runtimeSegmentTimelineControl.ResetView,
-                    runtimeSegmentTimelineControl.SetViewStartRatio),
-                () => new TimelineZoomState(
-                    runtimeSegmentTimelineControl.ViewRangeText,
-                    runtimeSegmentTimelineControl.IsZoomed,
-                    runtimeSegmentTimelineControl.CanPanPrevious,
-                    runtimeSegmentTimelineControl.CanPanNext,
-                    runtimeSegmentTimelineControl.ViewWidthRatio,
-                    runtimeSegmentTimelineControl.ViewStartRatio));
-        }
-
-        private RuntimeSegmentSelectionCoordinator CreateRuntimeSegmentSelectionCoordinator()
-        {
-            return new RuntimeSegmentSelectionCoordinator(
-                runtimeSegmentsGrid,
-                runtimeSegmentTimelineControl);
-        }
     }
 }

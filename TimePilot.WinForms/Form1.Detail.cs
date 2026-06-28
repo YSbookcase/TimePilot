@@ -17,6 +17,161 @@ namespace TimePilot.WinForms
             return new RuntimeSegmentObservationFilterCoordinator(runtimeSegmentObservationFilterComboBox);
         }
 
+        private RuntimeSegmentZoomCoordinator CreateRuntimeSegmentZoomCoordinator()
+        {
+            return new RuntimeSegmentZoomCoordinator(
+                new TimelineZoomControls(
+                    runtimeSegmentZoomRangeLabel,
+                    runtimeSegmentZoomOutButton,
+                    runtimeSegmentZoomInButton,
+                    runtimeSegmentPreviousButton,
+                    runtimeSegmentNextButton,
+                    runtimeSegmentResetButton,
+                    runtimeSegmentZoomScrollBar),
+                new TimelineZoomActions(
+                    runtimeSegmentTimelineControl.ZoomOut,
+                    runtimeSegmentTimelineControl.ZoomIn,
+                    runtimeSegmentTimelineControl.PanPrevious,
+                    runtimeSegmentTimelineControl.PanNext,
+                    runtimeSegmentTimelineControl.ResetView,
+                    runtimeSegmentTimelineControl.SetViewStartRatio),
+                () => new TimelineZoomState(
+                    runtimeSegmentTimelineControl.ViewRangeText,
+                    runtimeSegmentTimelineControl.IsZoomed,
+                    runtimeSegmentTimelineControl.CanPanPrevious,
+                    runtimeSegmentTimelineControl.CanPanNext,
+                    runtimeSegmentTimelineControl.ViewWidthRatio,
+                    runtimeSegmentTimelineControl.ViewStartRatio));
+        }
+
+        private RuntimeSegmentSelectionCoordinator CreateRuntimeSegmentSelectionCoordinator()
+        {
+            return new RuntimeSegmentSelectionCoordinator(
+                runtimeSegmentsGrid,
+                runtimeSegmentTimelineControl);
+        }
+
+        private void InitializeRuntimeSegmentTimeline()
+        {
+            detailSplitContainer.Panel2.Controls.Remove(runtimeSegmentsGrid);
+
+            runtimeSegmentPanel.SuspendLayout();
+            runtimeSegmentPanel.Dock = DockStyle.Fill;
+            runtimeSegmentPanel.ColumnCount = 1;
+            runtimeSegmentPanel.RowCount = 2;
+            runtimeSegmentPanel.ColumnStyles.Clear();
+            runtimeSegmentPanel.RowStyles.Clear();
+            runtimeSegmentPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            runtimeSegmentPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 138));
+            runtimeSegmentPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+            runtimeSegmentTimelinePanel.Dock = DockStyle.Fill;
+            runtimeSegmentTimelinePanel.ColumnCount = 1;
+            runtimeSegmentTimelinePanel.RowCount = 3;
+            runtimeSegmentTimelinePanel.ColumnStyles.Clear();
+            runtimeSegmentTimelinePanel.RowStyles.Clear();
+            runtimeSegmentTimelinePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            runtimeSegmentTimelinePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            runtimeSegmentTimelinePanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            runtimeSegmentTimelinePanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 17));
+
+            runtimeSegmentZoomPanel.Dock = DockStyle.Fill;
+            runtimeSegmentZoomPanel.Height = 36;
+            runtimeSegmentZoomPanel.Padding = new Padding(8, 3, 8, 3);
+            runtimeSegmentZoomPanel.WrapContents = false;
+            runtimeSegmentZoomRangeLabel.AutoSize = true;
+            runtimeSegmentZoomRangeLabel.ForeColor = SystemColors.GrayText;
+            runtimeSegmentZoomRangeLabel.Margin = new Padding(0, 7, 12, 0);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentZoomOutButton);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentZoomInButton);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentPreviousButton);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentNextButton);
+            ConfigureRuntimeSegmentZoomButton(runtimeSegmentResetButton, width: 52);
+
+            runtimeSegmentTimelineControl.Dock = DockStyle.Fill;
+            runtimeSegmentTimelineControl.ViewRangeChanged += OnRuntimeSegmentTimelineViewRangeChanged;
+            runtimeSegmentObservationFilterLabel.AutoSize = true;
+            runtimeSegmentObservationFilterLabel.Margin = new Padding(12, 8, 3, 0);
+            runtimeSegmentObservationFilterComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            runtimeSegmentObservationFilterComboBox.Width = 132;
+            runtimeSegmentObservationFilterComboBox.SelectedIndexChanged +=
+                OnRuntimeSegmentObservationFilterComboBoxSelectedIndexChanged;
+            runtimeSegmentHelpButton.Size = new Size(28, 23);
+            runtimeSegmentHelpButton.Margin = new Padding(3, 2, 3, 0);
+            runtimeSegmentHelpButton.UseVisualStyleBackColor = true;
+            runtimeSegmentHelpButton.Click += OnRuntimeSegmentHelpButtonClick;
+            runtimeSegmentZoomScrollBar.Dock = DockStyle.Fill;
+            runtimeSegmentZoomScrollBar.Enabled = false;
+            runtimeSegmentZoomScrollBar.Visible = false;
+            runtimeSegmentZoomScrollBar.Minimum = 0;
+            runtimeSegmentZoomScrollBar.Maximum = 1000;
+            runtimeSegmentZoomScrollBar.LargeChange = 1000;
+            runtimeSegmentsGrid.Dock = DockStyle.Fill;
+            runtimeSegmentTimelineControl.SetSegments(
+                selectedDetailDate,
+                null,
+                Array.Empty<ProcessRuntimeSegmentRow>());
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentZoomRangeLabel);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentZoomOutButton);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentZoomInButton);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentPreviousButton);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentNextButton);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentResetButton);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentHelpButton);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentObservationFilterLabel);
+            runtimeSegmentZoomPanel.Controls.Add(runtimeSegmentObservationFilterComboBox);
+            runtimeSegmentTimelinePanel.Controls.Add(runtimeSegmentZoomPanel, 0, 0);
+            runtimeSegmentTimelinePanel.Controls.Add(runtimeSegmentTimelineControl, 0, 1);
+            runtimeSegmentTimelinePanel.Controls.Add(runtimeSegmentZoomScrollBar, 0, 2);
+            runtimeSegmentPanel.Controls.Add(runtimeSegmentTimelinePanel, 0, 0);
+            runtimeSegmentPanel.Controls.Add(runtimeSegmentsGrid, 0, 1);
+            runtimeSegmentPanel.ResumeLayout();
+
+            detailSplitContainer.Panel2.Controls.Add(runtimeSegmentPanel);
+            RefreshRuntimeSegmentObservationFilterOptions();
+            UpdateRuntimeSegmentZoomControls();
+        }
+
+        private void RefreshRuntimeSegmentObservationFilterOptions()
+        {
+            runtimeSegmentObservationFilterCoordinator.RefreshOptions(
+                selectedRuntimeSegmentObservationFilter);
+            if (runtimeSegmentObservationFilterCoordinator.TryGetSelectedFilter(
+                out var selectedFilter))
+            {
+                selectedRuntimeSegmentObservationFilter = selectedFilter;
+            }
+        }
+
+        private void OnRuntimeSegmentTimelineViewRangeChanged(object? sender, EventArgs e)
+        {
+            UpdateRuntimeSegmentZoomControls();
+        }
+
+        private void OnRuntimeSegmentHelpButtonClick(object? sender, EventArgs e)
+        {
+            CenteredMessageDialog.Show(
+                this,
+                RuntimeSegmentHelpContentBuilder.GetHelpMessage(),
+                RuntimeSegmentHelpContentBuilder.GetHelpTitle(),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private void UpdateRuntimeSegmentZoomControls()
+        {
+            runtimeSegmentZoomCoordinator.Update();
+        }
+
+        private static void ConfigureRuntimeSegmentZoomButton(
+            Button button,
+            int width = 32)
+        {
+            button.Size = new Size(width, 24);
+            button.Margin = new Padding(3, 2, 3, 0);
+            button.UseVisualStyleBackColor = true;
+        }
+
         private void RefreshRuntimeSegments(
             DateTimeOffset observedAt,
             RuntimeSegmentSelectionKey? selectionKeyToRestore = null,
