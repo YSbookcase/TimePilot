@@ -4,6 +4,7 @@ using Microsoft.Win32;
 using TimePilot.WinForms.Details;
 using TimePilot.WinForms.KYS24;
 using TimePilot.WinForms.Menus;
+using TimePilot.WinForms.Navigation;
 using TimePilot.WinForms.Tables;
 using TimePilot.WinForms.Timeline;
 
@@ -2731,8 +2732,7 @@ namespace TimePilot.WinForms
 
         private static DateTime NormalizeSelectableDate(DateTime date)
         {
-            var today = DateTime.Today;
-            return date.Date > today ? today : date.Date;
+            return DateSelectorCoordinator.NormalizeSelectableDate(date, DateTime.Today);
         }
 
         private void SetDatePickerValue(DateTimePicker picker, DateTime date)
@@ -2763,33 +2763,17 @@ namespace TimePilot.WinForms
             var today = DateTime.Today;
             var normalizedDate = NormalizeSelectableDate(selectedDate);
             CloseRecordedDatePickerDropDown();
-
-            var picker = new RecordedDatePickerPopup(normalizedDate, today, GetRecordedDates);
-            var popupForm = new Form
-            {
-                AutoScaleMode = AutoScaleMode.None,
-                ClientSize = picker.Size,
-                FormBorderStyle = FormBorderStyle.None,
-                ShowInTaskbar = false,
-                StartPosition = FormStartPosition.Manual,
-                TopMost = true
-            };
-            popupForm.Controls.Add(picker);
-            picker.Dock = DockStyle.Fill;
-
-            picker.DateApplied += (_, date) =>
-            {
-                CloseRecordedDatePickerDropDown();
-                applyDate(date);
-            };
-            picker.CloseRequested += (_, _) => CloseRecordedDatePickerDropDown();
-            popupForm.Deactivate += (_, _) => CloseRecordedDatePickerDropDown();
-            popupForm.FormClosed += (_, _) =>
-            {
-                if (ReferenceEquals(recordedDatePickerPopupForm, popupForm))
-                    recordedDatePickerPopupForm = null;
-            };
-
+            var popupForm = RecordedDatePopupFactory.Create(
+                normalizedDate,
+                today,
+                GetRecordedDates,
+                applyDate,
+                CloseRecordedDatePickerDropDown,
+                closedPopup =>
+                {
+                    if (ReferenceEquals(recordedDatePickerPopupForm, closedPopup))
+                        recordedDatePickerPopupForm = null;
+                });
             recordedDatePickerPopupForm = popupForm;
             popupForm.Location = anchor.PointToScreen(new Point(0, anchor.Height));
             popupForm.Show(this);
@@ -2818,22 +2802,27 @@ namespace TimePilot.WinForms
         private void UpdateDateNavigationButtons()
         {
             var today = DateTime.Today;
-            detailNextDateButton.Enabled = selectedDetailDate < today;
-            detailTodayButton.Enabled = selectedDetailDate < today;
-            timelineNextDateButton.Enabled = selectedTimelineDate < today;
-            timelineTodayButton.Enabled = selectedTimelineDate < today;
+            detailNextDateButton.Enabled = DateSelectorCoordinator.CanMoveForward(selectedDetailDate, today);
+            detailTodayButton.Enabled = detailNextDateButton.Enabled;
+            timelineNextDateButton.Enabled = DateSelectorCoordinator.CanMoveForward(selectedTimelineDate, today);
+            timelineTodayButton.Enabled = timelineNextDateButton.Enabled;
         }
 
         private void RefreshDateSelectorsIfDateChanged(DateTimeOffset observedAt)
         {
             var today = observedAt.ToLocalTime().Date;
-            if (today == dateSelectorOptionsDate)
+            var rollover = DateSelectorCoordinator.GetRollover(
+                dateSelectorOptionsDate,
+                today,
+                selectedDetailDate,
+                selectedTimelineDate,
+                !IsMainWindowActivelyViewed());
+            if (!rollover.DateChanged)
                 return;
 
-            var previousToday = dateSelectorOptionsDate;
-            var shouldAutoMoveTodayViews = !IsMainWindowActivelyViewed();
-            var shouldMoveDetailToToday = shouldAutoMoveTodayViews && selectedDetailDate == previousToday;
-            var shouldMoveTimelineToToday = shouldAutoMoveTodayViews && selectedTimelineDate == previousToday;
+            var movedDate =
+                selectedDetailDate != rollover.DetailDate
+                || selectedTimelineDate != rollover.TimelineDate;
             isInitializingDateSelectors = true;
             try
             {
@@ -2842,19 +2831,20 @@ namespace TimePilot.WinForms
                 if (timelineDatePicker.MaxDate.Date < today)
                     timelineDatePicker.MaxDate = today;
 
-                if (shouldMoveDetailToToday)
+                if (selectedDetailDate != rollover.DetailDate)
                 {
-                    selectedDetailDate = today;
-                    detailDatePicker.Value = today;
+                    selectedDetailDate = rollover.DetailDate;
+                    detailDatePicker.Value = rollover.DetailDate;
+                }
+
+                if (selectedTimelineDate != rollover.TimelineDate)
+                {
+                    selectedTimelineDate = rollover.TimelineDate;
+                    timelineDatePicker.Value = rollover.TimelineDate;
+                }
+
+                if (rollover.ResetRuntimeSelection)
                     selectedRuntimeAppId = null;
-                }
-
-                if (shouldMoveTimelineToToday)
-                {
-                    selectedTimelineDate = today;
-                    timelineDatePicker.Value = today;
-                }
-
                 dateSelectorOptionsDate = today;
             }
             finally
@@ -2863,7 +2853,7 @@ namespace TimePilot.WinForms
             }
 
             UpdateDateNavigationButtons();
-            if (shouldMoveDetailToToday || shouldMoveTimelineToToday)
+            if (movedDate)
                 SetStatusText(GetDateAutoAdvancedStatusText(today));
         }
 
