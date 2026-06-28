@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Globalization;
 using TimePilot.WinForms.KYS24;
 
@@ -32,6 +33,28 @@ namespace TimePilot.WinForms.Timeline
             return UiText.CurrentLanguage == UiLanguage.English
                 ? $"{segment.CategoryName} | {start}-{end} | segment {duration} | recorded active {activeUsage} | {segment.DetailText}\n{stateSummary}"
                 : $"{segment.CategoryName} | {start}-{end} | 구간 {duration} | 기록된 활성 {activeUsage} | {segment.DetailText}\n{stateSummary}";
+        }
+
+        public static IReadOnlyList<UsageSummaryRow> SortRows(
+            IReadOnlyList<UsageSummaryRow> rows,
+            string propertyName,
+            ListSortDirection direction)
+        {
+            IOrderedEnumerable<UsageSummaryRow> orderedRows = propertyName switch
+            {
+                nameof(UsageSummaryRow.AppName) => rows.OrderBy(row => row.AppName, StringComparer.CurrentCulture),
+                nameof(UsageSummaryRow.CategoryText) => rows.OrderBy(row => row.CategoryText, StringComparer.CurrentCulture),
+                nameof(UsageSummaryRow.ActiveUsageTimeText) => rows.OrderBy(row => row.ActiveUsageMs),
+                nameof(UsageSummaryRow.UsageRatioText) => rows.OrderBy(row => row.UsageRatio),
+                nameof(UsageSummaryRow.SwitchCountText) => rows.OrderBy(row => row.SwitchCount),
+                nameof(UsageSummaryRow.FirstStartedAtText) => rows.OrderBy(row => row.FirstStartedAt),
+                nameof(UsageSummaryRow.LastObservedAtText) => rows.OrderBy(row => row.LastObservedAt),
+                _ => rows.OrderBy(row => row.ActiveUsageMs)
+            };
+
+            return direction == ListSortDirection.Ascending
+                ? orderedRows.ToList()
+                : orderedRows.Reverse().ToList();
         }
 
         private static string BuildStateSummary(

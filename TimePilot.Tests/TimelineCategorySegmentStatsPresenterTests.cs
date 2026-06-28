@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using TimePilot.WinForms.KYS24;
 using TimePilot.WinForms.Timeline;
 using Xunit;
@@ -60,6 +61,23 @@ namespace TimePilot.Tests
             Assert.Equal("Timeline Segment App Stats", TimelineCategorySegmentStatsPresenter.GetTitle());
         }
 
+        [Fact]
+        public void SortRows_SortsByNumericUsageInsteadOfDisplayText()
+        {
+            var rows = new[]
+            {
+                CreateUsageRow("Long", 60_000),
+                CreateUsageRow("Short", 5_000)
+            };
+
+            var result = TimelineCategorySegmentStatsPresenter.SortRows(
+                rows,
+                nameof(UsageSummaryRow.ActiveUsageTimeText),
+                ListSortDirection.Ascending);
+
+            Assert.Equal(new[] { "Short", "Long" }, result.Select(row => row.AppName));
+        }
+
         private static ActivityTimelineRow CreateRow(
             string activityType,
             DateTimeOffset startedAt,
@@ -71,6 +89,20 @@ namespace TimePilot.Tests
                 endedAt,
                 (long)(endedAt - startedAt).TotalMilliseconds,
                 activityType);
+        }
+
+        private static UsageSummaryRow CreateUsageRow(string appName, long activeUsageMs)
+        {
+            return new UsageSummaryRow(
+                null,
+                appName,
+                string.Empty,
+                null,
+                null,
+                null,
+                activeUsageMs,
+                0,
+                0);
         }
     }
 }
