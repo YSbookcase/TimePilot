@@ -336,5 +336,297 @@ namespace TimePilot.WinForms
             }
         }
 
+        private void HighlightUsageRowInTimeline(UsageSummaryRow? row)
+        {
+            if (row is null || string.IsNullOrWhiteSpace(row.ProcessName))
+                return;
+
+            timelineHighlightState = TimelineHighlightState.ForApp(row.ProcessName, row.AppName);
+            selectedTimelineDate = GetTimelineDateForSummarySelection(row);
+            SetDatePickerValue(timelineDatePicker, selectedTimelineDate);
+            mainTabs.SelectedTab = timelineTab;
+            timelineOverviewControl.SetHighlightedProcessName(timelineHighlightState.ProcessName);
+            UpdateTimelineHighlightUi();
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void HighlightTimelineRow(ActivityTimelineRow? row)
+        {
+            if (row is null || string.IsNullOrWhiteSpace(row.ProcessName))
+                return;
+
+            timelineHighlightState = TimelineHighlightState.ForApp(
+                row.ProcessName,
+                row.DisplayName);
+            timelineOverviewControl.SetHighlightedProcessName(timelineHighlightState.ProcessName);
+            UpdateTimelineHighlightUi();
+            timelineGrid.Invalidate();
+        }
+
+        private void HighlightTimelineSegment(ActivityTimelineRow? row)
+        {
+            if (row is null)
+                return;
+
+            SetTimelineTypeHighlight(TimelineActivityTypeHighlight.None);
+            timelineHighlightState = TimelineHighlightState.ForSegment(row);
+            timelineOverviewControl.SetHighlightedActivitySegment(row);
+            UpdateTimelineHighlightUi();
+            timelineGrid.Invalidate();
+        }
+
+        private static string GetHighlightTimelineSegmentMenuText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? "Highlight this segment"
+                : "이 구간 강조";
+        }
+
+        private static string GetHighlightTimelineAppMenuText()
+        {
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? "Highlight this app"
+                : "이 앱 강조";
+        }
+
+        private DateTime GetTimelineDateForSummarySelection(UsageSummaryRow row)
+        {
+            if (selectedSummaryPeriod == SummaryPeriod.SpecificDate)
+                return selectedSummarySpecificDate;
+            if (selectedSummaryPeriod == SummaryPeriod.Today)
+                return DateTime.Today;
+
+            return row.LastObservedAt?.ToLocalTime().Date
+                ?? row.FirstStartedAt?.ToLocalTime().Date
+                ?? selectedTimelineDate;
+        }
+
+        private void UpdateTimelineZoomControls()
+        {
+            timelineZoomCoordinator.Update();
+        }
+
+        private void UpdateTimelineHighlightUi()
+        {
+            var hasHighlight = timelineHighlightState.HasHighlight;
+            timelineHighlightLabel.Visible = hasHighlight;
+            timelineHighlightClearButton.Visible = hasHighlight;
+            timelineHighlightHintLabel.Visible = !hasHighlight;
+            timelineHighlightLabel.Text =
+                hasHighlight ? timelineHighlightState.GetDisplayText() : "";
+            UpdateTimelineHighlightSummary();
+        }
+
+        private string? GetTimelineHighlightedActivityTypeText()
+        {
+            return TimelineHighlightMatcher.GetActivityTypeText(
+                selectedTimelineActivityTypeHighlight);
+        }
+
+        private void ApplyTimelineActivityTypeHighlight()
+        {
+            timelineOverviewControl.SetWindowsHighlighted(
+                selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows);
+            if (selectedTimelineActivityTypeHighlight != TimelineActivityTypeHighlight.Windows)
+            {
+                timelineOverviewControl.SetHighlightedActivityType(
+                    GetTimelineHighlightedActivityTypeText());
+            }
+        }
+
+        private void ApplyTimelineHighlightToOverview()
+        {
+            if (timelineHighlightState.SegmentKey is { } segmentKey)
+            {
+                var highlightedRow =
+                    currentTimelineRows.FirstOrDefault(row => segmentKey.Matches(row));
+                if (highlightedRow is not null)
+                {
+                    timelineHighlightState = TimelineHighlightState.ForSegment(highlightedRow);
+                    timelineOverviewControl.SetHighlightedActivitySegment(highlightedRow);
+                    return;
+                }
+
+                timelineHighlightState = TimelineHighlightState.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(timelineHighlightState.ProcessName))
+            {
+                timelineOverviewControl.SetHighlightedProcessName(
+                    timelineHighlightState.ProcessName);
+                return;
+            }
+
+            ApplyTimelineActivityTypeHighlight();
+        }
+
+        private bool HasTimelineHighlight()
+        {
+            return TimelineHighlightMatcher.HasHighlight(
+                timelineHighlightState,
+                selectedTimelineActivityTypeHighlight);
+        }
+
+        private bool IsTimelineRowHighlighted(ActivityTimelineRow row)
+        {
+            return TimelineHighlightMatcher.IsRowHighlighted(
+                row,
+                timelineHighlightState,
+                selectedTimelineActivityTypeHighlight);
+        }
+
+        private void UpdateTimelineHighlightSummary()
+        {
+            var summaryText = TimelineHighlightSummaryBuilder.Build(
+                timelineHighlightState,
+                currentTimelineForegroundUsage,
+                currentTimelineRows,
+                RuntimeDiagnosticsMessageBuilder.FormatDuration);
+            if (summaryText is null)
+            {
+                timelineHighlightSummaryPanel.Visible = false;
+                timelineHighlightSummaryLabel.Text = "";
+                return;
+            }
+
+            timelineHighlightSummaryLabel.Text = summaryText;
+            timelineHighlightSummaryPanel.Visible = true;
+        }
+
+        private void OnTimelineGridRowPrePaint(
+            object? sender,
+            DataGridViewRowPrePaintEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.RowIndex >= timelineGrid.Rows.Count)
+                return;
+
+            var gridRow = timelineGrid.Rows[e.RowIndex];
+            if (!HasTimelineHighlight()
+                || selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows)
+            {
+                ResetTimelineRowStyle(gridRow);
+                return;
+            }
+
+            if (gridRow.DataBoundItem is not ActivityTimelineRow row)
+                return;
+
+            var isHighlighted = IsTimelineRowHighlighted(row);
+            if (timelineHighlightState.HasSegmentHighlight && !isHighlighted)
+            {
+                ResetTimelineRowStyle(gridRow);
+                return;
+            }
+
+            gridRow.DefaultCellStyle.ForeColor =
+                isHighlighted ? SystemColors.WindowText : SystemColors.GrayText;
+            gridRow.DefaultCellStyle.BackColor =
+                isHighlighted ? Color.FromArgb(218, 235, 255) : SystemColors.Window;
+            gridRow.DefaultCellStyle.SelectionForeColor =
+                isHighlighted ? SystemColors.WindowText : SystemColors.GrayText;
+            gridRow.DefaultCellStyle.SelectionBackColor = isHighlighted
+                ? Color.FromArgb(198, 224, 255)
+                : Color.FromArgb(245, 245, 245);
+            gridRow.DefaultCellStyle.Font =
+                isHighlighted ? GetTimelineHighlightedRowFont() : null;
+        }
+
+        private static void ResetTimelineRowStyle(DataGridViewRow row)
+        {
+            row.DefaultCellStyle.ForeColor = SystemColors.WindowText;
+            row.DefaultCellStyle.BackColor = SystemColors.Window;
+            row.DefaultCellStyle.SelectionForeColor = SystemColors.HighlightText;
+            row.DefaultCellStyle.SelectionBackColor = SystemColors.Highlight;
+            row.DefaultCellStyle.Font = null;
+        }
+
+        private void OnTimelineGridRowPostPaint(
+            object? sender,
+            DataGridViewRowPostPaintEventArgs e)
+        {
+            if (!HasTimelineHighlight()
+                || selectedTimelineActivityTypeHighlight == TimelineActivityTypeHighlight.Windows
+                || e.RowIndex < 0
+                || e.RowIndex >= timelineGrid.Rows.Count
+                || timelineGrid.Rows[e.RowIndex].DataBoundItem is not ActivityTimelineRow row
+                || !IsTimelineRowHighlighted(row))
+                return;
+
+            var bounds = GetVisibleTimelineRowCellsBounds(e.RowIndex);
+            if (bounds.IsEmpty)
+                return;
+
+            var stripeBounds = new Rectangle(
+                bounds.Left,
+                bounds.Top + 1,
+                5,
+                Math.Max(1, bounds.Height - 2));
+            using var stripeBrush = new SolidBrush(Color.FromArgb(28, 91, 170));
+            using var borderPen = new Pen(Color.FromArgb(28, 91, 170));
+            e.Graphics.FillRectangle(stripeBrush, stripeBounds);
+            e.Graphics.DrawRectangle(
+                borderPen,
+                bounds.Left,
+                bounds.Top,
+                bounds.Width - 1,
+                bounds.Height - 1);
+        }
+
+        private void OnTimelineGridCellMouseEnter(object? sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0
+                || e.RowIndex >= timelineGrid.Rows.Count
+                || timelineGrid.Rows[e.RowIndex].DataBoundItem is not ActivityTimelineRow row)
+            {
+                timelineOverviewControl.SetExternalHoverText(null);
+                return;
+            }
+
+            timelineOverviewControl.SetExternalHoverText(
+                TimelineOverviewControl.FormatActivityHoverText(row));
+        }
+
+        private void OnTimelineGridMouseLeave(object? sender, EventArgs e)
+        {
+            timelineOverviewControl.SetExternalHoverText(null);
+        }
+
+        private Rectangle GetVisibleTimelineRowCellsBounds(int rowIndex)
+        {
+            var bounds = Rectangle.Empty;
+            foreach (DataGridViewColumn column in timelineGrid.Columns)
+            {
+                if (!column.Visible)
+                    continue;
+
+                var cellBounds = timelineGrid.GetCellDisplayRectangle(
+                    column.Index,
+                    rowIndex,
+                    cutOverflow: true);
+                if (cellBounds.IsEmpty)
+                    continue;
+
+                bounds = bounds.IsEmpty ? cellBounds : Rectangle.Union(bounds, cellBounds);
+            }
+
+            return Rectangle.Intersect(bounds, timelineGrid.ClientRectangle);
+        }
+
+        private Font GetTimelineHighlightedRowFont()
+        {
+            if (timelineHighlightedRowFont is null
+                || !string.Equals(
+                    timelineHighlightedRowFont.Name,
+                    timelineGrid.Font.Name,
+                    StringComparison.Ordinal)
+                || Math.Abs(timelineHighlightedRowFont.Size - timelineGrid.Font.Size) > 0.01f)
+            {
+                timelineHighlightedRowFont?.Dispose();
+                timelineHighlightedRowFont = new Font(timelineGrid.Font, FontStyle.Bold);
+            }
+
+            return timelineHighlightedRowFont;
+        }
+
     }
 }
