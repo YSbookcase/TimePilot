@@ -682,45 +682,6 @@ namespace TimePilot.WinForms
             picker.CustomFormat = "yyyy-MM-dd (ddd)";
         }
 
-        private void InitializeTimelineCategoryBucketSelector()
-        {
-            RefreshTimelineCategoryBucketOptions();
-        }
-
-        private void RefreshTimelineCategoryBucketOptions()
-        {
-            selectedTimelineCategoryBucketMinutes = timelineSelectorCoordinator.RefreshCategoryBucketOptions(
-                selectedTimelineCategoryBucketMinutes);
-        }
-
-        private void InitializeTimelineTypeHighlightSelector()
-        {
-            RefreshTimelineTypeHighlightOptions();
-        }
-
-        private void InitializeTimelineSelectors()
-        {
-            timelineSelectorCoordinator.Initialize(
-                OnTimelineCategoryBucketComboBoxSelectedIndexChanged,
-                OnTimelineTypeHighlightComboBoxSelectedIndexChanged,
-                OnTimelineTypeHighlightComboBoxDropDownClosed,
-                OnTimelineSystemEventFilterComboBoxSelectedIndexChanged);
-            RefreshTimelineSystemEventFilterOptions();
-        }
-
-        private void RefreshTimelineTypeHighlightOptions()
-        {
-            selectedTimelineActivityTypeHighlight = timelineSelectorCoordinator.RefreshTypeHighlightOptions(
-                selectedTimelineActivityTypeHighlight);
-            ApplyTimelineActivityTypeHighlight();
-        }
-
-        private void RefreshTimelineSystemEventFilterOptions()
-        {
-            selectedTimelineSystemEventFilter = timelineSelectorCoordinator.RefreshSystemEventFilterOptions(
-                selectedTimelineSystemEventFilter);
-        }
-
         private void InitializeRecordedDateCalendar()
         {
             runtimeCoverageSummaryToolTip.SetToolTip(
@@ -1252,13 +1213,6 @@ namespace TimePilot.WinForms
                 .ToList();
         }
 
-        private IReadOnlyList<ActivityTimelineRow> AddIcons(IReadOnlyList<ActivityTimelineRow> rows)
-        {
-            return rows
-                .Select(row => row with { AppIcon = appIconCache.GetIcon(row.ExecutablePath) })
-                .ToList();
-        }
-
         private IReadOnlyList<ProcessRuntimeSummaryRow> AddIcons(IReadOnlyList<ProcessRuntimeSummaryRow> rows)
         {
             return rows
@@ -1272,30 +1226,6 @@ namespace TimePilot.WinForms
             return rows
                 .Select(row => row with { IsInCurrentTrackingScope = IsInCurrentTrackingScope(row) })
                 .ToList();
-        }
-
-        private IReadOnlyList<ActivityTimelineRow> SortTimelineRows(IReadOnlyList<ActivityTimelineRow> rows)
-        {
-            IOrderedEnumerable<ActivityTimelineRow> sortedRows = timelineSortProperty switch
-            {
-                nameof(ActivityTimelineRow.ActivityType) => OrderTimelineRows(rows, x => x.ActivityType),
-                nameof(ActivityTimelineRow.EndedAt) => OrderTimelineRows(rows, x => x.EndedAt),
-                nameof(ActivityTimelineRow.DurationMs) => OrderTimelineRows(rows, x => x.DurationMs),
-                nameof(ActivityTimelineRow.DisplayName) => OrderTimelineRows(rows, x => x.DisplayName),
-                nameof(ActivityTimelineRow.CategoryText) => OrderTimelineRows(rows, x => x.CategoryText),
-                _ => OrderTimelineRows(rows, x => x.StartedAt)
-            };
-
-            return sortedRows
-                .ThenByDescending(x => x.StartedAt)
-                .ToList();
-        }
-
-        private IOrderedEnumerable<ActivityTimelineRow> OrderTimelineRows<TKey>(
-            IReadOnlyList<ActivityTimelineRow> rows,
-            Func<ActivityTimelineRow, TKey> keySelector)
-        {
-            return GridRowOrderer.OrderRows(rows, keySelector, timelineSortOrder);
         }
 
         private void OnUsageGridCellMouseDown(object? sender, DataGridViewCellMouseEventArgs e)
@@ -1386,15 +1316,6 @@ namespace TimePilot.WinForms
             selectedDetailDate = normalizedDate;
             selectedRuntimeAppId = null;
             SetDatePickerValue(detailDatePicker, normalizedDate);
-            UpdateDateNavigationButtons();
-            RefreshViews(DateTimeOffset.UtcNow);
-        }
-
-        private void ApplyTimelineDate(DateTime date)
-        {
-            var normalizedDate = NormalizeSelectableDate(date);
-            selectedTimelineDate = normalizedDate;
-            SetDatePickerValue(timelineDatePicker, normalizedDate);
             UpdateDateNavigationButtons();
             RefreshViews(DateTimeOffset.UtcNow);
         }
