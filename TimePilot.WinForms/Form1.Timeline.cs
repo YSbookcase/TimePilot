@@ -6,6 +6,48 @@ namespace TimePilot.WinForms
 {
     public partial class Form1
     {
+        private void InitializeTimelineCategoryBucketSelector()
+        {
+            RefreshTimelineCategoryBucketOptions();
+        }
+
+        private void RefreshTimelineCategoryBucketOptions()
+        {
+            selectedTimelineCategoryBucketMinutes =
+                timelineSelectorCoordinator.RefreshCategoryBucketOptions(
+                    selectedTimelineCategoryBucketMinutes);
+        }
+
+        private void InitializeTimelineTypeHighlightSelector()
+        {
+            RefreshTimelineTypeHighlightOptions();
+        }
+
+        private void InitializeTimelineSelectors()
+        {
+            timelineSelectorCoordinator.Initialize(
+                OnTimelineCategoryBucketComboBoxSelectedIndexChanged,
+                OnTimelineTypeHighlightComboBoxSelectedIndexChanged,
+                OnTimelineTypeHighlightComboBoxDropDownClosed,
+                OnTimelineSystemEventFilterComboBoxSelectedIndexChanged);
+            RefreshTimelineSystemEventFilterOptions();
+        }
+
+        private void RefreshTimelineTypeHighlightOptions()
+        {
+            selectedTimelineActivityTypeHighlight =
+                timelineSelectorCoordinator.RefreshTypeHighlightOptions(
+                    selectedTimelineActivityTypeHighlight);
+            ApplyTimelineActivityTypeHighlight();
+        }
+
+        private void RefreshTimelineSystemEventFilterOptions()
+        {
+            selectedTimelineSystemEventFilter =
+                timelineSelectorCoordinator.RefreshSystemEventFilterOptions(
+                    selectedTimelineSystemEventFilter);
+        }
+
         private TimelineSelectorCoordinator CreateTimelineSelectorCoordinator()
         {
             return new TimelineSelectorCoordinator(new TimelineSelectorControls(
@@ -68,6 +110,45 @@ namespace TimePilot.WinForms
             RefreshViews(DateTimeOffset.UtcNow);
         }
 
+        private IReadOnlyList<ActivityTimelineRow> SortTimelineRows(
+            IReadOnlyList<ActivityTimelineRow> rows)
+        {
+            IOrderedEnumerable<ActivityTimelineRow> sortedRows = timelineSortProperty switch
+            {
+                nameof(ActivityTimelineRow.ActivityType) =>
+                    OrderTimelineRows(rows, row => row.ActivityType),
+                nameof(ActivityTimelineRow.EndedAt) =>
+                    OrderTimelineRows(rows, row => row.EndedAt),
+                nameof(ActivityTimelineRow.DurationMs) =>
+                    OrderTimelineRows(rows, row => row.DurationMs),
+                nameof(ActivityTimelineRow.DisplayName) =>
+                    OrderTimelineRows(rows, row => row.DisplayName),
+                nameof(ActivityTimelineRow.CategoryText) =>
+                    OrderTimelineRows(rows, row => row.CategoryText),
+                _ => OrderTimelineRows(rows, row => row.StartedAt)
+            };
+
+            return sortedRows.ThenByDescending(row => row.StartedAt).ToList();
+        }
+
+        private IReadOnlyList<ActivityTimelineRow> AddIcons(
+            IReadOnlyList<ActivityTimelineRow> rows)
+        {
+            return rows
+                .Select(row => row with
+                {
+                    AppIcon = appIconCache.GetIcon(row.ExecutablePath)
+                })
+                .ToList();
+        }
+
+        private IOrderedEnumerable<ActivityTimelineRow> OrderTimelineRows<TKey>(
+            IReadOnlyList<ActivityTimelineRow> rows,
+            Func<ActivityTimelineRow, TKey> keySelector)
+        {
+            return GridRowOrderer.OrderRows(rows, keySelector, timelineSortOrder);
+        }
+
         private void OnTimelineDatePickerValueChanged(object? sender, EventArgs e)
         {
             if (!isInitializingDateSelectors)
@@ -95,6 +176,15 @@ namespace TimePilot.WinForms
         private void OnTimelineTodayButtonClick(object? sender, EventArgs e)
         {
             ApplyTimelineDate(DateTime.Today);
+        }
+
+        private void ApplyTimelineDate(DateTime date)
+        {
+            var normalizedDate = NormalizeSelectableDate(date);
+            selectedTimelineDate = normalizedDate;
+            SetDatePickerValue(timelineDatePicker, normalizedDate);
+            UpdateDateNavigationButtons();
+            RefreshViews(DateTimeOffset.UtcNow);
         }
 
         private void OnTimelineOverviewViewRangeChanged(object? sender, EventArgs e)
