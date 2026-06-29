@@ -7,9 +7,36 @@ namespace TimePilot.WinForms
 {
     public partial class Form1
     {
+        private void ApplyInitialDetailSplitDistance()
+        {
+            if (detailSplitContainer.Height <= 0)
+                return;
+
+            var availableHeight =
+                detailSplitContainer.Height - detailSplitContainer.SplitterWidth;
+            var splitterDistance = Math.Clamp(
+                (int)Math.Round(availableHeight * 0.4),
+                detailSplitContainer.Panel1MinSize,
+                Math.Max(
+                    detailSplitContainer.Panel1MinSize,
+                    availableHeight - detailSplitContainer.Panel2MinSize));
+            if (splitterDistance > 0)
+                detailSplitContainer.SplitterDistance = splitterDistance;
+        }
+
         private DetailRuntimeFilterCoordinator CreateDetailRuntimeFilterCoordinator()
         {
             return new DetailRuntimeFilterCoordinator(detailRuntimeFilterComboBox);
+        }
+
+        private void RefreshDetailRuntimeFilterOptions()
+        {
+            detailRuntimeFilterCoordinator.RefreshOptions(selectedDetailRuntimeFilter);
+        }
+
+        private void SyncDetailRuntimeFilterComboBoxSelection()
+        {
+            detailRuntimeFilterCoordinator.SyncSelection(selectedDetailRuntimeFilter);
         }
 
         private RuntimeSegmentObservationFilterCoordinator CreateRuntimeSegmentObservationFilterCoordinator()
@@ -559,6 +586,124 @@ namespace TimePilot.WinForms
 
             selectedDetailRuntimeFilter = selectedFilter;
             RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private IReadOnlyList<ProcessRuntimeSummaryRow> AddIcons(
+            IReadOnlyList<ProcessRuntimeSummaryRow> rows)
+        {
+            return rows
+                .Select(row => row with
+                {
+                    AppIcon = appIconCache.GetIcon(row.ExecutablePath)
+                })
+                .ToList();
+        }
+
+        private IReadOnlyList<ProcessRuntimeSummaryRow> ApplyCurrentTrackingScope(
+            IReadOnlyList<ProcessRuntimeSummaryRow> rows)
+        {
+            return rows
+                .Select(row => row with
+                {
+                    IsInCurrentTrackingScope = IsInCurrentTrackingScope(row)
+                })
+                .ToList();
+        }
+
+        private void OnDetailDatePickerValueChanged(object? sender, EventArgs e)
+        {
+            if (!isInitializingDateSelectors)
+                ApplyDetailDate(detailDatePicker.Value.Date);
+        }
+
+        private void OnDetailCalendarButtonClick(object? sender, EventArgs e)
+        {
+            ShowRecordedDateCalendar(
+                detailCalendarButton,
+                selectedDetailDate,
+                ApplyDetailDate);
+        }
+
+        private void OnDetailPreviousDateButtonClick(object? sender, EventArgs e)
+        {
+            ApplyDetailDate(selectedDetailDate.AddDays(-1));
+        }
+
+        private void OnDetailNextDateButtonClick(object? sender, EventArgs e)
+        {
+            ApplyDetailDate(selectedDetailDate.AddDays(1));
+        }
+
+        private void OnDetailTodayButtonClick(object? sender, EventArgs e)
+        {
+            ApplyDetailDate(DateTime.Today);
+        }
+
+        private void ApplyDetailDate(DateTime date)
+        {
+            var normalizedDate = NormalizeSelectableDate(date);
+            selectedDetailDate = normalizedDate;
+            selectedRuntimeAppId = null;
+            SetDatePickerValue(detailDatePicker, normalizedDate);
+            UpdateDateNavigationButtons();
+            RefreshViews(DateTimeOffset.UtcNow);
+        }
+
+        private void OnRuntimeGridCellMouseDown(
+            object? sender,
+            DataGridViewCellMouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Right || e.RowIndex < 0)
+                return;
+
+            if (SelectRuntimeGridRow(
+                    e.RowIndex,
+                    e.ColumnIndex,
+                    refreshSegments: false) is not { } row)
+                return;
+
+            ShowRuntimeCategoryMenu(row, runtimeGrid.PointToClient(Cursor.Position));
+        }
+
+        private void ShowRuntimeCategoryMenu(ProcessRuntimeSummaryRow row, Point location)
+        {
+            appCategoryMenu.Items.Clear();
+            appCategoryMenu.Items.Add(CreateSetCategoryMenuItem(
+                row.PrimaryCategoryId,
+                categoryId => SetRuntimeAppCategory(row.AppId, row.AppName, categoryId)));
+            appCategoryMenu.Items.Add(CreateSearchWebMenuItem(row.AppName, row.ProcessName));
+            appCategoryMenu.Show(runtimeGrid, location);
+        }
+
+        private void OnDetailHelpButtonClick(object? sender, EventArgs e)
+        {
+            CenteredMessageDialog.Show(
+                this,
+                DetailHelpContentBuilder.BuildMessage(selectedDetailRuntimeFilter),
+                UiText.Main.DetailHelpTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+
+        private void OnDetailTrackingDisabledPreferencesButtonClick(object? sender, EventArgs e)
+        {
+            ShowPreferencesDialog();
+        }
+
+        private bool IsInCurrentTrackingScope(ProcessRuntimeSummaryRow row)
+        {
+            return settings.ProcessRuntimeTrackingScope switch
+            {
+                ProcessRuntimeTrackingScope.WindowedApps => row.HasMainWindow,
+                ProcessRuntimeTrackingScope.UserProcesses => row.IsCurrentSessionProcess,
+                _ => true
+            };
+        }
+
+        private void UpdateDetailTrackingDisabledBanner()
+        {
+            if (!detailTrackingDisabledPanel.IsDisposed)
+                detailTrackingDisabledPanel.Visible = !settings.ProcessRuntimeTrackingEnabled;
         }
     }
 }
