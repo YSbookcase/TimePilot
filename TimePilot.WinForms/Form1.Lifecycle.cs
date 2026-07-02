@@ -147,5 +147,11 @@ namespace TimePilot.WinForms
             isExplicitExitRequested = true;
             Close();
         }
+
+        private static bool IsWindowBoundsVisible(Rectangle bounds)
+        {
+            return Screen.AllScreens.Any(
+                screen => screen.WorkingArea.IntersectsWith(bounds));
+        }
     }
 }
