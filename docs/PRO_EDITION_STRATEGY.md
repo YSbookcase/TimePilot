@@ -130,7 +130,9 @@ Structural prerequisites:
 
 ## Add-on Readiness
 
-The current WinForms MVP still keeps many responsibilities inside `Form1.cs`. A Pro add-on model will be difficult if new tabs, menus, settings, analytics panels, and export actions must keep being added directly to `Form1`.
+The first `Form1` responsibility-separation pass is complete. `Form1.cs` now keeps state and high-level composition, while view, tracking, data-management, settings, and support behavior live in focused partials and supporting classes. See `docs/architecture/WINFORMS_STRUCTURE.md`.
+
+Partial classes are not independent modules or plugin contracts. The next architecture work is to define read-only analytics boundaries and registration points without adding Pro conditionals back into the Form partials.
 
 Future refactoring should introduce extension points for:
 
@@ -142,7 +144,9 @@ Future refactoring should introduce extension points for:
 - feature availability checks
 - Community fallback behavior when Pro modules are absent
 
-Optional detail tracking should be treated as an early add-on readiness test case. The public repository may prepare the policy, UI contracts, storage boundaries, and extension hooks for it, but Pro-only detail collection code should stay outside the public Community implementation.
+The first add-on readiness test case should be an annual calendar usage heatmap. Because it reads existing records without changing tracking or privacy scope, it can validate read-only analytics providers, menu registration, a separate analytics window, language context, and fallback behavior.
+
+Optional detail tracking remains a later Pro candidate. The public repository may prepare its policy, UI contracts, storage boundaries, and extension hooks, but Pro-only detail collection code should stay outside the public Community implementation.
 
 Example direction:
 
@@ -162,7 +166,7 @@ This is a direction, not a finalized design.
 1. Document the Community / Pro boundary.
 2. Finish the Community completion baseline: date selection, export, coverage guidance, basic app understanding, and daily visual timeline readability.
 3. Update or create issues for add-on readiness and edition planning.
-4. Refactor WinForms responsibilities out of `Form1.cs` incrementally.
+4. Refactor WinForms responsibilities out of `Form1.cs` incrementally. Completed for the first responsibility-separation pass.
 5. Introduce internal UI registration points.
 6. Only then start private Pro implementation when a concrete Pro feature is ready.
 

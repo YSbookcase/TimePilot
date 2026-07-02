@@ -205,6 +205,13 @@ TimePilot.WinForms
 
 The current WinForms MVP may contain temporary implementation classes. Move them gradually as the architecture becomes clearer.
 
+Follow `docs/architecture/WINFORMS_STRUCTURE.md` for the current `Form1` responsibility map and code placement rules.
+
+- Keep `Form1.cs` limited to state and high-level composition.
+- Reuse the partial, coordinator, or service that already owns a responsibility.
+- Do not place database reads, aggregation, or policy decisions directly in a new Form partial.
+- Shared Community/Pro extension contracts may live in the public repository, but Pro-only implementations must not.
+
 ---
 
 ## 6. Documentation Convention

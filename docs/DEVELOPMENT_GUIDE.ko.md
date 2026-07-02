@@ -205,6 +205,13 @@ TimePilot.WinForms
 
 현재 WinForms MVP에는 임시 구현 클래스가 포함될 수 있다. 구조가 명확해지는 시점에 점진적으로 이동한다.
 
+현재 `Form1` 책임 분리와 새 코드 배치 기준은 `docs/architecture/WINFORMS_STRUCTURE.ko.md`를 따른다.
+
+- `Form1.cs`에는 상태와 상위 조립 순서만 둔다.
+- 기존 기능 책임과 일치하면 해당 partial, coordinator, service를 사용한다.
+- DB 조회, 집계, 정책 판단을 새 Form partial에 직접 넣지 않는다.
+- Community와 Pro가 공유할 확장 계약은 공개 저장소에 둘 수 있지만 Pro 전용 구현은 포함하지 않는다.
+
 ---
 
 ## 6. 문서 규칙
