@@ -61,8 +61,9 @@ The first Pro reference feature should be an **annual calendar heatmap for usage
 
 Initial scope:
 
-- daily active-time intensity
-- hover details for active time, recorded idle time, top app, and coverage
+- daily primary category as the default visual signal
+- active time represented as color intensity or a secondary metric
+- hover or selection-panel details for active time, recorded idle time, top app, and coverage
 - navigation from a day to the existing Community daily summary
 - year navigation
 - distinction between no activity and TimePilot not running

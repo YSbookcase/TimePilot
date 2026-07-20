@@ -148,6 +148,8 @@ The first add-on readiness test case should be an annual calendar usage heatmap.
 
 The public repository should first expose only the read-only daily analytics provider under `KYS24/Analytics`. This provider returns daily active time, recorded idle time, top app, and coverage metrics; it does not include Pro-only UI or license checks.
 
+The public direction for the first Pro reference feature is an annual calendar centered on each day's primary usage category. A day cell should communicate the dominant category first, while active time can be represented through color intensity or a secondary metric. Details such as top app, recorded idle time, and coverage should live in hover or selection-panel details rather than inside every small calendar cell.
+
 Optional detail tracking remains a later Pro candidate. The public repository may prepare its policy, UI contracts, storage boundaries, and extension hooks, but Pro-only detail collection code should stay outside the public Community implementation.
 
 Example direction:
