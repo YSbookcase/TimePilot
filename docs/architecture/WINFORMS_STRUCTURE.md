@@ -38,11 +38,18 @@ This is **responsibility-based organization of one `Form1` class**. Partial file
 5. Do not use a new partial to hide domain logic.
 6. Follow the existing asynchronous patterns for database and file operations.
 
+## Supporting Structure
+
+- `TimePilot.WinForms/KYS24/Features`: internal registry contracts for Community/Pro candidate features, menus, tabs, settings sections, analytics panels, and export actions.
+- `TimePilot.WinForms/KYS24/Analytics`: read-only daily analytics contracts over the existing storage layer. This prepares long-range analytics such as an annual calendar heatmap without coupling future UI directly to SQLite storage details.
+
+The current `Analytics` contract is limited to daily active time, recorded idle time, top app, and coverage metrics. It does not include Pro UI, license checks, or dynamic module loading.
+
 ## Remaining Architecture Work
 
 - Actual `TimePilot.Core`, `TimePilot.Infrastructure`, and `TimePilot.WinForms` project separation
-- Read-only analytics contracts between WinForms and storage
-- Registration contracts for menus, analytics windows, and settings sections
+- Broader read-only analytics contracts between WinForms and storage
+- Registration contracts connected to actual menu, analytics-window, and settings-section flows
 - Community fallback behavior when optional modules are absent
 - Build and distribution boundaries between public Community and private Pro code
 
@@ -54,8 +61,9 @@ The first Pro reference feature should be an **annual calendar heatmap for usage
 
 Initial scope:
 
-- daily active-time intensity
-- hover details for active time, recorded idle time, top app, and coverage
+- daily primary category as the default visual signal
+- active time represented as color intensity or a secondary metric
+- hover or selection-panel details for active time, recorded idle time, top app, and coverage
 - navigation from a day to the existing Community daily summary
 - year navigation
 - distinction between no activity and TimePilot not running
