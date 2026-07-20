@@ -146,6 +146,8 @@ Future refactoring should introduce extension points for:
 
 The first add-on readiness test case should be an annual calendar usage heatmap. Because it reads existing records without changing tracking or privacy scope, it can validate read-only analytics providers, menu registration, a separate analytics window, language context, and fallback behavior.
 
+The public repository should first expose only the read-only daily analytics provider under `KYS24/Analytics`. This provider returns daily active time, recorded idle time, top app, and coverage metrics; it does not include Pro-only UI or license checks.
+
 Optional detail tracking remains a later Pro candidate. The public repository may prepare its policy, UI contracts, storage boundaries, and extension hooks, but Pro-only detail collection code should stay outside the public Community implementation.
 
 Example direction:
