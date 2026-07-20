@@ -76,6 +76,8 @@
 
 ## 4. 시스템 구조
 
+아래는 장기 목표 구조다. 현재 WinForms 구현의 책임 분리 상태와 코드 배치 기준은 `docs/architecture/WINFORMS_STRUCTURE.ko.md`를 참고한다.
+
 ### 4.1 전체 구조
 
 - Solution

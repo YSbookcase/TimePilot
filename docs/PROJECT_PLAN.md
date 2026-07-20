@@ -76,6 +76,8 @@ Develop a desktop application that automatically records and analyzes the user's
 
 ## 4. System Structure
 
+The following is the long-term target structure. See `docs/architecture/WINFORMS_STRUCTURE.md` for the current WinForms responsibility map and code placement rules.
+
 ### 4.1 Overall Structure
 
 - Solution
