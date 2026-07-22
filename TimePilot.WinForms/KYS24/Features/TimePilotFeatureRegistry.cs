@@ -89,6 +89,8 @@ namespace TimePilot.WinForms.KYS24.Features
             foreach (var feature in TimePilotFeatureCatalog.All)
                 registry.RegisterFeature(feature);
 
+            registry.RegisterModule(new OptionalDetailTrackingFeatureModule());
+
             return registry;
         }
     }
