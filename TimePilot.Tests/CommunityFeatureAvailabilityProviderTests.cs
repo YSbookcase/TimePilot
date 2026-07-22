@@ -32,7 +32,7 @@ namespace TimePilot.Tests
         [Fact]
         public void Registry_AllowsFutureModulesToRegisterFeatures()
         {
-            var registry = TimePilotFeatureRegistry.CreateCommunityRegistry();
+            var registry = new TimePilotFeatureRegistry();
             var module = new TestFeatureModule();
 
             registry.RegisterModule(module);
@@ -44,7 +44,7 @@ namespace TimePilot.Tests
         [Fact]
         public void Registry_AllowsFutureModulesToRegisterExtensionPoints()
         {
-            var registry = TimePilotFeatureRegistry.CreateCommunityRegistry();
+            var registry = new TimePilotFeatureRegistry();
 
             registry.RegisterModule(new TestFeatureModule());
 
@@ -58,7 +58,8 @@ namespace TimePilot.Tests
         [Fact]
         public void RegistrationFilter_ReturnsCommunityRegistrationsAsAvailable()
         {
-            var registry = TimePilotFeatureRegistry.CreateCommunityRegistry();
+            var registry = new TimePilotFeatureRegistry();
+            registry.RegisterFeature(TimePilotFeatureCatalog.Find(TimePilotFeatureCatalog.CoreAppUsageTracking)!);
             registry.RegisterModule(new CommunityFeatureModule());
 
             var snapshot = CreateRegistrationFilter(registry).CreateSnapshot(registry);
@@ -78,7 +79,7 @@ namespace TimePilot.Tests
         [Fact]
         public void RegistrationFilter_HidesProRegistrationsFromCommunitySnapshot()
         {
-            var registry = TimePilotFeatureRegistry.CreateCommunityRegistry();
+            var registry = new TimePilotFeatureRegistry();
             registry.RegisterModule(new TestFeatureModule());
 
             var snapshot = CreateRegistrationFilter(registry).CreateSnapshot(registry);
@@ -96,9 +97,35 @@ namespace TimePilot.Tests
         }
 
         [Fact]
-        public void RegistrationFilter_SortsAvailableRegistrationsBySortOrder()
+        public void CommunityRegistry_RegistersOptionalDetailTrackingAsUnavailableCandidate()
         {
             var registry = TimePilotFeatureRegistry.CreateCommunityRegistry();
+
+            var snapshot = CreateRegistrationFilter(registry).CreateSnapshot(registry);
+
+            Assert.Contains(
+                registry.Modules,
+                module => module is OptionalDetailTrackingFeatureModule);
+            Assert.Empty(snapshot.Menus);
+            Assert.Empty(snapshot.Tabs);
+            Assert.Empty(snapshot.SettingsSections);
+            Assert.Empty(snapshot.AnalyticsPanels);
+            Assert.Empty(snapshot.ExportActions);
+            Assert.Equal("Optional Detail Tracking", Assert.Single(snapshot.UnavailableMenus).Registration.Label);
+            Assert.Equal("optional-detail-tracking", Assert.Single(snapshot.UnavailableTabs).Registration.TabKey);
+            Assert.Equal("optional-detail-tracking", Assert.Single(snapshot.UnavailableSettingsSections).Registration.SectionKey);
+            Assert.Equal("detail-activity-panel", Assert.Single(snapshot.UnavailableAnalyticsPanels).Registration.PanelKey);
+            Assert.Equal("export-detail-activity", Assert.Single(snapshot.UnavailableExportActions).Registration.ActionKey);
+            Assert.All(
+                snapshot.UnavailableMenus,
+                registration => Assert.Equal(TimePilotEdition.Pro, registration.Availability.Feature.Edition));
+        }
+
+        [Fact]
+        public void RegistrationFilter_SortsAvailableRegistrationsBySortOrder()
+        {
+            var registry = new TimePilotFeatureRegistry();
+            registry.RegisterFeature(TimePilotFeatureCatalog.Find(TimePilotFeatureCatalog.CoreAppUsageTracking)!);
             registry.RegisterMenu(new TimePilotMenuRegistration(
                 TimePilotFeatureCatalog.CoreAppUsageTracking,
                 "Tools/Late",
