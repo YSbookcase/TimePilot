@@ -108,7 +108,7 @@ TimePilot은 아동을 대상으로 설계된 앱이 아니다. 아동의 사용
 
 TimePilot 개인정보 처리와 관련된 문의는 다음 경로를 통해 보낼 수 있다.
 
-- 이메일: `TODO: contact@example.com`
+- 이메일: `support@ys-bookcase.com`
 - GitHub Issues: https://github.com/YSbookcase/TimePilot/issues
 
 ## 13. 변경 사항
@@ -116,4 +116,3 @@ TimePilot 개인정보 처리와 관련된 문의는 다음 경로를 통해 보
 TimePilot의 추적 범위, 저장 방식, 외부 전송 여부, 선택형 상세 추적 기능이 변경되는 경우 이 개인정보처리방침도 함께 업데이트한다.
 
 변경 시 이 문서 상단의 최종 업데이트 날짜를 수정한다.
-
