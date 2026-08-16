@@ -14,9 +14,13 @@
 
 현재 앱의 범위는 직원 근태/급여 처리가 아니라 로컬 PC 사용량 모니터링이므로 완전히 같지는 않다. 하지만 시간 추적, PC 소프트웨어, 생산성, 사용 기록이라는 접점이 가까워서 Microsoft Store 제출 전 이름을 재검토하는 것이 안전하다.
 
-## 권장 방향
+## 브랜드 결정
 
-다음 작업 전에 새 공개 제품명을 확정한다.
+공개 제품명은 `DeskTrace`로 확정한다.
+
+Store, 홈페이지, 개인정보처리방침, 지원 페이지, 앱 표시 문구처럼 사용자에게 보이는 영역에는 `DeskTrace`를 사용한다. 한국어 문맥에서는 읽기 보조 표기로 `데스크트레이스`를 함께 쓸 수 있다.
+
+다음 작업 전에는 공개 영역의 이름 전환을 끝낸다.
 
 - Microsoft Store 앱 이름 예약
 - Store 등록 문구 공개
@@ -26,9 +30,9 @@
 
 내부 저장소 이름, 네임스페이스, 프로젝트 파일까지 즉시 모두 바꿀 필요는 없다. 1차 전환은 사용자에게 보이는 브랜드부터 바꾸는 방식이 안전하다.
 
-## 후보: DeskTrace
+## 확정 이름: DeskTrace
 
-현재 우선 후보는 `DeskTrace`다.
+`DeskTrace`를 공개 제품명으로 사용한다.
 
 장점:
 
@@ -43,14 +47,17 @@
 - `desktrace.com`은 도메인/리다이렉트 색인에 흔적이 있으므로, 공개 페이지는 기존 보유 도메인 아래의 `https://ys-bookcase.com/desktrace/`를 쓰는 방향이 현실적이다.
 - 이 검토는 정식 상표 검색을 대체하지 않는다.
 
-## 임시 이름 계획
+## 이름 계획
 
 - 공개 앱 이름: `DeskTrace`
-- Store 제목 후보: `DeskTrace - PC Usage Monitor`
+- 한국어 읽기 보조 표기: `데스크트레이스`
+- Store 제목: `DeskTrace - PC Usage Monitor`
+- 한국어 Store 제목: `DeskTrace - PC 사용량 모니터`
 - 제품 설명 첫 문장: `DeskTrace helps you understand how your Windows PC time is spent.`
-- 공식 페이지 후보: `https://ys-bookcase.com/desktrace/`
-- 개인정보처리방침 후보: `https://ys-bookcase.com/desktrace/privacy-policy/`
-- 지원 페이지 후보: `https://ys-bookcase.com/desktrace/support/`
+- 한국어 제품 설명 첫 문장: `DeskTrace(데스크트레이스)는 Windows PC 사용 시간이 어디에 쓰이는지 확인할 수 있게 도와주는 로컬 사용량 모니터링 앱입니다.`
+- 공식 페이지: `https://ys-bookcase.com/desktrace/`
+- 개인정보처리방침: `https://ys-bookcase.com/desktrace/privacy-policy/`
+- 지원 페이지: `https://ys-bookcase.com/desktrace/support/`
 - 지원 이메일: `support@ys-bookcase.com`
 
 ## 게시자명과 사업자명 메모
@@ -98,7 +105,7 @@ Store 제출 전 다음 항목을 업데이트한다.
 - Store 등록 스크린샷과 설명
 - 릴리스 노트
 
-전환 기간에는 GitHub 저장소 이름을 `TimePilot`로 유지해도 된다. 다만 Store와 홈페이지처럼 사용자에게 직접 보이는 영역은 최종 제품명으로 맞추는 것이 좋다.
+전환 기간에는 GitHub 저장소 이름을 `TimePilot`로 유지해도 된다. 다만 Store와 홈페이지처럼 사용자에게 직접 보이는 영역은 `DeskTrace`로 맞추는 것이 좋다.
 
 ## 참고
 
