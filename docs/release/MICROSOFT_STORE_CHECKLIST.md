@@ -15,7 +15,7 @@ TimePilot should continue to treat the Store release as an early public test unt
 
 ## Partner Center
 
-- [ ] Create or confirm a Microsoft Partner Center developer account.
+- [x] Create or confirm a Microsoft Partner Center developer account.
 - [ ] Reserve the app name.
 - [ ] Confirm publisher display name before submission.
 - [ ] Select category and age rating.
