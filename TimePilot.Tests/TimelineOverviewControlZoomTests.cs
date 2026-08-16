@@ -99,6 +99,32 @@ namespace TimePilot.Tests
             Assert.Equal(18 / 24.0, control.ViewStartRatio, precision: 6);
         }
 
+        [Fact]
+        public void ZoomOut_WhenLatestActivityIsVisible_UsesSameActivityFocusAsZoomIn()
+        {
+            using var control = new TimelineOverviewControl();
+            var date = new DateTime(2026, 8, 17);
+
+            control.SetTimeline(
+                date,
+                [
+                    CreateRow(date, 9, 0, 10, 0)
+                ],
+                Array.Empty<TimelineRange>(),
+                Array.Empty<SystemTimelineRange>(),
+                Array.Empty<SystemTimelineEvent>(),
+                Array.Empty<CategoryTimelineSegment>());
+
+            control.ZoomIn();
+            control.ZoomIn();
+            control.SetViewStartRatio(5 / 24.0);
+
+            control.ZoomOut();
+
+            Assert.Equal(0.5, control.ViewWidthRatio, precision: 6);
+            Assert.Equal(3.5 / 24.0, control.ViewStartRatio, precision: 6);
+        }
+
         private static ActivityTimelineRow CreateRow(
             DateTime date,
             int startHour,

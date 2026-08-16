@@ -219,12 +219,12 @@ namespace TimePilot.WinForms
 
         public void ZoomIn()
         {
-            ZoomAround(GetZoomInCenterOffset(), 0.5);
+            ZoomAround(GetZoomButtonCenterOffset(), 0.5);
         }
 
         public void ZoomOut()
         {
-            Zoom(2, centerRatio: 0.5);
+            ZoomAround(GetZoomButtonCenterOffset(), 2);
         }
 
         public void SetViewStartRatio(double ratio)
@@ -1110,7 +1110,7 @@ namespace TimePilot.WinForms
             SetViewRange(nextStart, nextEnd, addHistory: true);
         }
 
-        private TimeSpan GetZoomInCenterOffset()
+        private TimeSpan GetZoomButtonCenterOffset()
         {
             var activityCenter = GetFocusedActivityCenterOffset();
             if (IsZoomed)
