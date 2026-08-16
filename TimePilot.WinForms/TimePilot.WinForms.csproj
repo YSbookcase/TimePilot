@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <RootNamespace>TimePilot.WinForms</RootNamespace>
@@ -11,7 +11,7 @@
     <Version>0.2.2</Version>
     <FileVersion>0.2.2.0</FileVersion>
     <AssemblyVersion>0.2.2.0</AssemblyVersion>
-    <Product>DeskTrace</Product>
+    <Product>ActiveLogbook</Product>
     <Description>A Windows desktop app for tracking and analyzing application usage time.</Description>
     <Authors>YSbookcase</Authors>
   </PropertyGroup>

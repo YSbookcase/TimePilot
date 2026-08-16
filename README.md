@@ -1,11 +1,11 @@
-# DeskTrace
-A Windows desktop app for tracking and analyzing application usage time.
+# ActiveLogbook
+A local-first Windows desktop app that helps you understand what you did on your PC and where your time went.
 
 ## Official Links
 
-- Website: https://ys-bookcase.com/desktrace/
-- Support: https://ys-bookcase.com/desktrace/support/
-- Privacy policy: https://ys-bookcase.com/desktrace/privacy-policy/
+- Website: https://ys-bookcase.com/active-logbook/
+- Support: https://ys-bookcase.com/active-logbook/support/
+- Privacy policy: https://ys-bookcase.com/active-logbook/privacy-policy/
 - Support email: support@ys-bookcase.com
 
 ## Repository

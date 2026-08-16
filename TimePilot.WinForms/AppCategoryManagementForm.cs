@@ -238,8 +238,8 @@ namespace TimePilot.WinForms
                 ? "Shows whether the app was observed as a visible app, user process, or all-process item."
                 : "앱이 화면 앱, 사용자 프로세스, 전체 프로세스 항목 중 어떤 방식으로 관측되었는지 보여줍니다.";
             appsGrid.Columns[nameof(AppCategoryManagementRow.IdentityStatusText) + "Column"].ToolTipText = IsEnglish
-                ? "Shows whether DeskTrace can safely treat records with this name as the same app."
-                : "DeskTrace가 이 이름의 기록을 같은 앱으로 보아도 되는지 확인할 수 있게 보여줍니다.";
+                ? "Shows whether ActiveLogbook can safely treat records with this name as the same app."
+                : "ActiveLogbook이 이 이름의 기록을 같은 앱으로 보아도 되는지 확인할 수 있게 보여줍니다.";
             appsGrid.Columns[nameof(AppCategoryManagementRow.RecommendedCategoryText) + "Column"].ToolTipText = IsEnglish
                 ? "Shows a conservative local category suggestion for unclassified apps."
                 : "미분류 앱에 대해 보수적인 로컬 분류 추천을 보여줍니다.";

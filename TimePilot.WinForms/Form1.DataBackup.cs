@@ -21,7 +21,7 @@ namespace TimePilot.WinForms
             {
                 AddExtension = true,
                 DefaultExt = "zip",
-                FileName = $"DeskTrace-backup-{now.ToLocalTime():yyyy-MM-dd-HHmm}.zip",
+                FileName = $"ActiveLogbook-backup-{now.ToLocalTime():yyyy-MM-dd-HHmm}.zip",
                 Filter = UiText.Main.ZipFilter,
                 OverwritePrompt = true,
                 Title = UiText.Main.DataBackupTitle
