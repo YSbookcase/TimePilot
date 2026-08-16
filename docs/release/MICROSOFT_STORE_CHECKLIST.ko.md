@@ -10,6 +10,8 @@ TimePilot은 제품, 개인정보처리방침, 패키징, 지원 흐름이 안�
 - [ ] 유료 Pro 운영, 세금, 정산, 고객지원 흐름이 준비되기 전까지 첫 Store 등록은 무료로 유지한다.
 - [ ] 회사 계정을 별도로 준비하기 전까지는 개인 개발자 계정을 기준으로 검토한다.
 - [ ] `v1.0` 이전에는 초기 공개 테스트 단계임을 명확히 표시한다.
+- [ ] Microsoft Store 앱 이름을 예약하기 전에 공개 제품명을 확정한다.
+- [ ] Store 브랜드를 확정하기 전에 `docs/release/BRAND_NAMING_REVIEW.ko.md`를 검토한다.
 
 ## Partner Center
 
@@ -22,9 +24,10 @@ TimePilot은 제품, 개인정보처리방침, 패키징, 지원 흐름이 안�
 
 ## 준비된 공개 링크
 
-- 공식 페이지: https://ys-bookcase.com/timepilot/
-- 지원 페이지: https://ys-bookcase.com/timepilot/support/
-- 개인정보처리방침: https://ys-bookcase.com/timepilot/privacy-policy/
+- 현재 임시 공식 페이지: https://ys-bookcase.com/timepilot/
+- 현재 임시 지원 페이지: https://ys-bookcase.com/timepilot/support/
+- 현재 임시 개인정보처리방침: https://ys-bookcase.com/timepilot/privacy-policy/
+- `DeskTrace` 후보를 채택할 경우 변경 대상: `https://ys-bookcase.com/desktrace/`
 - 지원 이메일: support@ys-bookcase.com
 
 ## 패키지 선택
