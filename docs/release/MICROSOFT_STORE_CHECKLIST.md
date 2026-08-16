@@ -17,8 +17,15 @@ TimePilot should continue to treat the Store release as an early public test unt
 - [ ] Reserve the app name.
 - [ ] Confirm publisher display name before submission.
 - [ ] Select category and age rating.
-- [ ] Prepare support contact information.
-- [ ] Prepare a public privacy policy URL.
+- [x] Prepare support contact information.
+- [x] Prepare a public privacy policy URL.
+
+## Prepared Public Links
+
+- Official page: https://ys-bookcase.com/timepilot/
+- Support page: https://ys-bookcase.com/timepilot/support/
+- Privacy policy: https://ys-bookcase.com/timepilot/privacy-policy/
+- Support email: support@ys-bookcase.com
 
 ## Packaging Choice
 
@@ -50,13 +57,13 @@ Microsoft currently supports both MSIX and MSI/EXE submission paths for Win32 ap
 - [ ] Release notes.
 - [ ] Known limitations.
 - [ ] Link to GitHub repository.
-- [ ] Link to support page or GitHub Issues.
+- [x] Link to support page or GitHub Issues.
 
 ## Privacy And Trust
 
-- [ ] Publish the TimePilot-specific privacy policy page.
+- [x] Publish the TimePilot-specific privacy policy page.
 - [ ] Link the privacy policy in Partner Center.
-- [ ] Link the privacy policy from README or app support documentation.
+- [x] Link the privacy policy from README or app support documentation.
 - [ ] Explain that usage data is stored locally by default.
 - [ ] Explain that TimePilot does not send usage records to a developer server by default.
 - [ ] Explain that TimePilot does not collect window titles, URLs, web page titles, document names, command lines, keystrokes, or screenshots by default.

@@ -39,11 +39,25 @@ namespace TimePilot.WinForms
         {
             CenteredMessageDialog.Show(
                 this,
-                $"TimePilot {Application.ProductVersion}\n\n"
-                    + UiText.Main.SponsorAboutMessage,
+                BuildAboutMessage(),
                 UiText.Main.AboutTitle,
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
+        }
+
+        private string BuildAboutMessage()
+        {
+            var isEnglish = settings.UiLanguage == UiLanguage.English;
+            return string.Join(
+                Environment.NewLine,
+                "TimePilot " + Application.ProductVersion,
+                string.Empty,
+                UiText.Main.SponsorAboutMessage,
+                string.Empty,
+                isEnglish ? "Website: " + ExternalLinks.HomeUrl : "공식 페이지: " + ExternalLinks.HomeUrl,
+                isEnglish ? "Support: " + ExternalLinks.SupportUrl : "지원: " + ExternalLinks.SupportUrl,
+                isEnglish ? "Privacy policy: " + ExternalLinks.PrivacyPolicyUrl : "개인정보처리방침: " + ExternalLinks.PrivacyPolicyUrl,
+                isEnglish ? "Email: " + ExternalLinks.SupportEmail : "이메일: " + ExternalLinks.SupportEmail);
         }
 
         private void OnSponsorMenuItemClick(object? sender, EventArgs e)
