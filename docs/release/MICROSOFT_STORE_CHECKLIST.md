@@ -10,8 +10,8 @@ TimePilot should continue to treat the Store release as an early public test unt
 - [ ] Keep the first Store listing free unless paid Pro operations, tax, payout, and support flows are ready.
 - [ ] Use an individual developer account unless a company account is intentionally prepared later.
 - [ ] State clearly that TimePilot is in early public testing before `v1.0`.
-- [ ] Resolve the public product name before reserving the Microsoft Store app name.
-- [ ] Review `docs/release/BRAND_NAMING_REVIEW.md` before finalizing Store branding.
+- [x] Resolve the public product name before reserving the Microsoft Store app name.
+- [x] Review `docs/release/BRAND_NAMING_REVIEW.md` before finalizing Store branding.
 
 ## Partner Center
 
@@ -24,10 +24,12 @@ TimePilot should continue to treat the Store release as an early public test unt
 
 ## Prepared Public Links
 
-- Current provisional official page: https://ys-bookcase.com/timepilot/
-- Current provisional support page: https://ys-bookcase.com/timepilot/support/
-- Current provisional privacy policy: https://ys-bookcase.com/timepilot/privacy-policy/
-- Rename target if the `DeskTrace` candidate is adopted: `https://ys-bookcase.com/desktrace/`
+- Current temporary official page: https://ys-bookcase.com/timepilot/
+- Current temporary support page: https://ys-bookcase.com/timepilot/support/
+- Current temporary privacy policy: https://ys-bookcase.com/timepilot/privacy-policy/
+- DeskTrace official page target: https://ys-bookcase.com/desktrace/
+- DeskTrace support page target: https://ys-bookcase.com/desktrace/support/
+- DeskTrace privacy policy target: https://ys-bookcase.com/desktrace/privacy-policy/
 - Support email: support@ys-bookcase.com
 
 ## Packaging Choice
