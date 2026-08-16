@@ -1,4 +1,4 @@
-#define MyAppName "TimePilot"
+#define MyAppName "ActiveLogbook"
 #define MyAppPublisher "YSbookcase"
 #define MyAppExeName "TimePilot.WinForms.exe"
 #ifndef AppVersion
@@ -16,15 +16,15 @@ AppId={{B1C2D7C2-0B18-4F41-9B72-9D1B6B92F412}
 AppName={#MyAppName}
 AppVersion={#AppVersion}
 AppPublisher={#MyAppPublisher}
-AppPublisherURL=https://github.com/YSbookcase/TimePilot
-AppSupportURL=https://github.com/YSbookcase/TimePilot/issues
+AppPublisherURL=https://ys-bookcase.com/active-logbook/
+AppSupportURL=https://ys-bookcase.com/active-logbook/support/
 AppUpdatesURL=https://github.com/YSbookcase/TimePilot/releases
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=..\..\LICENSE
 OutputDir={#OutputDir}
-OutputBaseFilename=TimePilot-{#AppVersion}-Setup
+OutputBaseFilename=ActiveLogbook-{#AppVersion}-Setup
 SetupIconFile=..\..\TimePilot.WinForms\Assets\TimePilot.ico
 Compression=lzma
 SolidCompression=yes

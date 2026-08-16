@@ -1,15 +1,15 @@
 # Microsoft Store Release Checklist
 
-This checklist tracks non-code work needed before submitting TimePilot to the Microsoft Store.
+This checklist tracks non-code work needed before submitting ActiveLogbook to the Microsoft Store.
 
-TimePilot should continue to treat the Store release as an early public test until the product, privacy policy, packaging, and support flows are stable.
+ActiveLogbook should continue to treat the Store release as an early public test until the product, privacy policy, packaging, and support flows are stable.
 
 ## Release Position
 
 - [ ] Decide whether the next Store target is `v0.2.x` or `v0.3.0`.
 - [ ] Keep the first Store listing free unless paid Pro operations, tax, payout, and support flows are ready.
 - [ ] Use an individual developer account unless a company account is intentionally prepared later.
-- [ ] State clearly that TimePilot is in early public testing before `v1.0`.
+- [ ] State clearly that ActiveLogbook is in early public testing before `v1.0`.
 - [x] Resolve the public product name before reserving the Microsoft Store app name.
 - [x] Review `docs/release/BRAND_NAMING_REVIEW.md` before finalizing Store branding.
 
@@ -24,12 +24,12 @@ TimePilot should continue to treat the Store release as an early public test unt
 
 ## Prepared Public Links
 
-- Current temporary official page: https://ys-bookcase.com/timepilot/
-- Current temporary support page: https://ys-bookcase.com/timepilot/support/
-- Current temporary privacy policy: https://ys-bookcase.com/timepilot/privacy-policy/
-- DeskTrace official page target: https://ys-bookcase.com/desktrace/
-- DeskTrace support page target: https://ys-bookcase.com/desktrace/support/
-- DeskTrace privacy policy target: https://ys-bookcase.com/desktrace/privacy-policy/
+- Current temporary official page: https://ys-bookcase.com/active-logbook/
+- Current temporary support page: https://ys-bookcase.com/active-logbook/support/
+- Current temporary privacy policy: https://ys-bookcase.com/active-logbook/privacy-policy/
+- ActiveLogbook official page target: https://ys-bookcase.com/active-logbook/
+- ActiveLogbook support page target: https://ys-bookcase.com/active-logbook/support/
+- ActiveLogbook privacy policy target: https://ys-bookcase.com/active-logbook/privacy-policy/
 - Support email: support@ys-bookcase.com
 
 ## Packaging Choice
@@ -38,7 +38,7 @@ Microsoft currently supports both MSIX and MSI/EXE submission paths for Win32 ap
 
 ### MSIX path
 
-- [ ] Create an MSIX package for TimePilot.
+- [ ] Create an MSIX package for ActiveLogbook.
 - [ ] Verify install, launch, uninstall, and update behavior.
 - [ ] Verify local data is preserved or removed according to the intended uninstall policy.
 - [ ] Confirm startup registration behavior works under packaged deployment.
@@ -66,12 +66,12 @@ Microsoft currently supports both MSIX and MSI/EXE submission paths for Win32 ap
 
 ## Privacy And Trust
 
-- [x] Publish the TimePilot-specific privacy policy page.
+- [x] Publish the ActiveLogbook-specific privacy policy page.
 - [ ] Link the privacy policy in Partner Center.
 - [x] Link the privacy policy from README or app support documentation.
 - [ ] Explain that usage data is stored locally by default.
-- [ ] Explain that TimePilot does not send usage records to a developer server by default.
-- [ ] Explain that TimePilot does not collect window titles, URLs, web page titles, document names, command lines, keystrokes, or screenshots by default.
+- [ ] Explain that ActiveLogbook does not send usage records to a developer server by default.
+- [ ] Explain that ActiveLogbook does not collect window titles, URLs, web page titles, document names, command lines, keystrokes, or screenshots by default.
 - [ ] Explain data export and backup responsibilities.
 - [ ] Explain how users can delete local data.
 - [ ] Keep the privacy policy updated when tracking behavior changes.
@@ -80,7 +80,7 @@ Microsoft currently supports both MSIX and MSI/EXE submission paths for Win32 ap
 
 - [ ] Build succeeds.
 - [ ] Tests pass.
-- [ ] Fresh install launches TimePilot.
+- [ ] Fresh install launches ActiveLogbook.
 - [ ] Foreground app usage is recorded.
 - [ ] Idle time is separated.
 - [ ] Background process runtime tracking behaves as expected.

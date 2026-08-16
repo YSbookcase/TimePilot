@@ -30,7 +30,7 @@ namespace TimePilot.WinForms.KYS24
 
             var baseName = Path.GetFileNameWithoutExtension(baseFilePath);
             if (string.IsNullOrWhiteSpace(baseName))
-                baseName = $"TimePilot-usage-{FormatDateRangeForFileName(startDate, endDate)}";
+                baseName = $"ActiveLogbook-usage-{FormatDateRangeForFileName(startDate, endDate)}";
 
             var summaryPath = Path.Combine(directory, $"{baseName}-summary.csv");
             var timelinePath = Path.Combine(directory, $"{baseName}-timeline.csv");

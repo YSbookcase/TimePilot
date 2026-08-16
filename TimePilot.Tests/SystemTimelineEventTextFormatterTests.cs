@@ -57,7 +57,7 @@ namespace TimePilot.Tests
 
             var text = SystemTimelineEventTextFormatter.FormatDetails(systemEvent);
 
-            Assert.Contains("TimePilot started at", text);
+            Assert.Contains("ActiveLogbook started at", text);
             Assert.Contains("09:30:00", text);
         }
 

@@ -25,7 +25,7 @@ namespace TimePilot.WinForms
 
             SuspendLayout();
 
-            Text = isEnglish ? "TimePilot full restore" : "TimePilot 전체 복원";
+            Text = isEnglish ? "ActiveLogbook full restore" : "ActiveLogbook 전체 복원";
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;

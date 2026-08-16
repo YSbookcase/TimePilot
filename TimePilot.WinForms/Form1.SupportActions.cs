@@ -50,7 +50,7 @@ namespace TimePilot.WinForms
             var isEnglish = settings.UiLanguage == UiLanguage.English;
             return string.Join(
                 Environment.NewLine,
-                "TimePilot " + Application.ProductVersion,
+                UiText.AppName + " " + Application.ProductVersion,
                 string.Empty,
                 UiText.Main.SponsorAboutMessage,
                 string.Empty,

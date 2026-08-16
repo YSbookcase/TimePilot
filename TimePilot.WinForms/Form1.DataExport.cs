@@ -21,7 +21,7 @@ namespace TimePilot.WinForms
             {
                 AddExtension = true,
                 DefaultExt = "csv",
-                FileName = $"TimePilot-usage-{rangeText}.csv",
+                FileName = $"ActiveLogbook-usage-{rangeText}.csv",
                 Filter = UiText.Main.CsvFilter,
                 OverwritePrompt = false,
                 Title = UiText.Main.CsvExportTitle
@@ -107,7 +107,7 @@ namespace TimePilot.WinForms
             {
                 AddExtension = true,
                 DefaultExt = "zip",
-                FileName = $"TimePilot-raw-data-{now.ToLocalTime():yyyy-MM-dd}.zip",
+                FileName = $"ActiveLogbook-raw-data-{now.ToLocalTime():yyyy-MM-dd}.zip",
                 Filter = UiText.Main.ZipFilter,
                 OverwritePrompt = true,
                 Title = UiText.Main.RawDataExportTitle
