@@ -17,6 +17,10 @@ namespace TimePilot.WinForms.Timeline
             EventHandler typeHighlightDropDownClosed,
             EventHandler systemEventFilterChanged)
         {
+            controls.ZoomPanel.AutoSize = true;
+            controls.ZoomPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            controls.ZoomPanel.WrapContents = true;
+
             controls.CategoryBucketComboBox.SelectedIndexChanged += categoryBucketChanged;
             controls.TypeHighlightComboBox.SelectedIndexChanged += typeHighlightChanged;
             controls.TypeHighlightComboBox.DropDownClosed += typeHighlightDropDownClosed;
@@ -26,8 +30,6 @@ namespace TimePilot.WinForms.Timeline
             controls.SystemEventFilterComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
             controls.SystemEventFilterComboBox.Width = 112;
             controls.SystemEventFilterComboBox.SelectedIndexChanged += systemEventFilterChanged;
-            controls.ZoomPanel.WrapContents = false;
-            controls.ZoomPanel.Height = 32;
             controls.ZoomPanel.Controls.Add(controls.SystemEventFilterLabel);
             controls.ZoomPanel.Controls.Add(controls.SystemEventFilterComboBox);
         }

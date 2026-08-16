@@ -1214,9 +1214,11 @@
             timelineHighlightClearButton.UseVisualStyleBackColor = true;
             timelineHighlightClearButton.Visible = false;
             timelineHighlightClearButton.Click += OnTimelineHighlightClearButtonClick;
-            //
+            // 
             // timelineZoomPanel
             //
+            timelineZoomPanel.AutoSize = true;
+            timelineZoomPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             timelineZoomPanel.Controls.Add(timelineZoomRangeLabel);
             timelineZoomPanel.Controls.Add(timelineZoomOutButton);
             timelineZoomPanel.Controls.Add(timelineZoomInButton);
@@ -1234,7 +1236,7 @@
             timelineZoomPanel.Padding = new Padding(8, 4, 8, 2);
             timelineZoomPanel.Size = new Size(706, 32);
             timelineZoomPanel.TabIndex = 2;
-            timelineZoomPanel.WrapContents = false;
+            timelineZoomPanel.WrapContents = true;
             //
             // timelineZoomRangeLabel
             //
