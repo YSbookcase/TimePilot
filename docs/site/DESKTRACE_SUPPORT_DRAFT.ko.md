@@ -1,16 +1,16 @@
-# TimePilot 지원 페이지 초안
+# DeskTrace 지원 페이지 초안
 
 게시 예정 URL:
 
 ```text
-https://ys-bookcase.com/timepilot/support
+https://ys-bookcase.com/desktrace/support
 ```
 
-이 문서는 WordPress에 게시할 TimePilot 지원 페이지 초안이다.
+이 문서는 WordPress에 게시할 DeskTrace 지원 페이지 초안이다.
 
-## TimePilot 지원
+## DeskTrace 지원
 
-TimePilot 사용 중 문제가 발생했거나 개선 의견이 있다면 아래 경로로 문의할 수 있습니다.
+DeskTrace 사용 중 문제가 발생했거나 개선 의견이 있다면 아래 경로로 문의할 수 있습니다.
 
 ## 문의 이메일
 
@@ -22,7 +22,7 @@ support@ys-bookcase.com
 
 문의할 때 가능하면 다음 정보를 함께 적어 주세요.
 
-- 사용 중인 TimePilot 버전
+- 사용 중인 DeskTrace 버전
 - Windows 버전
 - 설치 버전인지 portable 버전인지
 - 문제가 발생한 화면 또는 기능
@@ -49,11 +49,11 @@ GitHub Issues는 공개 공간입니다. 개인 정보, 민감한 사용 기록,
 https://github.com/YSbookcase/TimePilot/releases
 ```
 
-TimePilot은 현재 초기 공개 테스트 단계이므로, 사용 중인 버전의 알려진 제한사항과 릴리스 노트를 함께 확인하는 것을 권장합니다.
+DeskTrace는 현재 초기 공개 테스트 단계이므로, 사용 중인 버전의 알려진 제한사항과 릴리스 노트를 함께 확인하는 것을 권장합니다.
 
 ## 데이터 저장과 삭제
 
-TimePilot의 주요 로컬 데이터는 기본적으로 다음 위치에 저장됩니다.
+DeskTrace의 주요 로컬 데이터는 기본적으로 다음 위치에 저장됩니다.
 
 ```text
 %LocalAppData%\TimePilot
@@ -61,10 +61,10 @@ TimePilot의 주요 로컬 데이터는 기본적으로 다음 위치에 저장�
 
 앱 제거 후에도 로컬 데이터와 설정이 남아 있을 수 있습니다. 완전히 삭제하려면 앱의 데이터 삭제 기능을 사용하거나 위 폴더를 확인해 주세요.
 
-자세한 개인정보 처리 내용은 TimePilot 개인정보처리방침을 확인해 주세요.
+자세한 개인정보 처리 내용은 DeskTrace 개인정보처리방침을 확인해 주세요.
 
 ```text
-https://ys-bookcase.com/timepilot/privacy-policy
+https://ys-bookcase.com/desktrace/privacy-policy
 ```
 
 ## 알려진 제한사항

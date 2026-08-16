@@ -146,7 +146,7 @@ namespace TimePilot.WinForms
         {
             Directory.CreateDirectory(AppDataPaths.BackupDirectory);
             var fileName =
-                $"TimePilot-before-restore-{now.ToLocalTime():yyyy-MM-dd-HHmmss}.zip";
+                $"DeskTrace-before-restore-{now.ToLocalTime():yyyy-MM-dd-HHmmss}.zip";
             var backupPath = Path.Combine(AppDataPaths.BackupDirectory, fileName);
             service.CreateBackup(backupPath, now);
             return backupPath;

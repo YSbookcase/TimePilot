@@ -79,7 +79,7 @@ namespace TimePilot.WinForms.KYS24
         public static string GetStatusText()
         {
             if (!File.Exists(AppDataPaths.DatabasePath))
-                return "TimePilot database was not found.";
+                return "DeskTrace database was not found.";
 
             using var connection = OpenConnection();
             var appCount = CountRows(

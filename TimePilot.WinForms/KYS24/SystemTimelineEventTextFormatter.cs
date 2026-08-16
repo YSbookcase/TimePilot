@@ -49,8 +49,8 @@ namespace TimePilot.WinForms.KYS24
                 "suspend" => isEnglish ? "Sleep range start" : "절전 구간 시작",
                 "resume" => isEnglish ? "Sleep range end candidate" : "절전 구간 종료 후보",
                 "system-shutdown" => isEnglish ? "Shutdown/restart event" : "종료/다시 시작 이벤트",
-                "timepilot-start" => isEnglish ? "TimePilot recording start" : "TimePilot 기록 시작",
-                "timepilot-exit" => isEnglish ? "TimePilot recording end" : "TimePilot 기록 종료",
+                "timepilot-start" => isEnglish ? "DeskTrace recording start" : "DeskTrace 기록 시작",
+                "timepilot-exit" => isEnglish ? "DeskTrace recording end" : "DeskTrace 기록 종료",
                 "windows-boot-estimate" => isEnglish ? "Windows startup estimate" : "Windows 시작 추정",
                 "recording-end-estimate" => isEnglish ? "Recording end estimate" : "기록 종료 추정",
                 _ => "-"
@@ -66,8 +66,8 @@ namespace TimePilot.WinForms.KYS24
                 && DateTimeOffset.TryParse(systemEvent.Details["TimePilotStartedAt:".Length..], out var startedAt))
             {
                 return UiText.CurrentLanguage == UiLanguage.English
-                    ? $"TimePilot started at {startedAt.ToLocalTime():HH:mm:ss}"
-                    : $"TimePilot 시작 {startedAt.ToLocalTime():HH:mm:ss}";
+                    ? $"DeskTrace started at {startedAt.ToLocalTime():HH:mm:ss}"
+                    : $"DeskTrace 시작 {startedAt.ToLocalTime():HH:mm:ss}";
             }
 
             if (systemEvent.Details.StartsWith("Reason:", StringComparison.OrdinalIgnoreCase))
@@ -90,8 +90,8 @@ namespace TimePilot.WinForms.KYS24
                     ? "Estimated from Windows system startup time."
                     : "Windows 시스템 시작 시간을 기준으로 추정했습니다.",
                 "recording-end-estimate" => isEnglish
-                    ? "Estimated from the last TimePilot runtime record."
-                    : "TimePilot의 마지막 실행 기록을 기준으로 추정했습니다.",
+                    ? "Estimated from the last DeskTrace runtime record."
+                    : "DeskTrace의 마지막 실행 기록을 기준으로 추정했습니다.",
                 _ => "-"
             };
         }
