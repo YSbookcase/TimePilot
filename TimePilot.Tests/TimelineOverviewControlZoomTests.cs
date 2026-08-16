@@ -30,6 +30,30 @@ namespace TimePilot.Tests
         }
 
         [Fact]
+        public void ZoomIn_WhenFullDayWithMultipleRows_CentersOnLatestTrackedRow()
+        {
+            using var control = new TimelineOverviewControl();
+            var date = new DateTime(2026, 8, 17);
+
+            control.SetTimeline(
+                date,
+                [
+                    CreateRow(date, 0, 0, 23, 59, UiText.Main.TimePilotUntracked),
+                    CreateRow(date, 9, 0, 10, 0),
+                    CreateRow(date, 15, 0, 16, 0)
+                ],
+                Array.Empty<TimelineRange>(),
+                Array.Empty<SystemTimelineRange>(),
+                Array.Empty<SystemTimelineEvent>(),
+                Array.Empty<CategoryTimelineSegment>());
+
+            control.ZoomIn();
+
+            Assert.Equal(0.5, control.ViewWidthRatio, precision: 6);
+            Assert.Equal(9.5 / 24.0, control.ViewStartRatio, precision: 6);
+        }
+
+        [Fact]
         public void ZoomIn_WhenAlreadyZoomed_KeepsCurrentViewCenter()
         {
             using var control = new TimelineOverviewControl();
@@ -57,7 +81,8 @@ namespace TimePilot.Tests
             int startHour,
             int startMinute,
             int endHour,
-            int endMinute)
+            int endMinute,
+            string activityType = "Active")
         {
             var startedAt = new DateTimeOffset(
                 date.AddHours(startHour).AddMinutes(startMinute),
@@ -67,7 +92,7 @@ namespace TimePilot.Tests
                 TimeZoneInfo.Local.GetUtcOffset(date));
 
             return new ActivityTimelineRow(
-                "Active",
+                activityType,
                 startedAt,
                 endedAt,
                 (long)(endedAt - startedAt).TotalMilliseconds,

@@ -1115,11 +1115,11 @@ namespace TimePilot.WinForms
             if (IsZoomed)
                 return viewStart + TimeSpan.FromTicks((viewEnd - viewStart).Ticks / 2);
 
-            var activityCenter = GetActivityCenterOffset();
+            var activityCenter = GetFocusedActivityCenterOffset();
             return activityCenter ?? TimeSpan.FromHours(12);
         }
 
-        private TimeSpan? GetActivityCenterOffset()
+        private TimeSpan? GetFocusedActivityCenterOffset()
         {
             if (rows.Count == 0)
                 return null;
@@ -1130,29 +1130,38 @@ namespace TimePilot.WinForms
             var fallbackEnd = localDate == DateTime.Today
                 ? Min(DateTimeOffset.Now, dayEnd)
                 : dayEnd;
-            DateTimeOffset? firstStartedAt = null;
-            DateTimeOffset? lastEndedAt = null;
+            DateTimeOffset? focusedStartedAt = null;
+            DateTimeOffset? focusedEndedAt = null;
 
             foreach (var row in rows)
             {
+                if (IsUntrackedActivity(row))
+                    continue;
+
                 var startedAt = Max(row.StartedAt, dayStart);
                 var endedAt = Min(row.EndedAt ?? fallbackEnd, dayEnd);
                 if (endedAt <= startedAt)
                     continue;
 
-                firstStartedAt = firstStartedAt is null
+                focusedStartedAt = focusedEndedAt is null || endedAt >= focusedEndedAt.Value
                     ? startedAt
-                    : Min(firstStartedAt.Value, startedAt);
-                lastEndedAt = lastEndedAt is null
+                    : focusedStartedAt;
+                focusedEndedAt = focusedEndedAt is null || endedAt >= focusedEndedAt.Value
                     ? endedAt
-                    : Max(lastEndedAt.Value, endedAt);
+                    : focusedEndedAt;
             }
 
-            if (firstStartedAt is null || lastEndedAt is null)
+            if (focusedStartedAt is null || focusedEndedAt is null)
                 return null;
 
-            var centerTicks = firstStartedAt.Value.Ticks + ((lastEndedAt.Value.Ticks - firstStartedAt.Value.Ticks) / 2);
+            var centerTicks = focusedStartedAt.Value.Ticks + ((focusedEndedAt.Value.Ticks - focusedStartedAt.Value.Ticks) / 2);
             return TimeSpan.FromTicks(centerTicks - dayStart.Ticks);
+        }
+
+        private static bool IsUntrackedActivity(ActivityTimelineRow row)
+        {
+            return string.Equals(row.ActivityType, UiText.Main.Untracked, StringComparison.Ordinal)
+                || string.Equals(row.ActivityType, UiText.Main.TimePilotUntracked, StringComparison.Ordinal);
         }
 
         private void ZoomAround(TimeSpan center, double factor)
