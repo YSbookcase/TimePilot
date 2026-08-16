@@ -69,6 +69,7 @@ namespace TimePilot.WinForms
         private DateTime localDate = DateTime.Today;
         private TimeSpan viewStart = TimeSpan.Zero;
         private TimeSpan viewEnd = TimeSpan.FromDays(1);
+        private TimeSpan? zoomButtonFocusOffset;
         private readonly Stack<(TimeSpan Start, TimeSpan End)> viewHistory = new();
         private string? hoverText;
         private string? externalHoverText;
@@ -127,6 +128,7 @@ namespace TimePilot.WinForms
             if (dateChanged)
             {
                 externalHoverText = null;
+                zoomButtonFocusOffset = null;
                 viewHistory.Clear();
                 SetViewRange(TimeSpan.Zero, TimeSpan.FromDays(1), addHistory: false);
             }
@@ -194,6 +196,7 @@ namespace TimePilot.WinForms
             if (viewHistory.Count == 0)
                 return;
 
+            zoomButtonFocusOffset = null;
             var previous = viewHistory.Pop();
             SetViewRange(previous.Start, previous.End, addHistory: false);
         }
@@ -203,6 +206,7 @@ namespace TimePilot.WinForms
             if (!IsZoomed)
                 return;
 
+            zoomButtonFocusOffset = null;
             viewHistory.Clear();
             SetViewRange(TimeSpan.Zero, TimeSpan.FromDays(1), addHistory: false);
         }
@@ -219,12 +223,12 @@ namespace TimePilot.WinForms
 
         public void ZoomIn()
         {
-            ZoomAround(GetZoomButtonCenterOffset(), 0.5);
+            ZoomButton(0.5);
         }
 
         public void ZoomOut()
         {
-            ZoomAround(GetZoomButtonCenterOffset(), 2);
+            ZoomButton(2);
         }
 
         public void SetViewStartRatio(double ratio)
@@ -238,6 +242,7 @@ namespace TimePilot.WinForms
             if (nextStart > maxStart)
                 nextStart = maxStart;
 
+            zoomButtonFocusOffset = null;
             SetViewRange(nextStart, nextStart + width, addHistory: false);
         }
 
@@ -364,6 +369,7 @@ namespace TimePilot.WinForms
                 var centerRatio = interactiveBounds.Contains(e.Location)
                     ? Math.Clamp((e.X - interactiveBounds.Left) / (double)Math.Max(1, interactiveBounds.Width), 0, 1)
                     : 0.5;
+                zoomButtonFocusOffset = null;
                 Zoom(e.Delta > 0 ? WheelZoomInFactor : WheelZoomOutFactor, centerRatio);
                 return;
             }
@@ -1052,6 +1058,7 @@ namespace TimePilot.WinForms
             if (end - start < MinimumViewRange)
                 return;
 
+            zoomButtonFocusOffset = null;
             SetViewRange(start, end, addHistory: true);
         }
 
@@ -1078,6 +1085,7 @@ namespace TimePilot.WinForms
             if (nextStart == viewStart && nextEnd == viewEnd)
                 return;
 
+            zoomButtonFocusOffset = null;
             SetViewRange(nextStart, nextEnd, addHistory: false);
         }
 
@@ -1112,19 +1120,18 @@ namespace TimePilot.WinForms
 
         private TimeSpan GetZoomButtonCenterOffset()
         {
-            var activityCenter = GetFocusedActivityCenterOffset();
-            if (IsZoomed)
+            if (zoomButtonFocusOffset is { } focusOffset
+                && focusOffset >= viewStart
+                && focusOffset <= viewEnd)
             {
-                if (activityCenter is not null
-                    && activityCenter.Value >= viewStart
-                    && activityCenter.Value <= viewEnd)
-                {
-                    return activityCenter.Value;
-                }
-
-                return viewStart + TimeSpan.FromTicks((viewEnd - viewStart).Ticks / 2);
+                return focusOffset;
             }
 
+            zoomButtonFocusOffset = null;
+            if (IsZoomed)
+                return viewStart + TimeSpan.FromTicks((viewEnd - viewStart).Ticks / 2);
+
+            var activityCenter = GetFocusedActivityCenterOffset();
             return activityCenter ?? TimeSpan.FromHours(12);
         }
 
@@ -1199,6 +1206,13 @@ namespace TimePilot.WinForms
             }
 
             SetViewRange(nextStart, nextEnd, addHistory: true);
+        }
+
+        private void ZoomButton(double factor)
+        {
+            var center = GetZoomButtonCenterOffset();
+            zoomButtonFocusOffset = center;
+            ZoomAround(center, factor);
         }
 
         private double GetFinePanRatio()
