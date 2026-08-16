@@ -53,6 +53,39 @@ Known cautions:
 - Support page candidate: `https://ys-bookcase.com/desktrace/support/`
 - Support email: `support@ys-bookcase.com`
 
+## Publisher And Business Name Notes
+
+For the current individual Microsoft Store developer registration, use a publisher display name that is clearly tied to the existing personal brand but does not pretend to be a registered company.
+
+Recommended individual publisher display name:
+
+- `YS Bookcase`
+
+If a business registration or company developer account is created later, keep the company publisher name distinct from the individual account name. This avoids confusion if Microsoft treats publisher display names as account-specific identifiers, and it makes the personal test release easier to separate from a later commercial publishing account.
+
+Preferred future business brand candidate:
+
+- English: `YS Bookcase Works`
+- Korean: `와이에스북케이스 웍스`
+- Natural Korean description: `YS Bookcase 제작소`
+
+Why `Works` fits:
+
+- It can cover Windows apps, games, web content, reviews, video production, and advertising-related work.
+- It sounds broader than `Software`, which may be too narrow if game and media projects grow.
+- It sounds less like a photo, video, or performance studio than `Studio`.
+- It sounds more production-ready than `Labs`, which can feel experimental.
+- It is more distinctive than `Digital`, which is broad but generic.
+
+Other name styles considered:
+
+- `YS Bookcase Software`: strong for apps and tools, but narrow for games, video, and content.
+- `YS Bookcase Studio`: good for games and media, but can sound like photo/video/performance work and less like software tools.
+- `YS Bookcase Labs`: good for experimental apps and prototypes, but lighter as a commercial publisher name.
+- `YS Bookcase Digital`: broad enough for web, apps, content, and advertising, but less distinctive.
+
+The current direction is to use `YS Bookcase` for the individual developer account and reserve `YS Bookcase Works` as the likely future business or publisher brand if commercial releases become serious enough to justify business registration.
+
 ## Store Release Impact
 
 Before Store submission, update:
