@@ -219,7 +219,7 @@ namespace TimePilot.WinForms
 
         public void ZoomIn()
         {
-            Zoom(0.5, centerRatio: 0.5);
+            ZoomAround(GetZoomInCenterOffset(), 0.5);
         }
 
         public void ZoomOut()
@@ -1095,6 +1095,79 @@ namespace TimePilot.WinForms
             centerRatio = Math.Clamp(centerRatio, 0, 1);
             var center = viewStart + TimeSpan.FromTicks((long)(currentWidth.Ticks * centerRatio));
             var nextStart = center - TimeSpan.FromTicks((long)(nextWidth.Ticks * centerRatio));
+            var nextEnd = nextStart + nextWidth;
+            if (nextStart < TimeSpan.Zero)
+            {
+                nextStart = TimeSpan.Zero;
+                nextEnd = nextWidth;
+            }
+            else if (nextEnd > TimeSpan.FromDays(1))
+            {
+                nextEnd = TimeSpan.FromDays(1);
+                nextStart = nextEnd - nextWidth;
+            }
+
+            SetViewRange(nextStart, nextEnd, addHistory: true);
+        }
+
+        private TimeSpan GetZoomInCenterOffset()
+        {
+            if (IsZoomed)
+                return viewStart + TimeSpan.FromTicks((viewEnd - viewStart).Ticks / 2);
+
+            var activityCenter = GetActivityCenterOffset();
+            return activityCenter ?? TimeSpan.FromHours(12);
+        }
+
+        private TimeSpan? GetActivityCenterOffset()
+        {
+            if (rows.Count == 0)
+                return null;
+
+            var dayStart = new DateTimeOffset(localDate, TimeZoneInfo.Local.GetUtcOffset(localDate));
+            var dayEndDate = localDate.AddDays(1);
+            var dayEnd = new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate));
+            var fallbackEnd = localDate == DateTime.Today
+                ? Min(DateTimeOffset.Now, dayEnd)
+                : dayEnd;
+            DateTimeOffset? firstStartedAt = null;
+            DateTimeOffset? lastEndedAt = null;
+
+            foreach (var row in rows)
+            {
+                var startedAt = Max(row.StartedAt, dayStart);
+                var endedAt = Min(row.EndedAt ?? fallbackEnd, dayEnd);
+                if (endedAt <= startedAt)
+                    continue;
+
+                firstStartedAt = firstStartedAt is null
+                    ? startedAt
+                    : Min(firstStartedAt.Value, startedAt);
+                lastEndedAt = lastEndedAt is null
+                    ? endedAt
+                    : Max(lastEndedAt.Value, endedAt);
+            }
+
+            if (firstStartedAt is null || lastEndedAt is null)
+                return null;
+
+            var centerTicks = firstStartedAt.Value.Ticks + ((lastEndedAt.Value.Ticks - firstStartedAt.Value.Ticks) / 2);
+            return TimeSpan.FromTicks(centerTicks - dayStart.Ticks);
+        }
+
+        private void ZoomAround(TimeSpan center, double factor)
+        {
+            var currentWidth = viewEnd - viewStart;
+            var nextWidth = TimeSpan.FromTicks((long)(currentWidth.Ticks * factor));
+            if (nextWidth < MinimumViewRange)
+                nextWidth = MinimumViewRange;
+            if (nextWidth > TimeSpan.FromDays(1))
+                nextWidth = TimeSpan.FromDays(1);
+            if (nextWidth == currentWidth)
+                return;
+
+            center = ClampToDay(center);
+            var nextStart = center - TimeSpan.FromTicks(nextWidth.Ticks / 2);
             var nextEnd = nextStart + nextWidth;
             if (nextStart < TimeSpan.Zero)
             {
