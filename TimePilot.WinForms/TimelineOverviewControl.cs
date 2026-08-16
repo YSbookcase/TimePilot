@@ -1112,10 +1112,19 @@ namespace TimePilot.WinForms
 
         private TimeSpan GetZoomInCenterOffset()
         {
-            if (IsZoomed)
-                return viewStart + TimeSpan.FromTicks((viewEnd - viewStart).Ticks / 2);
-
             var activityCenter = GetFocusedActivityCenterOffset();
+            if (IsZoomed)
+            {
+                if (activityCenter is not null
+                    && activityCenter.Value >= viewStart
+                    && activityCenter.Value <= viewEnd)
+                {
+                    return activityCenter.Value;
+                }
+
+                return viewStart + TimeSpan.FromTicks((viewEnd - viewStart).Ticks / 2);
+            }
+
             return activityCenter ?? TimeSpan.FromHours(12);
         }
 

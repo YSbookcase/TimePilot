@@ -76,6 +76,29 @@ namespace TimePilot.Tests
             Assert.Equal(7 / 24.0, control.ViewStartRatio, precision: 6);
         }
 
+        [Fact]
+        public void ZoomIn_WhenLatestActivityIsNearDayEnd_KeepsActivityFocusedOnRepeatedZoom()
+        {
+            using var control = new TimelineOverviewControl();
+            var date = new DateTime(2026, 8, 17);
+
+            control.SetTimeline(
+                date,
+                [
+                    CreateRow(date, 22, 0, 23, 0)
+                ],
+                Array.Empty<TimelineRange>(),
+                Array.Empty<SystemTimelineRange>(),
+                Array.Empty<SystemTimelineEvent>(),
+                Array.Empty<CategoryTimelineSegment>());
+
+            control.ZoomIn();
+            control.ZoomIn();
+
+            Assert.Equal(0.25, control.ViewWidthRatio, precision: 6);
+            Assert.Equal(18 / 24.0, control.ViewStartRatio, precision: 6);
+        }
+
         private static ActivityTimelineRow CreateRow(
             DateTime date,
             int startHour,
