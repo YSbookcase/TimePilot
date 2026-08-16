@@ -25,13 +25,51 @@ namespace TimePilot.WinForms.Timeline
             controls.TypeHighlightComboBox.SelectedIndexChanged += typeHighlightChanged;
             controls.TypeHighlightComboBox.DropDownClosed += typeHighlightDropDownClosed;
 
+            controls.ZoomPanel.Controls.Remove(controls.CategoryBucketLabel);
+            controls.ZoomPanel.Controls.Remove(controls.CategoryBucketComboBox);
+            controls.ZoomPanel.Controls.Remove(controls.TypeHighlightLabel);
+            controls.ZoomPanel.Controls.Remove(controls.TypeHighlightComboBox);
+
+            controls.CategoryBucketLabel.AutoSize = true;
+            controls.CategoryBucketLabel.Margin = new Padding(0, 7, 3, 0);
+            controls.CategoryBucketComboBox.Margin = new Padding(0, 3, 0, 0);
+
+            controls.TypeHighlightLabel.AutoSize = true;
+            controls.TypeHighlightLabel.Margin = new Padding(0, 7, 3, 0);
+            controls.TypeHighlightComboBox.Margin = new Padding(0, 3, 0, 0);
+
             controls.SystemEventFilterLabel.AutoSize = true;
-            controls.SystemEventFilterLabel.Margin = new Padding(12, 7, 3, 0);
+            controls.SystemEventFilterLabel.Margin = new Padding(0, 7, 3, 0);
             controls.SystemEventFilterComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            controls.SystemEventFilterComboBox.Margin = new Padding(0, 3, 0, 0);
             controls.SystemEventFilterComboBox.Width = 112;
             controls.SystemEventFilterComboBox.SelectedIndexChanged += systemEventFilterChanged;
-            controls.ZoomPanel.Controls.Add(controls.SystemEventFilterLabel);
-            controls.ZoomPanel.Controls.Add(controls.SystemEventFilterComboBox);
+
+            controls.ZoomPanel.Controls.Add(CreateSelectorGroup(
+                controls.CategoryBucketLabel,
+                controls.CategoryBucketComboBox));
+            controls.ZoomPanel.Controls.Add(CreateSelectorGroup(
+                controls.TypeHighlightLabel,
+                controls.TypeHighlightComboBox));
+            controls.ZoomPanel.Controls.Add(CreateSelectorGroup(
+                controls.SystemEventFilterLabel,
+                controls.SystemEventFilterComboBox));
+        }
+
+        private static FlowLayoutPanel CreateSelectorGroup(Label label, ComboBox comboBox)
+        {
+            var group = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                Margin = new Padding(8, 0, 0, 0),
+                Padding = Padding.Empty,
+                WrapContents = false
+            };
+
+            group.Controls.Add(label);
+            group.Controls.Add(comboBox);
+            return group;
         }
 
         public int RefreshCategoryBucketOptions(int selectedMinutes)
