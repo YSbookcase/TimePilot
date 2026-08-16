@@ -15,7 +15,7 @@ TimePilot은 제품, 개인정보처리방침, 패키징, 지원 흐름이 안�
 
 ## Partner Center
 
-- [ ] Microsoft Partner Center 개발자 계정을 만들거나 확인한다.
+- [x] Microsoft Partner Center 개발자 계정을 만들거나 확인한다.
 - [ ] 앱 이름을 예약한다.
 - [ ] 제출 전에 게시자 표시 이름을 확인한다.
 - [ ] 카테고리와 연령 등급을 선택한다.
