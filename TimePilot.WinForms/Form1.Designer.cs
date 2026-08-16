@@ -1240,12 +1240,13 @@
             //
             // timelineZoomRangeLabel
             //
-            timelineZoomRangeLabel.AutoSize = true;
+            timelineZoomRangeLabel.AutoEllipsis = true;
+            timelineZoomRangeLabel.AutoSize = false;
             timelineZoomRangeLabel.ForeColor = SystemColors.GrayText;
             timelineZoomRangeLabel.Location = new Point(11, 10);
             timelineZoomRangeLabel.Margin = new Padding(0, 6, 12, 0);
             timelineZoomRangeLabel.Name = "timelineZoomRangeLabel";
-            timelineZoomRangeLabel.Size = new Size(91, 15);
+            timelineZoomRangeLabel.Size = new Size(168, 15);
             timelineZoomRangeLabel.TabIndex = 0;
             timelineZoomRangeLabel.Text = UiText.Main.TimelineViewRange(UiText.Main.TimelineFullDay);
             //
