@@ -24,13 +24,11 @@ ActiveLogbook should continue to treat the Store release as an early public test
 
 ## Prepared Public Links
 
-- Current temporary official page: https://ys-bookcase.com/active-logbook/
-- Current temporary support page: https://ys-bookcase.com/active-logbook/support/
-- Current temporary privacy policy: https://ys-bookcase.com/active-logbook/privacy-policy/
 - ActiveLogbook official page target: https://ys-bookcase.com/active-logbook/
 - ActiveLogbook support page target: https://ys-bookcase.com/active-logbook/support/
 - ActiveLogbook privacy policy target: https://ys-bookcase.com/active-logbook/privacy-policy/
 - Support email: support@ys-bookcase.com
+- Status: published and visually checked in the browser by the site owner.
 
 ## Packaging Choice
 
@@ -78,8 +76,8 @@ Microsoft currently supports both MSIX and MSI/EXE submission paths for Win32 ap
 
 ## Functional Verification
 
-- [ ] Build succeeds.
-- [ ] Tests pass.
+- [x] Build succeeds.
+- [x] Tests pass.
 - [ ] Fresh install launches ActiveLogbook.
 - [ ] Foreground app usage is recorded.
 - [ ] Idle time is separated.

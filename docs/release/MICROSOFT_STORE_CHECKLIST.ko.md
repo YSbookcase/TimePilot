@@ -24,13 +24,11 @@ ActiveLogbook은 제품, 개인정보처리방침, 패키징, 지원 흐름이 �
 
 ## 준비된 공개 링크
 
-- 현재 임시 공식 페이지: https://ys-bookcase.com/active-logbook/
-- 현재 임시 지원 페이지: https://ys-bookcase.com/active-logbook/support/
-- 현재 임시 개인정보처리방침: https://ys-bookcase.com/active-logbook/privacy-policy/
 - ActiveLogbook 공식 페이지 변경 대상: https://ys-bookcase.com/active-logbook/
 - ActiveLogbook 지원 페이지 변경 대상: https://ys-bookcase.com/active-logbook/support/
 - ActiveLogbook 개인정보처리방침 변경 대상: https://ys-bookcase.com/active-logbook/privacy-policy/
 - 지원 이메일: support@ys-bookcase.com
+- 상태: 사이트 소유자가 브라우저에서 공개 페이지의 겉보기 문제 없음을 확인했다.
 
 ## 패키지 선택
 
@@ -78,8 +76,8 @@ Microsoft Store는 Win32 앱에 대해 MSIX와 MSI/EXE 제출 경로를 모두 �
 
 ## 기능 검증
 
-- [ ] 빌드가 성공한다.
-- [ ] 테스트가 통과한다.
+- [x] 빌드가 성공한다.
+- [x] 테스트가 통과한다.
 - [ ] 새 설치 후 ActiveLogbook이 실행된다.
 - [ ] foreground 앱 사용 시간이 기록된다.
 - [ ] idle 시간이 분리된다.
