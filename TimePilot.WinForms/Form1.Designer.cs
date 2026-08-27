@@ -1214,16 +1214,18 @@
             timelineHighlightClearButton.UseVisualStyleBackColor = true;
             timelineHighlightClearButton.Visible = false;
             timelineHighlightClearButton.Click += OnTimelineHighlightClearButtonClick;
-            //
+            // 
             // timelineZoomPanel
             //
-            timelineZoomPanel.Controls.Add(timelineZoomRangeLabel);
+            timelineZoomPanel.AutoSize = true;
+            timelineZoomPanel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             timelineZoomPanel.Controls.Add(timelineZoomOutButton);
             timelineZoomPanel.Controls.Add(timelineZoomInButton);
             timelineZoomPanel.Controls.Add(timelineZoomPreviousButton);
             timelineZoomPanel.Controls.Add(timelineZoomNextButton);
             timelineZoomPanel.Controls.Add(timelineZoomResetButton);
             timelineZoomPanel.Controls.Add(timelineHelpButton);
+            timelineZoomPanel.Controls.Add(timelineZoomRangeLabel);
             timelineZoomPanel.Controls.Add(timelineCategoryBucketLabel);
             timelineZoomPanel.Controls.Add(timelineCategoryBucketComboBox);
             timelineZoomPanel.Controls.Add(timelineTypeHighlightLabel);
@@ -1234,14 +1236,14 @@
             timelineZoomPanel.Padding = new Padding(8, 4, 8, 2);
             timelineZoomPanel.Size = new Size(706, 32);
             timelineZoomPanel.TabIndex = 2;
-            timelineZoomPanel.WrapContents = false;
+            timelineZoomPanel.WrapContents = true;
             //
             // timelineZoomRangeLabel
             //
             timelineZoomRangeLabel.AutoSize = true;
             timelineZoomRangeLabel.ForeColor = SystemColors.GrayText;
-            timelineZoomRangeLabel.Location = new Point(11, 10);
-            timelineZoomRangeLabel.Margin = new Padding(0, 6, 12, 0);
+            timelineZoomRangeLabel.Location = new Point(363, 10);
+            timelineZoomRangeLabel.Margin = new Padding(8, 6, 12, 0);
             timelineZoomRangeLabel.Name = "timelineZoomRangeLabel";
             timelineZoomRangeLabel.Size = new Size(91, 15);
             timelineZoomRangeLabel.TabIndex = 0;

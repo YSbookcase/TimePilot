@@ -62,8 +62,11 @@ namespace TimePilot.Tests
                 controls.CategoryBucketComboBox.SelectedIndex = 1;
 
                 Assert.True(categoryChanged);
-                Assert.Contains(controls.SystemEventFilterLabel, controls.ZoomPanel.Controls.Cast<Control>());
-                Assert.Contains(controls.SystemEventFilterComboBox, controls.ZoomPanel.Controls.Cast<Control>());
+                Assert.True(controls.ZoomPanel.WrapContents);
+                var systemEventGroup = Assert.IsType<FlowLayoutPanel>(
+                    controls.SystemEventFilterLabel.Parent);
+                Assert.False(systemEventGroup.WrapContents);
+                Assert.Same(systemEventGroup, controls.SystemEventFilterComboBox.Parent);
             }
             finally
             {

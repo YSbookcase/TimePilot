@@ -43,7 +43,9 @@ namespace TimePilot.WinForms.Timeline
         public void Update()
         {
             var state = getState();
-            controls.RangeLabel.Text = UiText.Main.TimelineViewRange(state.ViewRangeText);
+            var viewRangeText = UiText.Main.TimelineViewRange(state.ViewRangeText);
+            controls.RangeLabel.Text = viewRangeText;
+            controls.RangeLabel.AccessibleDescription = viewRangeText;
             controls.ZoomOutButton.Enabled = state.IsZoomed;
             controls.ZoomInButton.Enabled = true;
             controls.PreviousButton.Enabled = state.CanPanPrevious;
