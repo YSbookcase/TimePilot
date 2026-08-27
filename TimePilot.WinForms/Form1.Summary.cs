@@ -84,6 +84,96 @@ namespace TimePilot.WinForms
             RefreshSummaryUsageBarsModeOptions();
         }
 
+        private void InitializeSummaryOverview()
+        {
+            summaryOverviewPanel.Dock = DockStyle.Top;
+            summaryOverviewPanel.Height = 52;
+            summaryOverviewPanel.Padding = new Padding(8, 5, 8, 5);
+            summaryOverviewPanel.WrapContents = true;
+            summaryOverviewPanel.BackColor = Color.FromArgb(248, 250, 252);
+            summaryOverviewPanel.Visible = true;
+            summaryOverviewPanel.SizeChanged += OnSummaryOverviewPanelSizeChanged;
+            summaryTab.Controls.Add(summaryOverviewPanel);
+            SetSummaryTabControlOrder();
+            SetSummaryOverview(Array.Empty<UsageSummaryRow>());
+        }
+
+        private void OnSummaryOverviewPanelSizeChanged(object? sender, EventArgs e)
+        {
+            UpdateSummaryOverviewPanelHeight();
+        }
+
+        private void SetSummaryTabControlOrder()
+        {
+            summaryTab.Controls.SetChildIndex(summaryPeriodPanel, 0);
+            summaryTab.Controls.SetChildIndex(summaryOverviewPanel, 1);
+            summaryTab.Controls.SetChildIndex(runtimeCoverageSummaryPanel, 2);
+            summaryTab.Controls.SetChildIndex(summaryIdleAnalysisPanel, 3);
+            summaryTab.Controls.SetChildIndex(summaryUsageBarsPanel, 4);
+            summaryTab.Controls.SetChildIndex(summarySplitContainer, 5);
+        }
+
+        private void SetSummaryOverview(IReadOnlyList<UsageSummaryRow> rows)
+        {
+            var metrics = SummaryOverviewFormatter.Build(rows);
+
+            summaryOverviewPanel.SuspendLayout();
+            try
+            {
+                while (summaryOverviewLabels.Count < metrics.Count)
+                {
+                    var label = new Label
+                    {
+                        AutoSize = true,
+                        Margin = new Padding(0, 4, 18, 4),
+                        TextAlign = ContentAlignment.MiddleLeft
+                    };
+                    summaryOverviewLabels.Add(label);
+                    summaryOverviewPanel.Controls.Add(label);
+                }
+
+                for (var i = 0; i < metrics.Count; i++)
+                {
+                    var metric = metrics[i];
+                    var text = $"{metric.Label}: {metric.Value}";
+                    if (!string.IsNullOrWhiteSpace(metric.Detail)
+                        && metric.Detail != "-")
+                    {
+                        text += $" ({metric.Detail})";
+                    }
+
+                    summaryOverviewLabels[i].Text = text;
+                    runtimeCoverageSummaryToolTip.SetToolTip(
+                        summaryOverviewLabels[i],
+                        metric.Detail);
+                }
+
+                while (summaryOverviewLabels.Count > metrics.Count)
+                {
+                    var lastIndex = summaryOverviewLabels.Count - 1;
+                    var label = summaryOverviewLabels[lastIndex];
+                    summaryOverviewLabels.RemoveAt(lastIndex);
+                    summaryOverviewPanel.Controls.Remove(label);
+                    label.Dispose();
+                }
+
+                UpdateSummaryOverviewPanelHeight();
+            }
+            finally
+            {
+                summaryOverviewPanel.ResumeLayout();
+            }
+        }
+
+        private void UpdateSummaryOverviewPanelHeight()
+        {
+            var preferredHeight = summaryOverviewPanel.GetPreferredSize(
+                new Size(summaryOverviewPanel.Width, 0)).Height;
+            var height = Math.Clamp(preferredHeight, 36, 72);
+            if (summaryOverviewPanel.Height != height)
+                summaryOverviewPanel.Height = height;
+        }
+
         private void SetSummaryUsageBars(IReadOnlyList<UsageSummaryRow> rows)
         {
             summaryUsageBarsControl.SetRows(
