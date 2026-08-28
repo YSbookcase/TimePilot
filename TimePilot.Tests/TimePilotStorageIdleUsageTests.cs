@@ -43,5 +43,49 @@ namespace TimePilot.Tests
                     File.Delete(databasePath);
             }
         }
+
+        [Fact]
+        public void Initialize_ClosesOpenIdleSessionAtPreviousRuntimeHeartbeat()
+        {
+            var databasePath = Path.Combine(
+                Path.GetTempPath(),
+                $"timepilot-idle-open-{Guid.NewGuid():N}.db");
+            try
+            {
+                var startedAt = new DateTimeOffset(2026, 8, 23, 9, 0, 0, TimeSpan.Zero);
+                var idleStartedAt = startedAt.AddHours(1);
+                var heartbeatAt = startedAt.AddHours(2);
+                using (var storage = new TimePilotStorage(databasePath))
+                {
+                    storage.Initialize(startedAt, startedAt.AddHours(-1));
+                    storage.BeginRuntimeSession(startedAt, startedAt.AddHours(-1), "test");
+                    storage.StartIdleSession(
+                        idleStartedAt,
+                        thresholdMs: 120_000,
+                        foregroundApp: null);
+                    storage.UpdateRuntimeHeartbeat(heartbeatAt);
+                }
+
+                using (var storage = new TimePilotStorage(databasePath))
+                {
+                    storage.Initialize(startedAt.AddHours(3), startedAt.AddHours(-1));
+                    var dayStart = new DateTimeOffset(
+                        startedAt.Date,
+                        startedAt.Offset);
+
+                    var summary = storage.GetIdleUsageForPeriod(
+                        dayStart,
+                        dayStart.AddDays(1));
+
+                    Assert.Equal((long)TimeSpan.FromHours(1).TotalMilliseconds, summary.IdleMs);
+                }
+            }
+            finally
+            {
+                SqliteConnection.ClearAllPools();
+                if (File.Exists(databasePath))
+                    File.Delete(databasePath);
+            }
+        }
     }
 }
