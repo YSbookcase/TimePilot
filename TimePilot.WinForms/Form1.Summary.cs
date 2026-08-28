@@ -106,10 +106,10 @@ namespace TimePilot.WinForms
         private void SetSummaryTabControlOrder()
         {
             summaryTab.Controls.SetChildIndex(summaryPeriodPanel, 0);
-            summaryTab.Controls.SetChildIndex(summaryOverviewPanel, 1);
-            summaryTab.Controls.SetChildIndex(runtimeCoverageSummaryPanel, 2);
-            summaryTab.Controls.SetChildIndex(summaryIdleAnalysisPanel, 3);
-            summaryTab.Controls.SetChildIndex(summaryUsageBarsPanel, 4);
+            summaryTab.Controls.SetChildIndex(runtimeCoverageSummaryPanel, 1);
+            summaryTab.Controls.SetChildIndex(summaryOverviewPanel, 2);
+            summaryTab.Controls.SetChildIndex(summaryUsageBarsPanel, 3);
+            summaryTab.Controls.SetChildIndex(summaryIdleAnalysisPanel, 4);
             summaryTab.Controls.SetChildIndex(summarySplitContainer, 5);
         }
 
