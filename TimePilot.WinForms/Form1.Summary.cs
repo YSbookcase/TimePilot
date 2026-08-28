@@ -87,8 +87,8 @@ namespace TimePilot.WinForms
         private void InitializeSummaryOverview()
         {
             summaryOverviewPanel.Dock = DockStyle.Top;
-            summaryOverviewPanel.Height = 52;
-            summaryOverviewPanel.Padding = new Padding(8, 5, 8, 5);
+            summaryOverviewPanel.Height = 32;
+            summaryOverviewPanel.Padding = new Padding(8, 2, 8, 2);
             summaryOverviewPanel.WrapContents = true;
             summaryOverviewPanel.BackColor = Color.FromArgb(248, 250, 252);
             summaryOverviewPanel.Visible = true;
@@ -105,12 +105,12 @@ namespace TimePilot.WinForms
 
         private void SetSummaryTabControlOrder()
         {
-            summaryTab.Controls.SetChildIndex(summaryPeriodPanel, 0);
-            summaryTab.Controls.SetChildIndex(runtimeCoverageSummaryPanel, 1);
-            summaryTab.Controls.SetChildIndex(summaryOverviewPanel, 2);
-            summaryTab.Controls.SetChildIndex(summaryUsageBarsPanel, 3);
-            summaryTab.Controls.SetChildIndex(summaryIdleAnalysisPanel, 4);
-            summaryTab.Controls.SetChildIndex(summarySplitContainer, 5);
+            summaryTab.Controls.SetChildIndex(summarySplitContainer, 0);
+            summaryTab.Controls.SetChildIndex(summaryIdleAnalysisPanel, 1);
+            summaryTab.Controls.SetChildIndex(summaryUsageBarsPanel, 2);
+            summaryTab.Controls.SetChildIndex(summaryOverviewPanel, 3);
+            summaryTab.Controls.SetChildIndex(runtimeCoverageSummaryPanel, 4);
+            summaryTab.Controls.SetChildIndex(summaryPeriodPanel, 5);
         }
 
         private void SetSummaryOverview(IReadOnlyList<UsageSummaryRow> rows)
@@ -125,7 +125,7 @@ namespace TimePilot.WinForms
                     var label = new Label
                     {
                         AutoSize = true,
-                        Margin = new Padding(0, 4, 18, 4),
+                        Margin = new Padding(0, 3, 16, 3),
                         TextAlign = ContentAlignment.MiddleLeft
                     };
                     summaryOverviewLabels.Add(label);
@@ -136,10 +136,11 @@ namespace TimePilot.WinForms
                 {
                     var metric = metrics[i];
                     var text = $"{metric.Label}: {metric.Value}";
-                    if (!string.IsNullOrWhiteSpace(metric.Detail)
+                    if (metric.Label == UiText.Main.TopApp
+                        && !string.IsNullOrWhiteSpace(metric.Detail)
                         && metric.Detail != "-")
                     {
-                        text += $" ({metric.Detail})";
+                        text += $" {metric.Detail}";
                     }
 
                     summaryOverviewLabels[i].Text = text;
@@ -169,7 +170,7 @@ namespace TimePilot.WinForms
         {
             var preferredHeight = summaryOverviewPanel.GetPreferredSize(
                 new Size(summaryOverviewPanel.Width, 0)).Height;
-            var height = Math.Clamp(preferredHeight, 36, 72);
+            var height = Math.Clamp(preferredHeight, 28, 48);
             if (summaryOverviewPanel.Height != height)
                 summaryOverviewPanel.Height = height;
         }
