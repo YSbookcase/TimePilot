@@ -52,6 +52,7 @@ namespace TimePilot.WinForms
             usageGrid.CellMouseLeave += OnGridCellMouseLeave;
             usageGrid.CellMouseDown += OnUsageGridCellMouseDown;
             usageGrid.SelectionChanged += OnUsageGridSelectionChanged;
+            InitializeSummaryOverview();
             InitializeSummaryUsageBars();
             timelineGrid.CellMouseDown += OnTimelineGridCellMouseDown;
             timelineGrid.RowPrePaint += OnTimelineGridRowPrePaint;

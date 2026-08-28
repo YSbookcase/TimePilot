@@ -37,6 +37,8 @@ namespace TimePilot.WinForms
         private readonly ContextMenuStrip appCategoryMenu = new();
         private readonly ContextMenuStrip usageGridMenu = new();
         private readonly ContextMenuStrip timelineGridMenu = new();
+        private readonly FlowLayoutPanel summaryOverviewPanel = new();
+        private readonly List<Label> summaryOverviewLabels = new();
         private readonly FlowLayoutPanel summaryUsageBarsModePanel = new();
         private readonly Label summaryUsageBarsModeLabel = new();
         private readonly ComboBox summaryUsageBarsModeComboBox = new();

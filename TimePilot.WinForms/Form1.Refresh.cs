@@ -233,6 +233,7 @@ namespace TimePilot.WinForms
             var usageRows = AddIcons(SortUsageSummaryRows(UsageSummaryRowBuilder.FromForegroundUsage(
                 snapshot.ForegroundUsage!,
                 snapshot.ShowDateInUsageTimestamps)));
+            SetSummaryOverview(usageRows);
             GridViewStatePreserver.SetDataSourcePreservingView(usageGrid, usageRows);
             RestoreUsageGridSelection(previousUsageSelection);
             SetSummaryUsageBars(usageRows);

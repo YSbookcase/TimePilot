@@ -1,4 +1,5 @@
 using TimePilot.WinForms.Details;
+using TimePilot.WinForms.KYS24;
 
 namespace TimePilot.WinForms
 {
@@ -17,6 +18,8 @@ namespace TimePilot.WinForms
             summaryCustomRangeButton.Text = UiText.SummaryPeriod.CustomRangeButton;
             UpdateSummaryCustomRangeLabel();
             RefreshSummaryUsageBarsModeOptions();
+            if (usageGrid.DataSource is IReadOnlyList<UsageSummaryRow> usageRows)
+                SetSummaryOverview(usageRows);
             detailDateLabel.Text = UiText.Main.Date;
             detailCalendarButton.Text = UiText.Main.Calendar;
             detailTodayButton.Text = UiText.Main.Today;
