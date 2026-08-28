@@ -42,6 +42,14 @@
             ApplicationConfiguration.Initialize();
             var settings = KYS24.AppSettings.LoadDefault();
             KYS24.UiText.UseLanguage(settings.UiLanguage);
+            try
+            {
+                KYS24.WindowsStartupRegistration.Synchronize(settings.StartWithWindows);
+            }
+            catch
+            {
+                // Startup registration should never prevent the app from opening.
+            }
 
             using var singleInstanceMutex = new Mutex(
                 initiallyOwned: true,

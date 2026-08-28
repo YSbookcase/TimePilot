@@ -22,8 +22,39 @@ namespace TimePilot.WinForms.KYS24
 
             key.SetValue(
                 ValueName,
-                $"\"{Application.ExecutablePath}\" {TrayStartupArgument}",
+                BuildStartupCommand(Application.ExecutablePath),
                 RegistryValueKind.String);
+        }
+
+        public static void Synchronize(bool isEnabled)
+        {
+            if (!isEnabled)
+            {
+                SetEnabled(false);
+                return;
+            }
+
+            using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
+            var registeredCommand = key?.GetValue(ValueName) as string;
+            if (IsStartupCommandForExecutable(registeredCommand, Application.ExecutablePath))
+                return;
+
+            SetEnabled(true);
+        }
+
+        internal static string BuildStartupCommand(string executablePath)
+        {
+            return $"\"{executablePath}\" {TrayStartupArgument}";
+        }
+
+        internal static bool IsStartupCommandForExecutable(
+            string? registeredCommand,
+            string executablePath)
+        {
+            return string.Equals(
+                registeredCommand,
+                BuildStartupCommand(executablePath),
+                StringComparison.OrdinalIgnoreCase);
         }
     }
 }
