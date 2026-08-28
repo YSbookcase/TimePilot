@@ -1269,7 +1269,7 @@ namespace TimePilot.WinForms.KYS24
             command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
             command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
 
-            long idleMs = 0;
+            var idleIntervals = new List<(DateTimeOffset Start, DateTimeOffset End)>();
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -1280,10 +1280,10 @@ namespace TimePilot.WinForms.KYS24
                 if (effectiveEnd <= effectiveStart)
                     continue;
 
-                idleMs += Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+                idleIntervals.Add((effectiveStart, effectiveEnd));
             }
 
-            return new IdleUsageSummary(idleMs);
+            return new IdleUsageSummary(GetMergedDurationMs(idleIntervals));
         }
 
         public IReadOnlyList<DailyUsageTrendRow> GetDailyUsageTrendForPeriod(
@@ -3565,6 +3565,13 @@ namespace TimePilot.WinForms.KYS24
             IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> rightIntervals)
         {
             return IntersectIntervals(leftIntervals, rightIntervals)
+                .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
+        }
+
+        private static long GetMergedDurationMs(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> intervals)
+        {
+            return MergeIntervals(intervals)
                 .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
         }
 
