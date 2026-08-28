@@ -173,6 +173,7 @@ namespace TimePilot.WinForms.KYS24
             RenameBuiltinAppCategoriesToCanonical(connection, now);
             SeedDefaultAppCategories(connection, now);
             MarkUnexpectedRuntimeSessions(now, systemBootedAt);
+            MarkUnexpectedIdleSessions(now);
             MarkUnexpectedProcessRuntimeSessions(now);
         }
 
@@ -334,6 +335,11 @@ namespace TimePilot.WinForms.KYS24
         public void EndIdleSession(long sessionId, DateTimeOffset endedAt)
         {
             using var connection = OpenConnection();
+            EndIdleSession(connection, sessionId, endedAt);
+        }
+
+        private void EndIdleSession(SqliteConnection connection, long sessionId, DateTimeOffset endedAt)
+        {
             using var selectCommand = connection.CreateCommand();
             selectCommand.CommandText = """
                 SELECT started_at
@@ -1269,7 +1275,7 @@ namespace TimePilot.WinForms.KYS24
             command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
             command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
 
-            long idleMs = 0;
+            var idleIntervals = new List<(DateTimeOffset Start, DateTimeOffset End)>();
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -1280,10 +1286,10 @@ namespace TimePilot.WinForms.KYS24
                 if (effectiveEnd <= effectiveStart)
                     continue;
 
-                idleMs += Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+                idleIntervals.Add((effectiveStart, effectiveEnd));
             }
 
-            return new IdleUsageSummary(idleMs);
+            return new IdleUsageSummary(GetMergedDurationMs(idleIntervals));
         }
 
         public IReadOnlyList<DailyUsageTrendRow> GetDailyUsageTrendForPeriod(
@@ -2672,6 +2678,55 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
+        private void MarkUnexpectedIdleSessions(DateTimeOffset now)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT id, started_at
+                FROM idle_sessions
+                WHERE ended_at IS NULL;
+                """;
+
+            var openSessions = new List<(long Id, DateTimeOffset StartedAt)>();
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    openSessions.Add((
+                        reader.GetInt64(0),
+                        ParseTimestamp(reader.GetString(1))));
+                }
+            }
+
+            foreach (var session in openSessions)
+            {
+                var endedAt = GetRuntimeEndForIdleSession(connection, session.StartedAt)
+                    ?? session.StartedAt;
+                EndIdleSession(connection, session.Id, Min(endedAt, now));
+            }
+        }
+
+        private static DateTimeOffset? GetRuntimeEndForIdleSession(
+            SqliteConnection connection,
+            DateTimeOffset idleStartedAt)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT COALESCE(ended_at, last_heartbeat_at, started_at)
+                FROM app_runtime_sessions
+                WHERE started_at <= $idleStartedAt
+                  AND COALESCE(ended_at, last_heartbeat_at, started_at) >= $idleStartedAt
+                ORDER BY started_at DESC
+                LIMIT 1;
+                """;
+            command.Parameters.AddWithValue("$idleStartedAt", FormatTimestamp(idleStartedAt));
+
+            return command.ExecuteScalar() is string endedAtText
+                ? ParseTimestamp(endedAtText)
+                : null;
+        }
+
         private void EndRuntimeSession(SqliteConnection connection, long sessionId, DateTimeOffset endedAt, string shutdownReason)
         {
             using var selectCommand = connection.CreateCommand();
@@ -3565,6 +3620,13 @@ namespace TimePilot.WinForms.KYS24
             IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> rightIntervals)
         {
             return IntersectIntervals(leftIntervals, rightIntervals)
+                .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
+        }
+
+        private static long GetMergedDurationMs(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> intervals)
+        {
+            return MergeIntervals(intervals)
                 .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
         }
 
