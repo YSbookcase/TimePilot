@@ -9,7 +9,8 @@ namespace TimePilot.WinForms
         private readonly TimePilotStorage storage;
         private readonly AppSettings settings;
         private readonly UiLanguage language;
-        private readonly AppIconCache appIconCache = new();
+        private readonly AppIconCache appIconCache;
+        private readonly AppExecutableMetadataCache appExecutableMetadataCache;
         private readonly ComboBox filterComboBox = new();
         private readonly ComboBox filterCategoryComboBox = new();
         private readonly TextBox searchTextBox = new();
@@ -53,11 +54,18 @@ namespace TimePilot.WinForms
         private bool initialLoadStarted;
         private int? selectionAnchorRowIndex;
 
-        public AppCategoryManagementForm(TimePilotStorage storage, AppSettings settings, UiLanguage language)
+        public AppCategoryManagementForm(
+            TimePilotStorage storage,
+            AppSettings settings,
+            UiLanguage language,
+            AppIconCache appIconCache,
+            AppExecutableMetadataCache appExecutableMetadataCache)
         {
             this.storage = storage;
             this.settings = settings;
             this.language = language;
+            this.appIconCache = appIconCache;
+            this.appExecutableMetadataCache = appExecutableMetadataCache;
 
             InitializeComponent();
             Shown += OnShown;
@@ -601,14 +609,14 @@ namespace TimePilot.WinForms
             return rows
                 .Select(row =>
                 {
-                    var metadata = GetFileMetadata(row.ExecutablePath);
+                    var metadata = appExecutableMetadataCache.GetMetadata(row.ExecutablePath);
                     var enrichedRow = row with
                     {
                         FileDescription = metadata.FileDescription,
                         ProductName = metadata.ProductName,
                         CompanyName = metadata.CompanyName,
                         CategoryDisplayName = GetCategoryDisplayName(row.PrimaryCategoryId, row.CategoryName, recommendationCategories),
-                        HasExtractedAppIcon = HasDistinctAssociatedIcon(row.ExecutablePath),
+                        HasExtractedAppIcon = metadata.HasDistinctAssociatedIcon,
                         AppIcon = appIconCache.GetIcon(row.ExecutablePath)
                     };
 
@@ -623,68 +631,6 @@ namespace TimePilot.WinForms
                         };
                 })
                 .ToList();
-        }
-
-        private static bool HasDistinctAssociatedIcon(string? executablePath)
-        {
-            if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
-                return false;
-
-            try
-            {
-                using var icon = Icon.ExtractAssociatedIcon(executablePath);
-                if (icon is null)
-                    return false;
-
-                using var extractedBitmap = icon.ToBitmap();
-                using var defaultBitmap = SystemIcons.Application.ToBitmap();
-                return !AreBitmapsEqual(extractedBitmap, defaultBitmap);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        private static bool AreBitmapsEqual(Bitmap left, Bitmap right)
-        {
-            if (left.Size != right.Size)
-                return false;
-
-            for (var y = 0; y < left.Height; y++)
-            {
-                for (var x = 0; x < left.Width; x++)
-                {
-                    if (left.GetPixel(x, y) != right.GetPixel(x, y))
-                        return false;
-                }
-            }
-
-            return true;
-        }
-
-        private static (string? FileDescription, string? ProductName, string? CompanyName) GetFileMetadata(string? executablePath)
-        {
-            if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
-                return (null, null, null);
-
-            try
-            {
-                var versionInfo = FileVersionInfo.GetVersionInfo(executablePath);
-                return (
-                    NormalizeMetadata(versionInfo.FileDescription),
-                    NormalizeMetadata(versionInfo.ProductName),
-                    NormalizeMetadata(versionInfo.CompanyName));
-            }
-            catch
-            {
-                return (null, null, null);
-            }
-        }
-
-        private static string? NormalizeMetadata(string? value)
-        {
-            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
 
         private string? GetCategoryDisplayName(

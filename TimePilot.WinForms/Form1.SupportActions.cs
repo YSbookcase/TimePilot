@@ -21,7 +21,9 @@ namespace TimePilot.WinForms
             using var form = new AppCategoryManagementForm(
                 storage,
                 settings,
-                settings.UiLanguage);
+                settings.UiLanguage,
+                appIconCache,
+                appExecutableMetadataCache);
             form.Icon = Icon;
             if (form.ShowDialog(this) == DialogResult.OK && form.CategoriesChanged)
             {
