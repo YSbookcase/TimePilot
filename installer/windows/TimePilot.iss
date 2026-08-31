@@ -1,6 +1,6 @@
 #define MyAppName "ActiveLogbook"
 #define MyAppPublisher "YSbookcase"
-#define MyAppExeName "TimePilot.WinForms.exe"
+#define MyAppExeName "ActiveLogbook.exe"
 #ifndef AppVersion
 #define AppVersion "0.2.2"
 #endif
