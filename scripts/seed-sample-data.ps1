@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $outputPath = Join-Path $repoRoot "TimePilot.WinForms\bin\CodexVerify\"
-$appPath = Join-Path $outputPath "TimePilot.WinForms.dll"
+$appPath = Join-Path $outputPath "ActiveLogbook.dll"
 
 Push-Location $repoRoot
 try {

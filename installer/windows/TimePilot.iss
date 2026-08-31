@@ -1,6 +1,6 @@
 #define MyAppName "ActiveLogbook"
 #define MyAppPublisher "YSbookcase"
-#define MyAppExeName "TimePilot.WinForms.exe"
+#define MyAppExeName "ActiveLogbook.exe"
 #ifndef AppVersion
 #define AppVersion "0.2.2"
 #endif
@@ -19,6 +19,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL=https://ys-bookcase.com/active-logbook/
 AppSupportURL=https://ys-bookcase.com/active-logbook/support/
 AppUpdatesURL=https://github.com/YSbookcase/TimePilot/releases
+AppVerName={#MyAppName} {#AppVersion}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
@@ -31,7 +32,9 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
+UsePreviousAppDir=no
 AppMutex=TimePilot.SingleInstance
 CloseApplications=yes
 CloseApplicationsFilter={#MyAppExeName}

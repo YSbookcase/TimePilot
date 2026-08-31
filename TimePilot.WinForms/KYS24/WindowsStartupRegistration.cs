@@ -7,7 +7,8 @@ namespace TimePilot.WinForms.KYS24
         public const string TrayStartupArgument = "--tray";
 
         private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-        private const string ValueName = "TimePilot";
+        private const string ValueName = "ActiveLogbook";
+        private const string LegacyValueName = "TimePilot";
 
         public static void SetEnabled(bool isEnabled)
         {
@@ -17,9 +18,11 @@ namespace TimePilot.WinForms.KYS24
             if (!isEnabled)
             {
                 key.DeleteValue(ValueName, throwOnMissingValue: false);
+                key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
                 return;
             }
 
+            key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
             key.SetValue(
                 ValueName,
                 BuildStartupCommand(Application.ExecutablePath),
@@ -38,6 +41,13 @@ namespace TimePilot.WinForms.KYS24
             var registeredCommand = key?.GetValue(ValueName) as string;
             if (IsStartupCommandForExecutable(registeredCommand, Application.ExecutablePath))
                 return;
+
+            var legacyRegisteredCommand = key?.GetValue(LegacyValueName) as string;
+            if (IsStartupCommandForExecutable(legacyRegisteredCommand, Application.ExecutablePath))
+            {
+                SetEnabled(true);
+                return;
+            }
 
             SetEnabled(true);
         }
