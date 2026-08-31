@@ -91,6 +91,27 @@ Good Pro candidates include:
 - browser, website, or document-level tracking
 - automated insights
 
+### Recurring Period And Hourly Analytics Candidates
+
+The recurring weekday filters and hourly usage distribution discussed for summary analysis should be treated as a Community / Pro boundary candidate.
+
+Community can keep basic views that recalculate existing records with straightforward period conditions:
+
+- Recalculate summary metrics within a selected period using simple weekday filters such as all days, Monday-Friday, Monday-Saturday, Saturday-Sunday, or excluding Sunday.
+- Let users choose a custom start date and end date from a calendar.
+- Show existing summary metrics such as app usage time, active usage time, and switch count for that selected period.
+
+Pro is a better fit for features that interpret long-term behavior or present usage rhythm as a distribution:
+
+- Show hourly active-usage distribution as a 24-hour heatmap or bar chart.
+- Calculate usage share by time buckets such as late night, morning, afternoon, evening, and night.
+- Show the top apps, app categories, or activity types used in each time bucket.
+- Combine weekday filters and hourly filters, such as weekday nights, Monday-Saturday mornings, or weekend late nights.
+- Show each app's usage concentration by hour as a percentage distribution.
+- Generate automated insights about rhythm changes, focus windows, fragmentation, or increased late-night usage from long-term data.
+
+This feature group moves beyond "what did I do on my PC" into "when do I repeatedly do each kind of activity." It is not required for the first free Store public test. Basic weekday filters can remain a Community candidate, while hourly distribution and rhythm analysis should stay Pro candidates.
+
 ## Current Issue Classification
 
 Likely Community improvements:
@@ -120,7 +141,7 @@ Examples:
 
 - Custom app display names can keep basic aliases in Community, while rule-based classification, icon management, and category analytics can become Pro candidates.
 - App classification recommendation can keep local known-app suggestions and user-approved apply actions in Community, while online lookup, continuous rule-based automation, and advanced category analytics can become Pro candidates. See `docs/features/APP_CLASSIFICATION_RECOMMENDATION.md`.
-- Custom period summaries can keep specific day, this week, last week, this month, last month, this year, and last year in Community, while long-term trend comparison and advanced dashboards can become Pro candidates.
+- Custom period summaries can keep specific day, this week, last week, this month, last month, this year, last year, and simple weekday filters in Community, while long-term trend comparison, hourly usage distribution, weekday/hour rhythm analysis, and advanced dashboards can become Pro candidates.
 - Visual timeline work can keep a basic daily bar-style timeline in Community, while long-range comparisons, tag layers, focus analysis, and automatic interpretation can become Pro candidates.
 
 Structural prerequisites:
