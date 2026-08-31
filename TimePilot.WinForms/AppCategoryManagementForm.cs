@@ -30,6 +30,9 @@ namespace TimePilot.WinForms
         private readonly BindingSource appsBindingSource = new();
         private readonly ContextMenuStrip categoryMenu = new();
         private readonly ContextMenuStrip columnMenu = new();
+        private readonly Panel loadingOverlay = new();
+        private readonly Label loadingOverlayLabel = new();
+        private readonly ProgressBar loadingProgressBar = new();
 
         private IReadOnlyList<AppCategoryOption> categories = Array.Empty<AppCategoryOption>();
         private IReadOnlyList<AppCategoryManagementRow> allRows = Array.Empty<AppCategoryManagementRow>();
@@ -99,6 +102,7 @@ namespace TimePilot.WinForms
             StartPosition = FormStartPosition.CenterParent;
             MinimumSize = new Size(860, 520);
             Size = new Size(1040, 640);
+            Resize += (_, _) => PositionLoadingOverlay();
 
             topPanel.Dock = DockStyle.Top;
             topPanel.Height = 120;
@@ -269,11 +273,46 @@ namespace TimePilot.WinForms
             bottomPanel.Controls.Add(statusLabel);
             bottomPanel.Controls.Add(closeButton);
 
+            loadingOverlay.BackColor = SystemColors.Window;
+            loadingOverlay.BorderStyle = BorderStyle.FixedSingle;
+            loadingOverlay.Padding = new Padding(16);
+            loadingOverlay.Size = new Size(320, 96);
+            loadingOverlay.Visible = false;
+
+            loadingOverlayLabel.AutoSize = false;
+            loadingOverlayLabel.Font = new Font(Font, FontStyle.Bold);
+            loadingOverlayLabel.Location = new Point(16, 14);
+            loadingOverlayLabel.Size = new Size(286, 34);
+            loadingOverlayLabel.TextAlign = ContentAlignment.MiddleCenter;
+
+            loadingProgressBar.Location = new Point(16, 58);
+            loadingProgressBar.MarqueeAnimationSpeed = 0;
+            loadingProgressBar.Size = new Size(286, 18);
+            loadingProgressBar.Style = ProgressBarStyle.Marquee;
+
+            loadingOverlay.Controls.Add(loadingOverlayLabel);
+            loadingOverlay.Controls.Add(loadingProgressBar);
+
             Controls.Add(appsGrid);
             Controls.Add(bottomPanel);
             Controls.Add(topPanel);
+            Controls.Add(loadingOverlay);
+            PositionLoadingOverlay();
 
             ResumeLayout(false);
+        }
+
+        private void PositionLoadingOverlay()
+        {
+            if (loadingOverlay.Parent is null)
+                return;
+
+            var bounds = appsGrid.Bounds;
+            var x = bounds.Left + (bounds.Width - loadingOverlay.Width) / 2;
+            var y = bounds.Top + (bounds.Height - loadingOverlay.Height) / 2;
+            loadingOverlay.Location = new Point(
+                Math.Max(bounds.Left + 12, x),
+                Math.Max(bounds.Top + 12, y));
         }
 
         private static DataGridViewTextBoxColumn CreateTextColumn(
@@ -521,11 +560,17 @@ namespace TimePilot.WinForms
             importantCriteriaButton.Enabled = !loading;
             refreshButton.Enabled = !loading;
             searchWebButton.Enabled = !loading;
+            loadingOverlay.Visible = loading;
+            loadingProgressBar.MarqueeAnimationSpeed = loading ? 30 : 0;
             if (loading)
             {
-                statusLabel.Text = IsEnglish
+                var loadingText = IsEnglish
                     ? "Loading app list..."
                     : "앱 목록을 불러오는 중...";
+                loadingOverlayLabel.Text = loadingText;
+                statusLabel.Text = loadingText;
+                PositionLoadingOverlay();
+                loadingOverlay.BringToFront();
             }
         }
 
