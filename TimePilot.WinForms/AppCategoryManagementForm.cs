@@ -46,6 +46,8 @@ namespace TimePilot.WinForms
         private int pendingRightClickColumnIndex = -1;
         private bool isRightClickInProgress;
         private bool isApplyingColumnVisibility;
+        private bool isLoadingData;
+        private bool initialLoadStarted;
         private int? selectionAnchorRowIndex;
 
         public AppCategoryManagementForm(TimePilotStorage storage, AppSettings settings, UiLanguage language)
@@ -55,7 +57,7 @@ namespace TimePilot.WinForms
             this.language = language;
 
             InitializeComponent();
-            LoadData();
+            Shown += OnShown;
         }
 
         public bool CategoriesChanged { get; private set; }
@@ -77,6 +79,10 @@ namespace TimePilot.WinForms
         private string NoCategoryText => IsEnglish ? "(Uncategorized)" : "(미분류)";
 
         private string IdentityReviewText => IsEnglish ? "App match check needed" : "앱 구분 확인 필요";
+
+        private sealed record AppCategoryManagementData(
+            IReadOnlyList<AppCategoryOption> Categories,
+            IReadOnlyList<AppCategoryManagementRow> Rows);
 
         private void InitializeComponent()
         {
@@ -161,7 +167,7 @@ namespace TimePilot.WinForms
 
             refreshButton.Text = IsEnglish ? "Refresh" : "새로고침";
             refreshButton.Width = 84;
-            refreshButton.Click += (_, _) => ReloadAndApplyFilter();
+            refreshButton.Click += async (_, _) => await ReloadAndApplyFilterAsync();
 
             searchWebButton.Text = IsEnglish ? "Search web" : "웹 검색";
             searchWebButton.Width = 84;
@@ -413,22 +419,26 @@ namespace TimePilot.WinForms
             }
         }
 
-        private void LoadData()
+        private async void OnShown(object? sender, EventArgs e)
         {
-            categories = storage.GetAppCategoryOptions();
-            allRows = AddIcons(storage.GetAppCategoryManagementRows(DateTimeOffset.UtcNow));
-            RefreshFilterOptions();
-            RefreshAssignCategoryOptions();
-            ApplyFilter();
+            if (initialLoadStarted)
+                return;
+
+            initialLoadStarted = true;
+            await LoadDataAsync();
         }
 
-        private void ReloadAndApplyFilter()
+        private async Task LoadDataAsync()
         {
-            allRows = AddIcons(storage.GetAppCategoryManagementRows(DateTimeOffset.UtcNow));
-            ApplyFilter();
+            await LoadDataAsync(loadCategories: true);
         }
 
-        private void OnManageCategoriesButtonClick(object? sender, EventArgs e)
+        private async Task ReloadAndApplyFilterAsync()
+        {
+            await LoadDataAsync(loadCategories: false);
+        }
+
+        private async void OnManageCategoriesButtonClick(object? sender, EventArgs e)
         {
             using var form = new AppCategoryEditorForm(storage, language);
             form.Icon = Icon;
@@ -437,7 +447,86 @@ namespace TimePilot.WinForms
                 return;
 
             CategoriesChanged = true;
-            LoadData();
+            await LoadDataAsync();
+        }
+
+        private async Task LoadDataAsync(bool loadCategories)
+        {
+            if (isLoadingData)
+                return;
+
+            SetLoadingState(true);
+            try
+            {
+                var currentCategories = categories;
+                var shouldLoadCategories = loadCategories || currentCategories.Count == 0;
+                var loadedData = await Task.Run(() =>
+                {
+                    var loadedCategories = shouldLoadCategories
+                        ? storage.GetAppCategoryOptions()
+                        : currentCategories;
+                    var loadedRows = AddIcons(
+                        storage.GetAppCategoryManagementRows(DateTimeOffset.UtcNow),
+                        loadedCategories);
+                    return new AppCategoryManagementData(loadedCategories, loadedRows);
+                });
+
+                if (IsDisposed)
+                    return;
+
+                categories = loadedData.Categories;
+                allRows = loadedData.Rows;
+                if (shouldLoadCategories)
+                {
+                    RefreshFilterOptions();
+                    RefreshAssignCategoryOptions();
+                }
+
+                ApplyFilter();
+                statusLabel.Text = IsEnglish
+                    ? $"{allRows.Count:N0} apps loaded."
+                    : $"{allRows.Count:N0}개 앱을 불러왔습니다.";
+            }
+            catch (Exception ex)
+            {
+                if (!IsDisposed)
+                {
+                    statusLabel.Text = IsEnglish
+                        ? $"Unable to load app list: {ex.Message}"
+                        : $"앱 목록을 불러오지 못했습니다: {ex.Message}";
+                }
+            }
+            finally
+            {
+                if (!IsDisposed)
+                    SetLoadingState(false);
+            }
+        }
+
+        private void SetLoadingState(bool loading)
+        {
+            isLoadingData = loading;
+            UseWaitCursor = loading;
+            appsGrid.Enabled = !loading;
+            filterComboBox.Enabled = !loading;
+            filterCategoryComboBox.Enabled = !loading
+                && (filterComboBox.SelectedItem as string ?? UncategorizedText) == SpecificCategoryText;
+            searchTextBox.Enabled = !loading;
+            showFileInfoCheckBox.Enabled = !loading;
+            assignCategoryComboBox.Enabled = !loading;
+            applyCategoryButton.Enabled = !loading;
+            clearCategoryButton.Enabled = !loading;
+            applyRecommendationButton.Enabled = !loading;
+            manageCategoriesButton.Enabled = !loading;
+            importantCriteriaButton.Enabled = !loading;
+            refreshButton.Enabled = !loading;
+            searchWebButton.Enabled = !loading;
+            if (loading)
+            {
+                statusLabel.Text = IsEnglish
+                    ? "Loading app list..."
+                    : "앱 목록을 불러오는 중...";
+            }
         }
 
         private void OnImportantCriteriaButtonClick(object? sender, EventArgs e)
@@ -459,8 +548,11 @@ namespace TimePilot.WinForms
                 : "중요 미분류 기준을 변경했습니다.";
         }
 
-        private IReadOnlyList<AppCategoryManagementRow> AddIcons(IReadOnlyList<AppCategoryManagementRow> rows)
+        private IReadOnlyList<AppCategoryManagementRow> AddIcons(
+            IReadOnlyList<AppCategoryManagementRow> rows,
+            IReadOnlyList<AppCategoryOption>? categoryOptions = null)
         {
+            var recommendationCategories = categoryOptions ?? categories;
             return rows
                 .Select(row =>
                 {
@@ -470,12 +562,12 @@ namespace TimePilot.WinForms
                         FileDescription = metadata.FileDescription,
                         ProductName = metadata.ProductName,
                         CompanyName = metadata.CompanyName,
-                        CategoryDisplayName = GetCategoryDisplayName(row.PrimaryCategoryId, row.CategoryName),
+                        CategoryDisplayName = GetCategoryDisplayName(row.PrimaryCategoryId, row.CategoryName, recommendationCategories),
                         HasExtractedAppIcon = HasDistinctAssociatedIcon(row.ExecutablePath),
                         AppIcon = appIconCache.GetIcon(row.ExecutablePath)
                     };
 
-                    var recommendation = AppCategoryRecommendationService.Recommend(enrichedRow, categories, language);
+                    var recommendation = AppCategoryRecommendationService.Recommend(enrichedRow, recommendationCategories, language);
                     return recommendation is null
                         ? enrichedRow
                         : enrichedRow with
@@ -550,12 +642,16 @@ namespace TimePilot.WinForms
             return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
 
-        private string? GetCategoryDisplayName(long? categoryId, string? fallbackName)
+        private string? GetCategoryDisplayName(
+            long? categoryId,
+            string? fallbackName,
+            IReadOnlyList<AppCategoryOption>? categoryOptions = null)
         {
             if (categoryId is null)
                 return null;
 
-            var category = categories.FirstOrDefault(x => x.Id == categoryId);
+            var options = categoryOptions ?? categories;
+            var category = options.FirstOrDefault(x => x.Id == categoryId);
             return category is null ? fallbackName : GetCategoryDisplayName(category);
         }
 
@@ -635,7 +731,7 @@ namespace TimePilot.WinForms
         {
             var rows = allRows.AsEnumerable();
             var selectedFilter = filterComboBox.SelectedItem as string ?? UncategorizedText;
-            filterCategoryComboBox.Enabled = selectedFilter == SpecificCategoryText;
+            filterCategoryComboBox.Enabled = !isLoadingData && selectedFilter == SpecificCategoryText;
 
             if (selectedFilter == UncategorizedText)
                 rows = rows.Where(x => x.PrimaryCategoryId is null);
@@ -816,7 +912,7 @@ namespace TimePilot.WinForms
             columnMenu.Items.Add(columnsItem);
             columnMenu.Items.Add(new ToolStripSeparator());
 
-            var resetItem = new ToolStripMenuItem(IsEnglish ? "Reset columns" : "기본값으로 되돌리기");
+            var resetItem = new ToolStripMenuItem(IsEnglish ? "Reset visible columns" : "표 열 표시 초기화");
             resetItem.Click += (_, _) => ResetColumnVisibility();
             columnMenu.Items.Add(resetItem);
 
