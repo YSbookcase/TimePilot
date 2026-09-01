@@ -35,7 +35,6 @@ ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UsePreviousAppDir=no
-AppMutex=TimePilot.SingleInstance
 CloseApplications=yes
 CloseApplicationsFilter={#MyAppExeName},TimePilot.WinForms.exe
 RestartApplications=no
