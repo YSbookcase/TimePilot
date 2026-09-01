@@ -10,6 +10,12 @@
         [STAThread]
         static void Main(string[] args)
         {
+            if (args.Contains(KYS24.AppShutdownSignal.ShutdownArgument))
+            {
+                KYS24.AppShutdownSignal.RequestShutdown();
+                return;
+            }
+
             if (TryApplyUiLanguageArgument(args))
                 return;
 
@@ -69,7 +75,27 @@
                 return;
             }
 
-            Application.Run(new Form1(args.Contains(KYS24.WindowsStartupRegistration.TrayStartupArgument)));
+            using var shutdownEvent = KYS24.AppShutdownSignal.CreateListener();
+            using var mainForm = new Form1(args.Contains(KYS24.WindowsStartupRegistration.TrayStartupArgument));
+            var shutdownRegistration = ThreadPool.RegisterWaitForSingleObject(
+                shutdownEvent,
+                (_, _) =>
+                {
+                    if (!mainForm.IsDisposed && mainForm.IsHandleCreated)
+                        mainForm.BeginInvoke(new Action(Application.Exit));
+                },
+                state: null,
+                millisecondsTimeOutInterval: -1,
+                executeOnlyOnce: false);
+
+            try
+            {
+                Application.Run(mainForm);
+            }
+            finally
+            {
+                shutdownRegistration.Unregister(null);
+            }
         }
 
         private static bool TryApplyUiLanguageArgument(string[] args)

@@ -37,7 +37,7 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 UsePreviousAppDir=no
 AppMutex=TimePilot.SingleInstance
 CloseApplications=yes
-CloseApplicationsFilter={#MyAppExeName}
+CloseApplicationsFilter={#MyAppExeName},TimePilot.WinForms.exe
 RestartApplications=no
 
 [Languages]
@@ -61,3 +61,29 @@ Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChang
 
 [UninstallDelete]
 Type: dirifempty; Name: "{app}"
+
+[Code]
+procedure RequestRunningAppShutdown();
+var
+  ResultCode: Integer;
+  AppPath: string;
+begin
+  AppPath := ExpandConstant('{app}\{#MyAppExeName}');
+  if FileExists(AppPath) then
+  begin
+    Exec(AppPath, '--shutdown', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(1500);
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  RequestRunningAppShutdown();
+  Result := '';
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  RequestRunningAppShutdown();
+  Result := True;
+end;
