@@ -35,9 +35,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UsePreviousAppDir=no
-AppMutex=TimePilot.SingleInstance
 CloseApplications=yes
-CloseApplicationsFilter={#MyAppExeName}
+CloseApplicationsFilter={#MyAppExeName},TimePilot.WinForms.exe
 RestartApplications=no
 
 [Languages]
@@ -46,6 +45,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\*"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -57,7 +59,97 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--set-ui-language {language}"; Flags: runhidden waituntilterminated
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent; Check: not IsAppRunning
 
 [UninstallDelete]
+Type: filesandordirs; Name: "{app}\*"
 Type: dirifempty; Name: "{app}"
+
+[Code]
+function IsAppRunning(): Boolean;
+begin
+  Result := CheckForMutexes('TimePilot.SingleInstance');
+end;
+
+function ConfirmCloseRunningApp(): Boolean;
+var
+  MessageText: string;
+begin
+  if ActiveLanguage = 'korean' then
+    MessageText :=
+      'ActiveLogbook이 현재 실행 중입니다.' + #13#10 + #13#10 +
+      '실행 중인 앱을 종료하고 계속하시겠습니까?'
+  else
+    MessageText :=
+      'ActiveLogbook is currently running.' + #13#10 + #13#10 +
+      'Do you want to close the running app and continue?';
+
+  Result := MsgBox(MessageText, mbConfirmation, MB_YESNO) = IDYES;
+end;
+
+procedure RequestRunningAppShutdown();
+var
+  ResultCode: Integer;
+  AppPath: string;
+begin
+  AppPath := ExpandConstant('{app}\{#MyAppExeName}');
+  if FileExists(AppPath) then
+  begin
+    Exec(AppPath, '--shutdown', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(1500);
+  end;
+end;
+
+function WaitForRunningAppExit(): Boolean;
+var
+  Attempt: Integer;
+begin
+  Result := True;
+  for Attempt := 1 to 20 do
+  begin
+    if not IsAppRunning() then
+      exit;
+
+    Sleep(500);
+  end;
+
+  Result := not IsAppRunning();
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  if IsAppRunning() then
+  begin
+    if not ConfirmCloseRunningApp() then
+    begin
+      if ActiveLanguage = 'korean' then
+        Result := '사용자가 실행 중인 ActiveLogbook 종료를 취소했습니다.'
+      else
+        Result := 'The running ActiveLogbook instance was not closed.';
+
+      exit;
+    end;
+
+    RequestRunningAppShutdown();
+    WaitForRunningAppExit();
+  end;
+
+  Result := '';
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  if IsAppRunning() then
+  begin
+    if not ConfirmCloseRunningApp() then
+    begin
+      Result := False;
+      exit;
+    end;
+
+    RequestRunningAppShutdown();
+    WaitForRunningAppExit();
+  end;
+
+  Result := True;
+end;
