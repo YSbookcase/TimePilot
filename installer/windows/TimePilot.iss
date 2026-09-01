@@ -75,6 +75,12 @@ function ConfirmCloseRunningApp(): Boolean;
 var
   MessageText: string;
 begin
+  if WizardSilent() then
+  begin
+    Result := True;
+    exit;
+  end;
+
   if ActiveLanguage = 'korean' then
     MessageText :=
       'ActiveLogbook이 현재 실행 중입니다.' + #13#10 + #13#10 +
@@ -84,7 +90,7 @@ begin
       'ActiveLogbook is currently running.' + #13#10 + #13#10 +
       'Do you want to close the running app and continue?';
 
-  Result := MsgBox(MessageText, mbConfirmation, MB_YESNO) = IDYES;
+  Result := SuppressibleMsgBox(MessageText, mbConfirmation, MB_YESNO, IDYES) = IDYES;
 end;
 
 procedure RequestRunningAppShutdown();
