@@ -46,6 +46,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
+[InstallDelete]
+Type: filesandordirs; Name: "{app}\*"
+
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
@@ -59,6 +62,7 @@ Filename: "{app}\{#MyAppExeName}"; Parameters: "--set-ui-language {language}"; F
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent; Check: not IsAppRunning
 
 [UninstallDelete]
+Type: filesandordirs; Name: "{app}\*"
 Type: dirifempty; Name: "{app}"
 
 [Code]
