@@ -39,11 +39,37 @@ Windows SDK 도구는 설치되어 있다.
 
 명령줄로 MSIX를 만들 수 있는 기반은 있으나, Store 제출용 패키지 생성을 안정적으로 하려면 Visual Studio의 Windows Application Packaging Project 검토가 우선이다.
 
+## 2026-09-03 로컬 패키징 실험 결과
+
+Windows Application Packaging Project 기반의 최소 패키징 프로젝트를 추가했고, Visual Studio MSBuild로 StoreUpload 모드 패키지 생성까지 확인했다.
+
+- 패키징 프로젝트: `TimePilot.Packaging/TimePilot.Packaging.wapproj`
+- Manifest: `TimePilot.Packaging/Package.appxmanifest`
+- 빌드 스크립트: `scripts/build-msix.ps1`
+- 생성된 Store 업로드 후보: `artifacts/msix/TimePilot.Packaging_0.2.2.0_x64.msixupload`
+- 생성된 사이드로드 테스트 패키지: `artifacts/msix/TimePilot.Packaging_0.2.2.0_x64_Test/TimePilot.Packaging_0.2.2.0_x64.msix`
+
+검증한 명령은 다음과 같다.
+
+```powershell
+dotnet build TimePilot.sln --no-restore /p:UseAppHost=false /p:GenerateAppHost=false
+powershell -ExecutionPolicy Bypass -File .\scripts\build-msix.ps1
+```
+
+두 명령 모두 오류 없이 성공했다.
+
+아직 이 패키지는 Store 최종 제출본이 아니다.
+
+- `Package.appxmanifest`의 `Identity`와 `Publisher`는 Partner Center 제품과 연결된 실제 Store ID로 교체해야 한다.
+- Visual Studio에서 Partner Center의 예약된 앱 이름과 연결하여 Store association을 적용해야 한다.
+- 이미지 자산은 Visual Studio 템플릿 기본 이미지이므로 ActiveLogbook 최종 로고 자산으로 교체해야 한다.
+- 로컬 설치, 실행, 트레이, 시작 프로그램 등록, 제거, 데이터 유지 동작은 아직 검증하지 않았다.
+
 ## 예상 확인 항목
 
-- [ ] Visual Studio에서 Windows Application Packaging Project를 추가할 수 있는지 확인한다.
+- [x] Visual Studio에서 Windows Application Packaging Project를 추가할 수 있는지 확인한다.
 - [ ] Partner Center의 ActiveLogbook 제품과 패키징 프로젝트를 연결할 수 있는지 확인한다.
-- [ ] Store용 `.msixupload` 또는 `.msixbundle` 산출물을 만들 수 있는지 확인한다.
+- [x] Store용 `.msixupload` 또는 `.msixbundle` 산출물을 만들 수 있는지 확인한다.
 - [ ] MSIX 설치 후 앱 실행이 정상인지 확인한다.
 - [ ] `%LocalAppData%\TimePilot` 기존 데이터가 유지되는지 확인한다.
 - [ ] 트레이 상주 모드가 정상 동작하는지 확인한다.
