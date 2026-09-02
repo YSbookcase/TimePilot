@@ -12,7 +12,7 @@ MAJOR.MINOR.PATCH
 - `MINOR`: 사용자에게 보이는 기능 추가
 - `PATCH`: 버그 수정, 성능 개선, 문구 수정, 안정화
 
-현재 패치 릴리즈는 `0.2.2`를 기준으로 준비한다.
+현재 패치 릴리즈는 `0.2.3`을 기준으로 준비한다.
 
 버전은 `TimePilot.WinForms/TimePilot.WinForms.csproj`의 다음 속성에 반영한다.
 
@@ -32,19 +32,19 @@ Inno Setup이 설치되어 있지 않은 환경에서는 portable zip만 생성�
 ## 빌드 명령
 
 ```powershell
-.\scripts\build-release.ps1 -Version 0.2.2
+.\scripts\build-release.ps1 -Version 0.2.3
 ```
 
 PowerShell 실행 정책 때문에 스크립트가 막히면 다음 명령을 사용한다.
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Version 0.2.2
+powershell -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Version 0.2.3
 ```
 
 portable zip만 만들려면 다음 명령을 사용한다.
 
 ```powershell
-.\scripts\build-release.ps1 -Version 0.2.2 -SkipInstaller
+.\scripts\build-release.ps1 -Version 0.2.3 -SkipInstaller
 ```
 
 산출물은 `artifacts/release` 아래에 생성된다.
@@ -54,35 +54,39 @@ portable zip만 만들려면 다음 명령을 사용한다.
 태그 이름은 다음 형식을 사용한다.
 
 ```text
-v0.2.2
+v0.2.3
 ```
 
 릴리즈 제목은 다음 형식을 사용한다.
 
 ```text
-TimePilot v0.2.2
+ActiveLogbook v0.2.3
 ```
 
-## v0.2.2 릴리즈 설명 초안
+## v0.2.3 릴리즈 설명 초안
 
-## TimePilot v0.2.2
+## ActiveLogbook v0.2.3
 
-TimePilot v0.2.2는 v0.2.1 이후 확인된 타임라인/상세 탭 분류 변경 반영 문제를 수정한 패치 버전입니다.
+ActiveLogbook v0.2.3은 Microsoft Store 제출 준비 과정에서 확인된 설치, 표시 이름, 요약/타임라인 사용성 문제를 다듬은 패치 버전입니다.
 
 ## 변경 사항
 
-- 타임라인에서 앱 분류를 변경했을 때 새 분류가 바로 반영되지 않던 문제 수정
-- 상세 탭에서 앱 분류를 변경했을 때 새 분류가 바로 반영되지 않던 문제 수정
-- v0.2.1의 타임라인/상세 탭 캐시 최적화 이후에도 분류 변경 시 필요한 화면은 즉시 갱신되도록 보강
+- 앱 표시 이름을 ActiveLogbook 기준으로 정리
+- 설치, 업데이트, 제거 중 실행 중인 앱 처리 흐름 개선
+- 요약 탭의 활성/유휴 시간 표시와 기록 상태 표시 정리
+- 타임라인 그래프 확대/축소와 좁은 창 배치 개선
+- 앱 분류 관리 화면의 로딩 응답성 개선
+- 요약 탭의 특정 날짜 선택에서 달력 드롭다운 사용 가능
+- Microsoft Store 제출을 위한 MSIX 패키징 초안 추가
 
 ## 업데이트 권장
 
-v0.2.1을 사용 중이라면 v0.2.2로 업데이트하는 것을 권장합니다.
+v0.2.2를 사용 중이라면 v0.2.3으로 업데이트하는 것을 권장합니다.
 
 ## 다운로드
 
-- `TimePilot-0.2.2-Setup.exe`: Windows 설치 파일
-- `TimePilot-0.2.2-win-x64-portable.zip`: 설치 없이 실행할 수 있는 무설치 압축 파일
+- `ActiveLogbook-0.2.3-Setup.exe`: Windows 설치 파일
+- `ActiveLogbook-0.2.3-win-x64-portable.zip`: 설치 없이 실행할 수 있는 무설치 압축 파일
 
 ## 알려진 제한사항
 
@@ -93,4 +97,4 @@ v0.2.1을 사용 중이라면 v0.2.2로 업데이트하는 것을 권장합니�
 
 ## 전체 변경 내역
 
-https://github.com/YSbookcase/TimePilot/compare/v0.2.1...v0.2.2
+https://github.com/YSbookcase/TimePilot/compare/v0.2.2...v0.2.3

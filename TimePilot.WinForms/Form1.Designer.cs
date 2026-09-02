@@ -337,15 +337,14 @@
             summarySpecificDatePicker.Format = DateTimePickerFormat.Short;
             summarySpecificDatePicker.Location = new Point(282, 7);
             summarySpecificDatePicker.Name = "summarySpecificDatePicker";
-            summarySpecificDatePicker.ShowUpDown = true;
-            summarySpecificDatePicker.Size = new Size(112, 23);
+            summarySpecificDatePicker.Size = new Size(128, 23);
             summarySpecificDatePicker.TabIndex = 2;
             summarySpecificDatePicker.Visible = false;
             summarySpecificDatePicker.ValueChanged += OnSummarySpecificDatePickerValueChanged;
             //
             // summarySpecificDateCalendarButton
             //
-            summarySpecificDateCalendarButton.Location = new Point(400, 7);
+            summarySpecificDateCalendarButton.Location = new Point(416, 7);
             summarySpecificDateCalendarButton.Name = "summarySpecificDateCalendarButton";
             summarySpecificDateCalendarButton.Size = new Size(52, 23);
             summarySpecificDateCalendarButton.TabIndex = 3;
@@ -357,7 +356,7 @@
             // summaryCustomRangeButton
             //
             summaryCustomRangeButton.AutoSize = true;
-            summaryCustomRangeButton.Location = new Point(458, 7);
+            summaryCustomRangeButton.Location = new Point(474, 7);
             summaryCustomRangeButton.Name = "summaryCustomRangeButton";
             summaryCustomRangeButton.Size = new Size(75, 25);
             summaryCustomRangeButton.TabIndex = 4;

@@ -10,9 +10,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ActiveLogbook</AssemblyName>
     <ApplicationIcon>Assets\TimePilot.ico</ApplicationIcon>
-    <Version>0.2.2</Version>
-    <FileVersion>0.2.2.0</FileVersion>
-    <AssemblyVersion>0.2.2.0</AssemblyVersion>
+    <Version>0.2.3</Version>
+    <FileVersion>0.2.3.0</FileVersion>
+    <AssemblyVersion>0.2.3.0</AssemblyVersion>
     <Product>ActiveLogbook</Product>
     <Description>A Windows desktop app for tracking and analyzing application usage time.</Description>
     <Authors>YSbookcase</Authors>
