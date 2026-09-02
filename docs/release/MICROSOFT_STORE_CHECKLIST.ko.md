@@ -36,6 +36,7 @@ Microsoft Store는 Win32 앱에 대해 MSIX와 MSI/EXE 제출 경로를 모두 �
 
 ### MSIX 경로
 
+- [x] MSIX 전환 검토 문서를 작성한다. `docs/release/MSIX_PACKAGING_REVIEW.ko.md`
 - [ ] ActiveLogbook MSIX 패키지를 만든다.
 - [ ] 설치, 실행, 제거, 업데이트 동작을 확인한다.
 - [ ] 제거 시 로컬 데이터가 의도한 정책대로 보존되거나 삭제되는지 확인한다.
