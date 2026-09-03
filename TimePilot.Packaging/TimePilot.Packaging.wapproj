@@ -34,6 +34,7 @@
     <AppxPackageDir>..\artifacts\msix\</AppxPackageDir>
     <EntryPointProjectUniqueName>..\TimePilot.WinForms\TimePilot.WinForms.csproj</EntryPointProjectUniqueName>
     <NoWarn>$(NoWarn);NU1702</NoWarn>
+    <GenerateTemporaryStoreCertificate>True</GenerateTemporaryStoreCertificate>
   </PropertyGroup>
 
   <ItemGroup>
@@ -50,6 +51,7 @@
     <Content Include="Images\Square44x44Logo.targetsize-24_altform-unplated.png" />
     <Content Include="Images\StoreLogo.png" />
     <Content Include="Images\Wide310x150Logo.scale-200.png" />
+    <None Include="Package.StoreAssociation.xml" />
   </ItemGroup>
 
   <ItemGroup>
