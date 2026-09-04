@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
@@ -7,13 +7,13 @@
   IgnorableNamespaces="uap uap10 rescap">
 
   <Identity
-    Name="YSbookcase.ActiveLogbook"
-    Publisher="CN=YSbookcase"
+    Name="YSBookcase.ActiveLogbook"
+    Publisher="CN=6AC2C835-325B-4E6D-80BA-4FF52B9AE3CD"
     Version="0.2.3.0" />
 
   <Properties>
     <DisplayName>ActiveLogbook</DisplayName>
-    <PublisherDisplayName>YSbookcase</PublisherDisplayName>
+    <PublisherDisplayName>YS Bookcase</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
 

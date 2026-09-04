@@ -223,6 +223,7 @@ rcf/
 AppPackages/
 BundleArtifacts/
 Package.StoreAssociation.xml
+!TimePilot.Packaging/Package.StoreAssociation.xml
 _pkginfo.txt
 *.appx
 *.appxbundle
