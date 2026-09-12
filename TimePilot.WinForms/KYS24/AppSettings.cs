@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Drawing;
+using System.Globalization;
 
 namespace TimePilot.WinForms.KYS24
 {
@@ -12,7 +13,7 @@ namespace TimePilot.WinForms.KYS24
         public const bool DefaultStartWithWindows = false;
         public const bool DefaultStartupPromptShown = false;
         public const bool DefaultPerformanceDiagnosticsEnabled = false;
-        public const UiLanguage DefaultUiLanguage = UiLanguage.Korean;
+        public static UiLanguage DefaultUiLanguage => GetDefaultUiLanguage(CultureInfo.CurrentUICulture);
         public const ProcessRuntimeTrackingScope DefaultProcessRuntimeTrackingScope = ProcessRuntimeTrackingScope.WindowedApps;
         public const int DefaultProcessRuntimeSampleIntervalSeconds = 60;
         public const int MinProcessRuntimeSampleIntervalSeconds = 1;
@@ -451,6 +452,15 @@ namespace TimePilot.WinForms.KYS24
             return Enum.IsDefined(language ?? DefaultUiLanguage)
                 ? language ?? DefaultUiLanguage
                 : DefaultUiLanguage;
+        }
+
+        internal static UiLanguage GetDefaultUiLanguage(CultureInfo culture)
+        {
+            ArgumentNullException.ThrowIfNull(culture);
+
+            return string.Equals(culture.TwoLetterISOLanguageName, "ko", StringComparison.OrdinalIgnoreCase)
+                ? UiLanguage.Korean
+                : UiLanguage.English;
         }
 
         private static ProcessRuntimeTrackingScope? NormalizeNullableProcessRuntimeTrackingScope(
