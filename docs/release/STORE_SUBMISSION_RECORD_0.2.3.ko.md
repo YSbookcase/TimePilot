@@ -83,6 +83,17 @@ Store 인증 중에도 다음 검증은 계속 진행한다. 문제를 발견하
 
 `c9839c9`은 패키지의 `Square44x44Logo`, `Square150x150Logo`, Store 로고 등 기본 템플릿 이미지를 ActiveLogbook 나침반 이미지로 교체했다. 수정된 `Square44x44Logo`가 실제로 나침반 이미지인 것을 확인했다. 이 변경은 이미 만들어 인증 중인 `0.2.3.0` 패키지에는 반영되지 않는다.
 
+## 아이콘 수정 패키지 (v0.2.4)
+
+2026-09-13에 아이콘 수정과 함께 앱 및 MSIX 패키지 버전을 `0.2.4.0`으로 올렸다.
+
+- 테스트 패키지: `artifacts/msix/TimePilot.Packaging_0.2.4.0_x64_Test/TimePilot.Packaging_0.2.4.0_x64.msix`
+- Store 업로드 패키지: `artifacts/msix/TimePilot.Packaging_0.2.4.0_x64.msixupload`
+- 빌드 결과: 경고 0개, 오류 0개
+- 패키지 검사: 매니페스트 버전 `0.2.4.0`, `Square44x44Logo` 및 Store 로고에 수정된 아이콘 자산 포함
+
+이 패키지는 아직 로컬 설치 및 기능 검증 전이며 Partner Center에 업로드하지 않았다. 검증이 끝난 뒤에만 `0.2.3.0` 인증을 취소하고 `0.2.4.0`을 제출한다.
+
 ## 후원 링크 메모
 
 환경설정의 GitHub 후원 링크는 자발적 후원으로만 제공하고, 후원 대가로 앱 기능, 광고 제거, Pro 권한 등 디지털 혜택을 제공하지 않는다. 이후 후원과 연계한 디지털 혜택을 만들 경우 Microsoft Store 인앱 구매 정책을 다시 검토한다.
