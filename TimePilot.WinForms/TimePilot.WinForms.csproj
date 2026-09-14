@@ -3,16 +3,16 @@
   <PropertyGroup>
     <RootNamespace>TimePilot.WinForms</RootNamespace>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ActiveLogbook</AssemblyName>
     <ApplicationIcon>Assets\TimePilot.ico</ApplicationIcon>
-    <Version>0.2.4</Version>
-    <FileVersion>0.2.4.0</FileVersion>
-    <AssemblyVersion>0.2.4.0</AssemblyVersion>
+    <Version>0.2.5</Version>
+    <FileVersion>0.2.5.0</FileVersion>
+    <AssemblyVersion>0.2.5.0</AssemblyVersion>
     <Product>ActiveLogbook</Product>
     <Description>A Windows desktop app for tracking and analyzing application usage time.</Description>
     <Authors>YSbookcase</Authors>
