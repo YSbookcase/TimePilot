@@ -6,12 +6,12 @@ namespace TimePilot.WinForms
 {
     public partial class Form1
     {
-        private void OnPreferencesMenuItemClick(object? sender, EventArgs e)
+        private async void OnPreferencesMenuItemClick(object? sender, EventArgs e)
         {
-            ShowPreferencesDialog();
+            await ShowPreferencesDialogAsync();
         }
 
-        private void ShowPreferencesDialog()
+        private async Task ShowPreferencesDialogAsync()
         {
             using var form = new PreferencesForm(settings);
             if (form.ShowDialog(this) != DialogResult.OK)
@@ -26,7 +26,23 @@ namespace TimePilot.WinForms
                 ApplyUiText();
             }
 
-            settings.SetStartWithWindows(form.StartWithWindows);
+            try
+            {
+                await settings.SetStartWithWindowsAsync(form.StartWithWindows);
+            }
+            catch (Exception ex)
+            {
+                var message = settings.UiLanguage == UiLanguage.English
+                    ? $"Windows could not update the startup setting.\n\n{ex.Message}"
+                    : $"Windows 시작 앱 설정을 변경하지 못했습니다.\n\n{ex.Message}";
+                CenteredMessageDialog.Show(
+                    this,
+                    message,
+                    UiText.Preferences.Title,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                return;
+            }
             settings.SetPerformanceDiagnosticsEnabled(
                 form.PerformanceDiagnosticsEnabled);
             if (!settings.PerformanceDiagnosticsEnabled)

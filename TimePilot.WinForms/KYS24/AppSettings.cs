@@ -352,16 +352,16 @@ namespace TimePilot.WinForms.KYS24
             Save();
         }
 
-        public void SetStartWithWindows(bool isEnabled)
+        public async Task SetStartWithWindowsAsync(bool isEnabled)
         {
-            WindowsStartupRegistration.SetEnabled(isEnabled);
+            await WindowsStartupRegistration.SetEnabledAsync(isEnabled);
             StartWithWindows = isEnabled;
             Save();
         }
 
-        public void SetStartupPromptResult(bool startWithWindows)
+        public async Task SetStartupPromptResultAsync(bool startWithWindows)
         {
-            WindowsStartupRegistration.SetEnabled(startWithWindows);
+            await WindowsStartupRegistration.SetEnabledAsync(startWithWindows);
             StartWithWindows = startWithWindows;
             StartupPromptShown = true;
             Save();

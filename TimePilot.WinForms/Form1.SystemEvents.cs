@@ -5,25 +5,31 @@ namespace TimePilot.WinForms
 {
     public partial class Form1
     {
-        private void OnShown(object? sender, EventArgs e)
+        private async void OnShown(object? sender, EventArgs e)
         {
+            try
+            {
+                await WindowsStartupRegistration.SynchronizeAsync(settings.StartWithWindows);
+            }
+            catch
+            {
+                // Startup registration should never prevent the app from opening.
+            }
+
             if (startMinimizedToTray)
             {
-                BeginInvoke(() =>
-                {
-                    HideToTray();
-                    ShowProcessRuntimeSafeModeNoticeIfNeeded();
-                });
+                HideToTray();
+                ShowProcessRuntimeSafeModeNoticeIfNeeded();
                 return;
             }
 
-            BeginInvoke(ShowStartupNotices);
+            await ShowStartupNoticesAsync();
         }
 
-        private void ShowStartupNotices()
+        private async Task ShowStartupNoticesAsync()
         {
             ShowProcessRuntimeSafeModeNoticeIfNeeded();
-            ShowStartupPromptIfNeeded();
+            await ShowStartupPromptIfNeededAsync();
         }
 
         private void ShowProcessRuntimeSafeModeNoticeIfNeeded()
@@ -49,7 +55,7 @@ namespace TimePilot.WinForms
                 MessageBoxIcon.Warning);
         }
 
-        private void ShowStartupPromptIfNeeded()
+        private async Task ShowStartupPromptIfNeededAsync()
         {
             if (settings.StartupPromptShown || startMinimizedToTray || isClosing)
                 return;
@@ -61,7 +67,7 @@ namespace TimePilot.WinForms
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
 
-            settings.SetStartupPromptResult(result == DialogResult.Yes);
+            await settings.SetStartupPromptResultAsync(result == DialogResult.Yes);
         }
 
         private void ApplyProcessRuntimeSafeModeIfNeeded()

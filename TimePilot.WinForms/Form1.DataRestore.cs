@@ -172,7 +172,6 @@ namespace TimePilot.WinForms
         private void ReinitializeStorageAfterDataRestore(DateTimeOffset startedAt)
         {
             settings = AppSettings.LoadDefault();
-            WindowsStartupRegistration.SetEnabled(settings.StartWithWindows);
             UiText.UseLanguage(settings.UiLanguage);
             ApplyUiText();
             ApplySavedTableSortState();

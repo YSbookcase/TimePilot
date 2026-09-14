@@ -13,14 +13,26 @@ namespace TimePilot.WinForms.KYS24
         private const string ValueName = "ActiveLogbook";
         private const string LegacyValueName = "TimePilot";
 
-        public static void SetEnabled(bool isEnabled)
+        public static Task SetEnabledAsync(bool isEnabled)
         {
             if (IsPackagedApp())
-            {
-                SetPackagedStartupTaskEnabledAsync(isEnabled).GetAwaiter().GetResult();
-                return;
-            }
+                return SetPackagedStartupTaskEnabledAsync(isEnabled);
 
+            SetUnpackagedEnabled(isEnabled);
+            return Task.CompletedTask;
+        }
+
+        public static Task SynchronizeAsync(bool isEnabled)
+        {
+            if (IsPackagedApp())
+                return SetPackagedStartupTaskEnabledAsync(isEnabled);
+
+            SynchronizeUnpackaged(isEnabled);
+            return Task.CompletedTask;
+        }
+
+        private static void SetUnpackagedEnabled(bool isEnabled)
+        {
             using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true)
                 ?? Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
 
@@ -38,17 +50,11 @@ namespace TimePilot.WinForms.KYS24
                 RegistryValueKind.String);
         }
 
-        public static void Synchronize(bool isEnabled)
+        private static void SynchronizeUnpackaged(bool isEnabled)
         {
-            if (IsPackagedApp())
-            {
-                SetPackagedStartupTaskEnabledAsync(isEnabled).GetAwaiter().GetResult();
-                return;
-            }
-
             if (!isEnabled)
             {
-                SetEnabled(false);
+                SetUnpackagedEnabled(false);
                 return;
             }
 
@@ -60,11 +66,11 @@ namespace TimePilot.WinForms.KYS24
             var legacyRegisteredCommand = key?.GetValue(LegacyValueName) as string;
             if (IsStartupCommandForExecutable(legacyRegisteredCommand, Application.ExecutablePath))
             {
-                SetEnabled(true);
+                SetUnpackagedEnabled(true);
                 return;
             }
 
-            SetEnabled(true);
+            SetUnpackagedEnabled(true);
         }
 
         internal static string BuildStartupCommand(string executablePath)
@@ -97,7 +103,7 @@ namespace TimePilot.WinForms.KYS24
 
         private static async Task SetPackagedStartupTaskEnabledAsync(bool isEnabled)
         {
-            var startupTask = await StartupTask.GetAsync(PackagedStartupTaskId).AsTask().ConfigureAwait(false);
+            var startupTask = await StartupTask.GetAsync(PackagedStartupTaskId).AsTask();
             if (!isEnabled)
             {
                 startupTask.Disable();
@@ -109,7 +115,14 @@ namespace TimePilot.WinForms.KYS24
 
             // Windows keeps a Task Manager user opt-out authoritative.
             if (startupTask.State == StartupTaskState.Disabled)
-                await startupTask.RequestEnableAsync().AsTask().ConfigureAwait(false);
+            {
+                var state = await startupTask.RequestEnableAsync().AsTask();
+                if (state is not StartupTaskState.Enabled and not StartupTaskState.EnabledByPolicy)
+                {
+                    throw new InvalidOperationException(
+                        $"Windows did not enable the startup task. Current state: {state}.");
+                }
+            }
         }
     }
 }
