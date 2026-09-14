@@ -10,7 +10,7 @@
   <Identity
     Name="YSBookcase.ActiveLogbook"
     Publisher="CN=6AC2C835-325B-4E6D-80BA-4FF52B9AE3CD"
-    Version="0.2.5.0" />
+    Version="0.2.6.0" />
 
   <Properties>
     <DisplayName>ActiveLogbook</DisplayName>
@@ -50,7 +50,7 @@
           EntryPoint="Windows.FullTrustApplication">
           <desktop:StartupTask
             TaskId="ActiveLogbookStartup"
-            Enabled="false"
+            Enabled="true"
             DisplayName="ActiveLogbook" />
         </desktop:Extension>
       </Extensions>
