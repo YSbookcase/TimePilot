@@ -10,7 +10,7 @@
   <Identity
     Name="YSBookcase.ActiveLogbook"
     Publisher="CN=6AC2C835-325B-4E6D-80BA-4FF52B9AE3CD"
-    Version="0.2.6.0" />
+    Version="0.2.7.0" />
 
   <Properties>
     <DisplayName>ActiveLogbook</DisplayName>
@@ -49,9 +49,9 @@
           Executable="TimePilot.WinForms\ActiveLogbook.exe"
           EntryPoint="Windows.FullTrustApplication">
           <desktop:StartupTask
-            TaskId="ActiveLogbookStartup"
+            TaskId="ActiveLogbookStartupV2"
             Enabled="true"
-            DisplayName="ActiveLogbook" />
+            DisplayName="ActiveLogbook (Store)" />
         </desktop:Extension>
       </Extensions>
     </Application>

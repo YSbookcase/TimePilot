@@ -7,7 +7,7 @@ namespace TimePilot.WinForms.KYS24
     {
         public const string TrayStartupArgument = "--tray";
 
-        private const string PackagedStartupTaskId = "ActiveLogbookStartup";
+        private const string PackagedStartupTaskId = "ActiveLogbookStartupV2";
 
         private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string ValueName = "ActiveLogbook";
