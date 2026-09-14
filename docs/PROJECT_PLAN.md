@@ -48,17 +48,16 @@ Develop a desktop application that automatically records and analyzes the user's
 ### 3.2 Time Aggregation
 
 - Daily usage time
-- Weekly and monthly statistics
-- Total usage time by program
+- Community: total usage time by program and a basic summary for a selected day
+- Pro candidate: weekly, monthly, and yearly statistics with long-term trend comparison
 - Runtime coverage and missing-time statistics are planned so users can understand how complete a day of data is.
 
 ---
 
 ### 3.3 Visualization (UI)
 
-- Usage ratio by program with charts
-- Usage patterns by time range
-- Top list of most-used apps
+- Community: daily activity flow and basic summaries
+- Pro candidate: usage-ratio charts, time-of-day patterns, and long-term top-app analysis
 
 ---
 
@@ -192,27 +191,25 @@ Current design principles:
 
 ---
 
-### Phase 4 - Analytics Features
+### Phase 4 - Community Reliability and Usability
 
-- [ ] Weekly and monthly statistics
-- [ ] Top app analysis
 - [x] Process runtime tracking for background programs, time-only
 - [ ] Runtime coverage and missing-time statistics
-- [ ] Better visualization for timeline and usage patterns
+- [ ] Improve timeline clarity for recording status and activity flow
 
 ---
 
-### Phase 5 - Expansion
+### Phase 5 - Release Stability and Pro Separation
 
-- [ ] Alert feature for time limit warnings
-- [ ] Goal setting feature
-- [ ] Resource usage tracking, such as CPU and memory, if needed
 - [x] GitHub publishing and distribution
 - [x] Windows installer
-- [ ] Multilingual UI
-- [ ] Data backup and restore
-  - Review full restore and merge restore policies in `docs/features/RESTORE_MERGE_POLICY.md`.
-- [ ] Microsoft Store distribution review
+- [x] Korean and English UI with a first-run default based on the Windows display language
+- [x] Full backup and full restore
+  - Merge restore is a Pro candidate; see `docs/features/RESTORE_MERGE_POLICY.md` for the policy.
+- [ ] Complete Microsoft Store public release and installation/update verification
+- [ ] Manage advanced analytics, reporting, and detailed tracking in the private Pro repository
+
+Do not expand weekly/monthly/yearly analytics, heatmaps, time-of-day patterns, goals and alerts, advanced backup/restore, detailed tracking, or data encryption as base Community functionality. Implement those features in the private Pro repository according to the boundary in `docs/PRO_EDITION_STRATEGY.ko.md`.
 
 ---
 
