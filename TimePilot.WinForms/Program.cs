@@ -43,6 +43,20 @@
                 return;
             }
 
+            var activationKind = KYS24.WindowsStartupRegistration.IsPackagedApp()
+                ? Windows.ApplicationModel.AppInstance.GetActivatedEventArgs()?.Kind
+                : null;
+            var startInTray = KYS24.WindowsStartupRegistration.IsStartupLaunch(args, activationKind);
+            KYS24.StartupLaunchDiagnostics.Record("program-entry", new
+            {
+                IsPackaged = KYS24.WindowsStartupRegistration.IsPackagedApp(),
+                ActivationKind = activationKind?.ToString(),
+                ArgumentCount = args.Length,
+                HasTrayArgument = args.Contains(KYS24.WindowsStartupRegistration.TrayStartupArgument),
+                StartInTray = startInTray,
+                Executable = Application.ExecutablePath
+            });
+
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
@@ -54,7 +68,11 @@
                 createdNew: out var isFirstInstance);
             if (!isFirstInstance)
             {
-                if (!args.Contains(KYS24.WindowsStartupRegistration.TrayStartupArgument))
+                KYS24.StartupLaunchDiagnostics.Record("single-instance-rejected", new
+                {
+                    StartInTray = startInTray
+                });
+                if (!startInTray)
                 {
                     MessageBox.Show(
                         KYS24.UiText.Main.DuplicateInstanceMessage,
@@ -67,11 +85,12 @@
             }
 
             using var shutdownEvent = KYS24.AppShutdownSignal.CreateListener();
-            using var mainForm = new Form1(args.Contains(KYS24.WindowsStartupRegistration.TrayStartupArgument));
+            using var mainForm = new Form1(startInTray);
             var shutdownRegistration = ThreadPool.RegisterWaitForSingleObject(
                 shutdownEvent,
                 (_, _) =>
                 {
+                    KYS24.StartupLaunchDiagnostics.Record("shutdown-signal-received");
                     if (!mainForm.IsDisposed && mainForm.IsHandleCreated)
                         mainForm.BeginInvoke(new Action(Application.Exit));
                 },
@@ -81,10 +100,15 @@
 
             try
             {
+                KYS24.StartupLaunchDiagnostics.Record("application-run-started", new
+                {
+                    StartInTray = startInTray
+                });
                 Application.Run(mainForm);
             }
             finally
             {
+                KYS24.StartupLaunchDiagnostics.Record("application-run-ended");
                 shutdownRegistration.Unregister(null);
             }
         }

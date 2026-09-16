@@ -137,3 +137,138 @@ Store 인증 중에도 다음 검증은 계속 진행한다. 문제를 발견하
 ## 후원 링크 메모
 
 환경설정의 GitHub 후원 링크는 자발적 후원으로만 제공하고, 후원 대가로 앱 기능, 광고 제거, Pro 권한 등 디지털 혜택을 제공하지 않는다. 이후 후원과 연계한 디지털 혜택을 만들 경우 Microsoft Store 인앱 구매 정책을 다시 검토한다.
+
+## 자동 시작 현재 진단 (v0.2.8 테스트 패키지)
+
+2026-09-15에 설치된 `0.2.8.0` 패키지에서 앱 권한으로 `StartupTask` API의 실제 상태를 조회했다.
+
+- 패키지: `YSBookcase.ActiveLogbook_0.2.8.0_x64__qx0xt5p8pr0jp`
+- 시작 작업 ID: `ActiveLogbookStartupV2`
+- 앱 설정: `StartWithWindows = true`
+- Windows API 상태: `DisabledByPolicy` (`StateValue = 3`)
+- 당시 진단 명령은 패키지 ID로 실행한 별도 PowerShell 프로세스에서 API를 조회했다. 실제 앱 프로세스의 조회 결과는 아직 확인하지 못했다.
+- 기존 개발용 EXE의 `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run` 항목도 별도로 남아 있어 설정에 중복 항목이 표시될 수 있다. 이는 MSIX 시작 작업과 별개의 항목이다.
+
+2026-09-15 추가 비교에서 같은 PowerShell 진단 방식으로 Phone Link의 `YourPhone.Start`를 조회했을 때도 `DisabledByPolicy`가 나왔다. ActiveLogbook의 시작 작업 레지스트리 `State`는 `2`(사용)였고, Windows 11 Pro의 일반적인 시작 정책 경로에 명시적인 차단 값은 없었다. 따라서 별도 PowerShell 프로세스의 조회 결과만으로 PC 전체 정책 차단 또는 앱 패키지 문제를 확정하지 않는다.
+
+코드에서는 `DisabledByPolicy`와 `DisabledByUser`를 성공처럼 조용히 통과시키던 문제를 수정했다. `0.2.9.0` 테스트 패키지는 실제 앱 프로세스가 시작 작업 상태를 `%LOCALAPPDATA%\TimePilot\startup-task-diagnostic.json`에 기록하도록 빌드했고, 전체 테스트 155개가 통과했다. 패키지 파일은 `artifacts/msix/TimePilot.Packaging_0.2.9.0_x64_Test/TimePilot.Packaging_0.2.9.0_x64.msix`이다.
+
+현재 PC에서는 새 테스트 서명 인증서가 시스템 신뢰 저장소에 없어 `Add-AppxPackage`가 `0x800B0109`로 실패했다. 사용자별 `TrustedPeople`에 인증서를 추가해도 패키지 설치에는 충분하지 않았다. 시스템 전체 인증서 신뢰 변경은 자동 승인 심사에서 거절돼 `0.2.9.0`을 아직 설치하지 못했다. 설치가 승인되면 앱을 실행한 뒤 위 진단 파일의 `State`를 확인하고, 그 결과에 따라 Windows 정책 또는 MSIX 구현을 수정한다. Store에는 아직 업로드하지 않는다.
+
+- `0.2.9.0` 테스트 서명 인증서 지문: `AEE036A6BC90C4B26DE170A87D567B357DC1B1CD`
+- 사용자별 `TrustedPeople`에 임시로 넣었던 이 인증서는 설치 실패 후 제거했다.
+- 설치 시도 전 정상 종료했던 기존 `0.2.8.0` 앱은 트레이 모드로 다시 실행했다. 현재 설치된 버전은 여전히 `0.2.8.0`이다.
+
+### 실제 설치본 확인 (2026-09-15)
+
+이후 사용자가 `0.2.9.0` 테스트 MSIX를 직접 설치했다. 실제 실행 중인 프로세스는 `C:\Program Files\WindowsApps\YSBookcase.ActiveLogbook_0.2.9.0_x64__qx0xt5p8pr0jp\TimePilot.WinForms\ActiveLogbook.exe`였고, 앱이 직접 기록한 `%LOCALAPPDATA%\TimePilot\startup-task-diagnostic.json`의 상태는 `DisabledByPolicy` (`3`)였다. 환경설정에서 자동 시작을 저장하려고 해도 같은 상태로 거부되는 것을 확인했다. 따라서 별도 PowerShell 진단 프로세스의 결과 때문만은 아니다.
+
+이 PC는 Windows 11 Pro이고 도메인에 가입되어 있지 않다. `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System`에는 `EnableFullTrustStartupTasks`와 `SupportFullTrustStartupTasks` 값이 없었으며, 일반적인 기기 정책 경로에서도 시작 작업 항목을 찾지 못했다. 어떤 설정이 `DisabledByPolicy`를 발생시키는지는 여전히 미확정이다. Microsoft의 [Teams VDI 문서](https://learn.microsoft.com/en-us/microsoftteams/teams-client-vdi-requirements-deploy)는 이 경로의 `EnableFullTrustStartupTasks=2`, `SupportFullTrustStartupTasks=1` 등을 시작 작업 지원 값으로 제시한다. 이 PC에 적용될지는 관리자 권한으로 값을 설정하고 재검증하기 전에는 단정하지 않는다.
+
+작업 관리자 시작 앱 탭에서 `사용`으로 전환해도 화면은 `사용 안 함`으로 남는다. 전환 시도 후 사용자별 `ActiveLogbookStartupV2` 등록 값은 `State=2`(사용), `UserEnabledStartupOnce=1`이었지만 앱의 실제 API 상태는 `DisabledByPolicy=3`이었다. 따라서 사용자별 선택 값과 Windows의 유효 상태가 서로 다르다.
+
+앱 코드에서는 자동 시작 설정이 바뀌지 않은 경우 Windows API에 재요청하지 않고, 거부되는 경우 한국어로 사유를 안내하면서 나머지 환경설정 저장을 계속하도록 수정했다. 이 수정은 현재 설치된 `0.2.9.0` 테스트 MSIX에는 아직 반영되지 않았다. 다음 MSIX를 만들기 전에 Windows 시작 작업 차단 원인을 확인하고 실제 자동 시작을 검증한다.
+
+### 다른 PC 자동 시작 및 0.2.10.0 수정 (2026-09-16)
+
+다른 테스트 PC에서는 작업 관리자에서 시작 앱을 수동으로 `사용`으로 바꾸면 로그온 자동 실행이 가능했지만, 메인 창이 나타났다. 앱의 `Program.Main`은 EXE 인자 `--tray`만 검사했고 MSIX `windows.startupTask` 활성화 종류는 읽지 않았다. Microsoft의 [패키지 데스크톱 앱 활성화 문서](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/get-activation-info-for-packaged-apps)에 따라 `AppInstance.GetActivatedEventArgs()`의 `StartupTask`를 트레이 시작으로 인식하도록 수정했다. 트레이 시작 시 처음부터 창을 최소화하고 작업 표시줄에 표시하지 않도록 했다.
+
+또한 패키지 앱이 시작할 때 로컬 `StartWithWindows` 설정값으로 Windows 시작 작업을 동기화하면, 작업 관리자에서 수동으로 켠 상태가 앱 실행 직후 다시 꺼질 수 있었다. MSIX에서는 이 자동 동기화를 제거하고 환경 설정 창에 Windows의 실제 `StartupTask.State`를 반영한다. 사용자가 앱에서 저장할 때만 상태 변경을 요청하며 `DisabledByUser`/`DisabledByPolicy` 거부 사유를 보여 준다. 첫 실행 자동 시작 안내의 요청이 거부되어도 앱이 계속 실행되고 안내를 반복하지 않도록 처리했다.
+
+`0.2.10.0` 테스트 패키지는 `artifacts/msix/TimePilot.Packaging_0.2.10.0_x64_Test`에 생성했다. 코드 테스트 158개가 통과했다. 다른 PC에서 설치한 뒤 시작 앱을 켜고 재로그온하여 메인 창 없이 트레이에만 나타나는지 확인해야 한다. 설정 저장이 계속 거부된다면 그 PC의 `%LOCALAPPDATA%\TimePilot\startup-task-diagnostic.json`에 기록된 `State`와 앱 경고 문구를 확인한다. 현재 PC의 `DisabledByPolicy` 원인은 별도이며, 여기서 Windows 정책을 임의로 변경하지 않는다. 새 패키지는 실제 시작 동작 검증 전까지 Store에 업로드하지 않는다.
+
+### 현재 PC 정책 시험 및 Store 게시 상태 (2026-09-16)
+
+사용자가 이전 Microsoft Store 제출본이 게시됐음을 확인했다. 정확한 게시 버전 번호는 Partner Center에서 별도로 확인한다. 자동 시작 수정이 포함된 `0.2.10.0`은 아직 Store 업데이트로 제출하지 않는다.
+
+사용자 승인 후 현재 PC의 아래 시스템 값을 Microsoft Teams VDI 문서의 시작 작업 지원 예시에 맞춰 시험 적용했다.
+
+- `EnableFullTrustStartupTasks=2`
+- `SupportFullTrustStartupTasks=1`
+
+적용 전에는 두 값 모두 존재하지 않았다. 원래 상태는 `artifacts/fulltrust-startup-policy-test.json`에 기록했으며 `scripts/test-fulltrust-startup-policy.ps1 -Mode Restore`로 두 값을 제거해 복원할 수 있다. 이 값은 ActiveLogbook 전용이 아니라 이 PC의 FullTrust MSIX 시작 작업 전체에 영향을 줄 수 있으므로 테스트 후 유지 여부를 결정한다.
+
+정책 적용 후 `0.2.10.0` 테스트 MSIX 설치에 성공했다. 앱이 직접 기록한 `%LOCALAPPDATA%\TimePilot\startup-task-diagnostic.json` 결과는 `Enabled` (`StateValue=2`)였고 실행 파일은 `YSBookcase.ActiveLogbook_0.2.10.0_x64__qx0xt5p8pr0jp` 패키지의 `ActiveLogbook.exe`였다. 정책 변경 전 같은 앱의 상태는 `DisabledByPolicy`였다. 따라서 이 PC에서는 두 시스템 값이 시작 작업 정책 차단 해제에 영향을 준 것으로 확인된다.
+
+남은 검증은 Windows 재시작 후 다음 세 가지다.
+
+- ActiveLogbook이 자동 실행되는지
+- 메인 창이나 작업 표시줄 버튼 없이 트레이에만 나타나는지
+- 작업 관리자와 앱 환경설정 모두 자동 시작을 `사용` 상태로 유지하는지
+
+재시작 후 사용자는 자동 실행되지 않았다고 보고했다. Windows 이벤트 로그에는 부팅 후
+`18:34:55`에 `YSBookcase.ActiveLogbook_0.2.10.0_x64__qx0xt5p8pr0jp` 프로세스가
+`LaunchProcess`로 생성되고 `18:36:00`에 컨테이너가 제거된 기록이 있다. 앱 데이터에도
+같은 구간의 `timepilot-start`와 정상 `ApplicationClosed` 종료가 남아 있어, Windows가
+시작 작업을 전혀 호출하지 않은 상황보다는 호출 후 약 65초 만에 정상 종료된 상황에 가깝다.
+다만 기존 진단에는 활성화 종류와 폼 종료 사유가 없어 자동 시작 호출과 사용자의 수동 실행을
+완전히 구분할 수 없다.
+
+실제 데스크톱 사용자 SID의 시작 작업 레지스트리는 재시작 후에도
+`ActiveLogbookStartupV2 State=2`, `UserEnabledStartupOnce=1`로 남아 있었고 패키지 상태도
+`Installed`, `Ok`였다. 반면 시험 적용했던 두 `HKLM` 정책 값은 재시작 후 사라졌다.
+`0.2.11.0`에는 프로세스 진입, 활성화 종류, 트레이 시작 판정, 단일 인스턴스 거부,
+종료 신호 수신, 폼 종료 사유를 `%LOCALAPPDATA%\TimePilot\startup-lifecycle.jsonl`에
+기록하는 제한 크기 진단 로그를 추가한다. 다음 재시작에서는 이 로그로 실제 실행과 종료 원인을
+구분한다.
+
+Microsoft Teams VDI 공식 문서가 차단 해제 예시로 제시하는 값은 FullTrust 두 개만이 아니라
+`EnableUwpStartupTasks=2`, `SupportUwpStartupTasks=1`을 포함한 네 개 한 세트다. 기존 복구
+보고서에 새 두 값의 원래 상태도 추가로 보존하고, 네 값을 함께 적용하거나 원래 상태로 복구할
+수 있도록 `scripts/test-fulltrust-startup-policy.ps1`을 보완했다. 이 시험은 ActiveLogbook
+전용 설정이 아니므로 현재 PC에서만 임시로 사용하고 Store 사용자에게 요구하지 않는다.
+
+`0.2.11.0` 테스트 패키지를 빌드하고 `0.2.10.0` 위에 업그레이드 설치했다. 전체 테스트
+158개가 통과했고 패키징 빌드는 경고와 오류 없이 완료됐다. 일반 실행 진단은
+`ActivationKind=Launch`, `StartInTray=false`와 정상 폼 표시를 기록했다.
+
+사용자 승인 후 네 정책 값을 모두 적용하고 앱을 다시 실행하자 `StartupTask.State`가
+`DisabledByPolicy(3)`에서 `Enabled(2)`로 변경됐다. 따라서 이 PC에서 설정 저장과 자동 실행을
+막은 직접 원인은 앱 설정 파일이나 패키지 등록 누락이 아니라 Windows의 시작 작업 정책 판정이다.
+다음 로그온에서는 `%LOCALAPPDATA%\TimePilot\startup-lifecycle.jsonl`에
+`ActivationKind=StartupTask`, `StartInTray=true`가 남고 메인 창 없이 트레이에서 계속 실행되는지
+확인한다. Windows가 시작 작업을 지연할 수 있으므로 로그인 후 최대 5분까지 확인한다.
+
+로그아웃 후 다시 로그인한 시험은 성공했다. `0.2.11.0`은 로그인 시
+`ActivationKind=StartupTask`, `StartInTray=true`로 실행됐고, 폼은 최소화 상태이며
+`ShowInTaskbar=false`로 기록됐다. `startup-task-diagnostic.json`도 `Enabled(2)`와
+`StartMinimizedToTray=true`를 기록했으며 이후 종료 로그가 없었다. 정책 네 값도 로그아웃 후
+유지됐다. 따라서 자동 실행과 트레이 전용 시작 코드는 실제 MSIX 환경에서 검증됐다. 남은 시스템
+검증은 전체 Windows 재시작 후 정책 값과 자동 실행 상태가 계속 유지되는지 확인하는 것이다.
+
+전체 Windows 재시작 시험에서는 자동 실행되지 않았다. 부팅 추정 시각은 `19:02:37`이고,
+`gpresult`에는 `19:03:09`에 로컬 그룹 정책이 적용된 것으로 나타났다. 부팅 후 네 정책 값은
+모두 다시 사라졌으며 AppModel 이벤트와 `startup-lifecycle.jsonl`에는 이번 부팅의
+ActiveLogbook 실행 시도가 전혀 없었다. 따라서 앱이 실행됐다가 종료된 것이 아니라 Windows가
+시작 작업을 호출하기 전에 이 PC의 정책 상태가 원래대로 복원된 것이다.
+
+현재 PC에서 네 값을 레지스트리에 직접 추가하는 방식은 로그아웃/로그인 동안에는 유지되지만
+재부팅을 견디지 못한다. 예약 작업 등으로 값을 다시 쓰는 우회책은 시스템 전체 MSIX/UWP 시작
+정책을 지속적으로 변경하므로 제품 해결책으로 사용하지 않는다. Store 배포 판단은 표준 시작
+작업이 차단되지 않은 별도 PC에 `0.2.11.0`을 설치해 재부팅 자동 실행과 트레이 시작을 확인하는
+방식으로 마무리한다.
+
+### 다른 PC 인계 및 최종 검증 절차
+
+다른 PC에서는 이 브랜치를 받아 전체 테스트를 실행한 뒤 `scripts/build-msix.ps1`로
+`0.2.11.0` 테스트 MSIX를 빌드한다. 빌드 도구가 없는 PC에는
+`artifacts/msix/TimePilot.Packaging_0.2.11.0_x64_Test` 폴더 전체를 전달하고 그 안의
+`Install.ps1`을 PowerShell에서 실행한다. 테스트 인증서 설치 때문에 관리자 승인이 필요할 수
+있다. Git에는 빌드 산출물이 포함되지 않는다.
+
+정상적인 Windows 시작 작업 동작을 확인하기 위해 처음에는 시스템 정책이나 레지스트리를
+변경하지 않는다. 앱 환경설정에서 자동 시작을 켜고 저장한 다음 작업 관리자 시작 앱에서
+ActiveLogbook (Store)이 `사용`인지 확인한다. Windows를 재시작하고 앱을 수동 실행하지 않은 채
+최대 5분 기다린다. 다음 조건을 모두 확인한다.
+
+- ActiveLogbook 프로세스와 트레이 아이콘이 존재한다.
+- 메인 창과 작업 표시줄 버튼은 나타나지 않는다.
+- `%LOCALAPPDATA%\TimePilot\startup-lifecycle.jsonl`의 새 항목에
+  `ActivationKind=StartupTask`, `StartInTray=true`가 기록된다.
+- `%LOCALAPPDATA%\TimePilot\startup-task-diagnostic.json`의 상태가 `Enabled(2)`이고
+  `StartMinimizedToTray=true`이다.
+
+`DisabledByPolicy`가 실제 앱 진단에 기록된 경우에만 PC 정책 문제를 별도로 조사한다.
+`scripts/test-fulltrust-startup-policy.ps1`은 시스템 전체 MSIX/UWP 시작 작업에 영향을 주는
+진단용 도구이므로 일반 테스트 PC에는 적용하지 않는다. 적용했다면 같은 스크립트의
+`-Mode Restore`로 원래 값을 복구한다.

@@ -367,6 +367,12 @@ namespace TimePilot.WinForms.KYS24
             Save();
         }
 
+        public void MarkStartupPromptShown()
+        {
+            StartupPromptShown = true;
+            Save();
+        }
+
         public void SetPerformanceDiagnosticsEnabled(bool isEnabled)
         {
             PerformanceDiagnosticsEnabled = isEnabled;
