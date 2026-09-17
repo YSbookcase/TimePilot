@@ -50,11 +50,21 @@ ActiveLogbook은 기본 설정에서 다음 정보를 수집하거나 저장하�
 
 ## 5. 저장 위치
 
-ActiveLogbook의 주요 로컬 데이터는 기본적으로 다음 위치에 저장된다.
+ActiveLogbook의 주요 로컬 데이터는 기본적으로 다음 위치에 저장된다. 일반 실행 파일은 다음
+경로를 사용한다.
 
 ```text
 %LocalAppData%\TimePilot
 ```
+
+Microsoft Store/MSIX 설치본에서는 Windows의 앱 데이터 가상화에 따라 실제 파일이 패키지별
+경로에 저장된다.
+
+```text
+%LocalAppData%\Packages\<패키지 제품군 이름>\LocalCache\Local\TimePilot
+```
+
+정확한 현재 위치는 앱의 `환경설정 > 데이터 관리 > 폴더 열기`에서 확인할 수 있다.
 
 주요 파일은 다음과 같다.
 

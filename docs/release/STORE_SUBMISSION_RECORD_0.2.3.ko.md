@@ -272,3 +272,27 @@ ActiveLogbook (Store)이 `사용`인지 확인한다. Windows를 재시작하고
 `scripts/test-fulltrust-startup-policy.ps1`은 시스템 전체 MSIX/UWP 시작 작업에 영향을 주는
 진단용 도구이므로 일반 테스트 PC에는 적용하지 않는다. 적용했다면 같은 스크립트의
 `-Mode Restore`로 원래 값을 복구한다.
+
+### 0.2.12.0 MSIX 데이터 폴더 열기 수정 (2026-09-17)
+
+다른 PC의 `0.2.11.0` MSIX 설치본에서 환경설정의 `폴더 열기`가 논리 경로인
+`%LOCALAPPDATA%\TimePilot`을 Explorer에 전달해 "위치를 사용할 수 없습니다" 오류가 발생했다.
+실제 데이터는 Windows의 MSIX AppData 가상화에 따라 다음 위치에 있었다.
+
+```text
+%LOCALAPPDATA%\Packages\YSBookcase.ActiveLogbook_qx0xt5p8pr0jp\LocalCache\Local\TimePilot
+```
+
+앱 내부의 저장 읽기/쓰기는 기존 논리 경로를 유지한다. 대신 `AppDataPaths`가 패키지 실행 시
+`ApplicationData.Current.LocalCacheFolder`를 기준으로 Explorer용 물리 경로를 계산하고,
+비패키지 실행에서는 기존 `%LOCALAPPDATA%\TimePilot`을 반환하도록 수정했다. 환경설정의
+`폴더 열기`는 계산된 실제 폴더를 생성한 뒤 연다. 경로 선택 단위 테스트를 추가했으며 이 수정이
+포함된 테스트 패키지 버전은 `0.2.12.0`이다. 전체 테스트 161개와 Release 빌드가 통과했고,
+다음 패키지를 오류와 경고 없이 생성했다. 관련 GitHub 이슈는 #321이다.
+
+- `artifacts/msix/TimePilot.Packaging_0.2.12.0_x64_Test/TimePilot.Packaging_0.2.12.0_x64.msix`
+- `artifacts/msix/TimePilot.Packaging_0.2.12.0_x64.msixupload`
+
+현재 PC에는 ActiveLogbook MSIX가 설치되어 있지 않아 Explorer 동작은 아직 실제 패키지에서
+확인하지 않았다. 다른 테스트 PC에서 `0.2.12.0`을 설치한 뒤 환경설정의 `폴더 열기`가 실제
+패키지 폴더를 열고 그 안에 `timepilot.db`와 `settings.json`이 보이는지 최종 확인한다.

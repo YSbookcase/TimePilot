@@ -392,10 +392,10 @@ namespace TimePilot.WinForms
         {
             try
             {
-                Directory.CreateDirectory(AppDataPaths.DataDirectory);
+                var directory = AppDataPaths.EnsureDataDirectoryForShell();
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = AppDataPaths.DataDirectory,
+                    FileName = directory,
                     UseShellExecute = true
                 });
             }
