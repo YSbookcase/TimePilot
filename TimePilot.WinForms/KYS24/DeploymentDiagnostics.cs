@@ -223,13 +223,14 @@ namespace TimePilot.WinForms.KYS24
             builder.AppendLine($"{Label(isEnglish, "- Current physical folder", "- 현재 실제 폴더")}: {plan.CurrentDirectory}");
             builder.AppendLine($"{Label(isEnglish, "- Target folder", "- 목표 폴더")}: {plan.TargetDirectory}");
             builder.AppendLine($"{Label(isEnglish, "- Migration", "- 이전 상태")}: {FormatMigrationState(plan, isEnglish)}");
+            builder.AppendLine($"{Label(isEnglish, "- Decision", "- 판단 결과")}: {FormatMigrationDecision(plan.MigrationDecision.Kind, isEnglish)}");
             builder.AppendLine(Label(isEnglish, "- Candidates", "- 이전 후보"));
             foreach (var candidate in plan.Candidates)
             {
                 builder.AppendLine(
                     $"  · {FormatCandidateKind(candidate.Kind, isEnglish)}: {candidate.DirectoryPath}");
                 builder.AppendLine(
-                    $"    DB {FormatNullableExists(candidate.DatabaseExists, isEnglish)}, " +
+                    $"    DB {FormatDatabaseState(candidate.DatabaseState, isEnglish)}, " +
                     $"{Label(isEnglish, "settings", "설정")} {FormatNullableExists(candidate.SettingsExists, isEnglish)}, " +
                     $"{Label(isEnglish, "backups", "백업")} {FormatNullableExists(candidate.BackupDirectoryExists, isEnglish)}" +
                     FormatCandidateRole(candidate, isEnglish));
@@ -274,21 +275,36 @@ namespace TimePilot.WinForms.KYS24
 
             if (snapshot.StoragePlan.RequiresMigration)
             {
-                var currentCandidate = snapshot.StoragePlan.Candidates.FirstOrDefault(candidate => candidate.IsCurrent);
-                var targetCandidate = snapshot.StoragePlan.Candidates.FirstOrDefault(candidate => candidate.IsTarget);
-                if (currentCandidate?.DatabaseExists == true && targetCandidate?.DatabaseExists == true)
+                var decision = snapshot.StoragePlan.MigrationDecision;
+                if (decision.Kind == DataStorageMigrationDecisionKind.ConflictRequiresUserChoice)
                 {
                     warnings.Add(Label(
                         isEnglish,
                         "Both the current LocalCache and target LocalState contain databases. Do not choose one automatically; back up and compare them first.",
                         "현재 LocalCache와 목표 LocalState에 데이터베이스가 모두 있습니다. 자동으로 하나를 선택하지 말고 먼저 백업하고 비교해야 합니다."));
                 }
-                else if (currentCandidate?.DatabaseExists == true)
+                else if (decision.Kind == DataStorageMigrationDecisionKind.MigrateCurrentToTarget)
                 {
                     warnings.Add(Label(
                         isEnglish,
                         "The Store database still uses LocalCache. Migration to LocalState has not been performed yet.",
                         "Store 데이터베이스가 아직 LocalCache를 사용합니다. LocalState 이전은 아직 수행되지 않았습니다."));
+                }
+                else if (decision.Kind is DataStorageMigrationDecisionKind.BlockedCurrentDatabaseInvalid
+                    or DataStorageMigrationDecisionKind.BlockedTargetDatabaseInvalid)
+                {
+                    warnings.Add(Label(
+                        isEnglish,
+                        "A migration database failed validation. Migration must remain blocked until the data is backed up and repaired.",
+                        "이전 대상 데이터베이스가 검증을 통과하지 못했습니다. 데이터를 백업하고 복구하기 전까지 이전을 중단해야 합니다."));
+                }
+                else if (decision.Kind is DataStorageMigrationDecisionKind.InspectionFailed
+                    or DataStorageMigrationDecisionKind.TargetUnavailable)
+                {
+                    warnings.Add(Label(
+                        isEnglish,
+                        "The migration state could not be determined safely. Keep using the current location and do not create a new database at the target.",
+                        "이전 상태를 안전하게 판단하지 못했습니다. 현재 위치를 계속 사용하고 목표 위치에 새 데이터베이스를 만들지 않아야 합니다."));
                 }
             }
 
@@ -307,9 +323,50 @@ namespace TimePilot.WinForms.KYS24
 
         private static string FormatMigrationState(DataStorageLocationPlan plan, bool isEnglish)
         {
+            if (plan.IsPackaged && !plan.IsTargetAvailable)
+                return Label(isEnglish, "Blocked: target unavailable", "중단: 목표 위치 확인 불가");
+
             return plan.RequiresMigration
                 ? Label(isEnglish, "Required (not performed)", "필요함 (아직 수행하지 않음)")
                 : Label(isEnglish, "Not required", "필요 없음");
+        }
+
+        private static string FormatMigrationDecision(
+            DataStorageMigrationDecisionKind kind,
+            bool isEnglish)
+        {
+            return kind switch
+            {
+                DataStorageMigrationDecisionKind.NoMigrationRequired =>
+                    Label(isEnglish, "Keep current location", "현재 위치 유지"),
+                DataStorageMigrationDecisionKind.InitializeTarget =>
+                    Label(isEnglish, "New install: initialize LocalState", "새 설치: LocalState 초기화 가능"),
+                DataStorageMigrationDecisionKind.MigrateCurrentToTarget =>
+                    Label(isEnglish, "Migration can be prepared", "이전 준비 가능"),
+                DataStorageMigrationDecisionKind.UseExistingTarget =>
+                    Label(isEnglish, "Use existing LocalState", "기존 LocalState 사용"),
+                DataStorageMigrationDecisionKind.ConflictRequiresUserChoice =>
+                    Label(isEnglish, "Conflict: user choice required", "충돌: 사용자 선택 필요"),
+                DataStorageMigrationDecisionKind.BlockedCurrentDatabaseInvalid =>
+                    Label(isEnglish, "Blocked: current database is invalid", "중단: 현재 데이터베이스 검증 실패"),
+                DataStorageMigrationDecisionKind.BlockedTargetDatabaseInvalid =>
+                    Label(isEnglish, "Blocked: target database is invalid", "중단: 목표 데이터베이스 검증 실패"),
+                DataStorageMigrationDecisionKind.TargetUnavailable =>
+                    Label(isEnglish, "Blocked: LocalState is unavailable", "중단: LocalState 경로 확인 불가"),
+                _ => Label(isEnglish, "Blocked: inspection failed", "중단: 상태 검사 실패")
+            };
+        }
+
+        private static string FormatDatabaseState(DataStorageDatabaseState state, bool isEnglish)
+        {
+            return state switch
+            {
+                DataStorageDatabaseState.Valid => Label(isEnglish, "valid", "정상"),
+                DataStorageDatabaseState.Invalid => Label(isEnglish, "invalid", "검증 실패"),
+                DataStorageDatabaseState.Unavailable => Label(isEnglish, "unavailable", "접근 불가"),
+                DataStorageDatabaseState.NotPresent => Label(isEnglish, "not found", "없음"),
+                _ => Label(isEnglish, "not inspected", "검사하지 않음")
+            };
         }
 
         private static string FormatCandidateKind(DataStorageLocationKind kind, bool isEnglish)

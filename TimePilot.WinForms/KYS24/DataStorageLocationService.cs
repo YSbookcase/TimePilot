@@ -1,3 +1,5 @@
+using Microsoft.Data.Sqlite;
+
 namespace TimePilot.WinForms.KYS24
 {
     internal enum DataStorageLocationKind
@@ -5,6 +7,28 @@ namespace TimePilot.WinForms.KYS24
         LegacyExe,
         MsixVirtualizedLocalCache,
         MsixLocalState
+    }
+
+    internal enum DataStorageDatabaseState
+    {
+        NotInspected,
+        NotPresent,
+        Valid,
+        Invalid,
+        Unavailable
+    }
+
+    internal enum DataStorageMigrationDecisionKind
+    {
+        NoMigrationRequired,
+        InitializeTarget,
+        MigrateCurrentToTarget,
+        UseExistingTarget,
+        ConflictRequiresUserChoice,
+        BlockedCurrentDatabaseInvalid,
+        BlockedTargetDatabaseInvalid,
+        InspectionFailed,
+        TargetUnavailable
     }
 
     internal sealed record DataStorageCandidate(
@@ -15,18 +39,35 @@ namespace TimePilot.WinForms.KYS24
         bool CanInspect,
         bool? DatabaseExists,
         bool? SettingsExists,
-        bool? BackupDirectoryExists);
+        bool? BackupDirectoryExists,
+        DataStorageDatabaseState DatabaseState,
+        string? DatabaseInspectionError);
+
+    internal sealed record DataStorageMigrationDecision(
+        DataStorageMigrationDecisionKind Kind,
+        DataStorageCandidate? Current,
+        DataStorageCandidate? Target)
+    {
+        public bool AllowsAutomaticAction => Kind is
+            DataStorageMigrationDecisionKind.InitializeTarget
+            or DataStorageMigrationDecisionKind.MigrateCurrentToTarget
+            or DataStorageMigrationDecisionKind.UseExistingTarget;
+    }
 
     internal sealed record DataStorageLocationPlan(
         bool IsPackaged,
         string CurrentDirectory,
         string TargetDirectory,
-        IReadOnlyList<DataStorageCandidate> Candidates)
+        IReadOnlyList<DataStorageCandidate> Candidates,
+        bool IsTargetAvailable = true)
     {
         public bool RequiresMigration => !string.Equals(
             Path.TrimEndingDirectorySeparator(Path.GetFullPath(CurrentDirectory)),
             Path.TrimEndingDirectorySeparator(Path.GetFullPath(TargetDirectory)),
             StringComparison.OrdinalIgnoreCase);
+
+        public DataStorageMigrationDecision MigrationDecision =>
+            DataStorageMigrationPlanner.Decide(this);
     }
 
     internal static class DataStorageLocationService
@@ -134,7 +175,8 @@ namespace TimePilot.WinForms.KYS24
                     .OrderByDescending(candidate => candidate.IsCurrent)
                     .ThenByDescending(candidate => candidate.IsTarget)
                     .ThenBy(candidate => candidate.Kind)
-                    .ToArray());
+                    .ToArray(),
+                IsTargetAvailable: !isPackaged || !string.IsNullOrWhiteSpace(packagedLocalStateDirectory));
         }
 
         internal static string ResolveTargetDataDirectory(
@@ -170,6 +212,7 @@ namespace TimePilot.WinForms.KYS24
             var databaseExists = canInspect && File.Exists(databasePath);
             var settingsExists = canInspect && File.Exists(settingsPath);
             var backupDirectoryExists = canInspect && Directory.Exists(backupDirectory);
+            var databaseInspection = InspectDatabase(databasePath, canInspect);
             if (onlyWhenPresent
                 && !directoryExists
                 && !databaseExists
@@ -187,7 +230,63 @@ namespace TimePilot.WinForms.KYS24
                 canInspect,
                 canInspect ? databaseExists : null,
                 canInspect ? settingsExists : null,
-                canInspect ? backupDirectoryExists : null));
+                canInspect ? backupDirectoryExists : null,
+                databaseInspection.State,
+                databaseInspection.Error));
+        }
+
+        internal static (DataStorageDatabaseState State, string? Error) InspectDatabase(
+            string databasePath,
+            bool canInspect)
+        {
+            if (!canInspect)
+                return (DataStorageDatabaseState.NotInspected, null);
+            if (!File.Exists(databasePath))
+                return (DataStorageDatabaseState.NotPresent, null);
+
+            try
+            {
+                using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+                {
+                    DataSource = databasePath,
+                    Mode = SqliteOpenMode.ReadOnly,
+                    Pooling = false
+                }.ToString());
+                connection.Open();
+
+                using (var integrityCommand = connection.CreateCommand())
+                {
+                    integrityCommand.CommandText = "PRAGMA quick_check;";
+                    var integrityResult = Convert.ToString(integrityCommand.ExecuteScalar());
+                    if (!string.Equals(integrityResult, "ok", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return (DataStorageDatabaseState.Invalid, integrityResult);
+                    }
+                }
+
+                using var schemaCommand = connection.CreateCommand();
+                schemaCommand.CommandText = """
+                    SELECT COUNT(*)
+                    FROM sqlite_master
+                    WHERE type = 'table'
+                      AND name IN ('apps', 'foreground_sessions');
+                    """;
+                var requiredTableCount = Convert.ToInt32(schemaCommand.ExecuteScalar());
+                return requiredTableCount == 2
+                    ? (DataStorageDatabaseState.Valid, null)
+                    : (DataStorageDatabaseState.Invalid, "Required TimePilot tables were not found.");
+            }
+            catch (SqliteException ex) when (ex.SqliteErrorCode is 11 or 26)
+            {
+                return (DataStorageDatabaseState.Invalid, ex.Message);
+            }
+            catch (Exception ex) when (ex is SqliteException
+                or IOException
+                or UnauthorizedAccessException
+                or System.Security.SecurityException)
+            {
+                return (DataStorageDatabaseState.Unavailable, ex.Message);
+            }
         }
 
         private static IReadOnlyList<string> DiscoverInstalledPackageDirectories(
@@ -225,6 +324,108 @@ namespace TimePilot.WinForms.KYS24
             {
                 return false;
             }
+        }
+    }
+
+    internal static class DataStorageMigrationPlanner
+    {
+        public static DataStorageMigrationDecision Decide(DataStorageLocationPlan plan)
+        {
+            var current = plan.Candidates.FirstOrDefault(candidate => candidate.IsCurrent);
+            var target = plan.Candidates.FirstOrDefault(candidate => candidate.IsTarget);
+
+            if (plan.IsPackaged && !plan.IsTargetAvailable)
+            {
+                return new DataStorageMigrationDecision(
+                    DataStorageMigrationDecisionKind.TargetUnavailable,
+                    current,
+                    target);
+            }
+
+            if (!plan.RequiresMigration)
+            {
+                return new DataStorageMigrationDecision(
+                    DataStorageMigrationDecisionKind.NoMigrationRequired,
+                    current,
+                    target ?? current);
+            }
+
+            if (target is null)
+            {
+                return new DataStorageMigrationDecision(
+                    DataStorageMigrationDecisionKind.TargetUnavailable,
+                    current,
+                    null);
+            }
+
+            if (current is null
+                || current.DatabaseState is DataStorageDatabaseState.NotInspected
+                    or DataStorageDatabaseState.Unavailable
+                || target.DatabaseState is DataStorageDatabaseState.NotInspected
+                    or DataStorageDatabaseState.Unavailable)
+            {
+                return new DataStorageMigrationDecision(
+                    DataStorageMigrationDecisionKind.InspectionFailed,
+                    current,
+                    target);
+            }
+
+            var currentHasArtifacts = HasArtifacts(current);
+            var targetHasArtifacts = HasArtifacts(target);
+
+            if (current.DatabaseState == DataStorageDatabaseState.Invalid)
+            {
+                return new DataStorageMigrationDecision(
+                    currentHasArtifacts && targetHasArtifacts
+                        ? DataStorageMigrationDecisionKind.ConflictRequiresUserChoice
+                        : DataStorageMigrationDecisionKind.BlockedCurrentDatabaseInvalid,
+                    current,
+                    target);
+            }
+
+            if (target.DatabaseState == DataStorageDatabaseState.Invalid)
+            {
+                return new DataStorageMigrationDecision(
+                    DataStorageMigrationDecisionKind.BlockedTargetDatabaseInvalid,
+                    current,
+                    target);
+            }
+
+            if (currentHasArtifacts && targetHasArtifacts)
+            {
+                return new DataStorageMigrationDecision(
+                    DataStorageMigrationDecisionKind.ConflictRequiresUserChoice,
+                    current,
+                    target);
+            }
+
+            if (currentHasArtifacts)
+            {
+                return new DataStorageMigrationDecision(
+                    DataStorageMigrationDecisionKind.MigrateCurrentToTarget,
+                    current,
+                    target);
+            }
+
+            if (targetHasArtifacts)
+            {
+                return new DataStorageMigrationDecision(
+                    DataStorageMigrationDecisionKind.UseExistingTarget,
+                    current,
+                    target);
+            }
+
+            return new DataStorageMigrationDecision(
+                DataStorageMigrationDecisionKind.InitializeTarget,
+                current,
+                target);
+        }
+
+        private static bool HasArtifacts(DataStorageCandidate candidate)
+        {
+            return candidate.DatabaseExists == true
+                || candidate.SettingsExists == true
+                || candidate.BackupDirectoryExists == true;
         }
     }
 }

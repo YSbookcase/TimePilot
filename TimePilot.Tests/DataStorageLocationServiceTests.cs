@@ -1,4 +1,5 @@
 using TimePilot.WinForms.KYS24;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace TimePilot.Tests
@@ -126,6 +127,59 @@ namespace TimePilot.Tests
             {
                 if (Directory.Exists(root))
                     Directory.Delete(root, recursive: true);
+            }
+        }
+
+        [Fact]
+        public void InspectDatabase_RecognizesValidTimePilotDatabase()
+        {
+            var path = Path.Combine(Path.GetTempPath(), $"TimePilotValid-{Guid.NewGuid():N}.db");
+            try
+            {
+                using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+                       {
+                           DataSource = path,
+                           Pooling = false
+                       }.ToString()))
+                {
+                    connection.Open();
+                    using var command = connection.CreateCommand();
+                    command.CommandText = """
+                        CREATE TABLE apps (id INTEGER PRIMARY KEY);
+                        CREATE TABLE foreground_sessions (id INTEGER PRIMARY KEY);
+                        """;
+                    command.ExecuteNonQuery();
+                }
+
+                var result = DataStorageLocationService.InspectDatabase(path, canInspect: true);
+
+                Assert.Equal(DataStorageDatabaseState.Valid, result.State);
+                Assert.Null(result.Error);
+            }
+            finally
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+            }
+        }
+
+        [Fact]
+        public void InspectDatabase_RejectsNonSqliteFile()
+        {
+            var path = Path.Combine(Path.GetTempPath(), $"TimePilotInvalid-{Guid.NewGuid():N}.db");
+            try
+            {
+                File.WriteAllText(path, "not a sqlite database");
+
+                var result = DataStorageLocationService.InspectDatabase(path, canInspect: true);
+
+                Assert.Equal(DataStorageDatabaseState.Invalid, result.State);
+                Assert.NotNull(result.Error);
+            }
+            finally
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
             }
         }
     }
