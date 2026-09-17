@@ -19,6 +19,7 @@ namespace TimePilot.WinForms
         private readonly Label customProcessRuntimeIntervalUnitLabel = new();
         private readonly Label processRuntimeWarningLabel = new();
         private readonly Button openDataFolderButton = new();
+        private readonly Button deploymentDiagnosticsButton = new();
         private readonly Button clearUsageDataButton = new();
         private readonly LinkLabel sponsorLinkLabel = new();
         private readonly Button okButton = new();
@@ -199,10 +200,11 @@ namespace TimePilot.WinForms
 
             dataManagementGroupBox.Controls.Add(dataManagementLabel);
             dataManagementGroupBox.Controls.Add(openDataFolderButton);
+            dataManagementGroupBox.Controls.Add(deploymentDiagnosticsButton);
             dataManagementGroupBox.Controls.Add(clearUsageDataButton);
             dataManagementGroupBox.Location = new Point(20, 386);
             dataManagementGroupBox.Name = "dataManagementGroupBox";
-            dataManagementGroupBox.Size = new Size(430, 72);
+            dataManagementGroupBox.Size = new Size(430, 108);
             dataManagementGroupBox.TabIndex = 5;
             dataManagementGroupBox.TabStop = false;
             dataManagementGroupBox.Text = UiText.Preferences.DataManagementGroup;
@@ -219,6 +221,12 @@ namespace TimePilot.WinForms
             openDataFolderButton.Text = UiText.Preferences.OpenDataFolder;
             openDataFolderButton.Click += OnOpenDataFolderButtonClick;
 
+            deploymentDiagnosticsButton.Location = new Point(206, 64);
+            deploymentDiagnosticsButton.Name = "deploymentDiagnosticsButton";
+            deploymentDiagnosticsButton.Size = new Size(206, 27);
+            deploymentDiagnosticsButton.Text = UiText.Preferences.InstallationInfo;
+            deploymentDiagnosticsButton.Click += OnDeploymentDiagnosticsButtonClick;
+
             clearUsageDataButton.Location = new Point(304, 27);
             clearUsageDataButton.Name = "clearUsageDataButton";
             clearUsageDataButton.Size = new Size(108, 27);
@@ -226,7 +234,7 @@ namespace TimePilot.WinForms
             clearUsageDataButton.Click += OnClearUsageDataButtonClick;
 
             sponsorLinkLabel.AutoSize = true;
-            sponsorLinkLabel.Location = new Point(20, 488);
+            sponsorLinkLabel.Location = new Point(20, 524);
             sponsorLinkLabel.Name = "sponsorLinkLabel";
             sponsorLinkLabel.Size = new Size(120, 15);
             sponsorLinkLabel.TabStop = true;
@@ -235,7 +243,7 @@ namespace TimePilot.WinForms
 
             okButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             okButton.DialogResult = DialogResult.OK;
-            okButton.Location = new Point(294, 482);
+            okButton.Location = new Point(294, 518);
             okButton.Name = "okButton";
             okButton.Size = new Size(75, 27);
             okButton.Text = UiText.Common.Save;
@@ -243,7 +251,7 @@ namespace TimePilot.WinForms
 
             cancelButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             cancelButton.DialogResult = DialogResult.Cancel;
-            cancelButton.Location = new Point(375, 482);
+            cancelButton.Location = new Point(375, 518);
             cancelButton.Name = "cancelButton";
             cancelButton.Size = new Size(75, 27);
             cancelButton.Text = UiText.Common.Cancel;
@@ -251,7 +259,7 @@ namespace TimePilot.WinForms
             AcceptButton = okButton;
             CancelButton = cancelButton;
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(470, 529);
+            ClientSize = new Size(470, 565);
             Controls.Add(languageLabel);
             Controls.Add(languageComboBox);
             Controls.Add(idleThresholdLabel);
@@ -424,6 +432,13 @@ namespace TimePilot.WinForms
 
             ClearUsageDataRequested = true;
             clearUsageDataButton.Text = UiText.Preferences.ClearUsageDataPending;
+        }
+
+        private void OnDeploymentDiagnosticsButtonClick(object? sender, EventArgs e)
+        {
+            var snapshot = DeploymentDiagnosticsService.Collect();
+            using var dialog = new DeploymentDiagnosticsForm(snapshot, UiLanguage);
+            dialog.ShowDialog(this);
         }
 
         private void OnSponsorLinkLabelLinkClicked(object? sender, LinkLabelLinkClickedEventArgs e)
