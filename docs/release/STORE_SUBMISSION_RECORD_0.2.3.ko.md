@@ -272,3 +272,71 @@ ActiveLogbook (Store)이 `사용`인지 확인한다. Windows를 재시작하고
 `scripts/test-fulltrust-startup-policy.ps1`은 시스템 전체 MSIX/UWP 시작 작업에 영향을 주는
 진단용 도구이므로 일반 테스트 PC에는 적용하지 않는다. 적용했다면 같은 스크립트의
 `-Mode Restore`로 원래 값을 복구한다.
+
+### D: 작업 공간 빌드 및 재부팅 전 상태 (2026-09-16)
+
+`D:\Programing_Study\TimePilotWorkspace\TimePilot`의 `develop`에는 이 문서와 자동 시작
+수정이 없어 `origin/codex/msix-startup-fix`를 추적하는 로컬 브랜치로 전환했다.
+기준 커밋은 `cdb8f5c`이다. 전체 테스트 158개가 통과했고 `scripts/build-msix.ps1`은
+경고 0개, 오류 0개로 `0.2.11.0` x64 패키지를 생성했다. 패키지 내부 매니페스트의
+`ActiveLogbookStartupV2`, `Enabled=true`, 실행 파일 경로도 확인했다.
+
+- 새 MSIX: `artifacts/msix/TimePilot.Packaging_0.2.11.0_x64_Test/TimePilot.Packaging_0.2.11.0_x64.msix`
+- MSIX SHA-256: `E7515CC523320FC56B3F6E0A965CB4687DE02DE48331BD65ABC5BC3789604906`
+- 테스트 인증서 지문: `3F7D323E68F450637409B0F8A9ECF8F6C03BDE8C`
+
+새 MSIX 설치는 처음에 인증서 미신뢰 `0x800B0109`로 실패했다. 사용자 승인과 UAC를
+거쳐 해당 공개 인증서를 `LocalMachine\TrustedPeople`에 추가했다. 이후 설치는
+기존 패키지와 버전·ID는 같지만 내용이 다르다는 `0x80073CFB`로 거부됐다.
+기존 앱은 제거하지 않았으며 **새 빌드의 설치 검증은 미완료**다. 기존 설치본과 새 빌드의
+`ActiveLogbook.dll` SHA-256은 각각 `BDD1D8EFB997D9E90D9CD4F62013171CB23B4245B4059898D4509D66DAE50560`,
+`0C69BEE88EE0598FA2B86A9D95315CEDB947DBE7DEC8E1FFB41A39F8B99FB3CE`로 다르다.
+
+이 PC에는 작업 시작 전부터 정책 네 값이 `2, 1, 2, 1`로 존재했다. 이번 작업에서는
+정책을 변경하지 않았다. 따라서 이 PC의 결과는 정책을 변경하지 않은 표준 PC 검증과
+구분한다. 기존 0.2.11.0의 환경설정에서 자동 시작을 켜고 정상 저장했다.
+설치 시도 전에 앱의 정상 종료 신호를 사용했고, 설치가 거부된 뒤 기존 앱을 `--tray`로
+다시 실행했다. 20:09:43 KST의 앱 자체 진단은 다음과 같다.
+
+- `State=Enabled`, `StateValue=2`, `StartWithWindows=true`
+- `StartMinimizedToTray=true`, `StartInTray=true`
+- 폼 상태 `Minimized`, `ShowInTaskbar=false`
+- 이번 실행은 수동 `--tray` 실행이며 `ActivationKind=null`이다. 재부팅 자동 시작 성공으로 판정하지 않는다.
+
+이 PC의 실제 진단 경로는
+`%LOCALAPPDATA%\Packages\YSBookcase.ActiveLogbook_qx0xt5p8pr0jp\LocalCache\Local\TimePilot`이다.
+재부팅 전 마지막 부팅 시각은 2026-09-16 18:22:28 KST이다. 다음에는 Windows를 재시작하고
+앱을 수동 실행하지 않은 채 최대 5분 기다린 뒤, 이 경로의 새 `startup-lifecycle.jsonl`
+항목에서 `ActivationKind=StartupTask`, `StartInTray=true` 및 종료 여부를 확인한다.
+정책 네 값 유지 여부와 실제 트레이 아이콘/메인 창/작업 표시줄 상태도 함께 확인한다.
+재부팅은 아직 수행하지 않았다. 새 산출물의 별도 설치에는 기존 데이터 보존 후 같은 버전
+패키지를 교체하거나, 후속 버전으로 올리는 절차가 필요하다. Store에는 업로드하지 않았다.
+
+### D: 재부팅 자동 실행 결과 (2026-09-16)
+
+Windows 재부팅 후 자동 시작은 성공했다. 부팅 시각은 20:12:47 KST이고 ActiveLogbook은
+20:13:52 KST, 부팅 약 65초 뒤 프로세스 ID 29012로 시작됐다. 사용자가 앱을 수동 실행하기
+전의 `startup-lifecycle.jsonl`에는 다음 값이 기록됐다.
+
+- `ActivationKind=StartupTask`
+- `ArgumentCount=0`, `HasTrayArgument=false`, `StartInTray=true`
+- `StartMinimizedToTray=true`, `WindowState=Minimized`
+- `ShowInTaskbar=false`
+
+확인 시점에도 프로세스는 응답 중이었고 `MainWindowHandle=0`, 빈 창 제목으로 유지됐다.
+Computer Use의 노출 창 목록에도 ActiveLogbook 창은 없었다. 진단 이후 종료 이벤트가 없으므로
+재부팅 시작 작업이 실행 직후 종료된 이전 현상도 재현되지 않았다. 앱 자체
+`startup-task-diagnostic.json`은 `Enabled(2)`, `StartWithWindows=true`,
+`StartMinimizedToTray=true`를 기록했고 사용자별 시작 작업 등록도 `State=2`,
+`UserEnabledStartupOnce=1`이었다. 이로써 이 설치본에서는 재부팅 후 자동 실행과 창 없는
+트레이 시작 동작이 검증됐다.
+
+이번 재부팅 후에는 시스템 정책 네 값도 `2, 1, 2, 1`로 유지됐다. 이전 재부팅에서 정책 값이
+사라져 자동 실행이 호출되지 않았던 결과와 달리, 이번에는 정책이 유지된 상태에서 Windows가
+`StartupTask`를 정상 호출했다. 따라서 앱의 시작 활성화 판정 및 트레이 시작 구현은 성공으로
+기록하되, 일반 Store 사용자 환경을 대표하는 정책 무변경 PC 검증과는 구분한다.
+
+이번 결과의 대상은 작업 시작 전에 이미 설치돼 있던 `0.2.11.0`이다. 같은 버전·다른 내용으로
+새로 빌드한 MSIX는 Windows의 동일 버전 교체 차단 때문에 설치되지 않았으므로 새 산출물 자체의
+설치 및 재부팅 검증은 여전히 별도다. 다음 패키지는 버전을 올려 설치하거나 기존 설치본을
+안전하게 교체한 뒤 같은 절차로 한 번 더 확인한다.
