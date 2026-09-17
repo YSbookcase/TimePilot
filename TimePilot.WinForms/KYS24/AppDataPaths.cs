@@ -3,19 +3,13 @@ namespace TimePilot.WinForms.KYS24
     internal static class AppDataPaths
     {
         private const string DataDirectoryName = "TimePilot";
+        private static string? activeDataDirectory;
 
-        public static string DataDirectory
-        {
-            get
-            {
-                var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-                return Path.Combine(appDataPath, DataDirectoryName);
-            }
-        }
+        public static string DataDirectory => activeDataDirectory ?? GetLegacyDataDirectory();
 
-        public static string DataDirectoryForShell => ResolveDataDirectoryForShell(
+        public static string DataDirectoryForShell => activeDataDirectory ?? ResolveDataDirectoryForShell(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            DataDirectory,
+            GetLegacyDataDirectory(),
             TryGetPackagedLocalCacheDirectory());
 
         public static string SettingsPath => Path.Combine(DataDirectory, "settings.json");
@@ -31,6 +25,20 @@ namespace TimePilot.WinForms.KYS24
             var directory = DataDirectoryForShell;
             Directory.CreateDirectory(directory);
             return directory;
+        }
+
+        internal static void SetActiveDataDirectory(string directory)
+        {
+            if (string.IsNullOrWhiteSpace(directory))
+                throw new ArgumentException("The active data directory is required.", nameof(directory));
+
+            activeDataDirectory = Path.GetFullPath(directory);
+        }
+
+        private static string GetLegacyDataDirectory()
+        {
+            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            return Path.Combine(appDataPath, DataDirectoryName);
         }
 
         internal static string ResolveDataDirectoryForShell(

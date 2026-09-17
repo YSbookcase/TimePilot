@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using System.Text.Json;
 
 namespace TimePilot.WinForms.KYS24
 {
@@ -59,7 +60,8 @@ namespace TimePilot.WinForms.KYS24
         string CurrentDirectory,
         string TargetDirectory,
         IReadOnlyList<DataStorageCandidate> Candidates,
-        bool IsTargetAvailable = true)
+        bool IsTargetAvailable = true,
+        bool HasCompletedMigration = false)
     {
         public bool RequiresMigration => !string.Equals(
             Path.TrimEndingDirectorySeparator(Path.GetFullPath(CurrentDirectory)),
@@ -176,7 +178,8 @@ namespace TimePilot.WinForms.KYS24
                     .ThenByDescending(candidate => candidate.IsTarget)
                     .ThenBy(candidate => candidate.Kind)
                     .ToArray(),
-                IsTargetAvailable: !isPackaged || !string.IsNullOrWhiteSpace(packagedLocalStateDirectory));
+                IsTargetAvailable: !isPackaged || !string.IsNullOrWhiteSpace(packagedLocalStateDirectory),
+                HasCompletedMigration: HasValidMigrationMarker(currentDirectory, targetDirectory));
         }
 
         internal static string ResolveTargetDataDirectory(
@@ -289,6 +292,32 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
+        internal static bool HasValidMigrationMarker(string sourceDirectory, string targetDirectory)
+        {
+            var markerPath = Path.Combine(
+                targetDirectory,
+                DataStorageMigrationExecutor.MigrationMarkerFileName);
+            if (!File.Exists(markerPath))
+                return false;
+
+            try
+            {
+                var marker = JsonSerializer.Deserialize<DataStorageMigrationMarker>(
+                    File.ReadAllText(markerPath));
+                return marker is not null
+                    && marker.SchemaVersion == DataStorageMigrationExecutor.MigrationSchemaVersion
+                    && PathsEqual(marker.SourceDirectory, sourceDirectory)
+                    && PathsEqual(marker.TargetDirectory, targetDirectory);
+            }
+            catch (Exception ex) when (ex is IOException
+                or UnauthorizedAccessException
+                or System.Security.SecurityException
+                or JsonException)
+            {
+                return false;
+            }
+        }
+
         private static IReadOnlyList<string> DiscoverInstalledPackageDirectories(
             string localAppDataDirectory)
         {
@@ -340,6 +369,35 @@ namespace TimePilot.WinForms.KYS24
                     DataStorageMigrationDecisionKind.TargetUnavailable,
                     current,
                     target);
+            }
+
+            if (plan.HasCompletedMigration)
+            {
+                if (target is null)
+                {
+                    return new DataStorageMigrationDecision(
+                        DataStorageMigrationDecisionKind.TargetUnavailable,
+                        current,
+                        null);
+                }
+
+                return target.DatabaseState switch
+                {
+                    DataStorageDatabaseState.Valid or DataStorageDatabaseState.NotPresent =>
+                        new DataStorageMigrationDecision(
+                            DataStorageMigrationDecisionKind.UseExistingTarget,
+                            current,
+                            target),
+                    DataStorageDatabaseState.Invalid =>
+                        new DataStorageMigrationDecision(
+                            DataStorageMigrationDecisionKind.BlockedTargetDatabaseInvalid,
+                            current,
+                            target),
+                    _ => new DataStorageMigrationDecision(
+                        DataStorageMigrationDecisionKind.InspectionFailed,
+                        current,
+                        target)
+                };
             }
 
             if (!plan.RequiresMigration)
