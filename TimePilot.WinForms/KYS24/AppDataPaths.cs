@@ -55,12 +55,25 @@ namespace TimePilot.WinForms.KYS24
                 relativeDirectory));
         }
 
-        private static string? TryGetPackagedLocalCacheDirectory()
+        internal static string? TryGetPackagedLocalCacheDirectory()
         {
             try
             {
                 _ = Windows.ApplicationModel.Package.Current;
                 return Windows.Storage.ApplicationData.Current.LocalCacheFolder.Path;
+            }
+            catch (InvalidOperationException)
+            {
+                return null;
+            }
+        }
+
+        internal static string? TryGetPackagedLocalStateDirectory()
+        {
+            try
+            {
+                _ = Windows.ApplicationModel.Package.Current;
+                return Windows.Storage.ApplicationData.Current.LocalFolder.Path;
             }
             catch (InvalidOperationException)
             {

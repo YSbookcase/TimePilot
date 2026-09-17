@@ -116,7 +116,16 @@ namespace TimePilot.Tests
                 @"C:\Users\tester\AppData\Local\TimePilot",
                 true,
                 installedExeDirectory,
-                storeDataLocations ?? Array.Empty<DeploymentDataLocation>());
+                storeDataLocations ?? Array.Empty<DeploymentDataLocation>(),
+                DataStorageLocationService.BuildPlan(
+                    isPackaged: channel == DeploymentChannel.StoreMsix,
+                    legacyDirectory: @"C:\Users\tester\AppData\Local\TimePilot",
+                    packagedLocalCacheDirectory: channel == DeploymentChannel.StoreMsix
+                        ? @"C:\Users\tester\AppData\Local\Packages\YSBookcase.ActiveLogbook_test\LocalCache"
+                        : null,
+                    packagedLocalStateDirectory: channel == DeploymentChannel.StoreMsix
+                        ? @"C:\Users\tester\AppData\Local\Packages\YSBookcase.ActiveLogbook_test\LocalState"
+                        : null));
         }
     }
 }

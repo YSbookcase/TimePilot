@@ -26,7 +26,8 @@ namespace TimePilot.WinForms.KYS24
         string LegacyDataDirectory,
         bool? LegacyDatabaseExists,
         string? InstalledExeDirectory,
-        IReadOnlyList<DeploymentDataLocation> StoreDataLocations);
+        IReadOnlyList<DeploymentDataLocation> StoreDataLocations,
+        DataStorageLocationPlan StoragePlan);
 
     internal static class DeploymentDiagnosticsService
     {
@@ -59,7 +60,8 @@ namespace TimePilot.WinForms.KYS24
                 legacyDataDirectory,
                 isPackaged ? null : File.Exists(legacyDatabasePath),
                 installedExeDirectory,
-                FindStoreDataLocations(localAppDataDirectory));
+                FindStoreDataLocations(localAppDataDirectory),
+                DataStorageLocationService.Collect());
         }
 
         internal static DeploymentChannel ResolveChannel(
@@ -184,6 +186,8 @@ namespace TimePilot.WinForms.KYS24
             builder.AppendLine($"{Label(isEnglish, "Legacy database", "기존 EXE 데이터베이스")}: {FormatNullableExists(snapshot.LegacyDatabaseExists, isEnglish)}");
             builder.AppendLine($"{Label(isEnglish, "Installed EXE", "설치형 EXE")}: {FormatInstalledExe(snapshot.InstalledExeDirectory, isEnglish)}");
             builder.AppendLine();
+            AppendStoragePlan(builder, snapshot.StoragePlan, isEnglish);
+            builder.AppendLine();
             builder.AppendLine(Label(isEnglish, "Microsoft Store data locations", "Microsoft Store 데이터 위치"));
 
             if (snapshot.StoreDataLocations.Count == 0)
@@ -208,6 +212,28 @@ namespace TimePilot.WinForms.KYS24
             }
 
             return builder.ToString().TrimEnd();
+        }
+
+        private static void AppendStoragePlan(
+            StringBuilder builder,
+            DataStorageLocationPlan plan,
+            bool isEnglish)
+        {
+            builder.AppendLine(Label(isEnglish, "Storage transition plan", "저장 위치 전환 계획"));
+            builder.AppendLine($"{Label(isEnglish, "- Current physical folder", "- 현재 실제 폴더")}: {plan.CurrentDirectory}");
+            builder.AppendLine($"{Label(isEnglish, "- Target folder", "- 목표 폴더")}: {plan.TargetDirectory}");
+            builder.AppendLine($"{Label(isEnglish, "- Migration", "- 이전 상태")}: {FormatMigrationState(plan, isEnglish)}");
+            builder.AppendLine(Label(isEnglish, "- Candidates", "- 이전 후보"));
+            foreach (var candidate in plan.Candidates)
+            {
+                builder.AppendLine(
+                    $"  · {FormatCandidateKind(candidate.Kind, isEnglish)}: {candidate.DirectoryPath}");
+                builder.AppendLine(
+                    $"    DB {FormatNullableExists(candidate.DatabaseExists, isEnglish)}, " +
+                    $"{Label(isEnglish, "settings", "설정")} {FormatNullableExists(candidate.SettingsExists, isEnglish)}, " +
+                    $"{Label(isEnglish, "backups", "백업")} {FormatNullableExists(candidate.BackupDirectoryExists, isEnglish)}" +
+                    FormatCandidateRole(candidate, isEnglish));
+            }
         }
 
         internal static IReadOnlyList<string> BuildWarnings(
@@ -246,6 +272,26 @@ namespace TimePilot.WinForms.KYS24
                     "현재 사용 위치에 데이터베이스가 없습니다. 첫 기록이 저장되기 전이라면 정상일 수 있습니다."));
             }
 
+            if (snapshot.StoragePlan.RequiresMigration)
+            {
+                var currentCandidate = snapshot.StoragePlan.Candidates.FirstOrDefault(candidate => candidate.IsCurrent);
+                var targetCandidate = snapshot.StoragePlan.Candidates.FirstOrDefault(candidate => candidate.IsTarget);
+                if (currentCandidate?.DatabaseExists == true && targetCandidate?.DatabaseExists == true)
+                {
+                    warnings.Add(Label(
+                        isEnglish,
+                        "Both the current LocalCache and target LocalState contain databases. Do not choose one automatically; back up and compare them first.",
+                        "현재 LocalCache와 목표 LocalState에 데이터베이스가 모두 있습니다. 자동으로 하나를 선택하지 말고 먼저 백업하고 비교해야 합니다."));
+                }
+                else if (currentCandidate?.DatabaseExists == true)
+                {
+                    warnings.Add(Label(
+                        isEnglish,
+                        "The Store database still uses LocalCache. Migration to LocalState has not been performed yet.",
+                        "Store 데이터베이스가 아직 LocalCache를 사용합니다. LocalState 이전은 아직 수행되지 않았습니다."));
+                }
+            }
+
             return warnings;
         }
 
@@ -257,6 +303,34 @@ namespace TimePilot.WinForms.KYS24
                 DeploymentChannel.InstalledExe => Label(isEnglish, "Installed EXE", "설치형 EXE"),
                 _ => Label(isEnglish, "Portable or development build", "포터블 또는 개발 빌드")
             };
+        }
+
+        private static string FormatMigrationState(DataStorageLocationPlan plan, bool isEnglish)
+        {
+            return plan.RequiresMigration
+                ? Label(isEnglish, "Required (not performed)", "필요함 (아직 수행하지 않음)")
+                : Label(isEnglish, "Not required", "필요 없음");
+        }
+
+        private static string FormatCandidateKind(DataStorageLocationKind kind, bool isEnglish)
+        {
+            return kind switch
+            {
+                DataStorageLocationKind.MsixLocalState => "MSIX LocalState",
+                DataStorageLocationKind.MsixVirtualizedLocalCache => "MSIX LocalCache",
+                _ => Label(isEnglish, "Legacy EXE", "기존 EXE")
+            };
+        }
+
+        private static string FormatCandidateRole(DataStorageCandidate candidate, bool isEnglish)
+        {
+            var roles = new List<string>();
+            if (candidate.IsCurrent)
+                roles.Add(Label(isEnglish, "current", "현재"));
+            if (candidate.IsTarget)
+                roles.Add(Label(isEnglish, "target", "목표"));
+
+            return roles.Count == 0 ? string.Empty : $" [{string.Join(", ", roles)}]";
         }
 
         private static string FormatExists(bool exists, bool isEnglish)
