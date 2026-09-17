@@ -24,11 +24,11 @@ namespace TimePilot.WinForms
         private readonly Button okButton = new();
         private readonly Button cancelButton = new();
 
-        public PreferencesForm(AppSettings settings)
+        public PreferencesForm(AppSettings settings, bool? effectiveStartWithWindows = null)
         {
             IdleThresholdMinutes = settings.IdleThresholdMinutes;
             UiLanguage = settings.UiLanguage;
-            StartWithWindows = settings.StartWithWindows;
+            StartWithWindows = effectiveStartWithWindows ?? settings.StartWithWindows;
             PerformanceDiagnosticsEnabled = settings.PerformanceDiagnosticsEnabled;
             ProcessRuntimeTrackingEnabled = settings.ProcessRuntimeTrackingEnabled;
             ProcessRuntimeTrackingScope = settings.ProcessRuntimeTrackingScope;

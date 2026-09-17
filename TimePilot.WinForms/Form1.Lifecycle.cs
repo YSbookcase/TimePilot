@@ -33,6 +33,12 @@ namespace TimePilot.WinForms
 
         private void OnFormClosed(object? sender, FormClosedEventArgs e)
         {
+            StartupLaunchDiagnostics.Record("form-closed", new
+            {
+                CloseReason = e.CloseReason.ToString(),
+                IsExplicitExitRequested = isExplicitExitRequested,
+                StartMinimizedToTray = startMinimizedToTray
+            });
             var endedAt = DateTimeOffset.UtcNow;
             isClosing = true;
             UnregisterWindowsSystemEventHandlers();
@@ -60,6 +66,12 @@ namespace TimePilot.WinForms
 
         private void OnFormClosing(object? sender, FormClosingEventArgs e)
         {
+            StartupLaunchDiagnostics.Record("form-closing", new
+            {
+                CloseReason = e.CloseReason.ToString(),
+                IsExplicitExitRequested = isExplicitExitRequested,
+                WillHideToTray = !isExplicitExitRequested && e.CloseReason == CloseReason.UserClosing
+            });
             if (isExplicitExitRequested || e.CloseReason != CloseReason.UserClosing)
                 return;
 

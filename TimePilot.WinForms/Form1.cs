@@ -141,6 +141,12 @@ namespace TimePilot.WinForms
             runtimeSegmentObservationFilterCoordinator = CreateRuntimeSegmentObservationFilterCoordinator();
             InitializeFormUi();
 
+            if (startMinimizedToTray)
+            {
+                WindowState = FormWindowState.Minimized;
+                ShowInTaskbar = false;
+            }
+
             if (IsRunningInDesigner())
             {
                 ConfigureDesignPreview();

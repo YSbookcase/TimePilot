@@ -3,13 +3,14 @@
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap10 rescap">
+  IgnorableNamespaces="uap uap10 desktop rescap">
 
   <Identity
     Name="YSBookcase.ActiveLogbook"
     Publisher="CN=6AC2C835-325B-4E6D-80BA-4FF52B9AE3CD"
-    Version="0.2.3.0" />
+    Version="0.2.11.0" />
 
   <Properties>
     <DisplayName>ActiveLogbook</DisplayName>
@@ -42,6 +43,17 @@
         <uap:DefaultTile Wide310x150Logo="Images\Wide310x150Logo.png" />
         <uap:SplashScreen Image="Images\SplashScreen.png" />
       </uap:VisualElements>
+      <Extensions>
+        <desktop:Extension
+          Category="windows.startupTask"
+          Executable="TimePilot.WinForms\ActiveLogbook.exe"
+          EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask
+            TaskId="ActiveLogbookStartupV2"
+            Enabled="true"
+            DisplayName="ActiveLogbook (Store)" />
+        </desktop:Extension>
+      </Extensions>
     </Application>
   </Applications>
 

@@ -685,9 +685,9 @@ namespace TimePilot.WinForms
                 MessageBoxIcon.Information);
         }
 
-        private void OnDetailTrackingDisabledPreferencesButtonClick(object? sender, EventArgs e)
+        private async void OnDetailTrackingDisabledPreferencesButtonClick(object? sender, EventArgs e)
         {
-            ShowPreferencesDialog();
+            await ShowPreferencesDialogAsync();
         }
 
         private bool IsInCurrentTrackingScope(ProcessRuntimeSummaryRow row)

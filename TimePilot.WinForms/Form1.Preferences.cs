@@ -6,14 +6,29 @@ namespace TimePilot.WinForms
 {
     public partial class Form1
     {
-        private void OnPreferencesMenuItemClick(object? sender, EventArgs e)
+        private async void OnPreferencesMenuItemClick(object? sender, EventArgs e)
         {
-            ShowPreferencesDialog();
+            await ShowPreferencesDialogAsync();
         }
 
-        private void ShowPreferencesDialog()
+        private async Task ShowPreferencesDialogAsync()
         {
-            using var form = new PreferencesForm(settings);
+            bool? effectiveStartupEnabled = null;
+            try
+            {
+                var state = await WindowsStartupRegistration.GetPackagedStateAsync();
+                if (state.HasValue)
+                {
+                    effectiveStartupEnabled = state.Value is Windows.ApplicationModel.StartupTaskState.Enabled
+                        or Windows.ApplicationModel.StartupTaskState.EnabledByPolicy;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to read startup task state: {ex}");
+            }
+
+            using var form = new PreferencesForm(settings, effectiveStartupEnabled);
             if (form.ShowDialog(this) != DialogResult.OK)
                 return;
 
@@ -26,7 +41,39 @@ namespace TimePilot.WinForms
                 ApplyUiText();
             }
 
-            settings.SetStartWithWindows(form.StartWithWindows);
+            if (form.StartWithWindows != settings.StartWithWindows
+                || effectiveStartupEnabled.HasValue
+                    && form.StartWithWindows != effectiveStartupEnabled.Value)
+            {
+                try
+                {
+                    await settings.SetStartWithWindowsAsync(form.StartWithWindows);
+                }
+                catch (Exception ex)
+                {
+                    var reason = settings.UiLanguage == UiLanguage.Korean && ex is StartupTaskStateException blocked
+                        ? blocked.State switch
+                        {
+                            Windows.ApplicationModel.StartupTaskState.DisabledByPolicy =>
+                                "Windows 정책이 이 앱의 자동 시작을 차단하고 있습니다. 이 PC의 시작 앱 정책을 확인하세요.",
+                            Windows.ApplicationModel.StartupTaskState.DisabledByUser =>
+                                "Windows 시작 앱에서 이 앱이 꺼져 있습니다. Windows 시작 앱 설정에서 다시 켜세요.",
+                            Windows.ApplicationModel.StartupTaskState.EnabledByPolicy =>
+                                "Windows 정책이 이 앱의 자동 시작을 요구하고 있어 앱에서 끌 수 없습니다.",
+                            _ => ex.Message
+                        }
+                        : ex.Message;
+                    var message = settings.UiLanguage == UiLanguage.English
+                        ? $"Windows could not update the startup setting.\n\n{reason}"
+                        : $"Windows 시작 앱 설정을 변경하지 못했습니다.\n\n{reason}";
+                    CenteredMessageDialog.Show(
+                        this,
+                        message,
+                        UiText.Preferences.Title,
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                }
+            }
             settings.SetPerformanceDiagnosticsEnabled(
                 form.PerformanceDiagnosticsEnabled);
             if (!settings.PerformanceDiagnosticsEnabled)

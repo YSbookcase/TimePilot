@@ -1,29 +1,68 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.Win32;
 
 namespace TimePilot.WinForms
 {
     public partial class Form1
     {
-        private void OnShown(object? sender, EventArgs e)
+        private async void OnShown(object? sender, EventArgs e)
         {
+            StartupLaunchDiagnostics.Record("form-shown", new
+            {
+                StartMinimizedToTray = startMinimizedToTray,
+                Visible,
+                ShowInTaskbar,
+                WindowState = WindowState.ToString()
+            });
+
+            try
+            {
+                var startupState = await WindowsStartupRegistration.GetPackagedStateAsync();
+                if (startupState.HasValue)
+                {
+                    Directory.CreateDirectory(AppDataPaths.DataDirectory);
+                    File.WriteAllText(
+                        Path.Combine(AppDataPaths.DataDirectory, "startup-task-diagnostic.json"),
+                        JsonSerializer.Serialize(new
+                        {
+                            Timestamp = DateTimeOffset.Now,
+                            State = startupState.Value.ToString(),
+                            StateValue = (int)startupState.Value,
+                            StartWithWindows = settings.StartWithWindows,
+                            StartMinimizedToTray = startMinimizedToTray,
+                            Executable = Application.ExecutablePath
+                        }));
+                }
+            }
+            catch
+            {
+                // A failed diagnostic must not block the app from opening.
+            }
+
+            try
+            {
+                await WindowsStartupRegistration.SynchronizeAsync(settings.StartWithWindows);
+            }
+            catch
+            {
+                // Startup registration should never prevent the app from opening.
+            }
+
             if (startMinimizedToTray)
             {
-                BeginInvoke(() =>
-                {
-                    HideToTray();
-                    ShowProcessRuntimeSafeModeNoticeIfNeeded();
-                });
+                HideToTray();
+                ShowProcessRuntimeSafeModeNoticeIfNeeded();
                 return;
             }
 
-            BeginInvoke(ShowStartupNotices);
+            await ShowStartupNoticesAsync();
         }
 
-        private void ShowStartupNotices()
+        private async Task ShowStartupNoticesAsync()
         {
             ShowProcessRuntimeSafeModeNoticeIfNeeded();
-            ShowStartupPromptIfNeeded();
+            await ShowStartupPromptIfNeededAsync();
         }
 
         private void ShowProcessRuntimeSafeModeNoticeIfNeeded()
@@ -49,7 +88,7 @@ namespace TimePilot.WinForms
                 MessageBoxIcon.Warning);
         }
 
-        private void ShowStartupPromptIfNeeded()
+        private async Task ShowStartupPromptIfNeededAsync()
         {
             if (settings.StartupPromptShown || startMinimizedToTray || isClosing)
                 return;
@@ -61,7 +100,35 @@ namespace TimePilot.WinForms
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
 
-            settings.SetStartupPromptResult(result == DialogResult.Yes);
+            try
+            {
+                await settings.SetStartupPromptResultAsync(result == DialogResult.Yes);
+            }
+            catch (Exception ex)
+            {
+                settings.MarkStartupPromptShown();
+                var reason = settings.UiLanguage == UiLanguage.Korean && ex is StartupTaskStateException blocked
+                    ? blocked.State switch
+                    {
+                        Windows.ApplicationModel.StartupTaskState.DisabledByPolicy =>
+                            "Windows 정책이 이 앱의 자동 시작을 차단하고 있습니다. 이 PC의 시작 앱 정책을 확인하세요.",
+                        Windows.ApplicationModel.StartupTaskState.DisabledByUser =>
+                            "Windows 시작 앱에서 이 앱이 꺼져 있습니다. Windows 시작 앱 설정에서 다시 켜세요.",
+                        Windows.ApplicationModel.StartupTaskState.EnabledByPolicy =>
+                            "Windows 정책이 이 앱의 자동 시작을 요구하고 있어 앱에서 끌 수 없습니다.",
+                        _ => ex.Message
+                    }
+                    : ex.Message;
+                var message = settings.UiLanguage == UiLanguage.English
+                    ? $"Windows could not update the startup setting.\n\n{reason}"
+                    : $"Windows 시작 앱 설정을 변경하지 못했습니다.\n\n{reason}";
+                CenteredMessageDialog.Show(
+                    this,
+                    message,
+                    UiText.Main.StartupPromptTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
         }
 
         private void ApplyProcessRuntimeSafeModeIfNeeded()
