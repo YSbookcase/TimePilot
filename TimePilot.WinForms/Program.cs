@@ -130,8 +130,8 @@
             var isEnglish = language == KYS24.UiLanguage.English;
             var message = result.Decision == KYS24.DataStorageMigrationDecisionKind.ConflictRequiresUserChoice
                 ? isEnglish
-                    ? "TimePilot found data in both the previous and new storage locations. The previous location remains in use. Review the storage details in Settings before choosing which data to keep."
-                    : "이전 저장 위치와 새 저장 위치 양쪽에서 데이터가 발견되었습니다. 현재는 이전 위치를 계속 사용합니다. 유지할 데이터를 선택하기 전에 환경 설정에서 저장 위치 상세 정보를 확인하세요."
+                    ? "TimePilot found data in multiple storage locations. The current location remains in use. Review the storage details in Settings before choosing which data to keep."
+                    : "둘 이상의 저장 위치에서 데이터가 발견되었습니다. 현재 위치를 계속 사용합니다. 유지할 데이터를 선택하기 전에 환경 설정에서 저장 위치 상세 정보를 확인하세요."
                 : isEnglish
                     ? $"TimePilot could not complete the storage transition, so the previous location remains in use. Review the storage details in Settings.\n\n{result.Error}"
                     : $"저장 위치 전환을 완료하지 못해 이전 위치를 계속 사용합니다. 환경 설정에서 저장 위치 상세 정보를 확인하세요.\n\n{result.Error}";

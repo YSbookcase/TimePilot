@@ -51,6 +51,76 @@ namespace TimePilot.Tests
         }
 
         [Fact]
+        public void BuildPlan_UsesLegacyDirectoryWhenPackagedAppStoredDataThere()
+        {
+            var root = Path.Combine(Path.GetTempPath(), $"TimePilotLegacySource-{Guid.NewGuid():N}");
+            var legacyDirectory = Path.Combine(root, "Legacy", "TimePilot");
+            var localCache = Path.Combine(root, "Package", "LocalCache");
+            var localState = Path.Combine(root, "Package", "LocalState");
+
+            try
+            {
+                CreateValidDatabase(Path.Combine(legacyDirectory, "timepilot.db"));
+
+                var plan = DataStorageLocationService.BuildPlan(
+                    isPackaged: true,
+                    legacyDirectory,
+                    localCache,
+                    localState);
+
+                Assert.Equal(legacyDirectory, plan.CurrentDirectory);
+                Assert.Equal(Path.Combine(localState, "TimePilot"), plan.TargetDirectory);
+                Assert.False(plan.HasSourceConflict);
+                Assert.Equal(
+                    DataStorageMigrationDecisionKind.MigrateCurrentToTarget,
+                    plan.MigrationDecision.Kind);
+                Assert.Contains(plan.Candidates, candidate =>
+                    candidate.Kind == DataStorageLocationKind.LegacyExe
+                    && candidate.IsCurrent
+                    && candidate.DatabaseState == DataStorageDatabaseState.Valid);
+            }
+            finally
+            {
+                SqliteConnection.ClearAllPools();
+                if (Directory.Exists(root))
+                    Directory.Delete(root, recursive: true);
+            }
+        }
+
+        [Fact]
+        public void BuildPlan_BlocksAutomaticMigrationWhenLegacyAndLocalCacheBothContainData()
+        {
+            var root = Path.Combine(Path.GetTempPath(), $"TimePilotSourceConflict-{Guid.NewGuid():N}");
+            var legacyDirectory = Path.Combine(root, "Legacy", "TimePilot");
+            var localCache = Path.Combine(root, "Package", "LocalCache");
+            var localState = Path.Combine(root, "Package", "LocalState");
+            var localCacheData = Path.Combine(localCache, "Local", "TimePilot");
+
+            try
+            {
+                CreateValidDatabase(Path.Combine(legacyDirectory, "timepilot.db"));
+                CreateValidDatabase(Path.Combine(localCacheData, "timepilot.db"));
+
+                var plan = DataStorageLocationService.BuildPlan(
+                    isPackaged: true,
+                    legacyDirectory,
+                    localCache,
+                    localState);
+
+                Assert.True(plan.HasSourceConflict);
+                Assert.Equal(
+                    DataStorageMigrationDecisionKind.ConflictRequiresUserChoice,
+                    plan.MigrationDecision.Kind);
+            }
+            finally
+            {
+                SqliteConnection.ClearAllPools();
+                if (Directory.Exists(root))
+                    Directory.Delete(root, recursive: true);
+            }
+        }
+
+        [Fact]
         public void BuildPlan_InspectsDatabaseSettingsAndBackupCandidates()
         {
             var root = Path.Combine(Path.GetTempPath(), $"TimePilotStoragePlan-{Guid.NewGuid():N}");
@@ -120,7 +190,7 @@ namespace TimePilot.Tests
 
                 var text = DeploymentDiagnosticsFormatter.Format(snapshot, UiLanguage.Korean);
 
-                Assert.Contains("LocalCache와 목표 LocalState에 데이터베이스가 모두 있습니다", text);
+                Assert.Contains("둘 이상의 저장 위치에 데이터가 있습니다", text);
                 Assert.Contains("필요함 (아직 수행하지 않음)", text);
             }
             finally
@@ -181,6 +251,23 @@ namespace TimePilot.Tests
                 if (File.Exists(path))
                     File.Delete(path);
             }
+        }
+
+        private static void CreateValidDatabase(string path)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = path,
+                Pooling = false
+            }.ToString());
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                CREATE TABLE apps (id INTEGER PRIMARY KEY);
+                CREATE TABLE foreground_sessions (id INTEGER PRIMARY KEY);
+                """;
+            command.ExecuteNonQuery();
         }
     }
 }

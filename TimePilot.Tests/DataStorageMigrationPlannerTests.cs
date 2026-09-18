@@ -149,6 +149,30 @@ namespace TimePilot.Tests
             Assert.False(decision.AllowsAutomaticAction);
         }
 
+        [Fact]
+        public void Decide_RequiresUserChoiceWhenMultipleSourceLocationsContainData()
+        {
+            var current = Candidate(
+                isCurrent: true,
+                DataStorageDatabaseState.Valid,
+                hasDatabase: true);
+            var target = Candidate(
+                isCurrent: false,
+                DataStorageDatabaseState.NotPresent,
+                isTarget: true);
+            var plan = new DataStorageLocationPlan(
+                IsPackaged: true,
+                CurrentDirectory: current.DirectoryPath,
+                TargetDirectory: target.DirectoryPath,
+                Candidates: [current, target],
+                HasSourceConflict: true);
+
+            var decision = DataStorageMigrationPlanner.Decide(plan);
+
+            Assert.Equal(DataStorageMigrationDecisionKind.ConflictRequiresUserChoice, decision.Kind);
+            Assert.False(decision.AllowsAutomaticAction);
+        }
+
         private static DataStorageLocationPlan CreatePlan(
             DataStorageCandidate current,
             DataStorageCandidate target)

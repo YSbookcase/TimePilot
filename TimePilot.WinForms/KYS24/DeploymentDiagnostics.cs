@@ -280,15 +280,15 @@ namespace TimePilot.WinForms.KYS24
                 {
                     warnings.Add(Label(
                         isEnglish,
-                        "Both the current LocalCache and target LocalState contain databases. Do not choose one automatically; back up and compare them first.",
-                        "현재 LocalCache와 목표 LocalState에 데이터베이스가 모두 있습니다. 자동으로 하나를 선택하지 말고 먼저 백업하고 비교해야 합니다."));
+                        "Multiple storage locations contain data. Do not choose one automatically; back up and compare them first.",
+                        "둘 이상의 저장 위치에 데이터가 있습니다. 자동으로 하나를 선택하지 말고 먼저 백업하고 비교해야 합니다."));
                 }
                 else if (decision.Kind == DataStorageMigrationDecisionKind.MigrateCurrentToTarget)
                 {
                     warnings.Add(Label(
                         isEnglish,
-                        "The Store database still uses LocalCache. Migration to LocalState has not been performed yet.",
-                        "Store 데이터베이스가 아직 LocalCache를 사용합니다. LocalState 이전은 아직 수행되지 않았습니다."));
+                        "The Store database still uses its previous storage location. Migration to LocalState has not been performed yet.",
+                        "Store 데이터베이스가 아직 이전 저장 위치를 사용합니다. LocalState 이전은 아직 수행되지 않았습니다."));
                 }
                 else if (decision.Kind is DataStorageMigrationDecisionKind.BlockedCurrentDatabaseInvalid
                     or DataStorageMigrationDecisionKind.BlockedTargetDatabaseInvalid)

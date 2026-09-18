@@ -364,3 +364,44 @@ Computer Use의 노출 창 목록에도 ActiveLogbook 창은 없었다. 진단 �
 현재 PC에는 ActiveLogbook MSIX가 설치되어 있지 않아 Explorer 동작은 아직 실제 패키지에서
 확인하지 않았다. 다른 테스트 PC에서 `0.2.12.0`을 설치한 뒤 환경설정의 `폴더 열기`가 실제
 패키지 폴더를 열고 그 안에 `timepilot.db`와 `settings.json`이 보이는지 최종 확인한다.
+
+### 0.2.13.0 MSIX LocalState 전환 검증본 (2026-09-19)
+
+MSIX 데이터가 Windows 환경에 따라 `%LOCALAPPDATA%\TimePilot` 또는 패키지의
+`LocalCache\Local\TimePilot`에 존재할 수 있음을 실제 `0.2.11.0` 설치본에서 확인했다.
+이 PC의 설치본은 패키지 실행 파일을 사용하고 있었지만 약 101MB의 데이터베이스와 설정,
+백업은 `%LOCALAPPDATA%\TimePilot`에 있었다. 따라서 LocalCache만 기존 위치로 가정하면
+기존 기록을 놓치고 빈 LocalState로 시작할 수 있었다.
+
+`0.2.13.0`은 패키지 시작 시 다음 순서로 저장 위치를 결정한다.
+
+1. `%LOCALAPPDATA%\TimePilot`과 현재 패키지의 `LocalCache\Local\TimePilot`을 모두 검사한다.
+2. 한쪽에만 데이터베이스, 설정 또는 백업이 있으면 그 위치를 이전 원본으로 선택한다.
+3. 양쪽 모두 데이터가 있으면 자동 이전을 중단하고 사용자 확인이 필요한 충돌로 처리한다.
+4. 선택한 원본을 staging에 복사하되 SQLite 데이터베이스는 Backup API로 스냅샷을 만든다.
+5. staging 데이터베이스 검증과 완료 표식 기록 후 디렉터리 rename으로 LocalState에 승격한다.
+6. 성공 후에는 LocalState에 직접 기록하고, 원본 데이터는 삭제하지 않는다.
+
+버전을 앱과 패키지 모두 `0.2.13.0`으로 올렸다. 전체 테스트 189개와 Release 빌드가
+통과했으며 MSIX 패키징도 경고와 오류 없이 완료됐다.
+
+- 테스트 패키지: `artifacts/msix/TimePilot.Packaging_0.2.13.0_x64_Test/TimePilot.Packaging_0.2.13.0_x64.msix`
+- 테스트 MSIX SHA-256: `A9B7FE6235FCBC1946518038F374A51FAC438468A1D58F9F5FC109F9E9ED3C5A`
+- Store 업로드 후보: `artifacts/msix/TimePilot.Packaging_0.2.13.0_x64.msixupload`
+- Store 업로드 SHA-256: `E0FAB63AD11C81CC639F32C96EFE07594FE08D440ADD08C02280773451D33D06`
+
+위 해시는 Legacy 경로 탐지 보완 후 다시 생성한 최종 산출물 기준이다. 현재 PC에는
+`0.2.11.0`이 설치되어 있고 새 테스트 인증서가 아직 신뢰 저장소에 없으므로 자동 업데이트는
+수행하지 않았다. 실제 검증은 실행 중인 앱을 종료하고 테스트 폴더의 `Install.ps1`을 실행해
+인증서를 승인한 뒤 진행한다.
+
+첫 실행 후 다음 항목을 확인한다.
+
+- `LocalState\TimePilot`에 `timepilot.db`, `settings.json`, `backups`,
+  `.storage-migration-v1.json`이 생성된다.
+- 기존 `%LOCALAPPDATA%\TimePilot` 파일은 그대로 남아 있다.
+- 앱의 기존 기록과 설정이 표시된다.
+- 앱을 다시 실행해도 중복 이전하지 않고 LocalState를 사용한다.
+- 새 기록으로 LocalState 데이터베이스의 수정 시각만 변경된다.
+
+이 검증이 끝나기 전에는 `0.2.13.0` Store 업로드 후보를 Partner Center에 제출하지 않는다.

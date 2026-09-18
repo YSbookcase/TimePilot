@@ -61,7 +61,8 @@ namespace TimePilot.WinForms.KYS24
         string TargetDirectory,
         IReadOnlyList<DataStorageCandidate> Candidates,
         bool IsTargetAvailable = true,
-        bool HasCompletedMigration = false)
+        bool HasCompletedMigration = false,
+        bool HasSourceConflict = false)
     {
         public bool RequiresMigration => !string.Equals(
             Path.TrimEndingDirectorySeparator(Path.GetFullPath(CurrentDirectory)),
@@ -101,8 +102,19 @@ namespace TimePilot.WinForms.KYS24
             string? packagedLocalStateDirectory,
             IReadOnlyList<string>? installedPackageDirectories = null)
         {
-            var currentDirectory = isPackaged && !string.IsNullOrWhiteSpace(packagedLocalCacheDirectory)
-                ? Path.Combine(packagedLocalCacheDirectory, "Local", DataDirectoryName)
+            var packagedLocalCacheDataDirectory = string.IsNullOrWhiteSpace(packagedLocalCacheDirectory)
+                ? null
+                : Path.Combine(packagedLocalCacheDirectory, "Local", DataDirectoryName);
+            var legacyHasArtifacts = HasRecognizedArtifacts(legacyDirectory);
+            var localCacheHasArtifacts = packagedLocalCacheDataDirectory is not null
+                && HasRecognizedArtifacts(packagedLocalCacheDataDirectory);
+            var hasSourceConflict = isPackaged
+                && legacyHasArtifacts
+                && localCacheHasArtifacts;
+            var currentDirectory = isPackaged
+                ? legacyHasArtifacts && !localCacheHasArtifacts
+                    ? legacyDirectory
+                    : packagedLocalCacheDataDirectory ?? legacyDirectory
                 : legacyDirectory;
             var targetDirectory = ResolveTargetDataDirectory(
                 isPackaged,
@@ -117,19 +129,19 @@ namespace TimePilot.WinForms.KYS24
                 legacyDirectory,
                 isCurrent: PathsEqual(legacyDirectory, currentDirectory),
                 isTarget: PathsEqual(legacyDirectory, targetDirectory),
-                canInspect: !isPackaged);
+                canInspect: true);
 
-            if (!string.IsNullOrWhiteSpace(packagedLocalCacheDirectory))
+            if (packagedLocalCacheDataDirectory is not null)
             {
                 AddCandidate(
                     candidates,
                     DataStorageLocationKind.MsixVirtualizedLocalCache,
-                    Path.Combine(packagedLocalCacheDirectory, "Local", DataDirectoryName),
+                    packagedLocalCacheDataDirectory,
                     isCurrent: isPackaged && PathsEqual(
-                        Path.Combine(packagedLocalCacheDirectory, "Local", DataDirectoryName),
+                        packagedLocalCacheDataDirectory,
                         currentDirectory),
                     isTarget: PathsEqual(
-                        Path.Combine(packagedLocalCacheDirectory, "Local", DataDirectoryName),
+                        packagedLocalCacheDataDirectory,
                         targetDirectory),
                     canInspect: true);
             }
@@ -179,7 +191,8 @@ namespace TimePilot.WinForms.KYS24
                     .ThenBy(candidate => candidate.Kind)
                     .ToArray(),
                 IsTargetAvailable: !isPackaged || !string.IsNullOrWhiteSpace(packagedLocalStateDirectory),
-                HasCompletedMigration: HasValidMigrationMarker(currentDirectory, targetDirectory));
+                HasCompletedMigration: HasValidMigrationMarker(currentDirectory, targetDirectory),
+                HasSourceConflict: hasSourceConflict);
         }
 
         internal static string ResolveTargetDataDirectory(
@@ -318,6 +331,22 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
+        private static bool HasRecognizedArtifacts(string directory)
+        {
+            try
+            {
+                return File.Exists(Path.Combine(directory, "timepilot.db"))
+                    || File.Exists(Path.Combine(directory, "settings.json"))
+                    || Directory.Exists(Path.Combine(directory, "backups"));
+            }
+            catch (Exception ex) when (ex is IOException
+                or UnauthorizedAccessException
+                or System.Security.SecurityException)
+            {
+                return false;
+            }
+        }
+
         private static IReadOnlyList<string> DiscoverInstalledPackageDirectories(
             string localAppDataDirectory)
         {
@@ -367,6 +396,14 @@ namespace TimePilot.WinForms.KYS24
             {
                 return new DataStorageMigrationDecision(
                     DataStorageMigrationDecisionKind.TargetUnavailable,
+                    current,
+                    target);
+            }
+
+            if (plan.HasSourceConflict)
+            {
+                return new DataStorageMigrationDecision(
+                    DataStorageMigrationDecisionKind.ConflictRequiresUserChoice,
                     current,
                     target);
             }

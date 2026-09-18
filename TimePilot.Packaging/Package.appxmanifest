@@ -10,7 +10,7 @@
   <Identity
     Name="YSBookcase.ActiveLogbook"
     Publisher="CN=6AC2C835-325B-4E6D-80BA-4FF52B9AE3CD"
-    Version="0.2.12.0" />
+    Version="0.2.13.0" />
 
   <Properties>
     <DisplayName>ActiveLogbook</DisplayName>
