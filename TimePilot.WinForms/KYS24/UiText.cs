@@ -316,6 +316,11 @@ namespace TimePilot.WinForms.KYS24
             public static string DataManagementGroup => current.Preferences.DataManagementGroup;
             public static string DataManagementDescription => current.Preferences.DataManagementDescription;
             public static string OpenDataFolder => current.Preferences.OpenDataFolder;
+            public static string InstallationInfo => current.Preferences.InstallationInfo;
+            public static string InstallationInfoTitle => current.Preferences.InstallationInfoTitle;
+            public static string CopyInstallationInfo => current.Preferences.CopyInstallationInfo;
+            public static string InstallationInfoCopyFailed(string message) =>
+                current.Preferences.InstallationInfoCopyFailed(message);
             public static string ClearUsageData => current.Preferences.ClearUsageData;
             public static string ClearUsageDataPending => current.Preferences.ClearUsageDataPending;
             public static string DataFolderOpenTitle => current.Preferences.DataFolderOpenTitle;
@@ -699,6 +704,10 @@ namespace TimePilot.WinForms.KYS24
                         DataManagementGroup: "데이터 관리",
                         DataManagementDescription: "기록과 설정 저장 위치를 관리합니다.",
                         OpenDataFolder: "폴더 열기",
+                        InstallationInfo: "설치 및 데이터 정보",
+                        InstallationInfoTitle: "설치 및 데이터 정보",
+                        CopyInstallationInfo: "복사",
+                        InstallationInfoCopyFailed: message => $"정보를 복사하지 못했습니다.\n\n{message}",
                         ClearUsageData: "기록 삭제",
                         ClearUsageDataPending: "삭제 예정",
                         DataFolderOpenTitle: "데이터 폴더 열기",
@@ -1040,6 +1049,10 @@ namespace TimePilot.WinForms.KYS24
                         DataManagementGroup: "Data management",
                         DataManagementDescription: "Manage where records and settings are stored.",
                         OpenDataFolder: "Open folder",
+                        InstallationInfo: "Installation and data info",
+                        InstallationInfoTitle: "Installation and data information",
+                        CopyInstallationInfo: "Copy",
+                        InstallationInfoCopyFailed: message => $"Could not copy the information.\n\n{message}",
                         ClearUsageData: "Delete records",
                         ClearUsageDataPending: "Pending delete",
                         DataFolderOpenTitle: "Open data folder",
@@ -1341,6 +1354,10 @@ namespace TimePilot.WinForms.KYS24
             string DataManagementGroup,
             string DataManagementDescription,
             string OpenDataFolder,
+            string InstallationInfo,
+            string InstallationInfoTitle,
+            string CopyInstallationInfo,
+            Func<string, string> InstallationInfoCopyFailed,
             string ClearUsageData,
             string ClearUsageDataPending,
             string DataFolderOpenTitle,

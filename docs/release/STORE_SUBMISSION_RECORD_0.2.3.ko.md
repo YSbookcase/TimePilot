@@ -340,3 +340,121 @@ Computer Use의 노출 창 목록에도 ActiveLogbook 창은 없었다. 진단 �
 새로 빌드한 MSIX는 Windows의 동일 버전 교체 차단 때문에 설치되지 않았으므로 새 산출물 자체의
 설치 및 재부팅 검증은 여전히 별도다. 다음 패키지는 버전을 올려 설치하거나 기존 설치본을
 안전하게 교체한 뒤 같은 절차로 한 번 더 확인한다.
+
+### 0.2.12.0 MSIX 데이터 폴더 열기 수정 (2026-09-17)
+
+다른 PC의 `0.2.11.0` MSIX 설치본에서 환경설정의 `폴더 열기`가 논리 경로인
+`%LOCALAPPDATA%\TimePilot`을 Explorer에 전달해 "위치를 사용할 수 없습니다" 오류가 발생했다.
+실제 데이터는 Windows의 MSIX AppData 가상화에 따라 다음 위치에 있었다.
+
+```text
+%LOCALAPPDATA%\Packages\YSBookcase.ActiveLogbook_qx0xt5p8pr0jp\LocalCache\Local\TimePilot
+```
+
+앱 내부의 저장 읽기/쓰기는 기존 논리 경로를 유지한다. 대신 `AppDataPaths`가 패키지 실행 시
+`ApplicationData.Current.LocalCacheFolder`를 기준으로 Explorer용 물리 경로를 계산하고,
+비패키지 실행에서는 기존 `%LOCALAPPDATA%\TimePilot`을 반환하도록 수정했다. 환경설정의
+`폴더 열기`는 계산된 실제 폴더를 생성한 뒤 연다. 경로 선택 단위 테스트를 추가했으며 이 수정이
+포함된 테스트 패키지 버전은 `0.2.12.0`이다. 전체 테스트 161개와 Release 빌드가 통과했고,
+다음 패키지를 오류와 경고 없이 생성했다. 관련 GitHub 이슈는 #321이다.
+
+- `artifacts/msix/TimePilot.Packaging_0.2.12.0_x64_Test/TimePilot.Packaging_0.2.12.0_x64.msix`
+- `artifacts/msix/TimePilot.Packaging_0.2.12.0_x64.msixupload`
+
+현재 PC에는 ActiveLogbook MSIX가 설치되어 있지 않아 Explorer 동작은 아직 실제 패키지에서
+확인하지 않았다. 다른 테스트 PC에서 `0.2.12.0`을 설치한 뒤 환경설정의 `폴더 열기`가 실제
+패키지 폴더를 열고 그 안에 `timepilot.db`와 `settings.json`이 보이는지 최종 확인한다.
+
+### 0.2.13.0 MSIX LocalState 전환 검증본 (2026-09-19)
+
+MSIX 데이터가 Windows 환경에 따라 `%LOCALAPPDATA%\TimePilot` 또는 패키지의
+`LocalCache\Local\TimePilot`에 존재할 수 있음을 실제 `0.2.11.0` 설치본에서 확인했다.
+이 PC의 설치본은 패키지 실행 파일을 사용하고 있었지만 약 101MB의 데이터베이스와 설정,
+백업은 `%LOCALAPPDATA%\TimePilot`에 있었다. 따라서 LocalCache만 기존 위치로 가정하면
+기존 기록을 놓치고 빈 LocalState로 시작할 수 있었다.
+
+`0.2.13.0`은 패키지 시작 시 다음 순서로 저장 위치를 결정한다.
+
+1. `%LOCALAPPDATA%\TimePilot`과 현재 패키지의 `LocalCache\Local\TimePilot`을 모두 검사한다.
+2. 한쪽에만 데이터베이스, 설정 또는 백업이 있으면 그 위치를 이전 원본으로 선택한다.
+3. 양쪽 모두 데이터가 있으면 자동 이전을 중단하고 사용자 확인이 필요한 충돌로 처리한다.
+4. 선택한 원본을 staging에 복사하되 SQLite 데이터베이스는 Backup API로 스냅샷을 만든다.
+5. staging 데이터베이스 검증과 완료 표식 기록 후 디렉터리 rename으로 LocalState에 승격한다.
+6. 성공 후에는 LocalState에 직접 기록하고, 원본 데이터는 삭제하지 않는다.
+
+버전을 앱과 패키지 모두 `0.2.13.0`으로 올렸다. 전체 테스트 189개와 Release 빌드가
+통과했으며 MSIX 패키징도 경고와 오류 없이 완료됐다.
+
+- 테스트 패키지: `artifacts/msix/TimePilot.Packaging_0.2.13.0_x64_Test/TimePilot.Packaging_0.2.13.0_x64.msix`
+- 테스트 MSIX SHA-256: `A9B7FE6235FCBC1946518038F374A51FAC438468A1D58F9F5FC109F9E9ED3C5A`
+- Store 업로드 후보: `artifacts/msix/TimePilot.Packaging_0.2.13.0_x64.msixupload`
+- Store 업로드 SHA-256: `E0FAB63AD11C81CC639F32C96EFE07594FE08D440ADD08C02280773451D33D06`
+
+위 해시는 Legacy 경로 탐지 보완 후 다시 생성한 최종 산출물 기준이다. 현재 PC에는
+`0.2.11.0`이 설치되어 있고 새 테스트 인증서가 아직 신뢰 저장소에 없으므로 자동 업데이트는
+수행하지 않았다. 실제 검증은 실행 중인 앱을 종료하고 테스트 폴더의 `Install.ps1`을 실행해
+인증서를 승인한 뒤 진행한다.
+
+첫 실행 후 다음 항목을 확인한다.
+
+- `LocalState\TimePilot`에 `timepilot.db`, `settings.json`, `backups`,
+  `.storage-migration-v1.json`이 생성된다.
+- 기존 `%LOCALAPPDATA%\TimePilot` 파일은 그대로 남아 있다.
+- 앱의 기존 기록과 설정이 표시된다.
+- 앱을 다시 실행해도 중복 이전하지 않고 LocalState를 사용한다.
+- 새 기록으로 LocalState 데이터베이스의 수정 시각만 변경된다.
+
+이 검증이 끝나기 전에는 `0.2.13.0` Store 업로드 후보를 Partner Center에 제출하지 않는다.
+
+#### 0.2.13.0 실제 업데이트 결과
+
+기존 `0.2.11.0` MSIX 설치본 위에 `0.2.13.0` 테스트 패키지를 설치했다. 설치된 패키지는
+`Version=0.2.13.0`, `Status=Ok`로 확인됐다. 최초 실행 후 LocalState의 `TimePilot` 폴더에
+다음 항목이 생성됐다.
+
+- `timepilot.db`
+- `settings.json`
+- `backups`
+- `.storage-migration-v1.json`
+- 시작 및 자동 시작 진단 파일
+
+기존 `%LOCALAPPDATA%\TimePilot`의 데이터베이스, 설정, 백업은 삭제되지 않고 그대로 남았다.
+원본 데이터베이스의 수정 시각은 최초 이전 시점에서 멈췄고 LocalState 데이터베이스와 시작
+진단 파일만 이후 실행 중 계속 갱신됐다. 따라서 이전 후 앱이 LocalState를 활성 저장 위치로
+사용하는 동작을 확인했다. 원본과 LocalState의 백업 파일 수도 각각 12개로 일치했다.
+
+남은 수동 확인은 앱을 완전히 종료하고 다시 실행한 뒤 기존 기록과 설정이 정상적으로 표시되는지
+확인하는 것이다. 확인 전까지 원본 `%LOCALAPPDATA%\TimePilot` 폴더는 삭제하지 않는다.
+
+#### Windows 업데이트 후 패키지 등록 및 자동 시작 복구
+
+Windows 업데이트와 재부팅 후 `0.2.13.0`의 `WindowsApps` 설치 파일과 LocalState 데이터는
+남아 있었지만 현재 사용자의 `Get-AppxPackage` 및 시작 메뉴 등록에서 패키지가 보이지 않았다.
+LocalState 전체 18개 파일(총 165,225,919바이트, 데이터베이스 102,055,936바이트)을
+`artifacts/recovery/ActiveLogbook-LocalState-20260919-100117`에 백업한 뒤, 설치 위치의
+`AppxManifest.xml`을 사용해 현재 사용자 패키지 등록을 복구했다. 재등록 후 패키지는
+`Version=0.2.13.0`, `Status=Ok`였고 기존 데이터베이스가 그대로 열리고 갱신되는 것을 확인했다.
+
+이 PC에서는 Windows가 `StartupTask.State=DisabledByPolicy(3)`를 반환하고 있었다. 시스템 전체
+MSIX/UWP 시작 작업에 영향을 주는 다음 시험값을 사용자 승인과 UAC를 거쳐 다시 적용했다.
+
+- `EnableFullTrustStartupTasks=2`
+- `EnableUwpStartupTasks=2`
+- `SupportFullTrustStartupTasks=1`
+- `SupportUwpStartupTasks=1`
+
+화면 잠금은 새 로그인 세션을 만들지 않으므로 시작 프로그램 검증으로 인정하지 않았다. 실제
+로그아웃 후 2026-09-19 11:49에 새 세션 2가 시작됐고, ActiveLogbook은 11:51:03에 다음 상태로
+자동 실행됐다.
+
+- `ActivationKind=StartupTask`
+- `StartInTray=true`
+- `StartupTask.State=Enabled(2)`
+- `StartMinimizedToTray=true`
+- `ShowInTaskbar=false`, `WindowState=Minimized`
+- 실행 프로세스의 `MainWindowHandle=0`, 빈 창 제목
+
+정책 네 값과 패키지 `Status=Ok`도 새 로그인 세션에서 유지됐다. 따라서 `0.2.13.0`은 이 PC에서
+로그온 자동 실행 및 창 없는 트레이 시작까지 검증됐다. 다만 네 레지스트리 값은 ActiveLogbook
+전용 설정이 아니므로 Store 사용자의 일반 요구 조건으로 취급하지 않으며, 이 PC의 Windows 정책
+판정 문제를 우회하기 위한 로컬 시험 설정으로만 기록한다.
