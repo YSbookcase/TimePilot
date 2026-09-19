@@ -425,3 +425,36 @@ MSIX 데이터가 Windows 환경에 따라 `%LOCALAPPDATA%\TimePilot` 또는 패
 
 남은 수동 확인은 앱을 완전히 종료하고 다시 실행한 뒤 기존 기록과 설정이 정상적으로 표시되는지
 확인하는 것이다. 확인 전까지 원본 `%LOCALAPPDATA%\TimePilot` 폴더는 삭제하지 않는다.
+
+#### Windows 업데이트 후 패키지 등록 및 자동 시작 복구
+
+Windows 업데이트와 재부팅 후 `0.2.13.0`의 `WindowsApps` 설치 파일과 LocalState 데이터는
+남아 있었지만 현재 사용자의 `Get-AppxPackage` 및 시작 메뉴 등록에서 패키지가 보이지 않았다.
+LocalState 전체 18개 파일(총 165,225,919바이트, 데이터베이스 102,055,936바이트)을
+`artifacts/recovery/ActiveLogbook-LocalState-20260919-100117`에 백업한 뒤, 설치 위치의
+`AppxManifest.xml`을 사용해 현재 사용자 패키지 등록을 복구했다. 재등록 후 패키지는
+`Version=0.2.13.0`, `Status=Ok`였고 기존 데이터베이스가 그대로 열리고 갱신되는 것을 확인했다.
+
+이 PC에서는 Windows가 `StartupTask.State=DisabledByPolicy(3)`를 반환하고 있었다. 시스템 전체
+MSIX/UWP 시작 작업에 영향을 주는 다음 시험값을 사용자 승인과 UAC를 거쳐 다시 적용했다.
+
+- `EnableFullTrustStartupTasks=2`
+- `EnableUwpStartupTasks=2`
+- `SupportFullTrustStartupTasks=1`
+- `SupportUwpStartupTasks=1`
+
+화면 잠금은 새 로그인 세션을 만들지 않으므로 시작 프로그램 검증으로 인정하지 않았다. 실제
+로그아웃 후 2026-09-19 11:49에 새 세션 2가 시작됐고, ActiveLogbook은 11:51:03에 다음 상태로
+자동 실행됐다.
+
+- `ActivationKind=StartupTask`
+- `StartInTray=true`
+- `StartupTask.State=Enabled(2)`
+- `StartMinimizedToTray=true`
+- `ShowInTaskbar=false`, `WindowState=Minimized`
+- 실행 프로세스의 `MainWindowHandle=0`, 빈 창 제목
+
+정책 네 값과 패키지 `Status=Ok`도 새 로그인 세션에서 유지됐다. 따라서 `0.2.13.0`은 이 PC에서
+로그온 자동 실행 및 창 없는 트레이 시작까지 검증됐다. 다만 네 레지스트리 값은 ActiveLogbook
+전용 설정이 아니므로 Store 사용자의 일반 요구 조건으로 취급하지 않으며, 이 PC의 Windows 정책
+판정 문제를 우회하기 위한 로컬 시험 설정으로만 기록한다.
