@@ -48,6 +48,10 @@ namespace TimePilot.WinForms.KYS24
             var activeDatabasePath = Path.Combine(physicalDataDirectory, "timepilot.db");
             var legacyDataDirectory = Path.Combine(localAppDataDirectory, "TimePilot");
             var legacyDatabasePath = Path.Combine(legacyDataDirectory, "timepilot.db");
+            var storagePlan = DataStorageLocationService.Collect();
+            var storeDataLocations = MergeStoreDataLocations(
+                FindStoreDataLocations(localAppDataDirectory),
+                storagePlan.Candidates);
 
             return new DeploymentDiagnosticsSnapshot(
                 channel,
@@ -60,8 +64,8 @@ namespace TimePilot.WinForms.KYS24
                 legacyDataDirectory,
                 isPackaged ? null : File.Exists(legacyDatabasePath),
                 installedExeDirectory,
-                FindStoreDataLocations(localAppDataDirectory),
-                DataStorageLocationService.Collect());
+                storeDataLocations,
+                storagePlan);
         }
 
         internal static DeploymentChannel ResolveChannel(
@@ -109,11 +113,11 @@ namespace TimePilot.WinForms.KYS24
                         packagesDirectory,
                         PackageDirectoryPrefix + "*",
                         SearchOption.TopDirectoryOnly)
-                    .Select(packageDirectory => Path.Combine(
-                        packageDirectory,
-                        "LocalCache",
-                        "Local",
-                        "TimePilot"))
+                    .SelectMany(packageDirectory => new[]
+                    {
+                        Path.Combine(packageDirectory, "LocalState", "TimePilot"),
+                        Path.Combine(packageDirectory, "LocalCache", "Local", "TimePilot")
+                    })
                     .Where(Directory.Exists)
                     .Select(directory => new DeploymentDataLocation(
                         directory,
@@ -128,6 +132,37 @@ namespace TimePilot.WinForms.KYS24
             {
                 return Array.Empty<DeploymentDataLocation>();
             }
+        }
+
+        internal static IReadOnlyList<DeploymentDataLocation> MergeStoreDataLocations(
+            IReadOnlyList<DeploymentDataLocation> discoveredLocations,
+            IReadOnlyList<DataStorageCandidate> candidates)
+        {
+            var locations = discoveredLocations.ToDictionary(
+                location => Path.TrimEndingDirectorySeparator(location.DirectoryPath),
+                location => location,
+                StringComparer.OrdinalIgnoreCase);
+
+            foreach (var candidate in candidates.Where(candidate => candidate.Kind is
+                DataStorageLocationKind.MsixLocalState or
+                DataStorageLocationKind.MsixVirtualizedLocalCache))
+            {
+                var directory = Path.TrimEndingDirectorySeparator(candidate.DirectoryPath);
+                var hasArtifacts = candidate.DatabaseExists == true
+                    || candidate.SettingsExists == true
+                    || candidate.BackupDirectoryExists == true;
+                if (!hasArtifacts && !Directory.Exists(directory))
+                    continue;
+
+                locations[directory] = new DeploymentDataLocation(
+                    directory,
+                    Path.Combine(directory, "timepilot.db"),
+                    candidate.DatabaseExists == true);
+            }
+
+            return locations.Values
+                .OrderBy(location => location.DirectoryPath, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
         }
 
         private static string? TryGetInstalledExeDirectory()
@@ -220,7 +255,7 @@ namespace TimePilot.WinForms.KYS24
             bool isEnglish)
         {
             builder.AppendLine(Label(isEnglish, "Storage transition plan", "저장 위치 전환 계획"));
-            builder.AppendLine($"{Label(isEnglish, "- Current physical folder", "- 현재 실제 폴더")}: {plan.CurrentDirectory}");
+            builder.AppendLine($"{Label(isEnglish, "- Migration source folder", "- 이전 원본 폴더")}: {plan.CurrentDirectory}");
             builder.AppendLine($"{Label(isEnglish, "- Target folder", "- 목표 폴더")}: {plan.TargetDirectory}");
             builder.AppendLine($"{Label(isEnglish, "- Migration", "- 이전 상태")}: {FormatMigrationState(plan, isEnglish)}");
             builder.AppendLine($"{Label(isEnglish, "- Decision", "- 판단 결과")}: {FormatMigrationDecision(plan.MigrationDecision.Kind, isEnglish)}");
@@ -233,7 +268,7 @@ namespace TimePilot.WinForms.KYS24
                     $"    DB {FormatDatabaseState(candidate.DatabaseState, isEnglish)}, " +
                     $"{Label(isEnglish, "settings", "설정")} {FormatNullableExists(candidate.SettingsExists, isEnglish)}, " +
                     $"{Label(isEnglish, "backups", "백업")} {FormatNullableExists(candidate.BackupDirectoryExists, isEnglish)}" +
-                    FormatCandidateRole(candidate, isEnglish));
+                    FormatCandidateRole(candidate, plan, isEnglish));
             }
         }
 
@@ -326,6 +361,9 @@ namespace TimePilot.WinForms.KYS24
             if (plan.IsPackaged && !plan.IsTargetAvailable)
                 return Label(isEnglish, "Blocked: target unavailable", "중단: 목표 위치 확인 불가");
 
+            if (plan.HasCompletedMigration)
+                return Label(isEnglish, "Completed (LocalState is active)", "완료됨 (LocalState 사용 중)");
+
             return plan.RequiresMigration
                 ? Label(isEnglish, "Required (not performed)", "필요함 (아직 수행하지 않음)")
                 : Label(isEnglish, "Not required", "필요 없음");
@@ -379,13 +417,18 @@ namespace TimePilot.WinForms.KYS24
             };
         }
 
-        private static string FormatCandidateRole(DataStorageCandidate candidate, bool isEnglish)
+        private static string FormatCandidateRole(
+            DataStorageCandidate candidate,
+            DataStorageLocationPlan plan,
+            bool isEnglish)
         {
             var roles = new List<string>();
             if (candidate.IsCurrent)
-                roles.Add(Label(isEnglish, "current", "현재"));
+                roles.Add(Label(isEnglish, "source", "원본"));
             if (candidate.IsTarget)
                 roles.Add(Label(isEnglish, "target", "목표"));
+            if (candidate.IsTarget && plan.HasCompletedMigration)
+                roles.Add(Label(isEnglish, "active", "사용 중"));
 
             return roles.Count == 0 ? string.Empty : $" [{string.Join(", ", roles)}]";
         }

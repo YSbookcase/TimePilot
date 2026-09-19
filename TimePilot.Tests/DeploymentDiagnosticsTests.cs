@@ -100,6 +100,52 @@ namespace TimePilot.Tests
             }
         }
 
+        [Fact]
+        public void FindStoreDataLocations_FindsDatabaseInPackageLocalState()
+        {
+            var root = Path.Combine(Path.GetTempPath(), $"TimePilotDiagnostics-{Guid.NewGuid():N}");
+            var dataDirectory = Path.Combine(
+                root,
+                "Packages",
+                "YSBookcase.ActiveLogbook_test",
+                "LocalState",
+                "TimePilot");
+
+            try
+            {
+                Directory.CreateDirectory(dataDirectory);
+                File.WriteAllText(Path.Combine(dataDirectory, "timepilot.db"), string.Empty);
+
+                var locations = DeploymentDiagnosticsService.FindStoreDataLocations(root);
+
+                var location = Assert.Single(locations);
+                Assert.Equal(dataDirectory, location.DirectoryPath);
+                Assert.True(location.DatabaseExists);
+            }
+            finally
+            {
+                if (Directory.Exists(root))
+                    Directory.Delete(root, recursive: true);
+            }
+        }
+
+        [Fact]
+        public void Format_CompletedMigrationIdentifiesLocalStateAsActive()
+        {
+            var snapshot = CreateSnapshot(DeploymentChannel.StoreMsix);
+            var completedPlan = snapshot.StoragePlan with { HasCompletedMigration = true };
+
+            var text = DeploymentDiagnosticsFormatter.Format(
+                snapshot with { StoragePlan = completedPlan },
+                UiLanguage.Korean);
+
+            Assert.Contains("이전 원본 폴더", text);
+            Assert.Contains("완료됨 (LocalState 사용 중)", text);
+            Assert.Contains("[원본]", text);
+            Assert.Contains("[목표, 사용 중]", text);
+            Assert.DoesNotContain("필요함 (아직 수행하지 않음)", text);
+        }
+
         private static DeploymentDiagnosticsSnapshot CreateSnapshot(
             DeploymentChannel channel,
             string? installedExeDirectory = null,
