@@ -405,3 +405,23 @@ MSIX 데이터가 Windows 환경에 따라 `%LOCALAPPDATA%\TimePilot` 또는 패
 - 새 기록으로 LocalState 데이터베이스의 수정 시각만 변경된다.
 
 이 검증이 끝나기 전에는 `0.2.13.0` Store 업로드 후보를 Partner Center에 제출하지 않는다.
+
+#### 0.2.13.0 실제 업데이트 결과
+
+기존 `0.2.11.0` MSIX 설치본 위에 `0.2.13.0` 테스트 패키지를 설치했다. 설치된 패키지는
+`Version=0.2.13.0`, `Status=Ok`로 확인됐다. 최초 실행 후 LocalState의 `TimePilot` 폴더에
+다음 항목이 생성됐다.
+
+- `timepilot.db`
+- `settings.json`
+- `backups`
+- `.storage-migration-v1.json`
+- 시작 및 자동 시작 진단 파일
+
+기존 `%LOCALAPPDATA%\TimePilot`의 데이터베이스, 설정, 백업은 삭제되지 않고 그대로 남았다.
+원본 데이터베이스의 수정 시각은 최초 이전 시점에서 멈췄고 LocalState 데이터베이스와 시작
+진단 파일만 이후 실행 중 계속 갱신됐다. 따라서 이전 후 앱이 LocalState를 활성 저장 위치로
+사용하는 동작을 확인했다. 원본과 LocalState의 백업 파일 수도 각각 12개로 일치했다.
+
+남은 수동 확인은 앱을 완전히 종료하고 다시 실행한 뒤 기존 기록과 설정이 정상적으로 표시되는지
+확인하는 것이다. 확인 전까지 원본 `%LOCALAPPDATA%\TimePilot` 폴더는 삭제하지 않는다.
