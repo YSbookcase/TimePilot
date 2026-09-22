@@ -23,6 +23,25 @@ namespace TimePilot.WinForms.KYS24
             "process_runtime_sessions"
         ];
 
+        private readonly string _dataDirectory;
+        private readonly string _databasePath;
+        private readonly string _settingsPath;
+
+        public DataBackupService()
+            : this(AppDataPaths.DataDirectory)
+        {
+        }
+
+        internal DataBackupService(string dataDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(dataDirectory))
+                throw new ArgumentException("The data directory is required.", nameof(dataDirectory));
+
+            _dataDirectory = Path.GetFullPath(dataDirectory);
+            _databasePath = Path.Combine(_dataDirectory, DatabaseEntryName);
+            _settingsPath = Path.Combine(_dataDirectory, SettingsEntryName);
+        }
+
         public IReadOnlyList<string> CreateBackup(string zipFilePath, DateTimeOffset createdAt)
         {
             var directory = Path.GetDirectoryName(zipFilePath);
@@ -45,9 +64,9 @@ namespace TimePilot.WinForms.KYS24
                     entries.Add(ReadmeEntryName);
 
                     AddDatabaseIfExists(archive, entries);
-                    AddFileIfExists(archive, AppDataPaths.SettingsPath, SettingsEntryName, entries);
+                    AddFileIfExists(archive, _settingsPath, SettingsEntryName, entries);
 
-                    var logsDirectory = Path.Combine(AppDataPaths.DataDirectory, LogsDirectoryName);
+                    var logsDirectory = Path.Combine(_dataDirectory, LogsDirectoryName);
                     if (Directory.Exists(logsDirectory))
                     {
                         foreach (var logFile in Directory.EnumerateFiles(logsDirectory))
@@ -103,15 +122,15 @@ namespace TimePilot.WinForms.KYS24
         public DataBackupRestoreResult RestoreBackup(string zipFilePath)
         {
             var plan = InspectBackup(zipFilePath);
-            Directory.CreateDirectory(AppDataPaths.DataDirectory);
+            Directory.CreateDirectory(_dataDirectory);
 
             SqliteConnection.ClearAllPools();
             using var archive = ZipFile.OpenRead(zipFilePath);
             var restoredFiles = new List<string>();
-            RestoreEntry(archive, DatabaseEntryName, AppDataPaths.DatabasePath, restoredFiles);
+            RestoreEntry(archive, DatabaseEntryName, _databasePath, restoredFiles);
 
             if (plan.HasSettings)
-                RestoreEntry(archive, SettingsEntryName, AppDataPaths.SettingsPath, restoredFiles);
+                RestoreEntry(archive, SettingsEntryName, _settingsPath, restoredFiles);
 
             var logEntries = archive.Entries
                 .Where(entry =>
@@ -120,7 +139,7 @@ namespace TimePilot.WinForms.KYS24
                 .ToList();
             if (logEntries.Count > 0)
             {
-                var logsDirectory = Path.Combine(AppDataPaths.DataDirectory, LogsDirectoryName);
+                var logsDirectory = Path.Combine(_dataDirectory, LogsDirectoryName);
                 Directory.CreateDirectory(logsDirectory);
                 foreach (var entry in logEntries)
                 {
@@ -158,9 +177,9 @@ namespace TimePilot.WinForms.KYS24
             entries.Add(entryName);
         }
 
-        private static void AddDatabaseIfExists(ZipArchive archive, List<string> entries)
+        private void AddDatabaseIfExists(ZipArchive archive, List<string> entries)
         {
-            if (!File.Exists(AppDataPaths.DatabasePath))
+            if (!File.Exists(_databasePath))
                 return;
 
             var tempPath = Path.Combine(
@@ -171,7 +190,7 @@ namespace TimePilot.WinForms.KYS24
             {
                 using (var source = new SqliteConnection(new SqliteConnectionStringBuilder
                        {
-                           DataSource = AppDataPaths.DatabasePath,
+                           DataSource = _databasePath,
                            Mode = SqliteOpenMode.ReadOnly,
                            Pooling = false
                        }.ToString()))
@@ -266,9 +285,9 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
-        private static DataBackupDetailedComparison? InspectDetailedComparisonIfAvailable(ZipArchive archive)
+        private DataBackupDetailedComparison? InspectDetailedComparisonIfAvailable(ZipArchive archive)
         {
-            if (!File.Exists(AppDataPaths.DatabasePath))
+            if (!File.Exists(_databasePath))
                 return null;
 
             var backupTempPath = Path.Combine(
@@ -285,7 +304,7 @@ namespace TimePilot.WinForms.KYS24
                     return null;
 
                 entry.ExtractToFile(backupTempPath, overwrite: true);
-                CreateDatabaseSnapshot(AppDataPaths.DatabasePath, currentTempPath);
+                CreateDatabaseSnapshot(_databasePath, currentTempPath);
 
                 using var backupConnection = OpenReadOnlyConnection(backupTempPath);
                 using var currentConnection = OpenReadOnlyConnection(currentTempPath);
