@@ -49,6 +49,8 @@ namespace TimePilot.WinForms
                 // Startup registration should never prevent the app from opening.
             }
 
+            _ = TryRunAutomaticBackupAsync(forceCheck: true);
+
             if (startMinimizedToTray)
             {
                 HideToTray();

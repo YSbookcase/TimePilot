@@ -13,6 +13,9 @@ namespace TimePilot.WinForms
             }
 
             lastSampleTickAt = observedAt;
+            if (nextAutomaticBackupCheckAt is null || observedAt >= nextAutomaticBackupCheckAt)
+                _ = TryRunAutomaticBackupAsync();
+
             var idleThresholdMs = settings.IdleThresholdMs;
             var isIdle = UserIdleChecker.IsIdle(idleThresholdMs);
             var foregroundApp = ForegroundWindowReader.TryGetForegroundApp();

@@ -18,6 +18,11 @@ namespace TimePilot.WinForms
         private readonly NumericUpDown customProcessRuntimeIntervalNumeric = new();
         private readonly Label customProcessRuntimeIntervalUnitLabel = new();
         private readonly Label processRuntimeWarningLabel = new();
+        private readonly CheckBox automaticBackupCheckBox = new();
+        private readonly TextBox automaticBackupDirectoryTextBox = new();
+        private readonly Button chooseAutomaticBackupFolderButton = new();
+        private readonly NumericUpDown automaticBackupRetentionNumeric = new();
+        private readonly Label automaticBackupCopiesLabel = new();
         private readonly Button openDataFolderButton = new();
         private readonly Button deploymentDiagnosticsButton = new();
         private readonly Button clearUsageDataButton = new();
@@ -34,12 +39,20 @@ namespace TimePilot.WinForms
             ProcessRuntimeTrackingEnabled = settings.ProcessRuntimeTrackingEnabled;
             ProcessRuntimeTrackingScope = settings.ProcessRuntimeTrackingScope;
             ProcessRuntimeSampleIntervalSeconds = settings.ProcessRuntimeSampleIntervalSeconds;
+            AutomaticBackupEnabled = settings.AutomaticBackupEnabled;
+            AutomaticBackupDirectory = settings.AutomaticBackupDirectory;
+            AutomaticBackupRetentionCount = settings.AutomaticBackupRetentionCount;
+            AutomaticBackupLastSuccessAt = settings.AutomaticBackupLastSuccessAt;
+            AutomaticBackupLastPath = settings.AutomaticBackupLastPath;
+            AutomaticBackupLastFailureAt = settings.AutomaticBackupLastFailureAt;
+            AutomaticBackupLastError = settings.AutomaticBackupLastError;
 
             InitializeComponent();
             ConfigureLanguageControls();
             ConfigureIdleThresholdControls();
             ConfigureStartupControls();
             ConfigureProcessRuntimeControls();
+            ConfigureAutomaticBackupControls();
         }
 
         public int IdleThresholdMinutes { get; private set; }
@@ -60,19 +73,55 @@ namespace TimePilot.WinForms
 
         public bool ClearUsageDataRequested { get; private set; }
 
+        public bool AutomaticBackupEnabled { get; private set; }
+
+        public string? AutomaticBackupDirectory { get; private set; }
+
+        public int AutomaticBackupRetentionCount { get; private set; }
+
+        private DateTimeOffset? AutomaticBackupLastSuccessAt { get; }
+
+        private string? AutomaticBackupLastPath { get; }
+
+        private DateTimeOffset? AutomaticBackupLastFailureAt { get; }
+
+        private string? AutomaticBackupLastError { get; }
+
         private void InitializeComponent()
         {
             var idleThresholdLabel = new Label();
             var languageLabel = new Label();
+            var tabControl = new TabControl();
+            var generalTabPage = new TabPage();
+            var dataTabPage = new TabPage();
             var processRuntimeGroupBox = new GroupBox();
             var processRuntimeScopeLabel = new Label();
             var processRuntimeIntervalLabel = new Label();
+            var automaticBackupGroupBox = new GroupBox();
+            var automaticBackupFolderLabel = new Label();
+            var automaticBackupRetentionLabel = new Label();
+            var automaticBackupPrivacyLabel = new Label();
+            var automaticBackupStatusLabel = new Label();
             var dataManagementGroupBox = new GroupBox();
             var dataManagementLabel = new Label();
 
             SuspendLayout();
+            generalTabPage.SuspendLayout();
+            dataTabPage.SuspendLayout();
             processRuntimeGroupBox.SuspendLayout();
+            automaticBackupGroupBox.SuspendLayout();
             dataManagementGroupBox.SuspendLayout();
+
+            tabControl.Location = new Point(10, 10);
+            tabControl.Name = "preferencesTabControl";
+            tabControl.Size = new Size(450, 490);
+            tabControl.TabPages.Add(generalTabPage);
+            tabControl.TabPages.Add(dataTabPage);
+
+            generalTabPage.Text = UiText.Preferences.GeneralTab;
+            generalTabPage.UseVisualStyleBackColor = true;
+            dataTabPage.Text = UiText.Preferences.DataTab;
+            dataTabPage.UseVisualStyleBackColor = true;
 
             languageLabel.AutoSize = true;
             languageLabel.Location = new Point(20, 22);
@@ -132,9 +181,9 @@ namespace TimePilot.WinForms
             processRuntimeGroupBox.Controls.Add(customProcessRuntimeIntervalNumeric);
             processRuntimeGroupBox.Controls.Add(customProcessRuntimeIntervalUnitLabel);
             processRuntimeGroupBox.Controls.Add(processRuntimeWarningLabel);
-            processRuntimeGroupBox.Location = new Point(20, 186);
+            processRuntimeGroupBox.Location = new Point(10, 186);
             processRuntimeGroupBox.Name = "processRuntimeGroupBox";
-            processRuntimeGroupBox.Size = new Size(430, 190);
+            processRuntimeGroupBox.Size = new Size(410, 190);
             processRuntimeGroupBox.TabIndex = 4;
             processRuntimeGroupBox.TabStop = false;
             processRuntimeGroupBox.Text = UiText.Preferences.ProcessRuntimeGroup;
@@ -195,17 +244,79 @@ namespace TimePilot.WinForms
             processRuntimeWarningLabel.ForeColor = Color.Firebrick;
             processRuntimeWarningLabel.Location = new Point(16, 132);
             processRuntimeWarningLabel.Name = "processRuntimeWarningLabel";
-            processRuntimeWarningLabel.Size = new Size(396, 42);
+            processRuntimeWarningLabel.Size = new Size(376, 42);
             processRuntimeWarningLabel.Text = UiText.Preferences.ProcessRuntimeWarning;
+
+            automaticBackupGroupBox.Controls.Add(automaticBackupCheckBox);
+            automaticBackupGroupBox.Controls.Add(automaticBackupFolderLabel);
+            automaticBackupGroupBox.Controls.Add(automaticBackupDirectoryTextBox);
+            automaticBackupGroupBox.Controls.Add(chooseAutomaticBackupFolderButton);
+            automaticBackupGroupBox.Controls.Add(automaticBackupRetentionLabel);
+            automaticBackupGroupBox.Controls.Add(automaticBackupRetentionNumeric);
+            automaticBackupGroupBox.Controls.Add(automaticBackupCopiesLabel);
+            automaticBackupGroupBox.Controls.Add(automaticBackupPrivacyLabel);
+            automaticBackupGroupBox.Controls.Add(automaticBackupStatusLabel);
+            automaticBackupGroupBox.Location = new Point(10, 12);
+            automaticBackupGroupBox.Name = "automaticBackupGroupBox";
+            automaticBackupGroupBox.Size = new Size(410, 225);
+            automaticBackupGroupBox.TabIndex = 5;
+            automaticBackupGroupBox.TabStop = false;
+            automaticBackupGroupBox.Text = UiText.Preferences.AutomaticBackupGroup;
+
+            automaticBackupCheckBox.AutoSize = true;
+            automaticBackupCheckBox.Location = new Point(16, 27);
+            automaticBackupCheckBox.Name = "automaticBackupCheckBox";
+            automaticBackupCheckBox.Text = UiText.Preferences.AutomaticBackupEnabled;
+            automaticBackupCheckBox.CheckedChanged += OnAutomaticBackupSettingChanged;
+
+            automaticBackupFolderLabel.AutoSize = true;
+            automaticBackupFolderLabel.Location = new Point(16, 58);
+            automaticBackupFolderLabel.Text = UiText.Preferences.AutomaticBackupFolder;
+
+            automaticBackupDirectoryTextBox.Location = new Point(16, 78);
+            automaticBackupDirectoryTextBox.Name = "automaticBackupDirectoryTextBox";
+            automaticBackupDirectoryTextBox.ReadOnly = true;
+            automaticBackupDirectoryTextBox.Size = new Size(280, 23);
+
+            chooseAutomaticBackupFolderButton.Location = new Point(302, 77);
+            chooseAutomaticBackupFolderButton.Name = "chooseAutomaticBackupFolderButton";
+            chooseAutomaticBackupFolderButton.Size = new Size(90, 25);
+            chooseAutomaticBackupFolderButton.Text = UiText.Preferences.ChooseAutomaticBackupFolder;
+            chooseAutomaticBackupFolderButton.Click += OnChooseAutomaticBackupFolderButtonClick;
+
+            automaticBackupRetentionLabel.AutoSize = true;
+            automaticBackupRetentionLabel.Location = new Point(16, 116);
+            automaticBackupRetentionLabel.Text = UiText.Preferences.AutomaticBackupRetention;
+
+            automaticBackupRetentionNumeric.Location = new Point(120, 112);
+            automaticBackupRetentionNumeric.Minimum = AppSettings.MinAutomaticBackupRetentionCount;
+            automaticBackupRetentionNumeric.Maximum = AppSettings.MaxAutomaticBackupRetentionCount;
+            automaticBackupRetentionNumeric.Size = new Size(64, 23);
+            automaticBackupRetentionNumeric.ValueChanged += (_, _) =>
+                automaticBackupCopiesLabel.Text = UiText.Preferences.AutomaticBackupCopies(
+                    (int)automaticBackupRetentionNumeric.Value);
+
+            automaticBackupCopiesLabel.AutoSize = true;
+            automaticBackupCopiesLabel.Location = new Point(194, 116);
+
+            automaticBackupPrivacyLabel.Location = new Point(16, 143);
+            automaticBackupPrivacyLabel.Size = new Size(376, 34);
+            automaticBackupPrivacyLabel.Text = UiText.Preferences.AutomaticBackupPrivacy;
+
+            automaticBackupStatusLabel.AutoEllipsis = true;
+            automaticBackupStatusLabel.ForeColor = SystemColors.GrayText;
+            automaticBackupStatusLabel.Location = new Point(16, 181);
+            automaticBackupStatusLabel.Size = new Size(376, 32);
+            automaticBackupStatusLabel.Text = BuildAutomaticBackupStatusText();
 
             dataManagementGroupBox.Controls.Add(dataManagementLabel);
             dataManagementGroupBox.Controls.Add(openDataFolderButton);
             dataManagementGroupBox.Controls.Add(deploymentDiagnosticsButton);
             dataManagementGroupBox.Controls.Add(clearUsageDataButton);
-            dataManagementGroupBox.Location = new Point(20, 386);
+            dataManagementGroupBox.Location = new Point(10, 247);
             dataManagementGroupBox.Name = "dataManagementGroupBox";
-            dataManagementGroupBox.Size = new Size(430, 108);
-            dataManagementGroupBox.TabIndex = 5;
+            dataManagementGroupBox.Size = new Size(410, 108);
+            dataManagementGroupBox.TabIndex = 6;
             dataManagementGroupBox.TabStop = false;
             dataManagementGroupBox.Text = UiText.Preferences.DataManagementGroup;
 
@@ -215,26 +326,26 @@ namespace TimePilot.WinForms
             dataManagementLabel.Size = new Size(170, 30);
             dataManagementLabel.Text = UiText.Preferences.DataManagementDescription;
 
-            openDataFolderButton.Location = new Point(206, 27);
+            openDataFolderButton.Location = new Point(186, 27);
             openDataFolderButton.Name = "openDataFolderButton";
             openDataFolderButton.Size = new Size(92, 27);
             openDataFolderButton.Text = UiText.Preferences.OpenDataFolder;
             openDataFolderButton.Click += OnOpenDataFolderButtonClick;
 
-            deploymentDiagnosticsButton.Location = new Point(206, 64);
+            deploymentDiagnosticsButton.Location = new Point(186, 64);
             deploymentDiagnosticsButton.Name = "deploymentDiagnosticsButton";
             deploymentDiagnosticsButton.Size = new Size(206, 27);
             deploymentDiagnosticsButton.Text = UiText.Preferences.InstallationInfo;
             deploymentDiagnosticsButton.Click += OnDeploymentDiagnosticsButtonClick;
 
-            clearUsageDataButton.Location = new Point(304, 27);
+            clearUsageDataButton.Location = new Point(284, 27);
             clearUsageDataButton.Name = "clearUsageDataButton";
             clearUsageDataButton.Size = new Size(108, 27);
             clearUsageDataButton.Text = UiText.Preferences.ClearUsageData;
             clearUsageDataButton.Click += OnClearUsageDataButtonClick;
 
             sponsorLinkLabel.AutoSize = true;
-            sponsorLinkLabel.Location = new Point(20, 524);
+            sponsorLinkLabel.Location = new Point(10, 385);
             sponsorLinkLabel.Name = "sponsorLinkLabel";
             sponsorLinkLabel.Size = new Size(120, 15);
             sponsorLinkLabel.TabStop = true;
@@ -260,17 +371,19 @@ namespace TimePilot.WinForms
             CancelButton = cancelButton;
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(470, 565);
-            Controls.Add(languageLabel);
-            Controls.Add(languageComboBox);
-            Controls.Add(idleThresholdLabel);
-            Controls.Add(idleThresholdComboBox);
-            Controls.Add(customIdleThresholdNumeric);
-            Controls.Add(customIdleThresholdUnitLabel);
-            Controls.Add(startWithWindowsCheckBox);
-            Controls.Add(performanceDiagnosticsCheckBox);
-            Controls.Add(processRuntimeGroupBox);
-            Controls.Add(dataManagementGroupBox);
-            Controls.Add(sponsorLinkLabel);
+            generalTabPage.Controls.Add(languageLabel);
+            generalTabPage.Controls.Add(languageComboBox);
+            generalTabPage.Controls.Add(idleThresholdLabel);
+            generalTabPage.Controls.Add(idleThresholdComboBox);
+            generalTabPage.Controls.Add(customIdleThresholdNumeric);
+            generalTabPage.Controls.Add(customIdleThresholdUnitLabel);
+            generalTabPage.Controls.Add(startWithWindowsCheckBox);
+            generalTabPage.Controls.Add(performanceDiagnosticsCheckBox);
+            generalTabPage.Controls.Add(processRuntimeGroupBox);
+            dataTabPage.Controls.Add(automaticBackupGroupBox);
+            dataTabPage.Controls.Add(dataManagementGroupBox);
+            dataTabPage.Controls.Add(sponsorLinkLabel);
+            Controls.Add(tabControl);
             Controls.Add(okButton);
             Controls.Add(cancelButton);
             FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -282,8 +395,14 @@ namespace TimePilot.WinForms
             StartPosition = FormStartPosition.CenterParent;
             Text = UiText.Preferences.Title;
 
+            generalTabPage.ResumeLayout(false);
+            generalTabPage.PerformLayout();
+            dataTabPage.ResumeLayout(false);
+            dataTabPage.PerformLayout();
             processRuntimeGroupBox.ResumeLayout(false);
             processRuntimeGroupBox.PerformLayout();
+            automaticBackupGroupBox.ResumeLayout(false);
+            automaticBackupGroupBox.PerformLayout();
             dataManagementGroupBox.ResumeLayout(false);
             dataManagementGroupBox.PerformLayout();
             ResumeLayout(false);
@@ -344,6 +463,65 @@ namespace TimePilot.WinForms
                 ?? processRuntimeIntervalOptions.First(option => option.Seconds is null);
             processRuntimeIntervalComboBox.SelectedItem = selectedOption;
             UpdateProcessRuntimeControls();
+        }
+
+        private void ConfigureAutomaticBackupControls()
+        {
+            automaticBackupCheckBox.Checked = AutomaticBackupEnabled;
+            automaticBackupDirectoryTextBox.Text = AutomaticBackupDirectory ?? string.Empty;
+            automaticBackupRetentionNumeric.Value = Math.Clamp(
+                AutomaticBackupRetentionCount,
+                AppSettings.MinAutomaticBackupRetentionCount,
+                AppSettings.MaxAutomaticBackupRetentionCount);
+            automaticBackupCopiesLabel.Text = UiText.Preferences.AutomaticBackupCopies(
+                (int)automaticBackupRetentionNumeric.Value);
+            UpdateAutomaticBackupControls();
+        }
+
+        private string BuildAutomaticBackupStatusText()
+        {
+            if (AutomaticBackupLastFailureAt is { } failureAt
+                && !string.IsNullOrWhiteSpace(AutomaticBackupLastError)
+                && (AutomaticBackupLastSuccessAt is null || failureAt > AutomaticBackupLastSuccessAt))
+            {
+                return UiText.Preferences.AutomaticBackupLastFailure(failureAt, AutomaticBackupLastError);
+            }
+
+            if (AutomaticBackupLastSuccessAt is { } successAt
+                && !string.IsNullOrWhiteSpace(AutomaticBackupLastPath))
+            {
+                return UiText.Preferences.AutomaticBackupLastSuccess(successAt, AutomaticBackupLastPath);
+            }
+
+            return UiText.Preferences.AutomaticBackupNeverRun;
+        }
+
+        private void OnAutomaticBackupSettingChanged(object? sender, EventArgs e)
+        {
+            UpdateAutomaticBackupControls();
+        }
+
+        private void UpdateAutomaticBackupControls()
+        {
+            var isEnabled = automaticBackupCheckBox.Checked;
+            automaticBackupDirectoryTextBox.Enabled = isEnabled;
+            chooseAutomaticBackupFolderButton.Enabled = isEnabled;
+            automaticBackupRetentionNumeric.Enabled = isEnabled;
+        }
+
+        private void OnChooseAutomaticBackupFolderButtonClick(object? sender, EventArgs e)
+        {
+            using var dialog = new FolderBrowserDialog
+            {
+                Description = UiText.Preferences.AutomaticBackupFolderDialogDescription,
+                ShowNewFolderButton = true,
+                UseDescriptionForTitle = true
+            };
+            if (Directory.Exists(automaticBackupDirectoryTextBox.Text))
+                dialog.InitialDirectory = automaticBackupDirectoryTextBox.Text;
+
+            if (dialog.ShowDialog(this) == DialogResult.OK)
+                automaticBackupDirectoryTextBox.Text = dialog.SelectedPath;
         }
 
         private static IReadOnlyList<IdleThresholdOption> GetIdleThresholdOptions()
@@ -482,6 +660,23 @@ namespace TimePilot.WinForms
                 ? scopeOption.Scope
                 : AppSettings.DefaultProcessRuntimeTrackingScope;
             ProcessRuntimeSampleIntervalSeconds = GetSelectedProcessRuntimeIntervalSeconds();
+            AutomaticBackupEnabled = automaticBackupCheckBox.Checked;
+            AutomaticBackupDirectory = string.IsNullOrWhiteSpace(automaticBackupDirectoryTextBox.Text)
+                ? null
+                : automaticBackupDirectoryTextBox.Text;
+            AutomaticBackupRetentionCount = (int)automaticBackupRetentionNumeric.Value;
+
+            if (AutomaticBackupEnabled && AutomaticBackupDirectory is null)
+            {
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Preferences.AutomaticBackupFolderRequired,
+                    UiText.Preferences.AutomaticBackupGroup,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                DialogResult = DialogResult.None;
+                return;
+            }
 
             if (!ConfirmAdvancedProcessRuntimeSettings())
             {

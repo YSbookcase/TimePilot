@@ -17,6 +17,7 @@ namespace TimePilot.WinForms
         private const long SlowOperationThresholdMs = 250;
         private static readonly TimeSpan PerformanceStatusDuration = TimeSpan.FromSeconds(5);
         private static readonly TimeSpan SafeModeShortRuntimeThreshold = TimeSpan.FromMinutes(2);
+        private static readonly TimeSpan AutomaticBackupCheckInterval = TimeSpan.FromHours(1);
 
         private readonly System.Windows.Forms.Timer sampleTimer = new();
         private readonly MainMenuController mainMenuController;
@@ -113,6 +114,8 @@ namespace TimePilot.WinForms
         private bool isInitializingDateSelectors;
         private bool isApplyingTableColumnLayouts;
         private bool systemEventHandlersRegistered;
+        private bool isAutomaticBackupRunning;
+        private DateTimeOffset? nextAutomaticBackupCheckAt;
         private TimelineHighlightState timelineHighlightState = TimelineHighlightState.Empty;
         private string? lastForegroundViewKey;
         private bool? lastForegroundIdleState;

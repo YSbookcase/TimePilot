@@ -294,6 +294,8 @@ namespace TimePilot.WinForms.KYS24
         public static class Preferences
         {
             public static string Title => current.Preferences.Title;
+            public static string GeneralTab => current.Preferences.GeneralTab;
+            public static string DataTab => current.Preferences.DataTab;
             public static string LanguageLabel => current.Preferences.LanguageLabel;
             public static string IdleThresholdLabel => current.Preferences.IdleThresholdLabel;
             public static string MinuteUnit => current.Preferences.MinuteUnit;
@@ -314,6 +316,23 @@ namespace TimePilot.WinForms.KYS24
             public static string ProcessRuntimeWarning => current.Preferences.ProcessRuntimeWarning;
             public static string ProcessRuntimeDangerWarning => current.Preferences.ProcessRuntimeDangerWarning;
             public static string DataManagementGroup => current.Preferences.DataManagementGroup;
+            public static string AutomaticBackupGroup => current.Preferences.AutomaticBackupGroup;
+            public static string AutomaticBackupEnabled => current.Preferences.AutomaticBackupEnabled;
+            public static string AutomaticBackupFolder => current.Preferences.AutomaticBackupFolder;
+            public static string ChooseAutomaticBackupFolder => current.Preferences.ChooseAutomaticBackupFolder;
+            public static string AutomaticBackupRetention => current.Preferences.AutomaticBackupRetention;
+            public static string AutomaticBackupCopies(int count) => current.Preferences.AutomaticBackupCopies(count);
+            public static string AutomaticBackupPrivacy => current.Preferences.AutomaticBackupPrivacy;
+            public static string AutomaticBackupNeverRun => current.Preferences.AutomaticBackupNeverRun;
+            public static string AutomaticBackupLastSuccess(DateTimeOffset at, string path) =>
+                current.Preferences.AutomaticBackupLastSuccess(at, path);
+            public static string AutomaticBackupLastFailure(DateTimeOffset at, string error) =>
+                current.Preferences.AutomaticBackupLastFailure(at, error);
+            public static string AutomaticBackupFolderRequired => current.Preferences.AutomaticBackupFolderRequired;
+            public static string AutomaticBackupFolderMustBeExternal =>
+                current.Preferences.AutomaticBackupFolderMustBeExternal;
+            public static string AutomaticBackupFolderDialogDescription =>
+                current.Preferences.AutomaticBackupFolderDialogDescription;
             public static string DataManagementDescription => current.Preferences.DataManagementDescription;
             public static string OpenDataFolder => current.Preferences.OpenDataFolder;
             public static string InstallationInfo => current.Preferences.InstallationInfo;
@@ -678,6 +697,8 @@ namespace TimePilot.WinForms.KYS24
                         ReadmeTableList: "포함된 CSV 파일과 컬럼:"),
                     new PreferencesText(
                         Title: "환경 설정",
+                        GeneralTab: "일반",
+                        DataTab: "데이터 및 백업",
                         LanguageLabel: "표시 언어",
                         IdleThresholdLabel: "유휴 판단 대기시간",
                         MinuteUnit: "분",
@@ -702,6 +723,19 @@ namespace TimePilot.WinForms.KYS24
                         ProcessRuntimeWarning: "짧은 확인 주기는 CPU 사용량, 배터리 소모, 저장 데이터 증가를 유발할 수 있습니다.",
                         ProcessRuntimeDangerWarning: "위험 설정입니다. 반복 비정상 종료가 감지되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼질 수 있습니다.",
                         DataManagementGroup: "데이터 관리",
+                        AutomaticBackupGroup: "외부 자동 백업",
+                        AutomaticBackupEnabled: "자동 백업 사용",
+                        AutomaticBackupFolder: "백업 폴더",
+                        ChooseAutomaticBackupFolder: "찾아보기...",
+                        AutomaticBackupRetention: "보관 개수",
+                        AutomaticBackupCopies: count => $"{count}개",
+                        AutomaticBackupPrivacy: "선택한 외부 폴더에 개인 사용 기록이 포함된 ZIP 파일이 저장됩니다.",
+                        AutomaticBackupNeverRun: "아직 자동 백업을 만들지 않았습니다.",
+                        AutomaticBackupLastSuccess: (at, path) => $"최근 성공: {at.ToLocalTime():yyyy-MM-dd HH:mm}\n{path}",
+                        AutomaticBackupLastFailure: (at, error) => $"최근 실패: {at.ToLocalTime():yyyy-MM-dd HH:mm}\n{error}",
+                        AutomaticBackupFolderRequired: "자동 백업을 사용하려면 백업 폴더를 선택하세요.",
+                        AutomaticBackupFolderMustBeExternal: "자동 백업 폴더는 앱 데이터 폴더 밖에 있어야 합니다.",
+                        AutomaticBackupFolderDialogDescription: "ActiveLogbook 자동 백업을 저장할 외부 폴더를 선택하세요.",
                         DataManagementDescription: "기록과 설정 저장 위치를 관리합니다.",
                         OpenDataFolder: "폴더 열기",
                         InstallationInfo: "설치 및 데이터 정보",
@@ -1023,6 +1057,8 @@ namespace TimePilot.WinForms.KYS24
                         ReadmeTableList: "Included CSV files and columns:"),
                     new PreferencesText(
                         Title: "Preferences",
+                        GeneralTab: "General",
+                        DataTab: "Data and backup",
                         LanguageLabel: "Display language",
                         IdleThresholdLabel: "Idle threshold",
                         MinuteUnit: "min",
@@ -1047,6 +1083,19 @@ namespace TimePilot.WinForms.KYS24
                         ProcessRuntimeWarning: "Short check intervals can increase CPU usage, battery drain, and stored data.",
                         ProcessRuntimeDangerWarning: "Risky setting. If repeated unexpected exits are detected, background app tracking may be disabled on the next launch.",
                         DataManagementGroup: "Data management",
+                        AutomaticBackupGroup: "External automatic backup",
+                        AutomaticBackupEnabled: "Enable automatic backup",
+                        AutomaticBackupFolder: "Backup folder",
+                        ChooseAutomaticBackupFolder: "Browse...",
+                        AutomaticBackupRetention: "Keep",
+                        AutomaticBackupCopies: count => count == 1 ? "1 backup" : $"{count} backups",
+                        AutomaticBackupPrivacy: "ZIP files containing private usage records are saved in the selected external folder.",
+                        AutomaticBackupNeverRun: "No automatic backup has been created yet.",
+                        AutomaticBackupLastSuccess: (at, path) => $"Last success: {at.ToLocalTime():yyyy-MM-dd HH:mm}\n{path}",
+                        AutomaticBackupLastFailure: (at, error) => $"Last failure: {at.ToLocalTime():yyyy-MM-dd HH:mm}\n{error}",
+                        AutomaticBackupFolderRequired: "Select a backup folder to enable automatic backup.",
+                        AutomaticBackupFolderMustBeExternal: "The automatic backup folder must be outside the application data folder.",
+                        AutomaticBackupFolderDialogDescription: "Select an external folder for ActiveLogbook automatic backups.",
                         DataManagementDescription: "Manage where records and settings are stored.",
                         OpenDataFolder: "Open folder",
                         InstallationInfo: "Installation and data info",
@@ -1333,6 +1382,8 @@ namespace TimePilot.WinForms.KYS24
 
         private sealed record PreferencesText(
             string Title,
+            string GeneralTab,
+            string DataTab,
             string LanguageLabel,
             string IdleThresholdLabel,
             string MinuteUnit,
@@ -1352,6 +1403,19 @@ namespace TimePilot.WinForms.KYS24
             string ProcessRuntimeWarning,
             string ProcessRuntimeDangerWarning,
             string DataManagementGroup,
+            string AutomaticBackupGroup,
+            string AutomaticBackupEnabled,
+            string AutomaticBackupFolder,
+            string ChooseAutomaticBackupFolder,
+            string AutomaticBackupRetention,
+            Func<int, string> AutomaticBackupCopies,
+            string AutomaticBackupPrivacy,
+            string AutomaticBackupNeverRun,
+            Func<DateTimeOffset, string, string> AutomaticBackupLastSuccess,
+            Func<DateTimeOffset, string, string> AutomaticBackupLastFailure,
+            string AutomaticBackupFolderRequired,
+            string AutomaticBackupFolderMustBeExternal,
+            string AutomaticBackupFolderDialogDescription,
             string DataManagementDescription,
             string OpenDataFolder,
             string InstallationInfo,

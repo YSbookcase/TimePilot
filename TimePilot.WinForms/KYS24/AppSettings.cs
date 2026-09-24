@@ -13,6 +13,10 @@ namespace TimePilot.WinForms.KYS24
         public const bool DefaultStartWithWindows = false;
         public const bool DefaultStartupPromptShown = false;
         public const bool DefaultPerformanceDiagnosticsEnabled = false;
+        public const bool DefaultAutomaticBackupEnabled = false;
+        public const int DefaultAutomaticBackupRetentionCount = 14;
+        public const int MinAutomaticBackupRetentionCount = 1;
+        public const int MaxAutomaticBackupRetentionCount = 100;
         public static UiLanguage DefaultUiLanguage => GetDefaultUiLanguage(CultureInfo.CurrentUICulture);
         public const ProcessRuntimeTrackingScope DefaultProcessRuntimeTrackingScope = ProcessRuntimeTrackingScope.WindowedApps;
         public const int DefaultProcessRuntimeSampleIntervalSeconds = 60;
@@ -50,6 +54,20 @@ namespace TimePilot.WinForms.KYS24
         public bool StartupPromptShown { get; set; } = DefaultStartupPromptShown;
 
         public bool PerformanceDiagnosticsEnabled { get; set; } = DefaultPerformanceDiagnosticsEnabled;
+
+        public bool AutomaticBackupEnabled { get; set; } = DefaultAutomaticBackupEnabled;
+
+        public string? AutomaticBackupDirectory { get; set; }
+
+        public int AutomaticBackupRetentionCount { get; set; } = DefaultAutomaticBackupRetentionCount;
+
+        public DateTimeOffset? AutomaticBackupLastSuccessAt { get; set; }
+
+        public string? AutomaticBackupLastPath { get; set; }
+
+        public DateTimeOffset? AutomaticBackupLastFailureAt { get; set; }
+
+        public string? AutomaticBackupLastError { get; set; }
 
         public UiLanguage UiLanguage { get; set; } = DefaultUiLanguage;
 
@@ -127,14 +145,19 @@ namespace TimePilot.WinForms.KYS24
 
         public static AppSettings LoadDefault()
         {
-            var settings = new AppSettings(AppDataPaths.SettingsPath);
+            return Load(AppDataPaths.SettingsPath);
+        }
 
-            if (!File.Exists(AppDataPaths.SettingsPath))
+        internal static AppSettings Load(string settingsPath)
+        {
+            var settings = new AppSettings(settingsPath);
+
+            if (!File.Exists(settingsPath))
                 return settings;
 
             try
             {
-                var persisted = JsonSerializer.Deserialize<PersistedSettings>(File.ReadAllText(AppDataPaths.SettingsPath));
+                var persisted = JsonSerializer.Deserialize<PersistedSettings>(File.ReadAllText(settingsPath));
                 settings.IdleThresholdMinutes = NormalizeIdleThresholdMinutes(persisted?.IdleThresholdMinutes);
                 settings.ProcessRuntimeTrackingEnabled = persisted?.ProcessRuntimeTrackingEnabled
                     ?? DefaultProcessRuntimeTrackingEnabled;
@@ -142,6 +165,17 @@ namespace TimePilot.WinForms.KYS24
                 settings.StartupPromptShown = persisted?.StartupPromptShown ?? DefaultStartupPromptShown;
                 settings.PerformanceDiagnosticsEnabled = persisted?.PerformanceDiagnosticsEnabled
                     ?? DefaultPerformanceDiagnosticsEnabled;
+                settings.AutomaticBackupEnabled = persisted?.AutomaticBackupEnabled
+                    ?? DefaultAutomaticBackupEnabled;
+                settings.AutomaticBackupDirectory = NormalizeNullableText(persisted?.AutomaticBackupDirectory);
+                settings.AutomaticBackupRetentionCount = Math.Clamp(
+                    persisted?.AutomaticBackupRetentionCount ?? DefaultAutomaticBackupRetentionCount,
+                    MinAutomaticBackupRetentionCount,
+                    MaxAutomaticBackupRetentionCount);
+                settings.AutomaticBackupLastSuccessAt = persisted?.AutomaticBackupLastSuccessAt;
+                settings.AutomaticBackupLastPath = NormalizeNullableText(persisted?.AutomaticBackupLastPath);
+                settings.AutomaticBackupLastFailureAt = persisted?.AutomaticBackupLastFailureAt;
+                settings.AutomaticBackupLastError = NormalizeNullableText(persisted?.AutomaticBackupLastError);
                 settings.UiLanguage = NormalizeUiLanguage(persisted?.UiLanguage);
                 settings.ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(
                     persisted?.ProcessRuntimeTrackingScope);
@@ -191,6 +225,13 @@ namespace TimePilot.WinForms.KYS24
                 settings.StartWithWindows = DefaultStartWithWindows;
                 settings.StartupPromptShown = DefaultStartupPromptShown;
                 settings.PerformanceDiagnosticsEnabled = DefaultPerformanceDiagnosticsEnabled;
+                settings.AutomaticBackupEnabled = DefaultAutomaticBackupEnabled;
+                settings.AutomaticBackupDirectory = null;
+                settings.AutomaticBackupRetentionCount = DefaultAutomaticBackupRetentionCount;
+                settings.AutomaticBackupLastSuccessAt = null;
+                settings.AutomaticBackupLastPath = null;
+                settings.AutomaticBackupLastFailureAt = null;
+                settings.AutomaticBackupLastError = null;
                 settings.UiLanguage = DefaultUiLanguage;
                 settings.ProcessRuntimeTrackingScope = DefaultProcessRuntimeTrackingScope;
                 settings.ProcessRuntimeSampleIntervalSeconds = DefaultProcessRuntimeSampleIntervalSeconds;
@@ -235,6 +276,16 @@ namespace TimePilot.WinForms.KYS24
                 StartWithWindows = StartWithWindows,
                 StartupPromptShown = StartupPromptShown,
                 PerformanceDiagnosticsEnabled = PerformanceDiagnosticsEnabled,
+                AutomaticBackupEnabled = AutomaticBackupEnabled,
+                AutomaticBackupDirectory = NormalizeNullableText(AutomaticBackupDirectory),
+                AutomaticBackupRetentionCount = Math.Clamp(
+                    AutomaticBackupRetentionCount,
+                    MinAutomaticBackupRetentionCount,
+                    MaxAutomaticBackupRetentionCount),
+                AutomaticBackupLastSuccessAt = AutomaticBackupLastSuccessAt,
+                AutomaticBackupLastPath = NormalizeNullableText(AutomaticBackupLastPath),
+                AutomaticBackupLastFailureAt = AutomaticBackupLastFailureAt,
+                AutomaticBackupLastError = NormalizeNullableText(AutomaticBackupLastError),
                 UiLanguage = NormalizeUiLanguage(UiLanguage),
                 ProcessRuntimeTrackingEnabled = ProcessRuntimeTrackingEnabled,
                 ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(ProcessRuntimeTrackingScope),
@@ -276,6 +327,13 @@ namespace TimePilot.WinForms.KYS24
             StartWithWindows = persisted.StartWithWindows;
             StartupPromptShown = persisted.StartupPromptShown;
             PerformanceDiagnosticsEnabled = persisted.PerformanceDiagnosticsEnabled;
+            AutomaticBackupEnabled = persisted.AutomaticBackupEnabled;
+            AutomaticBackupDirectory = persisted.AutomaticBackupDirectory;
+            AutomaticBackupRetentionCount = persisted.AutomaticBackupRetentionCount;
+            AutomaticBackupLastSuccessAt = persisted.AutomaticBackupLastSuccessAt;
+            AutomaticBackupLastPath = persisted.AutomaticBackupLastPath;
+            AutomaticBackupLastFailureAt = persisted.AutomaticBackupLastFailureAt;
+            AutomaticBackupLastError = persisted.AutomaticBackupLastError;
             UiLanguage = persisted.UiLanguage;
             ProcessRuntimeTrackingEnabled = persisted.ProcessRuntimeTrackingEnabled;
             ProcessRuntimeTrackingScope = persisted.ProcessRuntimeTrackingScope;
@@ -376,6 +434,33 @@ namespace TimePilot.WinForms.KYS24
         public void SetPerformanceDiagnosticsEnabled(bool isEnabled)
         {
             PerformanceDiagnosticsEnabled = isEnabled;
+            Save();
+        }
+
+        public void SetAutomaticBackup(bool isEnabled, string? directory, int retentionCount)
+        {
+            AutomaticBackupEnabled = isEnabled;
+            AutomaticBackupDirectory = NormalizeNullableText(directory);
+            AutomaticBackupRetentionCount = Math.Clamp(
+                retentionCount,
+                MinAutomaticBackupRetentionCount,
+                MaxAutomaticBackupRetentionCount);
+            Save();
+        }
+
+        public void RecordAutomaticBackupSuccess(DateTimeOffset completedAt, string backupPath)
+        {
+            AutomaticBackupLastSuccessAt = completedAt;
+            AutomaticBackupLastPath = backupPath;
+            AutomaticBackupLastFailureAt = null;
+            AutomaticBackupLastError = null;
+            Save();
+        }
+
+        public void RecordAutomaticBackupFailure(DateTimeOffset failedAt, string error)
+        {
+            AutomaticBackupLastFailureAt = failedAt;
+            AutomaticBackupLastError = error;
             Save();
         }
 
@@ -598,6 +683,20 @@ namespace TimePilot.WinForms.KYS24
             public bool StartupPromptShown { get; set; } = DefaultStartupPromptShown;
 
             public bool PerformanceDiagnosticsEnabled { get; set; } = DefaultPerformanceDiagnosticsEnabled;
+
+            public bool AutomaticBackupEnabled { get; set; } = DefaultAutomaticBackupEnabled;
+
+            public string? AutomaticBackupDirectory { get; set; }
+
+            public int AutomaticBackupRetentionCount { get; set; } = DefaultAutomaticBackupRetentionCount;
+
+            public DateTimeOffset? AutomaticBackupLastSuccessAt { get; set; }
+
+            public string? AutomaticBackupLastPath { get; set; }
+
+            public DateTimeOffset? AutomaticBackupLastFailureAt { get; set; }
+
+            public string? AutomaticBackupLastError { get; set; }
 
             public UiLanguage UiLanguage { get; set; } = DefaultUiLanguage;
 
