@@ -24,6 +24,7 @@ if ($msbuildPath -eq $null) {
     /p:Configuration=$Configuration `
     /p:Platform=$Platform `
     /p:AppxPackageSigningEnabled=false `
+    /p:GenerateTemporaryStoreCertificate=false `
     /p:UapAppxPackageBuildMode=StoreUpload
 
 if ($LASTEXITCODE -ne 0) {
