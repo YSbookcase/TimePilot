@@ -76,6 +76,14 @@ namespace TimePilot.WinForms
             }
             settings.SetPerformanceDiagnosticsEnabled(
                 form.PerformanceDiagnosticsEnabled);
+            settings.SetAutomaticBackup(
+                form.AutomaticBackupEnabled,
+                form.AutomaticBackupDirectory,
+                form.AutomaticBackupRetentionCount);
+            nextAutomaticBackupCheckAt = null;
+            if (settings.AutomaticBackupEnabled)
+                _ = TryRunAutomaticBackupAsync(forceCheck: true);
+
             if (!settings.PerformanceDiagnosticsEnabled)
             {
                 performanceStatusText = null;

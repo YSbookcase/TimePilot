@@ -77,6 +77,7 @@ namespace TimePilot.WinForms.KYS24
                     }
                 }
 
+                _ = InspectBackup(tempFilePath);
                 File.Move(tempFilePath, zipFilePath, overwrite: true);
             }
             finally

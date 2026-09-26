@@ -34,7 +34,7 @@
     <AppxPackageDir>..\artifacts\msix\</AppxPackageDir>
     <EntryPointProjectUniqueName>..\TimePilot.WinForms\TimePilot.WinForms.csproj</EntryPointProjectUniqueName>
     <NoWarn>$(NoWarn);NU1702</NoWarn>
-    <GenerateTemporaryStoreCertificate>True</GenerateTemporaryStoreCertificate>
+    <GenerateTemporaryStoreCertificate>false</GenerateTemporaryStoreCertificate>
   </PropertyGroup>
 
   <ItemGroup>
