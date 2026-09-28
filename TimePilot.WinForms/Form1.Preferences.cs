@@ -123,6 +123,13 @@ namespace TimePilot.WinForms
             long preparationElapsedMs = 0;
             long deleteElapsedMs = 0;
             long finalizeElapsedMs = 0;
+            Exception? clearError = null;
+            var initialStatus = BuildUsageDataClearStatus(
+                "finishing current activity",
+                "진행 중인 작업 정리");
+            using var progressForm = new OperationProgressForm(
+                UiText.Preferences.ClearUsageDataTitle,
+                initialStatus);
             isUsageDataClearRunning = true;
             sampleTimer.Stop();
             viewRefreshGeneration.Invalidate();
@@ -130,11 +137,9 @@ namespace TimePilot.WinForms
 
             try
             {
-                SetExportRunning(
-                    true,
-                    BuildUsageDataClearStatus(
-                        "finishing current activity",
-                        "진행 중인 작업 정리"));
+                progressForm.Show(this);
+                Enabled = false;
+                SetExportRunning(true, initialStatus);
                 await AllowUiToRenderAsync();
 
                 var preparationStopwatch = Stopwatch.StartNew();
@@ -142,11 +147,11 @@ namespace TimePilot.WinForms
                 preparationStopwatch.Stop();
                 preparationElapsedMs = preparationStopwatch.ElapsedMilliseconds;
 
-                SetExportRunning(
-                    true,
-                    BuildUsageDataClearStatus(
-                        "deleting stored records",
-                        "저장된 기록 삭제"));
+                var deleteStatus = BuildUsageDataClearStatus(
+                    "deleting stored records",
+                    "저장된 기록 삭제");
+                SetExportRunning(true, deleteStatus);
+                progressForm.SetStatus(deleteStatus);
                 await AllowUiToRenderAsync();
 
                 var deleteStopwatch = Stopwatch.StartNew();
@@ -155,11 +160,11 @@ namespace TimePilot.WinForms
                 deleteStopwatch.Stop();
                 deleteElapsedMs = deleteStopwatch.ElapsedMilliseconds;
 
-                SetExportRunning(
-                    true,
-                    BuildUsageDataClearStatus(
-                        "updating the screen",
-                        "화면 마무리"));
+                var finalizeStatus = BuildUsageDataClearStatus(
+                    "updating the screen",
+                    "화면 마무리");
+                SetExportRunning(true, finalizeStatus);
+                progressForm.SetStatus(finalizeStatus);
                 await AllowUiToRenderAsync();
 
                 var finalizeStopwatch = Stopwatch.StartNew();
@@ -183,16 +188,7 @@ namespace TimePilot.WinForms
                         storageSnapshot,
                         beginRuntimeSession: !clearProgress.IsRuntimeSessionRestarted);
                 }
-
-                var message = settings.UiLanguage == UiLanguage.English
-                    ? $"Could not delete usage records.\n\n{ex.Message}"
-                    : $"사용 기록을 삭제하지 못했습니다.\n\n{ex.Message}";
-                CenteredMessageDialog.Show(
-                    this,
-                    message,
-                    UiText.Preferences.ClearUsageDataTitle,
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Warning);
+                clearError = ex;
             }
             finally
             {
@@ -200,7 +196,36 @@ namespace TimePilot.WinForms
                 SetExportRunning(false, null);
                 if (wasTimerEnabled && !isClosing)
                     sampleTimer.Start();
+
+                Enabled = true;
+                progressForm.Close();
+                if (!isClosing)
+                    Activate();
             }
+
+            if (isClosing)
+                return;
+
+            if (clearError is null)
+            {
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Main.UsageDataCleared,
+                    UiText.Preferences.ClearUsageDataTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            var message = settings.UiLanguage == UiLanguage.English
+                ? $"Could not delete usage records.\n\n{clearError.Message}"
+                : $"사용 기록을 삭제하지 못했습니다.\n\n{clearError.Message}";
+            CenteredMessageDialog.Show(
+                this,
+                message,
+                UiText.Preferences.ClearUsageDataTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
         }
 
         private async Task WaitForUsageClearPreconditionsAsync()
