@@ -100,23 +100,33 @@ namespace TimePilot.WinForms
             UpdateDetailTrackingDisabledBanner();
 
             if (form.ClearUsageDataRequested)
-                ClearUsageData();
+                await ClearUsageDataAsync();
             else
                 RefreshViews(DateTimeOffset.UtcNow);
         }
 
-        private void ClearUsageData()
+        private async Task ClearUsageDataAsync()
         {
             if (storage is null)
                 return;
 
             var now = DateTimeOffset.UtcNow;
+            var storageSnapshot = storage;
+            var wasTimerEnabled = sampleTimer.Enabled;
+            var runtimeSessionEnded = false;
+            var runtimeSessionRestarted = false;
             sampleTimer.Stop();
             viewRefreshGeneration.Invalidate();
             viewRefreshCache.Clear();
 
             try
             {
+                SetExportRunning(
+                    true,
+                    DataOperationStatusFormatter.BuildInProgressStatus(
+                        UiText.Preferences.ClearUsageDataTitle));
+                await AllowUiToRenderAsync();
+
                 idleSessionTracker?.EndCurrentSession(now);
                 foregroundSessionTracker?.EndCurrentSession(now);
                 lock (processRuntimeTrackingLock)
@@ -124,12 +134,15 @@ namespace TimePilot.WinForms
                     processRuntimeSessionTracker?.EndCurrentSessions(now);
                 }
 
-                storage.EndRuntimeSession(now, "clear-data");
-                storage.ClearUsageData();
-                storage.BeginRuntimeSession(
-                    now,
-                    GetCurrentSystemBootedAt(now),
+                storageSnapshot.EndRuntimeSession(now, "clear-data");
+                runtimeSessionEnded = true;
+                await Task.Run(storageSnapshot.ClearUsageData);
+                var restartedAt = DateTimeOffset.UtcNow;
+                storageSnapshot.BeginRuntimeSession(
+                    restartedAt,
+                    GetCurrentSystemBootedAt(restartedAt),
                     Application.ProductVersion);
+                runtimeSessionRestarted = true;
                 RecordWindowsSystemEvent(
                     "timepilot-start",
                     "ApplicationRestartedAfterClearData");
@@ -178,10 +191,56 @@ namespace TimePilot.WinForms
                     Array.Empty<ProcessRuntimeSegmentRow>());
                 SetStatusText(UiText.Main.UsageDataCleared);
             }
+            catch (Exception ex)
+            {
+                if (runtimeSessionEnded)
+                {
+                    TryRestartTrackingAfterClearFailure(
+                        storageSnapshot,
+                        beginRuntimeSession: !runtimeSessionRestarted);
+                }
+
+                var message = settings.UiLanguage == UiLanguage.English
+                    ? $"Could not delete usage records.\n\n{ex.Message}"
+                    : $"사용 기록을 삭제하지 못했습니다.\n\n{ex.Message}";
+                CenteredMessageDialog.Show(
+                    this,
+                    message,
+                    UiText.Preferences.ClearUsageDataTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
             finally
             {
-                if (!isClosing)
+                SetExportRunning(false, null);
+                if (wasTimerEnabled && !isClosing)
                     sampleTimer.Start();
+            }
+        }
+
+        private void TryRestartTrackingAfterClearFailure(
+            TimePilotStorage storageSnapshot,
+            bool beginRuntimeSession)
+        {
+            try
+            {
+                var restartedAt = DateTimeOffset.UtcNow;
+                if (beginRuntimeSession)
+                {
+                    storageSnapshot.BeginRuntimeSession(
+                        restartedAt,
+                        GetCurrentSystemBootedAt(restartedAt),
+                        Application.ProductVersion);
+                }
+
+                foregroundSessionTracker = new ForegroundSessionTracker(storageSnapshot);
+                idleSessionTracker = new IdleSessionTracker(storageSnapshot);
+                processRuntimeSessionTracker = new ProcessRuntimeSessionTracker(storageSnapshot);
+                lastProcessRuntimeSampleAt = null;
+                lastSampleTickAt = null;
+            }
+            catch
+            {
             }
         }
     }
