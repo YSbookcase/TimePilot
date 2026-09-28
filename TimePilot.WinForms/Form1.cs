@@ -95,6 +95,7 @@ namespace TimePilot.WinForms
         private long? selectedRuntimeAppId;
         private volatile bool isClosing;
         private volatile bool isProcessRuntimeSampleRunning;
+        private bool isUsageDataClearRunning;
         private bool isExportRunning;
         private bool isViewRefreshWaitCursorActive;
         private string statusText = string.Empty;

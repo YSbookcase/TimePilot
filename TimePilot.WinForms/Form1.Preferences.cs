@@ -1,5 +1,4 @@
 using TimePilot.WinForms.KYS24;
-using TimePilot.WinForms.Tables;
 using TimePilot.WinForms.Timeline;
 
 namespace TimePilot.WinForms
@@ -81,7 +80,7 @@ namespace TimePilot.WinForms
                 form.AutomaticBackupDirectory,
                 form.AutomaticBackupRetentionCount);
             nextAutomaticBackupCheckAt = null;
-            if (settings.AutomaticBackupEnabled)
+            if (settings.AutomaticBackupEnabled && !form.ClearUsageDataRequested)
                 _ = TryRunAutomaticBackupAsync(forceCheck: true);
 
             if (!settings.PerformanceDiagnosticsEnabled)
@@ -100,9 +99,13 @@ namespace TimePilot.WinForms
             UpdateDetailTrackingDisabledBanner();
 
             if (form.ClearUsageDataRequested)
+            {
                 await ClearUsageDataAsync();
+            }
             else
+            {
                 RefreshViews(DateTimeOffset.UtcNow);
+            }
         }
 
         private async Task ClearUsageDataAsync()
@@ -113,8 +116,9 @@ namespace TimePilot.WinForms
             var now = DateTimeOffset.UtcNow;
             var storageSnapshot = storage;
             var wasTimerEnabled = sampleTimer.Enabled;
-            var runtimeSessionEnded = false;
-            var runtimeSessionRestarted = false;
+            var clearProgress = new UsageDataClearProgress();
+            var appVersion = Application.ProductVersion;
+            isUsageDataClearRunning = true;
             sampleTimer.Stop();
             viewRefreshGeneration.Invalidate();
             viewRefreshCache.Clear();
@@ -126,78 +130,21 @@ namespace TimePilot.WinForms
                     DataOperationStatusFormatter.BuildInProgressStatus(
                         UiText.Preferences.ClearUsageDataTitle));
                 await AllowUiToRenderAsync();
+                await WaitForUsageClearPreconditionsAsync();
 
-                idleSessionTracker?.EndCurrentSession(now);
-                foregroundSessionTracker?.EndCurrentSession(now);
-                lock (processRuntimeTrackingLock)
-                {
-                    processRuntimeSessionTracker?.EndCurrentSessions(now);
-                }
-
-                storageSnapshot.EndRuntimeSession(now, "clear-data");
-                runtimeSessionEnded = true;
-                await Task.Run(storageSnapshot.ClearUsageData);
-                var restartedAt = DateTimeOffset.UtcNow;
-                storageSnapshot.BeginRuntimeSession(
-                    restartedAt,
-                    GetCurrentSystemBootedAt(restartedAt),
-                    Application.ProductVersion);
-                runtimeSessionRestarted = true;
-                RecordWindowsSystemEvent(
-                    "timepilot-start",
-                    "ApplicationRestartedAfterClearData");
-
-                foregroundSessionTracker = new ForegroundSessionTracker(storage);
-                idleSessionTracker = new IdleSessionTracker(storage);
-                processRuntimeSessionTracker =
-                    new ProcessRuntimeSessionTracker(storage);
-                lastProcessRuntimeSampleAt = null;
-                lastSampleTickAt = null;
-                selectedRuntimeAppId = null;
-                performanceStatusText = null;
-                performanceStatusExpiresAt = null;
-                viewRefreshStatusText = null;
-                isViewRefreshWaitCursorActive = false;
-                UpdateWaitCursor();
-
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    usageGrid,
-                    Array.Empty<UsageSummaryRow>());
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    dailyUsageTrendGrid,
-                    Array.Empty<DailyUsageTrendRow>());
-                SetRuntimeCoverageSummary(null);
-                timelineOverviewControl.SetTimeline(
-                    selectedTimelineDate,
-                    Array.Empty<ActivityTimelineRow>(),
-                    Array.Empty<TimelineRange>(),
-                    Array.Empty<SystemTimelineRange>(),
-                    Array.Empty<SystemTimelineEvent>(),
-                    Array.Empty<CategoryTimelineSegment>());
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    timelineGrid,
-                    Array.Empty<ActivityTimelineRow>());
-                currentTimelineForegroundUsage =
-                    Array.Empty<ForegroundUsageSummary>();
-                currentTimelineRows = Array.Empty<ActivityTimelineRow>();
-                currentTimelineWindowsRuntimeRanges = Array.Empty<TimelineRange>();
-                currentTimelineSystemRanges = Array.Empty<SystemTimelineRange>();
-                currentTimelineSystemEvents = Array.Empty<SystemTimelineEvent>();
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    runtimeGrid,
-                    Array.Empty<ProcessRuntimeSummaryRow>());
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    runtimeSegmentsGrid,
-                    Array.Empty<ProcessRuntimeSegmentRow>());
+                await Task.Run(() =>
+                    ClearUsageStorage(storageSnapshot, now, appVersion, clearProgress));
+                ResetTrackingAfterUsageClear(storageSnapshot);
+                ClearUsageDataViews();
                 SetStatusText(UiText.Main.UsageDataCleared);
             }
             catch (Exception ex)
             {
-                if (runtimeSessionEnded)
+                if (clearProgress.IsRuntimeSessionEnded)
                 {
                     TryRestartTrackingAfterClearFailure(
                         storageSnapshot,
-                        beginRuntimeSession: !runtimeSessionRestarted);
+                        beginRuntimeSession: !clearProgress.IsRuntimeSessionRestarted);
                 }
 
                 var message = settings.UiLanguage == UiLanguage.English
@@ -212,10 +159,93 @@ namespace TimePilot.WinForms
             }
             finally
             {
+                isUsageDataClearRunning = false;
                 SetExportRunning(false, null);
                 if (wasTimerEnabled && !isClosing)
                     sampleTimer.Start();
             }
+        }
+
+        private async Task WaitForUsageClearPreconditionsAsync()
+        {
+            while (isViewRefreshRunning || isProcessRuntimeSampleRunning)
+                await Task.Delay(20);
+        }
+
+        private void ClearUsageDataViews()
+        {
+            selectedRuntimeAppId = null;
+            SuspendLayout();
+            try
+            {
+                usageGrid.DataSource = Array.Empty<UsageSummaryRow>();
+                dailyUsageTrendGrid.DataSource = Array.Empty<DailyUsageTrendRow>();
+                timelineGrid.DataSource = Array.Empty<ActivityTimelineRow>();
+                runtimeGrid.DataSource = Array.Empty<ProcessRuntimeSummaryRow>();
+                runtimeSegmentsGrid.DataSource = Array.Empty<ProcessRuntimeSegmentRow>();
+                SetSummaryOverview(Array.Empty<UsageSummaryRow>());
+                SetSummaryUsageBars(Array.Empty<UsageSummaryRow>());
+                SetSummaryIdleAnalysis(Array.Empty<ForegroundUsageSummary>(), null);
+                SetRuntimeCoverageSummary(null);
+                currentTimelineForegroundUsage = Array.Empty<ForegroundUsageSummary>();
+                currentTimelineRows = Array.Empty<ActivityTimelineRow>();
+                currentTimelineWindowsRuntimeRanges = Array.Empty<TimelineRange>();
+                currentTimelineSystemRanges = Array.Empty<SystemTimelineRange>();
+                currentTimelineSystemEvents = Array.Empty<SystemTimelineEvent>();
+                timelineOverviewControl.SetTimeline(
+                    selectedTimelineDate,
+                    currentTimelineRows,
+                    currentTimelineWindowsRuntimeRanges,
+                    currentTimelineSystemRanges,
+                    currentTimelineSystemEvents,
+                    Array.Empty<CategoryTimelineSegment>());
+            }
+            finally
+            {
+                ResumeLayout(true);
+            }
+        }
+
+        private void ClearUsageStorage(
+            TimePilotStorage storageSnapshot,
+            DateTimeOffset endedAt,
+            string? appVersion,
+            UsageDataClearProgress clearProgress)
+        {
+            idleSessionTracker?.EndCurrentSession(endedAt);
+            foregroundSessionTracker?.EndCurrentSession(endedAt);
+            lock (processRuntimeTrackingLock)
+            {
+                processRuntimeSessionTracker?.EndCurrentSessions(endedAt);
+            }
+
+            storageSnapshot.EndRuntimeSession(endedAt, "clear-data");
+            clearProgress.IsRuntimeSessionEnded = true;
+            storageSnapshot.ClearUsageData();
+            var restartedAt = DateTimeOffset.UtcNow;
+            storageSnapshot.BeginRuntimeSession(
+                restartedAt,
+                GetCurrentSystemBootedAt(restartedAt),
+                appVersion);
+            clearProgress.IsRuntimeSessionRestarted = true;
+            RecordWindowsSystemEvent(
+                "timepilot-start",
+                "ApplicationRestartedAfterClearData");
+        }
+
+        private void ResetTrackingAfterUsageClear(TimePilotStorage storageSnapshot)
+        {
+            foregroundSessionTracker = new ForegroundSessionTracker(storageSnapshot);
+            idleSessionTracker = new IdleSessionTracker(storageSnapshot);
+            processRuntimeSessionTracker = new ProcessRuntimeSessionTracker(storageSnapshot);
+            lastProcessRuntimeSampleAt = null;
+            lastSampleTickAt = null;
+            selectedRuntimeAppId = null;
+            performanceStatusText = null;
+            performanceStatusExpiresAt = null;
+            viewRefreshStatusText = null;
+            isViewRefreshWaitCursorActive = false;
+            UpdateWaitCursor();
         }
 
         private void TryRestartTrackingAfterClearFailure(
@@ -242,6 +272,13 @@ namespace TimePilot.WinForms
             catch
             {
             }
+        }
+
+        private sealed class UsageDataClearProgress
+        {
+            public bool IsRuntimeSessionEnded { get; set; }
+
+            public bool IsRuntimeSessionRestarted { get; set; }
         }
     }
 }

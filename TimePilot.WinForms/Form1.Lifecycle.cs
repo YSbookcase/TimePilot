@@ -4,6 +4,9 @@ namespace TimePilot.WinForms
     {
         private void OnSampleTick(object? sender, EventArgs e)
         {
+            if (isUsageDataClearRunning)
+                return;
+
             var observedAt = DateTimeOffset.UtcNow;
             if (lastSampleTickAt is { } lastTickAt)
             {

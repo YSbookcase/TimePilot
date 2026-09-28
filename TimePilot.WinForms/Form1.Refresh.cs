@@ -10,6 +10,9 @@ namespace TimePilot.WinForms
     {
         private void RefreshViews(DateTimeOffset observedAt)
         {
+            if (isUsageDataClearRunning)
+                return;
+
             _ = RefreshViewsAsync(observedAt);
         }
 
@@ -165,7 +168,7 @@ namespace TimePilot.WinForms
             else
             {
                 isViewRefreshRunning = true;
-                var showSummaryLoading = selectedTab == summaryTab;
+                var showSummaryLoading = selectedTab == summaryTab && !isUsageDataClearRunning;
                 if (showSummaryLoading)
                     SetViewRefreshRunning(true, BuildViewRefreshInProgressStatus());
 
