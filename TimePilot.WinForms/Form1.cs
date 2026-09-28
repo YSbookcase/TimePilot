@@ -28,6 +28,7 @@ namespace TimePilot.WinForms
         private readonly DetailRuntimeFilterCoordinator detailRuntimeFilterCoordinator;
         private readonly RuntimeSegmentObservationFilterCoordinator runtimeSegmentObservationFilterCoordinator;
         private readonly ViewRefreshCache viewRefreshCache = new();
+        private readonly ViewRefreshGeneration viewRefreshGeneration = new();
         private readonly AppIconCache appIconCache = new();
         private readonly AppExecutableMetadataCache appExecutableMetadataCache = new();
         private readonly object processRuntimeTrackingLock = new();

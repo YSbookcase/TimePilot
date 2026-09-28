@@ -114,6 +114,7 @@ namespace TimePilot.WinForms
                 return;
             }
 
+            var refreshGeneration = viewRefreshGeneration.Capture();
             var totalStopwatch = Stopwatch.StartNew();
             var appIdToRestore = selectedRuntimeAppId ?? GetSelectedRuntimeAppId();
             var runtimeFirstDisplayedRowIndex =
@@ -172,6 +173,9 @@ namespace TimePilot.WinForms
                 {
                     snapshot = await Task.Run(() =>
                         ViewRefreshSnapshotReader.Read(storage, refreshRequest));
+                    if (!viewRefreshGeneration.IsCurrent(refreshGeneration))
+                        return;
+
                     CacheHeavyViewSnapshot(
                         selectedTab,
                         summaryPeriodRange,
@@ -195,6 +199,9 @@ namespace TimePilot.WinForms
             }
 
             if (isClosing)
+                return;
+
+            if (!viewRefreshGeneration.IsCurrent(refreshGeneration))
                 return;
 
             var applyStopwatch = Stopwatch.StartNew();

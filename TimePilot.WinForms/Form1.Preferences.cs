@@ -98,10 +98,11 @@ namespace TimePilot.WinForms
                 form.ProcessRuntimeRiskAccepted);
             lastProcessRuntimeSampleAt = null;
             UpdateDetailTrackingDisabledBanner();
-            RefreshViews(DateTimeOffset.UtcNow);
 
             if (form.ClearUsageDataRequested)
                 ClearUsageData();
+            else
+                RefreshViews(DateTimeOffset.UtcNow);
         }
 
         private void ClearUsageData()
@@ -111,6 +112,8 @@ namespace TimePilot.WinForms
 
             var now = DateTimeOffset.UtcNow;
             sampleTimer.Stop();
+            viewRefreshGeneration.Invalidate();
+            viewRefreshCache.Clear();
 
             try
             {
@@ -143,7 +146,6 @@ namespace TimePilot.WinForms
                 viewRefreshStatusText = null;
                 isViewRefreshWaitCursorActive = false;
                 UpdateWaitCursor();
-                viewRefreshCache.Clear();
 
                 GridViewStatePreserver.SetDataSourcePreservingView(
                     usageGrid,
