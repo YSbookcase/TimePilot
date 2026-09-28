@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using TimePilot.WinForms.KYS24;
 using TimePilot.WinForms.Timeline;
 
@@ -118,6 +119,10 @@ namespace TimePilot.WinForms
             var wasTimerEnabled = sampleTimer.Enabled;
             var clearProgress = new UsageDataClearProgress();
             var appVersion = Application.ProductVersion;
+            var totalStopwatch = Stopwatch.StartNew();
+            long preparationElapsedMs = 0;
+            long deleteElapsedMs = 0;
+            long finalizeElapsedMs = 0;
             isUsageDataClearRunning = true;
             sampleTimer.Stop();
             viewRefreshGeneration.Invalidate();
@@ -127,15 +132,47 @@ namespace TimePilot.WinForms
             {
                 SetExportRunning(
                     true,
-                    DataOperationStatusFormatter.BuildInProgressStatus(
-                        UiText.Preferences.ClearUsageDataTitle));
+                    BuildUsageDataClearStatus(
+                        "finishing current activity",
+                        "진행 중인 작업 정리"));
                 await AllowUiToRenderAsync();
-                await WaitForUsageClearPreconditionsAsync();
 
+                var preparationStopwatch = Stopwatch.StartNew();
+                await WaitForUsageClearPreconditionsAsync();
+                preparationStopwatch.Stop();
+                preparationElapsedMs = preparationStopwatch.ElapsedMilliseconds;
+
+                SetExportRunning(
+                    true,
+                    BuildUsageDataClearStatus(
+                        "deleting stored records",
+                        "저장된 기록 삭제"));
+                await AllowUiToRenderAsync();
+
+                var deleteStopwatch = Stopwatch.StartNew();
                 await Task.Run(() =>
                     ClearUsageStorage(storageSnapshot, now, appVersion, clearProgress));
+                deleteStopwatch.Stop();
+                deleteElapsedMs = deleteStopwatch.ElapsedMilliseconds;
+
+                SetExportRunning(
+                    true,
+                    BuildUsageDataClearStatus(
+                        "updating the screen",
+                        "화면 마무리"));
+                await AllowUiToRenderAsync();
+
+                var finalizeStopwatch = Stopwatch.StartNew();
                 ResetTrackingAfterUsageClear(storageSnapshot);
                 ClearUsageDataViews();
+                finalizeStopwatch.Stop();
+                finalizeElapsedMs = finalizeStopwatch.ElapsedMilliseconds;
+                totalStopwatch.Stop();
+                ReportPerformanceTimings(
+                    ("clear-prepare", preparationElapsedMs),
+                    ("clear-delete", deleteElapsedMs),
+                    ("clear-finalize", finalizeElapsedMs),
+                    ("clear-total", totalStopwatch.ElapsedMilliseconds));
                 SetStatusText(UiText.Main.UsageDataCleared);
             }
             catch (Exception ex)
@@ -170,6 +207,15 @@ namespace TimePilot.WinForms
         {
             while (isViewRefreshRunning || isProcessRuntimeSampleRunning)
                 await Task.Delay(20);
+        }
+
+        private static string BuildUsageDataClearStatus(
+            string englishStage,
+            string koreanStage)
+        {
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"Deleting usage records: {englishStage}..."
+                : $"사용 기록 삭제: {koreanStage} 중...";
         }
 
         private void ClearUsageDataViews()
