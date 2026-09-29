@@ -42,8 +42,22 @@ namespace TimePilot.WinForms
             Name = nameof(OperationProgressForm);
             ShowIcon = false;
             ShowInTaskbar = false;
-            StartPosition = FormStartPosition.CenterParent;
+            StartPosition = FormStartPosition.Manual;
             Text = title;
+        }
+
+        public void ShowCentered(Form owner)
+        {
+            var ownerBounds = owner.WindowState == FormWindowState.Minimized
+                ? Screen.FromControl(owner).WorkingArea
+                : owner.Bounds;
+            var workingArea = Screen.FromRectangle(ownerBounds).WorkingArea;
+            var left = ownerBounds.Left + (ownerBounds.Width - Width) / 2;
+            var top = ownerBounds.Top + (ownerBounds.Height - Height) / 2;
+            left = Math.Clamp(left, workingArea.Left, workingArea.Right - Width);
+            top = Math.Clamp(top, workingArea.Top, workingArea.Bottom - Height);
+            Location = new Point(left, top);
+            Show(owner);
         }
 
         public void SetStatus(string status)

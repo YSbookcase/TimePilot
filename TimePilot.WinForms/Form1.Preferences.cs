@@ -137,7 +137,7 @@ namespace TimePilot.WinForms
 
             try
             {
-                progressForm.Show(this);
+                progressForm.ShowCentered(this);
                 Enabled = false;
                 SetExportRunning(true, initialStatus);
                 await AllowUiToRenderAsync();
