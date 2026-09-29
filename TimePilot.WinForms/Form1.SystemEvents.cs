@@ -30,6 +30,7 @@ namespace TimePilot.WinForms
                             State = startupState.Value.ToString(),
                             StateValue = (int)startupState.Value,
                             StartWithWindows = settings.StartWithWindows,
+                            StartupDisplayMode = settings.StartupDisplayMode.ToString(),
                             StartMinimizedToTray = startMinimizedToTray,
                             Executable = Application.ExecutablePath
                         }));

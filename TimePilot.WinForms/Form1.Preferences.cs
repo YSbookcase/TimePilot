@@ -41,6 +41,9 @@ namespace TimePilot.WinForms
                 ApplyUiText();
             }
 
+            if (form.StartupDisplayMode != settings.StartupDisplayMode)
+                settings.SetStartupDisplayMode(form.StartupDisplayMode);
+
             if (form.StartWithWindows != settings.StartWithWindows
                 || effectiveStartupEnabled.HasValue
                     && form.StartWithWindows != effectiveStartupEnabled.Value)
