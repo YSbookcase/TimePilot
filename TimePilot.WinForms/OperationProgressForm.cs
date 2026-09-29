@@ -9,36 +9,41 @@ namespace TimePilot.WinForms
             statusLabel = new Label
             {
                 AutoEllipsis = true,
-                Dock = DockStyle.Top,
-                Height = 44,
-                Padding = new Padding(0, 4, 0, 0),
+                Dock = DockStyle.Fill,
+                Margin = new Padding(0),
                 Text = status,
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
             var progressBar = new ProgressBar
             {
-                Dock = DockStyle.Top,
-                Height = 18,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(0, 8, 0, 0),
                 MarqueeAnimationSpeed = 28,
                 Style = ProgressBarStyle.Marquee
             };
 
-            var contentPanel = new Panel
+            var contentLayout = new TableLayoutPanel
             {
+                ColumnCount = 1,
                 Dock = DockStyle.Fill,
-                Padding = new Padding(20, 14, 20, 18)
+                Padding = new Padding(20, 16, 20, 22),
+                RowCount = 2
             };
-            contentPanel.Controls.Add(progressBar);
-            contentPanel.Controls.Add(statusLabel);
+            contentLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            contentLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 58F));
+            contentLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 42F));
+            contentLayout.Controls.Add(statusLabel, 0, 0);
+            contentLayout.Controls.Add(progressBar, 0, 1);
 
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(440, 98);
+            ClientSize = new Size(460, 126);
             ControlBox = false;
-            Controls.Add(contentPanel);
+            Controls.Add(contentLayout);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
+            MinimumSize = new Size(460, 154);
             Name = nameof(OperationProgressForm);
             ShowIcon = false;
             ShowInTaskbar = false;
