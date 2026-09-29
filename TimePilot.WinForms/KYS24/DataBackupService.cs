@@ -42,8 +42,12 @@ namespace TimePilot.WinForms.KYS24
             _settingsPath = Path.Combine(_dataDirectory, SettingsEntryName);
         }
 
-        public IReadOnlyList<string> CreateBackup(string zipFilePath, DateTimeOffset createdAt)
+        public IReadOnlyList<string> CreateBackup(
+            string zipFilePath,
+            DateTimeOffset createdAt,
+            IProgress<DataBackupProgressStage>? progress = null)
         {
+            progress?.Report(DataBackupProgressStage.Preparing);
             var directory = Path.GetDirectoryName(zipFilePath);
             if (!string.IsNullOrWhiteSpace(directory))
                 Directory.CreateDirectory(directory);
@@ -63,7 +67,8 @@ namespace TimePilot.WinForms.KYS24
                     WriteTextEntry(archive, ReadmeEntryName, BuildReadme(createdAt));
                     entries.Add(ReadmeEntryName);
 
-                    AddDatabaseIfExists(archive, entries);
+                    AddDatabaseIfExists(archive, entries, progress);
+                    progress?.Report(DataBackupProgressStage.CompressingFiles);
                     AddFileIfExists(archive, _settingsPath, SettingsEntryName, entries);
 
                     var logsDirectory = Path.Combine(_dataDirectory, LogsDirectoryName);
@@ -77,7 +82,9 @@ namespace TimePilot.WinForms.KYS24
                     }
                 }
 
+                progress?.Report(DataBackupProgressStage.VerifyingBackup);
                 _ = InspectBackup(tempFilePath);
+                progress?.Report(DataBackupProgressStage.Finalizing);
                 File.Move(tempFilePath, zipFilePath, overwrite: true);
             }
             finally
@@ -178,7 +185,10 @@ namespace TimePilot.WinForms.KYS24
             entries.Add(entryName);
         }
 
-        private void AddDatabaseIfExists(ZipArchive archive, List<string> entries)
+        private void AddDatabaseIfExists(
+            ZipArchive archive,
+            List<string> entries,
+            IProgress<DataBackupProgressStage>? progress)
         {
             if (!File.Exists(_databasePath))
                 return;
@@ -189,6 +199,7 @@ namespace TimePilot.WinForms.KYS24
 
             try
             {
+                progress?.Report(DataBackupProgressStage.CopyingDatabase);
                 using (var source = new SqliteConnection(new SqliteConnectionStringBuilder
                        {
                            DataSource = _databasePath,
@@ -585,6 +596,15 @@ namespace TimePilot.WinForms.KYS24
             using var writer = new StreamWriter(stream, Utf8WithBom);
             writer.Write(content);
         }
+    }
+
+    internal enum DataBackupProgressStage
+    {
+        Preparing,
+        CopyingDatabase,
+        CompressingFiles,
+        VerifyingBackup,
+        Finalizing
     }
 
     internal sealed record DataBackupRestorePlan(

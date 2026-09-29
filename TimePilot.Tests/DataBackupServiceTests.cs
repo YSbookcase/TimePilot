@@ -45,6 +45,38 @@ namespace TimePilot.Tests
         }
 
         [Fact]
+        public void CreateBackup_ReportsProgressStagesInOrder()
+        {
+            var paths = CreateTestPaths();
+
+            try
+            {
+                CreateDatabase(paths.DatabasePath, "Progress test");
+                var reportedStages = new List<DataBackupProgressStage>();
+                var service = new DataBackupService(paths.DataDirectory);
+
+                service.CreateBackup(
+                    paths.BackupPath,
+                    DateTimeOffset.UtcNow,
+                    new CollectingProgress<DataBackupProgressStage>(reportedStages));
+
+                Assert.Equal(
+                    [
+                        DataBackupProgressStage.Preparing,
+                        DataBackupProgressStage.CopyingDatabase,
+                        DataBackupProgressStage.CompressingFiles,
+                        DataBackupProgressStage.VerifyingBackup,
+                        DataBackupProgressStage.Finalizing
+                    ],
+                    reportedStages);
+            }
+            finally
+            {
+                DeleteTestRoot(paths.Root);
+            }
+        }
+
+        [Fact]
         public void RestoreBackup_RestoresDatabaseSettingsAndLogs()
         {
             var paths = CreateTestPaths();
@@ -183,5 +215,10 @@ namespace TimePilot.Tests
             string SettingsPath,
             string LogsDirectory,
             string BackupPath);
+
+        private sealed class CollectingProgress<T>(ICollection<T> values) : IProgress<T>
+        {
+            public void Report(T value) => values.Add(value);
+        }
     }
 }
