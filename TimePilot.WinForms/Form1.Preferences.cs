@@ -1,5 +1,5 @@
+using System.Diagnostics;
 using TimePilot.WinForms.KYS24;
-using TimePilot.WinForms.Tables;
 using TimePilot.WinForms.Timeline;
 
 namespace TimePilot.WinForms
@@ -81,7 +81,7 @@ namespace TimePilot.WinForms
                 form.AutomaticBackupDirectory,
                 form.AutomaticBackupRetentionCount);
             nextAutomaticBackupCheckAt = null;
-            if (settings.AutomaticBackupEnabled)
+            if (settings.AutomaticBackupEnabled && !form.ClearUsageDataRequested)
                 _ = TryRunAutomaticBackupAsync(forceCheck: true);
 
             if (!settings.PerformanceDiagnosticsEnabled)
@@ -98,89 +98,258 @@ namespace TimePilot.WinForms
                 form.ProcessRuntimeRiskAccepted);
             lastProcessRuntimeSampleAt = null;
             UpdateDetailTrackingDisabledBanner();
-            RefreshViews(DateTimeOffset.UtcNow);
 
             if (form.ClearUsageDataRequested)
-                ClearUsageData();
+            {
+                await ClearUsageDataAsync();
+            }
+            else
+            {
+                RefreshViews(DateTimeOffset.UtcNow);
+            }
         }
 
-        private void ClearUsageData()
+        private async Task ClearUsageDataAsync()
         {
             if (storage is null)
                 return;
 
             var now = DateTimeOffset.UtcNow;
+            var storageSnapshot = storage;
+            var wasTimerEnabled = sampleTimer.Enabled;
+            var clearProgress = new UsageDataClearProgress();
+            var appVersion = Application.ProductVersion;
+            var totalStopwatch = Stopwatch.StartNew();
+            long preparationElapsedMs = 0;
+            long deleteElapsedMs = 0;
+            long finalizeElapsedMs = 0;
+            Exception? clearError = null;
+            var initialStatus = BuildUsageDataClearStatus(
+                "finishing current activity",
+                "진행 중인 작업 정리");
+            using var progressForm = new OperationProgressForm(
+                UiText.Preferences.ClearUsageDataTitle,
+                initialStatus);
+            isUsageDataClearRunning = true;
             sampleTimer.Stop();
+            viewRefreshGeneration.Invalidate();
+            viewRefreshCache.Clear();
 
             try
             {
-                idleSessionTracker?.EndCurrentSession(now);
-                foregroundSessionTracker?.EndCurrentSession(now);
-                lock (processRuntimeTrackingLock)
+                progressForm.ShowCentered(this);
+                Enabled = false;
+                SetExportRunning(true, initialStatus);
+                await AllowUiToRenderAsync();
+
+                var preparationStopwatch = Stopwatch.StartNew();
+                await WaitForUsageClearPreconditionsAsync();
+                preparationStopwatch.Stop();
+                preparationElapsedMs = preparationStopwatch.ElapsedMilliseconds;
+
+                var deleteStatus = BuildUsageDataClearStatus(
+                    "deleting stored records",
+                    "저장된 기록 삭제");
+                SetExportRunning(true, deleteStatus);
+                progressForm.SetStatus(deleteStatus);
+                await AllowUiToRenderAsync();
+
+                var deleteStopwatch = Stopwatch.StartNew();
+                await Task.Run(() =>
+                    ClearUsageStorage(storageSnapshot, now, appVersion, clearProgress));
+                deleteStopwatch.Stop();
+                deleteElapsedMs = deleteStopwatch.ElapsedMilliseconds;
+
+                var finalizeStatus = BuildUsageDataClearStatus(
+                    "updating the screen",
+                    "화면 마무리");
+                SetExportRunning(true, finalizeStatus);
+                progressForm.SetStatus(finalizeStatus);
+                await AllowUiToRenderAsync();
+
+                var finalizeStopwatch = Stopwatch.StartNew();
+                ResetTrackingAfterUsageClear(storageSnapshot);
+                ClearUsageDataViews();
+                finalizeStopwatch.Stop();
+                finalizeElapsedMs = finalizeStopwatch.ElapsedMilliseconds;
+                totalStopwatch.Stop();
+                ReportPerformanceTimings(
+                    ("clear-prepare", preparationElapsedMs),
+                    ("clear-delete", deleteElapsedMs),
+                    ("clear-finalize", finalizeElapsedMs),
+                    ("clear-total", totalStopwatch.ElapsedMilliseconds));
+                SetStatusText(UiText.Main.UsageDataCleared);
+            }
+            catch (Exception ex)
+            {
+                if (clearProgress.IsRuntimeSessionEnded)
                 {
-                    processRuntimeSessionTracker?.EndCurrentSessions(now);
+                    TryRestartTrackingAfterClearFailure(
+                        storageSnapshot,
+                        beginRuntimeSession: !clearProgress.IsRuntimeSessionRestarted);
                 }
+                clearError = ex;
+            }
+            finally
+            {
+                isUsageDataClearRunning = false;
+                SetExportRunning(false, null);
+                if (wasTimerEnabled && !isClosing)
+                    sampleTimer.Start();
 
-                storage.EndRuntimeSession(now, "clear-data");
-                storage.ClearUsageData();
-                storage.BeginRuntimeSession(
-                    now,
-                    GetCurrentSystemBootedAt(now),
-                    Application.ProductVersion);
-                RecordWindowsSystemEvent(
-                    "timepilot-start",
-                    "ApplicationRestartedAfterClearData");
+                Enabled = true;
+                progressForm.Close();
+                if (!isClosing)
+                    Activate();
+            }
 
-                foregroundSessionTracker = new ForegroundSessionTracker(storage);
-                idleSessionTracker = new IdleSessionTracker(storage);
-                processRuntimeSessionTracker =
-                    new ProcessRuntimeSessionTracker(storage);
-                lastProcessRuntimeSampleAt = null;
-                lastSampleTickAt = null;
-                selectedRuntimeAppId = null;
-                performanceStatusText = null;
-                performanceStatusExpiresAt = null;
-                viewRefreshStatusText = null;
-                isViewRefreshWaitCursorActive = false;
-                UpdateWaitCursor();
-                viewRefreshCache.Clear();
+            if (isClosing)
+                return;
 
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    usageGrid,
-                    Array.Empty<UsageSummaryRow>());
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    dailyUsageTrendGrid,
-                    Array.Empty<DailyUsageTrendRow>());
+            if (clearError is null)
+            {
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Main.UsageDataCleared,
+                    UiText.Preferences.ClearUsageDataTitle,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+                return;
+            }
+
+            var message = settings.UiLanguage == UiLanguage.English
+                ? $"Could not delete usage records.\n\n{clearError.Message}"
+                : $"사용 기록을 삭제하지 못했습니다.\n\n{clearError.Message}";
+            CenteredMessageDialog.Show(
+                this,
+                message,
+                UiText.Preferences.ClearUsageDataTitle,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+
+        private async Task WaitForUsageClearPreconditionsAsync()
+        {
+            while (isViewRefreshRunning || isProcessRuntimeSampleRunning)
+                await Task.Delay(20);
+        }
+
+        private static string BuildUsageDataClearStatus(
+            string englishStage,
+            string koreanStage)
+        {
+            return UiText.CurrentLanguage == UiLanguage.English
+                ? $"Deleting usage records: {englishStage}..."
+                : $"사용 기록 삭제: {koreanStage} 중...";
+        }
+
+        private void ClearUsageDataViews()
+        {
+            selectedRuntimeAppId = null;
+            SuspendLayout();
+            try
+            {
+                usageGrid.DataSource = Array.Empty<UsageSummaryRow>();
+                dailyUsageTrendGrid.DataSource = Array.Empty<DailyUsageTrendRow>();
+                timelineGrid.DataSource = Array.Empty<ActivityTimelineRow>();
+                runtimeGrid.DataSource = Array.Empty<ProcessRuntimeSummaryRow>();
+                runtimeSegmentsGrid.DataSource = Array.Empty<ProcessRuntimeSegmentRow>();
+                SetSummaryOverview(Array.Empty<UsageSummaryRow>());
+                SetSummaryUsageBars(Array.Empty<UsageSummaryRow>());
+                SetSummaryIdleAnalysis(Array.Empty<ForegroundUsageSummary>(), null);
                 SetRuntimeCoverageSummary(null);
-                timelineOverviewControl.SetTimeline(
-                    selectedTimelineDate,
-                    Array.Empty<ActivityTimelineRow>(),
-                    Array.Empty<TimelineRange>(),
-                    Array.Empty<SystemTimelineRange>(),
-                    Array.Empty<SystemTimelineEvent>(),
-                    Array.Empty<CategoryTimelineSegment>());
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    timelineGrid,
-                    Array.Empty<ActivityTimelineRow>());
-                currentTimelineForegroundUsage =
-                    Array.Empty<ForegroundUsageSummary>();
+                currentTimelineForegroundUsage = Array.Empty<ForegroundUsageSummary>();
                 currentTimelineRows = Array.Empty<ActivityTimelineRow>();
                 currentTimelineWindowsRuntimeRanges = Array.Empty<TimelineRange>();
                 currentTimelineSystemRanges = Array.Empty<SystemTimelineRange>();
                 currentTimelineSystemEvents = Array.Empty<SystemTimelineEvent>();
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    runtimeGrid,
-                    Array.Empty<ProcessRuntimeSummaryRow>());
-                GridViewStatePreserver.SetDataSourcePreservingView(
-                    runtimeSegmentsGrid,
-                    Array.Empty<ProcessRuntimeSegmentRow>());
-                SetStatusText(UiText.Main.UsageDataCleared);
+                timelineOverviewControl.SetTimeline(
+                    selectedTimelineDate,
+                    currentTimelineRows,
+                    currentTimelineWindowsRuntimeRanges,
+                    currentTimelineSystemRanges,
+                    currentTimelineSystemEvents,
+                    Array.Empty<CategoryTimelineSegment>());
             }
             finally
             {
-                if (!isClosing)
-                    sampleTimer.Start();
+                ResumeLayout(true);
             }
+        }
+
+        private void ClearUsageStorage(
+            TimePilotStorage storageSnapshot,
+            DateTimeOffset endedAt,
+            string? appVersion,
+            UsageDataClearProgress clearProgress)
+        {
+            idleSessionTracker?.EndCurrentSession(endedAt);
+            foregroundSessionTracker?.EndCurrentSession(endedAt);
+            lock (processRuntimeTrackingLock)
+            {
+                processRuntimeSessionTracker?.EndCurrentSessions(endedAt);
+            }
+
+            storageSnapshot.EndRuntimeSession(endedAt, "clear-data");
+            clearProgress.IsRuntimeSessionEnded = true;
+            storageSnapshot.ClearUsageData();
+            var restartedAt = DateTimeOffset.UtcNow;
+            storageSnapshot.BeginRuntimeSession(
+                restartedAt,
+                GetCurrentSystemBootedAt(restartedAt),
+                appVersion);
+            clearProgress.IsRuntimeSessionRestarted = true;
+            RecordWindowsSystemEvent(
+                "timepilot-start",
+                "ApplicationRestartedAfterClearData");
+        }
+
+        private void ResetTrackingAfterUsageClear(TimePilotStorage storageSnapshot)
+        {
+            foregroundSessionTracker = new ForegroundSessionTracker(storageSnapshot);
+            idleSessionTracker = new IdleSessionTracker(storageSnapshot);
+            processRuntimeSessionTracker = new ProcessRuntimeSessionTracker(storageSnapshot);
+            lastProcessRuntimeSampleAt = null;
+            lastSampleTickAt = null;
+            selectedRuntimeAppId = null;
+            performanceStatusText = null;
+            performanceStatusExpiresAt = null;
+            viewRefreshStatusText = null;
+            isViewRefreshWaitCursorActive = false;
+            UpdateWaitCursor();
+        }
+
+        private void TryRestartTrackingAfterClearFailure(
+            TimePilotStorage storageSnapshot,
+            bool beginRuntimeSession)
+        {
+            try
+            {
+                var restartedAt = DateTimeOffset.UtcNow;
+                if (beginRuntimeSession)
+                {
+                    storageSnapshot.BeginRuntimeSession(
+                        restartedAt,
+                        GetCurrentSystemBootedAt(restartedAt),
+                        Application.ProductVersion);
+                }
+
+                foregroundSessionTracker = new ForegroundSessionTracker(storageSnapshot);
+                idleSessionTracker = new IdleSessionTracker(storageSnapshot);
+                processRuntimeSessionTracker = new ProcessRuntimeSessionTracker(storageSnapshot);
+                lastProcessRuntimeSampleAt = null;
+                lastSampleTickAt = null;
+            }
+            catch
+            {
+            }
+        }
+
+        private sealed class UsageDataClearProgress
+        {
+            public bool IsRuntimeSessionEnded { get; set; }
+
+            public bool IsRuntimeSessionRestarted { get; set; }
         }
     }
 }

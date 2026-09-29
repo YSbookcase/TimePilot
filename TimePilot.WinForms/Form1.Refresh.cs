@@ -10,6 +10,9 @@ namespace TimePilot.WinForms
     {
         private void RefreshViews(DateTimeOffset observedAt)
         {
+            if (isUsageDataClearRunning)
+                return;
+
             _ = RefreshViewsAsync(observedAt);
         }
 
@@ -114,6 +117,7 @@ namespace TimePilot.WinForms
                 return;
             }
 
+            var refreshGeneration = viewRefreshGeneration.Capture();
             var totalStopwatch = Stopwatch.StartNew();
             var appIdToRestore = selectedRuntimeAppId ?? GetSelectedRuntimeAppId();
             var runtimeFirstDisplayedRowIndex =
@@ -164,7 +168,7 @@ namespace TimePilot.WinForms
             else
             {
                 isViewRefreshRunning = true;
-                var showSummaryLoading = selectedTab == summaryTab;
+                var showSummaryLoading = selectedTab == summaryTab && !isUsageDataClearRunning;
                 if (showSummaryLoading)
                     SetViewRefreshRunning(true, BuildViewRefreshInProgressStatus());
 
@@ -172,6 +176,9 @@ namespace TimePilot.WinForms
                 {
                     snapshot = await Task.Run(() =>
                         ViewRefreshSnapshotReader.Read(storage, refreshRequest));
+                    if (!viewRefreshGeneration.IsCurrent(refreshGeneration))
+                        return;
+
                     CacheHeavyViewSnapshot(
                         selectedTab,
                         summaryPeriodRange,
@@ -195,6 +202,9 @@ namespace TimePilot.WinForms
             }
 
             if (isClosing)
+                return;
+
+            if (!viewRefreshGeneration.IsCurrent(refreshGeneration))
                 return;
 
             var applyStopwatch = Stopwatch.StartNew();

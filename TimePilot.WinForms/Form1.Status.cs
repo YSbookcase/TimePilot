@@ -25,7 +25,39 @@ namespace TimePilot.WinForms
 
         private void UpdateWaitCursor()
         {
-            UseWaitCursor = isExportRunning || isViewRefreshWaitCursorActive;
+            var isWaiting = isExportRunning && !isUsageDataClearRunning
+                || isViewRefreshWaitCursorActive;
+            UseWaitCursor = isWaiting;
+            Cursor.Current = isWaiting ? Cursors.WaitCursor : Cursors.Default;
+            if (isWaiting || !IsHandleCreated || IsDisposed)
+                return;
+
+            ClearStuckWaitCursors(this);
+            try
+            {
+                BeginInvoke(new Action(ReleaseStuckTableWaitCursor));
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        private void ReleaseStuckTableWaitCursor()
+        {
+            if (isExportRunning || isViewRefreshWaitCursorActive || IsDisposed)
+                return;
+
+            ClearStuckWaitCursors(this);
+            Cursor.Current = Cursors.Default;
+        }
+
+        private static void ClearStuckWaitCursors(Control control)
+        {
+            if (control.Cursor == Cursors.WaitCursor)
+                control.Cursor = Cursors.Default;
+
+            foreach (Control child in control.Controls)
+                ClearStuckWaitCursors(child);
         }
 
         private void ReportPerformanceTimings(
