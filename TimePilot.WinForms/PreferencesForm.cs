@@ -649,9 +649,9 @@ namespace TimePilot.WinForms
             clearUsageDataButton.Text = UiText.Preferences.ClearUsageDataPending;
         }
 
-        private void OnDeploymentDiagnosticsButtonClick(object? sender, EventArgs e)
+        private async void OnDeploymentDiagnosticsButtonClick(object? sender, EventArgs e)
         {
-            var snapshot = DeploymentDiagnosticsService.Collect();
+            var snapshot = await DeploymentDiagnosticsService.CollectAsync();
             using var dialog = new DeploymentDiagnosticsForm(snapshot, UiLanguage);
             dialog.ShowDialog(this);
         }

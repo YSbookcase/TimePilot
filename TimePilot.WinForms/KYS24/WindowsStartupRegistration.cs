@@ -7,6 +7,7 @@ namespace TimePilot.WinForms.KYS24
     internal static class WindowsStartupRegistration
     {
         public const string TrayStartupArgument = "--tray";
+        public const string RemoveUnpackagedStartupArgument = "--remove-startup-registration";
 
         private const string PackagedStartupTaskId = "ActiveLogbookStartupV2";
 
@@ -30,6 +31,16 @@ namespace TimePilot.WinForms.KYS24
 
             SynchronizeUnpackaged(isEnabled);
             return Task.CompletedTask;
+        }
+
+        public static void RemoveUnpackagedRegistrations()
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+            if (key is null)
+                return;
+
+            key.DeleteValue(ValueName, throwOnMissingValue: false);
+            key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
         }
 
         private static void SetUnpackagedEnabled(bool isEnabled)

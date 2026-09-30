@@ -19,6 +19,20 @@
             if (TryApplyUiLanguageArgument(args))
                 return;
 
+            if (args.Contains(KYS24.WindowsStartupRegistration.RemoveUnpackagedStartupArgument))
+            {
+                try
+                {
+                    KYS24.WindowsStartupRegistration.RemoveUnpackagedRegistrations();
+                }
+                catch
+                {
+                    // Uninstall must continue even if Windows prevents startup entry cleanup.
+                }
+
+                return;
+            }
+
             if (args.Contains("--seed-sample-data"))
             {
                 KYS24.SampleDataSeeder.SeedDefault();

@@ -186,6 +186,11 @@ namespace TimePilot.Tests
                     null,
                     null,
                     Array.Empty<DeploymentDataLocation>(),
+                    new DeploymentStartupInfo(
+                        true,
+                        null,
+                        null,
+                        Windows.ApplicationModel.StartupTaskState.Disabled),
                     plan);
 
                 var text = DeploymentDiagnosticsFormatter.Format(snapshot, UiLanguage.Korean);

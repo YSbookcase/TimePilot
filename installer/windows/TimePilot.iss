@@ -159,3 +159,22 @@ begin
 
   Result := True;
 end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ResultCode: Integer;
+  AppPath: string;
+begin
+  if CurUninstallStep <> usUninstall then
+    exit;
+
+  AppPath := ExpandConstant('{app}\{#MyAppExeName}');
+  if FileExists(AppPath) then
+    ExecAsOriginalUser(
+      AppPath,
+      '--remove-startup-registration',
+      '',
+      SW_HIDE,
+      ewWaitUntilTerminated,
+      ResultCode);
+end;
