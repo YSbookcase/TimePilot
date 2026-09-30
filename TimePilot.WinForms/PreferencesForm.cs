@@ -10,6 +10,7 @@ namespace TimePilot.WinForms
         private readonly NumericUpDown customIdleThresholdNumeric = new();
         private readonly Label customIdleThresholdUnitLabel = new();
         private readonly CheckBox startWithWindowsCheckBox = new();
+        private readonly ComboBox startupDisplayModeComboBox = new();
         private readonly CheckBox performanceDiagnosticsCheckBox = new();
         private readonly CheckBox processRuntimeTrackingCheckBox = new();
         private readonly ComboBox processRuntimeScopeComboBox = new();
@@ -35,6 +36,7 @@ namespace TimePilot.WinForms
             IdleThresholdMinutes = settings.IdleThresholdMinutes;
             UiLanguage = settings.UiLanguage;
             StartWithWindows = effectiveStartWithWindows ?? settings.StartWithWindows;
+            StartupDisplayMode = settings.StartupDisplayMode;
             PerformanceDiagnosticsEnabled = settings.PerformanceDiagnosticsEnabled;
             ProcessRuntimeTrackingEnabled = settings.ProcessRuntimeTrackingEnabled;
             ProcessRuntimeTrackingScope = settings.ProcessRuntimeTrackingScope;
@@ -60,6 +62,8 @@ namespace TimePilot.WinForms
         public UiLanguage UiLanguage { get; private set; }
 
         public bool StartWithWindows { get; private set; }
+
+        public StartupDisplayMode StartupDisplayMode { get; private set; }
 
         public bool PerformanceDiagnosticsEnabled { get; private set; }
 
@@ -91,6 +95,7 @@ namespace TimePilot.WinForms
         {
             var idleThresholdLabel = new Label();
             var languageLabel = new Label();
+            var startupDisplayModeLabel = new Label();
             var tabControl = new TabControl();
             var generalTabPage = new TabPage();
             var dataTabPage = new TabPage();
@@ -165,9 +170,21 @@ namespace TimePilot.WinForms
             startWithWindowsCheckBox.Name = "startWithWindowsCheckBox";
             startWithWindowsCheckBox.Size = new Size(178, 19);
             startWithWindowsCheckBox.Text = UiText.Preferences.StartWithWindows;
+            startWithWindowsCheckBox.CheckedChanged += OnStartWithWindowsCheckedChanged;
+
+            startupDisplayModeLabel.AutoSize = true;
+            startupDisplayModeLabel.Location = new Point(20, 157);
+            startupDisplayModeLabel.Name = "startupDisplayModeLabel";
+            startupDisplayModeLabel.Text = UiText.Preferences.StartupDisplayMode;
+
+            startupDisplayModeComboBox.DropDownStyle = ComboBoxStyle.DropDownList;
+            startupDisplayModeComboBox.FormattingEnabled = true;
+            startupDisplayModeComboBox.Location = new Point(120, 152);
+            startupDisplayModeComboBox.Name = "startupDisplayModeComboBox";
+            startupDisplayModeComboBox.Size = new Size(210, 23);
 
             performanceDiagnosticsCheckBox.AutoSize = true;
-            performanceDiagnosticsCheckBox.Location = new Point(20, 152);
+            performanceDiagnosticsCheckBox.Location = new Point(20, 188);
             performanceDiagnosticsCheckBox.Name = "performanceDiagnosticsCheckBox";
             performanceDiagnosticsCheckBox.Size = new Size(112, 19);
             performanceDiagnosticsCheckBox.Text = UiText.Preferences.PerformanceDiagnostics;
@@ -181,7 +198,7 @@ namespace TimePilot.WinForms
             processRuntimeGroupBox.Controls.Add(customProcessRuntimeIntervalNumeric);
             processRuntimeGroupBox.Controls.Add(customProcessRuntimeIntervalUnitLabel);
             processRuntimeGroupBox.Controls.Add(processRuntimeWarningLabel);
-            processRuntimeGroupBox.Location = new Point(10, 186);
+            processRuntimeGroupBox.Location = new Point(10, 216);
             processRuntimeGroupBox.Name = "processRuntimeGroupBox";
             processRuntimeGroupBox.Size = new Size(410, 190);
             processRuntimeGroupBox.TabIndex = 4;
@@ -378,6 +395,8 @@ namespace TimePilot.WinForms
             generalTabPage.Controls.Add(customIdleThresholdNumeric);
             generalTabPage.Controls.Add(customIdleThresholdUnitLabel);
             generalTabPage.Controls.Add(startWithWindowsCheckBox);
+            generalTabPage.Controls.Add(startupDisplayModeLabel);
+            generalTabPage.Controls.Add(startupDisplayModeComboBox);
             generalTabPage.Controls.Add(performanceDiagnosticsCheckBox);
             generalTabPage.Controls.Add(processRuntimeGroupBox);
             dataTabPage.Controls.Add(automaticBackupGroupBox);
@@ -560,8 +579,26 @@ namespace TimePilot.WinForms
 
         private void ConfigureStartupControls()
         {
+            startupDisplayModeComboBox.DataSource = new[]
+            {
+                new StartupDisplayModeOption(
+                    UiText.Preferences.StartupDisplayModeTray,
+                    StartupDisplayMode.Tray),
+                new StartupDisplayModeOption(
+                    UiText.Preferences.StartupDisplayModeMainWindow,
+                    StartupDisplayMode.MainWindow)
+            };
+            startupDisplayModeComboBox.DisplayMember = nameof(StartupDisplayModeOption.Label);
+            startupDisplayModeComboBox.ValueMember = nameof(StartupDisplayModeOption.Mode);
             startWithWindowsCheckBox.Checked = StartWithWindows;
+            startupDisplayModeComboBox.SelectedValue = StartupDisplayMode;
+            startupDisplayModeComboBox.Enabled = StartWithWindows;
             performanceDiagnosticsCheckBox.Checked = PerformanceDiagnosticsEnabled;
+        }
+
+        private void OnStartWithWindowsCheckedChanged(object? sender, EventArgs e)
+        {
+            startupDisplayModeComboBox.Enabled = startWithWindowsCheckBox.Checked;
         }
 
         private void OnIdleThresholdSelectionChanged(object? sender, EventArgs e)
@@ -654,6 +691,9 @@ namespace TimePilot.WinForms
                 ? languageOption.Language
                 : AppSettings.DefaultUiLanguage;
             StartWithWindows = startWithWindowsCheckBox.Checked;
+            StartupDisplayMode = startupDisplayModeComboBox.SelectedItem is StartupDisplayModeOption startupOption
+                ? startupOption.Mode
+                : AppSettings.DefaultStartupDisplayMode;
             PerformanceDiagnosticsEnabled = performanceDiagnosticsCheckBox.Checked;
             ProcessRuntimeTrackingEnabled = processRuntimeTrackingCheckBox.Checked;
             ProcessRuntimeTrackingScope = processRuntimeScopeComboBox.SelectedItem is ProcessRuntimeScopeOption scopeOption
@@ -841,6 +881,8 @@ namespace TimePilot.WinForms
         private sealed record IdleThresholdOption(string Label, int? Minutes);
 
         private sealed record LanguageOption(string Label, UiLanguage Language);
+
+        private sealed record StartupDisplayModeOption(string Label, StartupDisplayMode Mode);
 
         private sealed record ProcessRuntimeScopeOption(string Label, ProcessRuntimeTrackingScope Scope);
 

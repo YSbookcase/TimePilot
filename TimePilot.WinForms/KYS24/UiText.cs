@@ -303,6 +303,9 @@ namespace TimePilot.WinForms.KYS24
             public static string Minutes(int minutes) => current.Preferences.Minutes(minutes);
             public static string Seconds(int seconds) => current.Preferences.Seconds(seconds);
             public static string StartWithWindows => current.Preferences.StartWithWindows;
+            public static string StartupDisplayMode => current.Preferences.StartupDisplayMode;
+            public static string StartupDisplayModeTray => current.Preferences.StartupDisplayModeTray;
+            public static string StartupDisplayModeMainWindow => current.Preferences.StartupDisplayModeMainWindow;
             public static string PerformanceDiagnostics => current.Preferences.PerformanceDiagnostics;
             public static string ProcessRuntimeGroup => current.Preferences.ProcessRuntimeGroup;
             public static string ProcessRuntimeTracking => current.Preferences.ProcessRuntimeTracking;
@@ -706,6 +709,9 @@ namespace TimePilot.WinForms.KYS24
                         Minutes: minutes => $"{minutes}분",
                         Seconds: seconds => $"{seconds}초",
                         StartWithWindows: "Windows 시작 시 자동 실행",
+                        StartupDisplayMode: "자동 시작 화면",
+                        StartupDisplayModeTray: "트레이에서 시작",
+                        StartupDisplayModeMainWindow: "기본 창 열기",
                         PerformanceDiagnostics: "성능 진단 표시",
                         ProcessRuntimeGroup: "백그라운드 앱 추적",
                         ProcessRuntimeTracking: "실행 중 앱 세션 추적",
@@ -1066,6 +1072,9 @@ namespace TimePilot.WinForms.KYS24
                         Minutes: minutes => minutes == 1 ? "1 min" : $"{minutes} min",
                         Seconds: seconds => seconds == 1 ? "1 sec" : $"{seconds} sec",
                         StartWithWindows: "Run when Windows starts",
+                        StartupDisplayMode: "Startup display",
+                        StartupDisplayModeTray: "Start in notification area",
+                        StartupDisplayModeMainWindow: "Open the main window",
                         PerformanceDiagnostics: "Show performance diagnostics",
                         ProcessRuntimeGroup: "Background app tracking",
                         ProcessRuntimeTracking: "Track running app sessions",
@@ -1391,6 +1400,9 @@ namespace TimePilot.WinForms.KYS24
             Func<int, string> Minutes,
             Func<int, string> Seconds,
             string StartWithWindows,
+            string StartupDisplayMode,
+            string StartupDisplayModeTray,
+            string StartupDisplayModeMainWindow,
             string PerformanceDiagnostics,
             string ProcessRuntimeGroup,
             string ProcessRuntimeTracking,

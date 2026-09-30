@@ -11,6 +11,7 @@ namespace TimePilot.WinForms.KYS24
         public const int MaxIdleThresholdMinutes = 60;
         public const bool DefaultProcessRuntimeTrackingEnabled = true;
         public const bool DefaultStartWithWindows = false;
+        public const StartupDisplayMode DefaultStartupDisplayMode = StartupDisplayMode.Tray;
         public const bool DefaultStartupPromptShown = false;
         public const bool DefaultPerformanceDiagnosticsEnabled = false;
         public const bool DefaultAutomaticBackupEnabled = false;
@@ -50,6 +51,8 @@ namespace TimePilot.WinForms.KYS24
         public bool ProcessRuntimeTrackingEnabled { get; set; } = DefaultProcessRuntimeTrackingEnabled;
 
         public bool StartWithWindows { get; set; } = DefaultStartWithWindows;
+
+        public StartupDisplayMode StartupDisplayMode { get; set; } = DefaultStartupDisplayMode;
 
         public bool StartupPromptShown { get; set; } = DefaultStartupPromptShown;
 
@@ -162,6 +165,7 @@ namespace TimePilot.WinForms.KYS24
                 settings.ProcessRuntimeTrackingEnabled = persisted?.ProcessRuntimeTrackingEnabled
                     ?? DefaultProcessRuntimeTrackingEnabled;
                 settings.StartWithWindows = persisted?.StartWithWindows ?? DefaultStartWithWindows;
+                settings.StartupDisplayMode = NormalizeStartupDisplayMode(persisted?.StartupDisplayMode);
                 settings.StartupPromptShown = persisted?.StartupPromptShown ?? DefaultStartupPromptShown;
                 settings.PerformanceDiagnosticsEnabled = persisted?.PerformanceDiagnosticsEnabled
                     ?? DefaultPerformanceDiagnosticsEnabled;
@@ -223,6 +227,7 @@ namespace TimePilot.WinForms.KYS24
                 settings.IdleThresholdMinutes = DefaultIdleThresholdMinutes;
                 settings.ProcessRuntimeTrackingEnabled = DefaultProcessRuntimeTrackingEnabled;
                 settings.StartWithWindows = DefaultStartWithWindows;
+                settings.StartupDisplayMode = DefaultStartupDisplayMode;
                 settings.StartupPromptShown = DefaultStartupPromptShown;
                 settings.PerformanceDiagnosticsEnabled = DefaultPerformanceDiagnosticsEnabled;
                 settings.AutomaticBackupEnabled = DefaultAutomaticBackupEnabled;
@@ -274,6 +279,7 @@ namespace TimePilot.WinForms.KYS24
             {
                 IdleThresholdMinutes = NormalizeIdleThresholdMinutes(IdleThresholdMinutes),
                 StartWithWindows = StartWithWindows,
+                StartupDisplayMode = NormalizeStartupDisplayMode(StartupDisplayMode),
                 StartupPromptShown = StartupPromptShown,
                 PerformanceDiagnosticsEnabled = PerformanceDiagnosticsEnabled,
                 AutomaticBackupEnabled = AutomaticBackupEnabled,
@@ -325,6 +331,7 @@ namespace TimePilot.WinForms.KYS24
             };
             IdleThresholdMinutes = persisted.IdleThresholdMinutes;
             StartWithWindows = persisted.StartWithWindows;
+            StartupDisplayMode = persisted.StartupDisplayMode;
             StartupPromptShown = persisted.StartupPromptShown;
             PerformanceDiagnosticsEnabled = persisted.PerformanceDiagnosticsEnabled;
             AutomaticBackupEnabled = persisted.AutomaticBackupEnabled;
@@ -414,6 +421,12 @@ namespace TimePilot.WinForms.KYS24
         {
             await WindowsStartupRegistration.SetEnabledAsync(isEnabled);
             StartWithWindows = isEnabled;
+            Save();
+        }
+
+        public void SetStartupDisplayMode(StartupDisplayMode displayMode)
+        {
+            StartupDisplayMode = NormalizeStartupDisplayMode(displayMode);
             Save();
         }
 
@@ -674,11 +687,20 @@ namespace TimePilot.WinForms.KYS24
             ProcessRuntimeRiskAcceptedAt = null;
         }
 
+        private static StartupDisplayMode NormalizeStartupDisplayMode(StartupDisplayMode? displayMode)
+        {
+            return displayMode is StartupDisplayMode.Tray or StartupDisplayMode.MainWindow
+                ? displayMode.Value
+                : DefaultStartupDisplayMode;
+        }
+
         private sealed class PersistedSettings
         {
             public int IdleThresholdMinutes { get; set; } = DefaultIdleThresholdMinutes;
 
             public bool StartWithWindows { get; set; } = DefaultStartWithWindows;
+
+            public StartupDisplayMode StartupDisplayMode { get; set; } = DefaultStartupDisplayMode;
 
             public bool StartupPromptShown { get; set; } = DefaultStartupPromptShown;
 

@@ -73,5 +73,22 @@ namespace TimePilot.Tests
             Assert.True(WindowsStartupRegistration.IsStartupLaunch(["--tray"], null));
             Assert.False(WindowsStartupRegistration.IsStartupLaunch([], null));
         }
+
+        [Theory]
+        [InlineData(false, (int)StartupDisplayMode.Tray, false)]
+        [InlineData(false, (int)StartupDisplayMode.MainWindow, false)]
+        [InlineData(true, (int)StartupDisplayMode.Tray, true)]
+        [InlineData(true, (int)StartupDisplayMode.MainWindow, false)]
+        public void StartupDisplayModeResolver_AppliesOnlyToStartupLaunches(
+            bool isStartupLaunch,
+            int displayModeValue,
+            bool expected)
+        {
+            Assert.Equal(
+                expected,
+                StartupDisplayModeResolver.ShouldStartInTray(
+                    isStartupLaunch,
+                    (StartupDisplayMode)displayModeValue));
+        }
     }
 }

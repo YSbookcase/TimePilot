@@ -46,7 +46,7 @@
             var activationKind = KYS24.WindowsStartupRegistration.IsPackagedApp()
                 ? Windows.ApplicationModel.AppInstance.GetActivatedEventArgs()?.Kind
                 : null;
-            var startInTray = KYS24.WindowsStartupRegistration.IsStartupLaunch(args, activationKind);
+            var isStartupLaunch = KYS24.WindowsStartupRegistration.IsStartupLaunch(args, activationKind);
 
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
@@ -57,7 +57,7 @@
                 createdNew: out var isFirstInstance);
             if (!isFirstInstance)
             {
-                if (!startInTray)
+                if (!isStartupLaunch)
                 {
                     var duplicateInstanceSettings = KYS24.AppSettings.LoadDefault();
                     KYS24.UiText.UseLanguage(duplicateInstanceSettings.UiLanguage);
@@ -73,6 +73,9 @@
 
             var storageBootstrap = KYS24.DataStorageBootstrapper.Prepare();
             var settings = KYS24.AppSettings.LoadDefault();
+            var startInTray = KYS24.StartupDisplayModeResolver.ShouldStartInTray(
+                isStartupLaunch,
+                settings.StartupDisplayMode);
             KYS24.UiText.UseLanguage(settings.UiLanguage);
             KYS24.StartupLaunchDiagnostics.Record("program-entry", new
             {
@@ -80,6 +83,8 @@
                 ActivationKind = activationKind?.ToString(),
                 ArgumentCount = args.Length,
                 HasTrayArgument = args.Contains(KYS24.WindowsStartupRegistration.TrayStartupArgument),
+                IsStartupLaunch = isStartupLaunch,
+                StartupDisplayMode = settings.StartupDisplayMode.ToString(),
                 StartInTray = startInTray,
                 Executable = Application.ExecutablePath,
                 StorageDecision = storageBootstrap.Decision.ToString(),
@@ -108,6 +113,8 @@
             {
                 KYS24.StartupLaunchDiagnostics.Record("application-run-started", new
                 {
+                    IsStartupLaunch = isStartupLaunch,
+                    StartupDisplayMode = settings.StartupDisplayMode.ToString(),
                     StartInTray = startInTray
                 });
                 Application.Run(mainForm);
