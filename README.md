@@ -1,6 +1,8 @@
 # ActiveLogbook
 A local-first Windows desktop app that helps you understand what you did on your PC and where your time went.
 
+Earlier public test releases used the name `TimePilot`. `ActiveLogbook` is the current public product name for the same project. Some internal project names and the legacy `%LocalAppData%\TimePilot` data folder remain unchanged for compatibility.
+
 ## Official Links
 
 - Website: https://ys-bookcase.com/active-logbook/

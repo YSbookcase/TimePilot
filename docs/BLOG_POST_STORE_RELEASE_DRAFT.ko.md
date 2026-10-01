@@ -9,7 +9,7 @@
 
 - 연결할 과거 글: `[기존 TimePilot 또는 ActiveLogbook 배포 글 제목과 URL]`
 - 다룰 과거 버전 또는 기간: `[GitHub EXE 배포 시작부터 Store 공개 시점까지]`
-- 이어받을 사실: 기존 사용자는 GitHub EXE 또는 portable 배포를 사용했음
+- 이어받을 사실: 기존 사용자는 TimePilot이라는 이름의 GitHub EXE 또는 portable 배포를 사용했음
 - 달라진 내용: 공개 제품명은 ActiveLogbook이며 일반 사용자에게 Microsoft Store를 우선 권장함
 - 이번 글에서 생략할 내용: 과거 핫픽스의 세부 구현과 현재 전환에 필요하지 않은 변경 내역
 - 확인 근거: `[Store 게시 버전, 게시 날짜, 해당 커밋 또는 PR]`
@@ -34,9 +34,19 @@ https://apps.microsoft.com/detail/9NWXBR051GLM
 - 가릴 정보: Microsoft 계정 이름, 이메일, 개인화된 추천 정보
 - 대체 텍스트: Microsoft Store의 ActiveLogbook 제품 페이지]
 
+## 이전 이름은 TimePilot이었습니다
+
+기존 공개 테스트 버전은 `TimePilot`이라는 이름으로 GitHub에서 배포했습니다. `ActiveLogbook`은
+별개의 앱이 아니라 같은 프로젝트의 현재 공개 제품명입니다.
+
+기존 사용자 데이터와의 호환성을 위해 프로젝트 파일, 일부 내부 진단 이름,
+`%LocalAppData%\TimePilot` 데이터 폴더에는 이전 이름이 남아 있을 수 있습니다. 이 이름이 보이더라도
+오류이거나 다른 앱의 데이터라는 뜻은 아닙니다. 데이터 폴더를 임의로 이름 변경하거나 삭제하지
+말고 앱의 백업 및 전환 안내를 이용해 주세요.
+
 ## 기존 EXE 사용자가 전환하기 전에
 
-기존 GitHub EXE 설치판과 Microsoft Store 버전은 별개의 설치입니다. 두 버전은 데이터 폴더와
+기존 TimePilot/ActiveLogbook GitHub EXE 설치판과 Microsoft Store 버전은 별개의 설치입니다. 두 버전은 데이터 폴더와
 Windows 자동 시작 등록이 다를 수 있으므로 바로 기존 앱을 제거하지 마세요.
 
 1. 기존 EXE 버전에서 전체 백업 ZIP을 만듭니다.

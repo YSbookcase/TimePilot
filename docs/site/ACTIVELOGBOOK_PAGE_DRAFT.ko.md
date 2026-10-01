@@ -57,6 +57,10 @@ https://ys-bookcase.com/active-logbook/privacy-policy
 
 ActiveLogbook은 현재 초기 공개 테스트 단계입니다.
 
+기존 공개 테스트 버전은 `TimePilot`이라는 이름으로 배포했습니다. `ActiveLogbook`은 같은
+프로젝트의 현재 공개 제품명이며, 데이터 호환성을 위해 일부 내부 이름과
+`%LocalAppData%\TimePilot` 폴더에는 이전 이름이 남아 있을 수 있습니다.
+
 앱은 실제 사용 가능한 상태로 배포되고 있지만, `v1.0` 이전까지 기능, UI, 데이터 처리 방식이 변경될 수 있습니다.
 
 사용 중 문제가 발생하거나 개선 의견이 있다면 지원 페이지 또는 GitHub Issues를 통해 알려 주세요.

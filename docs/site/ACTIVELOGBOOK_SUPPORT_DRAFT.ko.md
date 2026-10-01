@@ -12,6 +12,10 @@ https://ys-bookcase.com/active-logbook/support
 
 ActiveLogbook 사용 중 문제가 발생했거나 개선 의견이 있다면 아래 경로로 문의할 수 있습니다.
 
+기존 공개 테스트 버전은 `TimePilot`이라는 이름으로 배포했습니다. `ActiveLogbook`은 같은
+프로젝트의 현재 공개 제품명입니다. 호환성을 위해 일부 내부 이름과 데이터 폴더에는 `TimePilot`
+표기가 남아 있을 수 있습니다.
+
 ## 문의 이메일
 
 일반 문의, 개인정보처리방침 관련 문의, Microsoft Store 관련 문의는 다음 이메일로 보내 주세요.
@@ -65,7 +69,8 @@ ActiveLogbook은 현재 초기 공개 테스트 단계이므로, 사용 중인 �
 
 ## 데이터 저장과 삭제
 
-일반 실행 파일의 주요 로컬 데이터는 기본적으로 다음 위치에 저장됩니다.
+일반 실행 파일의 주요 로컬 데이터는 기본적으로 다음 위치에 저장됩니다. 폴더 이름 `TimePilot`은
+이전 제품명과 기존 데이터 호환성을 위해 유지됩니다.
 
 ```text
 %LocalAppData%\TimePilot
