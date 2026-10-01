@@ -5,6 +5,16 @@
 > 실제 WordPress 게시본으로 변환할 때는 `docs/blog/BLOG_POST_STYLE_GUIDE.ko.md`와
 > `docs/blog/WORDPRESS_POST_TEMPLATE.ko.html`을 참조한다.
 
+## 작성 메모 (게시 전 확인하고 제거)
+
+- 연결할 과거 글: `[기존 TimePilot 또는 ActiveLogbook 배포 글 제목과 URL]`
+- 다룰 과거 버전 또는 기간: `[GitHub EXE 배포 시작부터 Store 공개 시점까지]`
+- 이어받을 사실: 기존 사용자는 GitHub EXE 또는 portable 배포를 사용했음
+- 달라진 내용: 공개 제품명은 ActiveLogbook이며 일반 사용자에게 Microsoft Store를 우선 권장함
+- 이번 글에서 생략할 내용: 과거 핫픽스의 세부 구현과 현재 전환에 필요하지 않은 변경 내역
+- 확인 근거: `[Store 게시 버전, 게시 날짜, 해당 커밋 또는 PR]`
+- 사용할 이미지: `[Microsoft Store 제품 페이지 또는 설치 화면, 미정]`
+
 ## ActiveLogbook을 Microsoft Store에서 설치할 수 있습니다
 
 Windows PC 사용 기록을 로컬에서 확인하는 ActiveLogbook을 Microsoft Store에서 설치할 수
