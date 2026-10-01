@@ -8,6 +8,18 @@ A local-first Windows desktop app that helps you understand what you did on your
 - Privacy policy: https://ys-bookcase.com/active-logbook/privacy-policy/
 - Support email: support@ys-bookcase.com
 
+## Install
+
+The Microsoft Store version is the recommended installation for most users. It provides the normal Windows installation and update experience.
+
+- Microsoft Store: https://apps.microsoft.com/detail/9NWXBR051GLM
+
+GitHub Releases may provide a legacy EXE installer or portable archive for offline use, testing, and environments where Microsoft Store is unavailable.
+
+- GitHub Releases: https://github.com/YSbookcase/TimePilot/releases
+
+Do not use the Store, installed EXE, and portable builds at the same time. They can use different data folders and startup registrations. Create a full backup before changing distribution channels, verify the data in the new installation, and only then remove the previous installation.
+
 ## Repository
 
 - GitHub: https://github.com/YSbookcase/TimePilot

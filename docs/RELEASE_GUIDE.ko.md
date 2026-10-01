@@ -20,12 +20,34 @@ MAJOR.MINOR.PATCH
 - `FileVersion`
 - `AssemblyVersion`
 
+## 배포 채널 정책
+
+일반 사용자에게는 Microsoft Store를 기본 설치 경로로 안내한다.
+
+```text
+https://apps.microsoft.com/detail/9NWXBR051GLM
+```
+
+GitHub Release의 EXE 설치 파일과 portable zip은 Microsoft Store를 사용할 수 없는 환경,
+오프라인 설치, 테스트를 위한 보조·레거시 경로로 취급한다. 신규 사용자를 GitHub EXE로 먼저
+유도하지 않는다.
+
+Store, EXE, portable 빌드는 서로 다른 데이터 폴더와 자동 시작 등록을 사용할 수 있다. 배포판
+전환 전에는 전체 백업을 만들고 새 설치에서 데이터를 확인한 뒤 이전 설치를 제거하도록 안내한다.
+두 배포판의 자동 시작을 동시에 켜도록 안내하지 않는다.
+
+Store에 게시된 버전과 Git 태그 및 GitHub Release는 같은 소스 커밋을 가리켜야 한다. Store
+인증과 게시가 확인되기 전에는 해당 버전을 GitHub의 최신 안정 버전으로 선언하지 않는다.
+
 ## 릴리즈 산출물
 
-GitHub Release에는 다음 파일을 첨부한다.
+GitHub Release에 보조 배포 파일을 제공하는 경우 다음 파일을 첨부할 수 있다.
 
-- `TimePilot-<version>-Setup.exe`
-- `TimePilot-<version>-win-x64-portable.zip`
+- `ActiveLogbook-<version>-Setup.exe`
+- `ActiveLogbook-<version>-win-x64-portable.zip`
+
+릴리스 본문에는 Microsoft Store 링크를 먼저 표시하고, EXE와 portable 파일은 보조·레거시
+배포이며 Store 버전과 동시에 사용하지 않아야 한다는 주의를 포함한다.
 
 Inno Setup이 설치되어 있지 않은 환경에서는 portable zip만 생성될 수 있다.
 
