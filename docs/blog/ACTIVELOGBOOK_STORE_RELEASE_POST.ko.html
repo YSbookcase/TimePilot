@@ -1,0 +1,196 @@
+<!--
+게시 제목: ActiveLogbook을 Microsoft Store에서 설치할 수 있습니다
+권장 슬러그: active-logbook-microsoft-store-release
+확인된 공개 버전: v0.2.15
+작성 메모와 이미지 안내 주석은 게시 전에 검토하고, 실제 본문에 불필요한 주석은 제거한다.
+-->
+
+<!-- wp:separator {"className":"is-style-wide","backgroundColor":"black"} -->
+<hr class="wp-block-separator has-text-color has-black-color has-alpha-channel-opacity has-black-background-color has-background is-style-wide"/>
+<!-- /wp:separator -->
+
+<!-- wp:luckywp/tableofcontents /-->
+
+<!-- wp:separator {"className":"is-style-wide","backgroundColor":"black"} -->
+<hr class="wp-block-separator has-text-color has-black-color has-alpha-channel-opacity has-black-background-color has-background is-style-wide"/>
+<!-- /wp:separator -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">1. ActiveLogbook Microsoft Store 공개</h2>
+<!-- /wp:heading -->
+
+<!-- wp:separator {"className":"is-style-wide","backgroundColor":"black"} -->
+<hr class="wp-block-separator has-text-color has-black-color has-alpha-channel-opacity has-black-background-color has-background is-style-wide"/>
+<!-- /wp:separator -->
+
+<!-- wp:paragraph -->
+<p>안녕하세요 반갑습니다. YS의 책장의 YS입니다.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Windows PC 사용 기록을 로컬에서 확인하는 ActiveLogbook을 이제 Microsoft Store에서 설치할 수 있습니다. 최신 공개 버전은 <code>v0.2.15</code>이며, 현재 초기 공개 테스트 단계로 제공하고 있습니다.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Microsoft Store 버전은 Windows의 일반적인 설치와 업데이트 흐름을 사용합니다. 처음 설치하는 사용자에게는 Microsoft Store 버전을 권장합니다.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Microsoft Store: <a href="https://apps.microsoft.com/detail/9NWXBR051GLM" target="_blank" rel="noreferrer noopener">https://apps.microsoft.com/detail/9NWXBR051GLM</a></p>
+<!-- /wp:paragraph -->
+
+<!-- 이미지 삽입 1
+목적: Store에서 실제 제품을 찾고 설치할 수 있음을 보여 주기
+화면: Microsoft Store의 ActiveLogbook 제품 페이지
+촬영 상태: 최신 공개 버전과 설치 또는 열기 버튼이 보이는 상태
+가릴 정보: Microsoft 계정 이름, 이메일, 개인화된 추천 정보
+대체 텍스트: Microsoft Store의 ActiveLogbook 제품 페이지
+-->
+
+<!-- wp:heading {"level":3} -->
+<h3 class="wp-block-heading">1.1. 이전 이름은 TimePilot이었습니다</h3>
+<!-- /wp:heading -->
+
+<!-- wp:separator {"className":"is-style-wide","backgroundColor":"black"} -->
+<hr class="wp-block-separator has-text-color has-black-color has-alpha-channel-opacity has-black-background-color has-background is-style-wide"/>
+<!-- /wp:separator -->
+
+<!-- wp:paragraph -->
+<p>기존 공개 테스트 버전은 <code>TimePilot</code>이라는 이름으로 GitHub에서 배포했습니다. <code>ActiveLogbook</code>은 별개의 앱이 아니라 같은 프로젝트의 현재 공개 제품명입니다.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>기존 사용자 데이터와의 호환성을 위해 프로젝트 파일, 일부 내부 진단 이름, <code>%LocalAppData%\TimePilot</code> 데이터 폴더에는 이전 이름이 남아 있을 수 있습니다. 이 이름이 보이더라도 오류이거나 다른 앱의 데이터라는 뜻은 아닙니다. 데이터 폴더를 임의로 이름 변경하거나 삭제하지 마세요.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 class="wp-block-heading">1.2. 기존 EXE 사용자가 전환하기 전에</h3>
+<!-- /wp:heading -->
+
+<!-- wp:separator {"className":"is-style-wide","backgroundColor":"black"} -->
+<hr class="wp-block-separator has-text-color has-black-color has-alpha-channel-opacity has-black-background-color has-background is-style-wide"/>
+<!-- /wp:separator -->
+
+<!-- wp:paragraph -->
+<p>기존 TimePilot 또는 ActiveLogbook GitHub EXE 설치판과 Microsoft Store 버전은 별개의 설치입니다. 두 버전은 데이터 폴더와 Windows 자동 시작 등록이 다를 수 있으므로, Store 설치 직후 기존 앱부터 제거하지 마세요.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:list {"ordered":true} -->
+<ol class="wp-block-list"><!-- wp:list-item -->
+<li>기존 EXE 버전에서 전체 백업 ZIP을 만듭니다.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li>Microsoft Store에서 ActiveLogbook을 설치합니다.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li>Store 버전에서 기존 기록과 설정이 보이는지 확인합니다.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li>필요한 경우 백업 ZIP을 복원하고 결과를 다시 확인합니다.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li>Store 자동 시작이 정상 동작하는지 확인합니다.</li>
+<!-- /wp:list-item -->
+
+<!-- wp:list-item -->
+<li>모든 확인이 끝난 뒤 기존 EXE 설치판을 제거합니다.</li>
+<!-- /wp:list-item --></ol>
+<!-- /wp:list -->
+
+<!-- 이미지 삽입 2
+목적: 현재 설치 유형과 데이터 위치를 앱에서 확인하는 방법 보여 주기
+화면: ActiveLogbook 환경설정의 설치 및 데이터 정보
+촬영 상태: Store 설치 유형과 LocalState 데이터 폴더가 보이는 상태
+가릴 정보: Windows 사용자 이름, 전체 로컬 경로, 개인 사용 기록
+대체 텍스트: ActiveLogbook 설치 및 데이터 정보 화면
+-->
+
+<!-- 이미지 삽입 3
+목적: 전환 전에 전체 백업을 만드는 위치 보여 주기
+화면: ActiveLogbook 환경설정의 전체 백업 기능
+촬영 상태: 백업 버튼과 안내 문구가 보이고 백업 작업은 실행하지 않은 상태
+가릴 정보: 백업 대상 경로, 사용자 이름, 파일 이름에 포함된 개인 정보
+대체 텍스트: ActiveLogbook 전체 백업 설정 화면
+-->
+
+<!-- wp:paragraph -->
+<p>전환 중에는 EXE와 Store 버전의 자동 시작을 동시에 켜지 않는 것이 좋습니다. 앱이 실행 중인 상태에서 데이터베이스 파일을 직접 복사하거나 덮어쓰지 마세요.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading {"level":3} -->
+<h3 class="wp-block-heading">1.3. GitHub 다운로드는 보조 배포로 유지합니다</h3>
+<!-- /wp:heading -->
+
+<!-- wp:separator {"className":"is-style-wide","backgroundColor":"black"} -->
+<hr class="wp-block-separator has-text-color has-black-color has-alpha-channel-opacity has-black-background-color has-background is-style-wide"/>
+<!-- /wp:separator -->
+
+<!-- wp:paragraph -->
+<p>GitHub Releases의 EXE 설치 파일과 portable 압축 파일은 Microsoft Store를 사용할 수 없는 환경, 오프라인 설치 또는 테스트를 위한 보조·레거시 경로로 유지합니다.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>GitHub Releases: <a href="https://github.com/YSbookcase/TimePilot/releases" target="_blank" rel="noreferrer noopener">https://github.com/YSbookcase/TimePilot/releases</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">2. 데이터와 개인정보</h2>
+<!-- /wp:heading -->
+
+<!-- wp:separator {"className":"is-style-wide","backgroundColor":"black"} -->
+<hr class="wp-block-separator has-text-color has-black-color has-alpha-channel-opacity has-black-background-color has-background is-style-wide"/>
+<!-- /wp:separator -->
+
+<!-- wp:paragraph -->
+<p>ActiveLogbook은 앱 사용 기록을 기본적으로 사용자의 PC에 로컬로 저장합니다. 브라우저 방문 기록, URL, 문서명, 창 제목은 기본 동작에서 수집하지 않습니다.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>개인정보처리방침: <a href="https://ys-bookcase.com/active-logbook/privacy-policy/" target="_blank" rel="noreferrer noopener">https://ys-bookcase.com/active-logbook/privacy-policy/</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:heading -->
+<h2 class="wp-block-heading">3. 마무리</h2>
+<!-- /wp:heading -->
+
+<!-- wp:separator {"className":"is-style-wide","backgroundColor":"black"} -->
+<hr class="wp-block-separator has-text-color has-black-color has-alpha-channel-opacity has-black-background-color has-background is-style-wide"/>
+<!-- /wp:separator -->
+
+<!-- wp:paragraph -->
+<p>ActiveLogbook은 아직 초기 공개 테스트 단계입니다. 새로 설치한다면 Microsoft Store 버전을 먼저 이용해 주세요. 기존 EXE 사용자는 전체 백업을 만든 뒤 Store 버전에서 기록과 설정을 확인하면서 전환하는 것을 권장합니다.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>문제가 발생하거나 전환 과정에 도움이 필요하면 지원 페이지를 이용해 주세요.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>지원 안내: <a href="https://ys-bookcase.com/active-logbook/support/" target="_blank" rel="noreferrer noopener">https://ys-bookcase.com/active-logbook/support/</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>GitHub 저장소: <a href="https://github.com/YSbookcase/TimePilot" target="_blank" rel="noreferrer noopener">https://github.com/YSbookcase/TimePilot</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>GitHub Issues: <a href="https://github.com/YSbookcase/TimePilot/issues" target="_blank" rel="noreferrer noopener">https://github.com/YSbookcase/TimePilot/issues</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>후원: <a href="https://github.com/sponsors/YSbookcase" target="_blank" rel="noreferrer noopener">https://github.com/sponsors/YSbookcase</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:separator {"backgroundColor":"black"} -->
+<hr class="wp-block-separator has-text-color has-black-color has-alpha-channel-opacity has-black-background-color has-background"/>
+<!-- /wp:separator -->
+
+<!-- 대표 이미지를 WordPress에 업로드한 뒤 실제 wp:image 블록을 여기에 넣는다. -->
+
+<!-- wp:separator {"backgroundColor":"black"} -->
+<hr class="wp-block-separator has-text-color has-black-color has-alpha-channel-opacity has-black-background-color has-background"/>
+<!-- /wp:separator -->

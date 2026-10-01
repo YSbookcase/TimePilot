@@ -1,6 +1,6 @@
 # ActiveLogbook Microsoft Store 배포 안내 초안
 
-> 게시 전 확인: Store에 표시되는 최신 버전과 게시 날짜를 확인하고 아래 대괄호 항목을 교체한다.
+> 게시 상태 확인: Microsoft Store에서 `v0.2.15` 공개를 확인했습니다(2026-10-01).
 >
 > 실제 WordPress 게시본으로 변환할 때는 `docs/blog/BLOG_POST_STYLE_GUIDE.ko.md`와
 > `docs/blog/WORDPRESS_POST_TEMPLATE.ko.html`을 참조한다.
@@ -12,13 +12,13 @@
 - 이어받을 사실: 기존 사용자는 TimePilot이라는 이름의 GitHub EXE 또는 portable 배포를 사용했음
 - 달라진 내용: 공개 제품명은 ActiveLogbook이며 일반 사용자에게 Microsoft Store를 우선 권장함
 - 이번 글에서 생략할 내용: 과거 핫픽스의 세부 구현과 현재 전환에 필요하지 않은 변경 내역
-- 확인 근거: `[Store 게시 버전, 게시 날짜, 해당 커밋 또는 PR]`
-- 사용할 이미지: `[Microsoft Store 제품 페이지 또는 설치 화면, 미정]`
+- 확인 근거: Microsoft Store에서 `v0.2.15` 게시 확인(2026-10-01)
+- 사용할 이미지: Microsoft Store 제품 페이지 또는 설치 화면
 
 ## ActiveLogbook을 Microsoft Store에서 설치할 수 있습니다
 
 Windows PC 사용 기록을 로컬에서 확인하는 ActiveLogbook을 Microsoft Store에서 설치할 수
-있습니다. 현재 Store 버전은 초기 공개 테스트 단계이며, 최신 게시 버전은 `[버전]`입니다.
+있습니다. 현재 Store 버전은 초기 공개 테스트 단계이며, 최신 게시 버전은 `v0.2.15`입니다.
 
 Microsoft Store 버전은 Windows의 일반적인 설치와 업데이트 흐름을 사용합니다. 처음 설치하는
 사용자에게는 Store 버전을 권장합니다.
