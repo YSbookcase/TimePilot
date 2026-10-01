@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.1.0",
+    [string]$Version = "0.2.3",
     [string]$Runtime = "win-x64",
     [switch]$SkipInstaller
 )
@@ -10,7 +10,7 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $projectPath = Join-Path $repoRoot "TimePilot.WinForms\TimePilot.WinForms.csproj"
 $artifactsPath = Join-Path $repoRoot "artifacts\release"
 $publishPath = Join-Path $artifactsPath "publish\$Runtime"
-$zipPath = Join-Path $artifactsPath "TimePilot-$Version-$Runtime-portable.zip"
+$zipPath = Join-Path $artifactsPath "ActiveLogbook-$Version-$Runtime-portable.zip"
 $installerScriptPath = Join-Path $repoRoot "installer\windows\TimePilot.iss"
 
 New-Item -ItemType Directory -Force -Path $artifactsPath | Out-Null

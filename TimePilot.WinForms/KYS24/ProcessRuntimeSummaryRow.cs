@@ -5,9 +5,13 @@ namespace TimePilot.WinForms.KYS24
     internal sealed record ProcessRuntimeSummaryRow(
         long AppId,
         string AppName,
+        string ProcessName,
         string? ExecutablePath,
+        long? PrimaryCategoryId,
+        string? CategoryName,
         long RuntimeMs,
         long ActiveUsageMs,
+        long IdleRecordedMs,
         double? ActualUsageRatio,
         int RuntimeSegmentCount,
         bool HasRunningSession,
@@ -15,11 +19,18 @@ namespace TimePilot.WinForms.KYS24
         bool IsCurrentSessionProcess,
         Image? AppIcon = null,
         DateTimeOffset? FirstObservedAt = null,
-        DateTimeOffset? LastObservedAt = null)
+        DateTimeOffset? LastObservedAt = null,
+        bool IsInCurrentTrackingScope = true)
     {
+        public string CategoryText => string.IsNullOrWhiteSpace(CategoryName)
+            ? UiText.Main.Uncategorized
+            : AppCategoryDisplay.GetDisplayName(CategoryName);
+
         public string RuntimeText => FormatDuration(RuntimeMs);
 
         public string ActiveUsageTimeText => FormatDuration(ActiveUsageMs);
+
+        public string IdleRecordedTimeText => FormatDuration(IdleRecordedMs);
 
         public string ActualUsageRatioText => ActualUsageRatio is null
             ? "-"
@@ -27,7 +38,27 @@ namespace TimePilot.WinForms.KYS24
 
         public string RuntimeSegmentCountText => RuntimeSegmentCount.ToString("N0", CultureInfo.CurrentCulture);
 
-        public string StatusText => HasRunningSession ? "실행 중" : "종료";
+        public string TrackingTypeText
+        {
+            get
+            {
+                if (HasMainWindow)
+                    return UiText.Main.WindowedApp;
+
+                return IsCurrentSessionProcess ? UiText.Main.UserProcess : UiText.Main.AllProcesses;
+            }
+        }
+
+        public string StatusText
+        {
+            get
+            {
+                if (!IsInCurrentTrackingScope)
+                    return UiText.Main.OutsideTrackingScope;
+
+                return HasRunningSession ? UiText.Main.Running : UiText.Main.Ended;
+            }
+        }
 
         public string FirstObservedAtText => FormatTime(FirstObservedAt);
 

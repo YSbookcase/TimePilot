@@ -10,7 +10,7 @@ namespace TimePilot.WinForms.KYS24
             this.storage = storage;
         }
 
-        public void Track(
+        public bool Track(
             IReadOnlyList<RunningProcessSnapshot> processes,
             ProcessRuntimeTrackingScope trackingScope,
             DateTimeOffset observedAt)
@@ -78,6 +78,8 @@ namespace TimePilot.WinForms.KYS24
                     startResult.SessionId,
                     startResult.ProcessName);
             }
+
+            return starts.Count > 0 || endedSessionIds.Count > 0;
         }
 
         public void EndCurrentSessions(DateTimeOffset endedAt)

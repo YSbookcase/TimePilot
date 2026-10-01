@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Drawing;
+using System.Globalization;
 
 namespace TimePilot.WinForms.KYS24
 {
@@ -9,12 +11,31 @@ namespace TimePilot.WinForms.KYS24
         public const int MaxIdleThresholdMinutes = 60;
         public const bool DefaultProcessRuntimeTrackingEnabled = true;
         public const bool DefaultStartWithWindows = false;
+        public const StartupDisplayMode DefaultStartupDisplayMode = StartupDisplayMode.Tray;
         public const bool DefaultStartupPromptShown = false;
+        public const bool DefaultPerformanceDiagnosticsEnabled = false;
+        public const bool DefaultAutomaticBackupEnabled = false;
+        public const int DefaultAutomaticBackupRetentionCount = 14;
+        public const int MinAutomaticBackupRetentionCount = 1;
+        public const int MaxAutomaticBackupRetentionCount = 100;
+        public static UiLanguage DefaultUiLanguage => GetDefaultUiLanguage(CultureInfo.CurrentUICulture);
         public const ProcessRuntimeTrackingScope DefaultProcessRuntimeTrackingScope = ProcessRuntimeTrackingScope.WindowedApps;
         public const int DefaultProcessRuntimeSampleIntervalSeconds = 60;
         public const int MinProcessRuntimeSampleIntervalSeconds = 1;
         public const int MaxProcessRuntimeSampleIntervalSeconds = 3600;
         public const int WarningProcessRuntimeSampleIntervalSeconds = 10;
+        public const int DangerousAllProcessesSampleIntervalSeconds = 10;
+        public const int DangerousUserProcessesSampleIntervalSeconds = 5;
+        public const int DangerousAnyScopeSampleIntervalSeconds = 3;
+        public const int DefaultImportantUnclassifiedActiveMinutes = 5;
+        public const int MinImportantUnclassifiedActiveMinutes = 1;
+        public const int MaxImportantUnclassifiedActiveMinutes = 1440;
+        public const int DefaultImportantUnclassifiedSwitchCount = 3;
+        public const int MinImportantUnclassifiedSwitchCount = 1;
+        public const int MaxImportantUnclassifiedSwitchCount = 1000;
+        public const bool DefaultImportantUnclassifiedIncludeRecommendations = true;
+        public const bool DefaultImportantUnclassifiedVisibleAppsOnly = true;
+        public const bool DefaultImportantUnclassifiedExcludeBackgroundOnly = true;
 
         private readonly string settingsPath;
 
@@ -31,7 +52,27 @@ namespace TimePilot.WinForms.KYS24
 
         public bool StartWithWindows { get; set; } = DefaultStartWithWindows;
 
+        public StartupDisplayMode StartupDisplayMode { get; set; } = DefaultStartupDisplayMode;
+
         public bool StartupPromptShown { get; set; } = DefaultStartupPromptShown;
+
+        public bool PerformanceDiagnosticsEnabled { get; set; } = DefaultPerformanceDiagnosticsEnabled;
+
+        public bool AutomaticBackupEnabled { get; set; } = DefaultAutomaticBackupEnabled;
+
+        public string? AutomaticBackupDirectory { get; set; }
+
+        public int AutomaticBackupRetentionCount { get; set; } = DefaultAutomaticBackupRetentionCount;
+
+        public DateTimeOffset? AutomaticBackupLastSuccessAt { get; set; }
+
+        public string? AutomaticBackupLastPath { get; set; }
+
+        public DateTimeOffset? AutomaticBackupLastFailureAt { get; set; }
+
+        public string? AutomaticBackupLastError { get; set; }
+
+        public UiLanguage UiLanguage { get; set; } = DefaultUiLanguage;
 
         public ProcessRuntimeTrackingScope ProcessRuntimeTrackingScope { get; set; } = DefaultProcessRuntimeTrackingScope;
 
@@ -39,11 +80,79 @@ namespace TimePilot.WinForms.KYS24
 
         public int ProcessRuntimeSampleIntervalMs => ProcessRuntimeSampleIntervalSeconds * 1000;
 
+        public ProcessRuntimeTrackingScope? ApprovedRiskyProcessRuntimeTrackingScope { get; set; }
+
+        public int? ApprovedRiskyProcessRuntimeSampleIntervalSeconds { get; set; }
+
+        public DateTimeOffset? ProcessRuntimeRiskAcceptedAt { get; set; }
+
+        public int? WindowLeft { get; set; }
+
+        public int? WindowTop { get; set; }
+
+        public int? WindowWidth { get; set; }
+
+        public int? WindowHeight { get; set; }
+
+        public bool WindowMaximized { get; set; }
+
+        public string? UsageSortProperty { get; set; }
+
+        public bool? UsageSortDescending { get; set; }
+
+        public string? DailyUsageTrendSortProperty { get; set; }
+
+        public bool? DailyUsageTrendSortDescending { get; set; }
+
+        public string? TimelineSortProperty { get; set; }
+
+        public bool? TimelineSortDescending { get; set; }
+
+        public string? RuntimeSortProperty { get; set; }
+
+        public bool? RuntimeSortDescending { get; set; }
+
+        public string? RuntimeSegmentSortProperty { get; set; }
+
+        public bool? RuntimeSegmentSortDescending { get; set; }
+
+        public Dictionary<string, List<TableColumnLayout>> TableColumnLayouts { get; set; } = new();
+
+        public Dictionary<string, bool> AppCategoryManagementColumnVisibility { get; set; } = new(StringComparer.Ordinal);
+
+        public int ImportantUnclassifiedActiveMinutes { get; set; } =
+            DefaultImportantUnclassifiedActiveMinutes;
+
+        public int ImportantUnclassifiedActiveMs => ImportantUnclassifiedActiveMinutes * 60 * 1000;
+
+        public int ImportantUnclassifiedSwitchCount { get; set; } =
+            DefaultImportantUnclassifiedSwitchCount;
+
+        public bool ImportantUnclassifiedIncludeRecommendations { get; set; } =
+            DefaultImportantUnclassifiedIncludeRecommendations;
+
+        public bool ImportantUnclassifiedVisibleAppsOnly { get; set; } =
+            DefaultImportantUnclassifiedVisibleAppsOnly;
+
+        public bool ImportantUnclassifiedExcludeBackgroundOnly { get; set; } =
+            DefaultImportantUnclassifiedExcludeBackgroundOnly;
+
+        public bool IsCurrentProcessRuntimeRiskAccepted =>
+            !IsDangerousProcessRuntimeTracking(
+                ProcessRuntimeTrackingEnabled,
+                ProcessRuntimeTrackingScope,
+                ProcessRuntimeSampleIntervalSeconds)
+            || (ProcessRuntimeRiskAcceptedAt is not null
+                && ApprovedRiskyProcessRuntimeTrackingScope == ProcessRuntimeTrackingScope
+                && ApprovedRiskyProcessRuntimeSampleIntervalSeconds == ProcessRuntimeSampleIntervalSeconds);
+
         public static AppSettings LoadDefault()
         {
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var dataDirectory = Path.Combine(appDataPath, "TimePilot");
-            var settingsPath = Path.Combine(dataDirectory, "settings.json");
+            return Load(AppDataPaths.SettingsPath);
+        }
+
+        internal static AppSettings Load(string settingsPath)
+        {
             var settings = new AppSettings(settingsPath);
 
             if (!File.Exists(settingsPath))
@@ -56,20 +165,108 @@ namespace TimePilot.WinForms.KYS24
                 settings.ProcessRuntimeTrackingEnabled = persisted?.ProcessRuntimeTrackingEnabled
                     ?? DefaultProcessRuntimeTrackingEnabled;
                 settings.StartWithWindows = persisted?.StartWithWindows ?? DefaultStartWithWindows;
+                settings.StartupDisplayMode = NormalizeStartupDisplayMode(persisted?.StartupDisplayMode);
                 settings.StartupPromptShown = persisted?.StartupPromptShown ?? DefaultStartupPromptShown;
+                settings.PerformanceDiagnosticsEnabled = persisted?.PerformanceDiagnosticsEnabled
+                    ?? DefaultPerformanceDiagnosticsEnabled;
+                settings.AutomaticBackupEnabled = persisted?.AutomaticBackupEnabled
+                    ?? DefaultAutomaticBackupEnabled;
+                settings.AutomaticBackupDirectory = NormalizeNullableText(persisted?.AutomaticBackupDirectory);
+                settings.AutomaticBackupRetentionCount = Math.Clamp(
+                    persisted?.AutomaticBackupRetentionCount ?? DefaultAutomaticBackupRetentionCount,
+                    MinAutomaticBackupRetentionCount,
+                    MaxAutomaticBackupRetentionCount);
+                settings.AutomaticBackupLastSuccessAt = persisted?.AutomaticBackupLastSuccessAt;
+                settings.AutomaticBackupLastPath = NormalizeNullableText(persisted?.AutomaticBackupLastPath);
+                settings.AutomaticBackupLastFailureAt = persisted?.AutomaticBackupLastFailureAt;
+                settings.AutomaticBackupLastError = NormalizeNullableText(persisted?.AutomaticBackupLastError);
+                settings.UiLanguage = NormalizeUiLanguage(persisted?.UiLanguage);
                 settings.ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(
                     persisted?.ProcessRuntimeTrackingScope);
                 settings.ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
                     persisted?.ProcessRuntimeSampleIntervalSeconds);
+                settings.ApprovedRiskyProcessRuntimeTrackingScope = NormalizeNullableProcessRuntimeTrackingScope(
+                    persisted?.ApprovedRiskyProcessRuntimeTrackingScope);
+                settings.ApprovedRiskyProcessRuntimeSampleIntervalSeconds =
+                    NormalizeNullableProcessRuntimeSampleIntervalSeconds(
+                        persisted?.ApprovedRiskyProcessRuntimeSampleIntervalSeconds);
+                settings.ProcessRuntimeRiskAcceptedAt = persisted?.ProcessRuntimeRiskAcceptedAt;
+                settings.WindowLeft = NormalizeNullableWindowCoordinate(persisted?.WindowLeft);
+                settings.WindowTop = NormalizeNullableWindowCoordinate(persisted?.WindowTop);
+                settings.WindowWidth = NormalizeNullableWindowSize(persisted?.WindowWidth);
+                settings.WindowHeight = NormalizeNullableWindowSize(persisted?.WindowHeight);
+                settings.WindowMaximized = persisted?.WindowMaximized ?? false;
+                settings.UsageSortProperty = NormalizeNullableText(persisted?.UsageSortProperty);
+                settings.UsageSortDescending = persisted?.UsageSortDescending;
+                settings.DailyUsageTrendSortProperty = NormalizeNullableText(persisted?.DailyUsageTrendSortProperty);
+                settings.DailyUsageTrendSortDescending = persisted?.DailyUsageTrendSortDescending;
+                settings.TimelineSortProperty = NormalizeNullableText(persisted?.TimelineSortProperty);
+                settings.TimelineSortDescending = persisted?.TimelineSortDescending;
+                settings.RuntimeSortProperty = NormalizeNullableText(persisted?.RuntimeSortProperty);
+                settings.RuntimeSortDescending = persisted?.RuntimeSortDescending;
+                settings.RuntimeSegmentSortProperty = NormalizeNullableText(persisted?.RuntimeSegmentSortProperty);
+                settings.RuntimeSegmentSortDescending = persisted?.RuntimeSegmentSortDescending;
+                settings.TableColumnLayouts = NormalizeTableColumnLayouts(persisted?.TableColumnLayouts);
+                settings.AppCategoryManagementColumnVisibility =
+                    NormalizeColumnVisibility(persisted?.AppCategoryManagementColumnVisibility);
+                settings.ImportantUnclassifiedActiveMinutes = NormalizeImportantUnclassifiedActiveMinutes(
+                    persisted?.ImportantUnclassifiedActiveMinutes);
+                settings.ImportantUnclassifiedSwitchCount = NormalizeImportantUnclassifiedSwitchCount(
+                    persisted?.ImportantUnclassifiedSwitchCount);
+                settings.ImportantUnclassifiedIncludeRecommendations =
+                    persisted?.ImportantUnclassifiedIncludeRecommendations
+                    ?? DefaultImportantUnclassifiedIncludeRecommendations;
+                settings.ImportantUnclassifiedVisibleAppsOnly = persisted?.ImportantUnclassifiedVisibleAppsOnly
+                    ?? DefaultImportantUnclassifiedVisibleAppsOnly;
+                settings.ImportantUnclassifiedExcludeBackgroundOnly =
+                    persisted?.ImportantUnclassifiedExcludeBackgroundOnly
+                    ?? DefaultImportantUnclassifiedExcludeBackgroundOnly;
             }
             catch
             {
                 settings.IdleThresholdMinutes = DefaultIdleThresholdMinutes;
                 settings.ProcessRuntimeTrackingEnabled = DefaultProcessRuntimeTrackingEnabled;
                 settings.StartWithWindows = DefaultStartWithWindows;
+                settings.StartupDisplayMode = DefaultStartupDisplayMode;
                 settings.StartupPromptShown = DefaultStartupPromptShown;
+                settings.PerformanceDiagnosticsEnabled = DefaultPerformanceDiagnosticsEnabled;
+                settings.AutomaticBackupEnabled = DefaultAutomaticBackupEnabled;
+                settings.AutomaticBackupDirectory = null;
+                settings.AutomaticBackupRetentionCount = DefaultAutomaticBackupRetentionCount;
+                settings.AutomaticBackupLastSuccessAt = null;
+                settings.AutomaticBackupLastPath = null;
+                settings.AutomaticBackupLastFailureAt = null;
+                settings.AutomaticBackupLastError = null;
+                settings.UiLanguage = DefaultUiLanguage;
                 settings.ProcessRuntimeTrackingScope = DefaultProcessRuntimeTrackingScope;
                 settings.ProcessRuntimeSampleIntervalSeconds = DefaultProcessRuntimeSampleIntervalSeconds;
+                settings.ApprovedRiskyProcessRuntimeTrackingScope = null;
+                settings.ApprovedRiskyProcessRuntimeSampleIntervalSeconds = null;
+                settings.ProcessRuntimeRiskAcceptedAt = null;
+                settings.WindowLeft = null;
+                settings.WindowTop = null;
+                settings.WindowWidth = null;
+                settings.WindowHeight = null;
+                settings.WindowMaximized = false;
+                settings.UsageSortProperty = null;
+                settings.UsageSortDescending = null;
+                settings.DailyUsageTrendSortProperty = null;
+                settings.DailyUsageTrendSortDescending = null;
+                settings.TimelineSortProperty = null;
+                settings.TimelineSortDescending = null;
+                settings.RuntimeSortProperty = null;
+                settings.RuntimeSortDescending = null;
+                settings.RuntimeSegmentSortProperty = null;
+                settings.RuntimeSegmentSortDescending = null;
+                settings.TableColumnLayouts = new Dictionary<string, List<TableColumnLayout>>();
+                settings.AppCategoryManagementColumnVisibility = new Dictionary<string, bool>(StringComparer.Ordinal);
+                settings.ImportantUnclassifiedActiveMinutes = DefaultImportantUnclassifiedActiveMinutes;
+                settings.ImportantUnclassifiedSwitchCount = DefaultImportantUnclassifiedSwitchCount;
+                settings.ImportantUnclassifiedIncludeRecommendations =
+                    DefaultImportantUnclassifiedIncludeRecommendations;
+                settings.ImportantUnclassifiedVisibleAppsOnly = DefaultImportantUnclassifiedVisibleAppsOnly;
+                settings.ImportantUnclassifiedExcludeBackgroundOnly =
+                    DefaultImportantUnclassifiedExcludeBackgroundOnly;
             }
 
             return settings;
@@ -82,18 +279,98 @@ namespace TimePilot.WinForms.KYS24
             {
                 IdleThresholdMinutes = NormalizeIdleThresholdMinutes(IdleThresholdMinutes),
                 StartWithWindows = StartWithWindows,
+                StartupDisplayMode = NormalizeStartupDisplayMode(StartupDisplayMode),
                 StartupPromptShown = StartupPromptShown,
+                PerformanceDiagnosticsEnabled = PerformanceDiagnosticsEnabled,
+                AutomaticBackupEnabled = AutomaticBackupEnabled,
+                AutomaticBackupDirectory = NormalizeNullableText(AutomaticBackupDirectory),
+                AutomaticBackupRetentionCount = Math.Clamp(
+                    AutomaticBackupRetentionCount,
+                    MinAutomaticBackupRetentionCount,
+                    MaxAutomaticBackupRetentionCount),
+                AutomaticBackupLastSuccessAt = AutomaticBackupLastSuccessAt,
+                AutomaticBackupLastPath = NormalizeNullableText(AutomaticBackupLastPath),
+                AutomaticBackupLastFailureAt = AutomaticBackupLastFailureAt,
+                AutomaticBackupLastError = NormalizeNullableText(AutomaticBackupLastError),
+                UiLanguage = NormalizeUiLanguage(UiLanguage),
                 ProcessRuntimeTrackingEnabled = ProcessRuntimeTrackingEnabled,
                 ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(ProcessRuntimeTrackingScope),
                 ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
-                    ProcessRuntimeSampleIntervalSeconds)
+                    ProcessRuntimeSampleIntervalSeconds),
+                ApprovedRiskyProcessRuntimeTrackingScope = NormalizeNullableProcessRuntimeTrackingScope(
+                    ApprovedRiskyProcessRuntimeTrackingScope),
+                ApprovedRiskyProcessRuntimeSampleIntervalSeconds =
+                    NormalizeNullableProcessRuntimeSampleIntervalSeconds(
+                        ApprovedRiskyProcessRuntimeSampleIntervalSeconds),
+                ProcessRuntimeRiskAcceptedAt = ProcessRuntimeRiskAcceptedAt,
+                WindowLeft = NormalizeNullableWindowCoordinate(WindowLeft),
+                WindowTop = NormalizeNullableWindowCoordinate(WindowTop),
+                WindowWidth = NormalizeNullableWindowSize(WindowWidth),
+                WindowHeight = NormalizeNullableWindowSize(WindowHeight),
+                WindowMaximized = WindowMaximized,
+                UsageSortProperty = NormalizeNullableText(UsageSortProperty),
+                UsageSortDescending = UsageSortDescending,
+                DailyUsageTrendSortProperty = NormalizeNullableText(DailyUsageTrendSortProperty),
+                DailyUsageTrendSortDescending = DailyUsageTrendSortDescending,
+                TimelineSortProperty = NormalizeNullableText(TimelineSortProperty),
+                TimelineSortDescending = TimelineSortDescending,
+                RuntimeSortProperty = NormalizeNullableText(RuntimeSortProperty),
+                RuntimeSortDescending = RuntimeSortDescending,
+                RuntimeSegmentSortProperty = NormalizeNullableText(RuntimeSegmentSortProperty),
+                RuntimeSegmentSortDescending = RuntimeSegmentSortDescending,
+                TableColumnLayouts = NormalizeTableColumnLayouts(TableColumnLayouts),
+                AppCategoryManagementColumnVisibility =
+                    NormalizeColumnVisibility(AppCategoryManagementColumnVisibility),
+                ImportantUnclassifiedActiveMinutes = NormalizeImportantUnclassifiedActiveMinutes(
+                    ImportantUnclassifiedActiveMinutes),
+                ImportantUnclassifiedSwitchCount = NormalizeImportantUnclassifiedSwitchCount(
+                    ImportantUnclassifiedSwitchCount),
+                ImportantUnclassifiedIncludeRecommendations = ImportantUnclassifiedIncludeRecommendations,
+                ImportantUnclassifiedVisibleAppsOnly = ImportantUnclassifiedVisibleAppsOnly,
+                ImportantUnclassifiedExcludeBackgroundOnly = ImportantUnclassifiedExcludeBackgroundOnly
             };
             IdleThresholdMinutes = persisted.IdleThresholdMinutes;
             StartWithWindows = persisted.StartWithWindows;
+            StartupDisplayMode = persisted.StartupDisplayMode;
             StartupPromptShown = persisted.StartupPromptShown;
+            PerformanceDiagnosticsEnabled = persisted.PerformanceDiagnosticsEnabled;
+            AutomaticBackupEnabled = persisted.AutomaticBackupEnabled;
+            AutomaticBackupDirectory = persisted.AutomaticBackupDirectory;
+            AutomaticBackupRetentionCount = persisted.AutomaticBackupRetentionCount;
+            AutomaticBackupLastSuccessAt = persisted.AutomaticBackupLastSuccessAt;
+            AutomaticBackupLastPath = persisted.AutomaticBackupLastPath;
+            AutomaticBackupLastFailureAt = persisted.AutomaticBackupLastFailureAt;
+            AutomaticBackupLastError = persisted.AutomaticBackupLastError;
+            UiLanguage = persisted.UiLanguage;
             ProcessRuntimeTrackingEnabled = persisted.ProcessRuntimeTrackingEnabled;
             ProcessRuntimeTrackingScope = persisted.ProcessRuntimeTrackingScope;
             ProcessRuntimeSampleIntervalSeconds = persisted.ProcessRuntimeSampleIntervalSeconds;
+            ApprovedRiskyProcessRuntimeTrackingScope = persisted.ApprovedRiskyProcessRuntimeTrackingScope;
+            ApprovedRiskyProcessRuntimeSampleIntervalSeconds =
+                persisted.ApprovedRiskyProcessRuntimeSampleIntervalSeconds;
+            ProcessRuntimeRiskAcceptedAt = persisted.ProcessRuntimeRiskAcceptedAt;
+            WindowLeft = persisted.WindowLeft;
+            WindowTop = persisted.WindowTop;
+            WindowWidth = persisted.WindowWidth;
+            WindowHeight = persisted.WindowHeight;
+            WindowMaximized = persisted.WindowMaximized;
+            UsageSortProperty = persisted.UsageSortProperty;
+            UsageSortDescending = persisted.UsageSortDescending;
+            DailyUsageTrendSortProperty = persisted.DailyUsageTrendSortProperty;
+            DailyUsageTrendSortDescending = persisted.DailyUsageTrendSortDescending;
+            TimelineSortProperty = persisted.TimelineSortProperty;
+            TimelineSortDescending = persisted.TimelineSortDescending;
+            RuntimeSortProperty = persisted.RuntimeSortProperty;
+            RuntimeSortDescending = persisted.RuntimeSortDescending;
+            RuntimeSegmentSortProperty = persisted.RuntimeSegmentSortProperty;
+            RuntimeSegmentSortDescending = persisted.RuntimeSegmentSortDescending;
+            TableColumnLayouts = persisted.TableColumnLayouts;
+            AppCategoryManagementColumnVisibility = persisted.AppCategoryManagementColumnVisibility;
+            ImportantUnclassifiedActiveMinutes = persisted.ImportantUnclassifiedActiveMinutes;
+            ImportantUnclassifiedSwitchCount = persisted.ImportantUnclassifiedSwitchCount;
+            ImportantUnclassifiedIncludeRecommendations = persisted.ImportantUnclassifiedIncludeRecommendations;
+            ImportantUnclassifiedVisibleAppsOnly = persisted.ImportantUnclassifiedVisibleAppsOnly;
+            ImportantUnclassifiedExcludeBackgroundOnly = persisted.ImportantUnclassifiedExcludeBackgroundOnly;
 
             File.WriteAllText(
                 settingsPath,
@@ -109,27 +386,153 @@ namespace TimePilot.WinForms.KYS24
         public void SetProcessRuntimeTracking(
             bool isEnabled,
             ProcessRuntimeTrackingScope scope,
-            int sampleIntervalSeconds)
+            int sampleIntervalSeconds,
+            bool riskAccepted = false)
         {
             ProcessRuntimeTrackingEnabled = isEnabled;
             ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(scope);
             ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(sampleIntervalSeconds);
+            if (IsDangerousProcessRuntimeTracking(
+                    ProcessRuntimeTrackingEnabled,
+                    ProcessRuntimeTrackingScope,
+                    ProcessRuntimeSampleIntervalSeconds)
+                && riskAccepted)
+            {
+                ApprovedRiskyProcessRuntimeTrackingScope = ProcessRuntimeTrackingScope;
+                ApprovedRiskyProcessRuntimeSampleIntervalSeconds = ProcessRuntimeSampleIntervalSeconds;
+                ProcessRuntimeRiskAcceptedAt = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                ClearProcessRuntimeRiskAcceptance();
+            }
+
             Save();
         }
 
-        public void SetStartWithWindows(bool isEnabled)
+        public void DisableProcessRuntimeTrackingForSafeMode()
         {
-            WindowsStartupRegistration.SetEnabled(isEnabled);
+            ProcessRuntimeTrackingEnabled = false;
+            ClearProcessRuntimeRiskAcceptance();
+            Save();
+        }
+
+        public async Task SetStartWithWindowsAsync(bool isEnabled)
+        {
+            await WindowsStartupRegistration.SetEnabledAsync(isEnabled);
             StartWithWindows = isEnabled;
             Save();
         }
 
-        public void SetStartupPromptResult(bool startWithWindows)
+        public void SetStartupDisplayMode(StartupDisplayMode displayMode)
         {
-            WindowsStartupRegistration.SetEnabled(startWithWindows);
+            StartupDisplayMode = NormalizeStartupDisplayMode(displayMode);
+            Save();
+        }
+
+        public async Task SetStartupPromptResultAsync(bool startWithWindows)
+        {
+            await WindowsStartupRegistration.SetEnabledAsync(startWithWindows);
             StartWithWindows = startWithWindows;
             StartupPromptShown = true;
             Save();
+        }
+
+        public void MarkStartupPromptShown()
+        {
+            StartupPromptShown = true;
+            Save();
+        }
+
+        public void SetPerformanceDiagnosticsEnabled(bool isEnabled)
+        {
+            PerformanceDiagnosticsEnabled = isEnabled;
+            Save();
+        }
+
+        public void SetAutomaticBackup(bool isEnabled, string? directory, int retentionCount)
+        {
+            AutomaticBackupEnabled = isEnabled;
+            AutomaticBackupDirectory = NormalizeNullableText(directory);
+            AutomaticBackupRetentionCount = Math.Clamp(
+                retentionCount,
+                MinAutomaticBackupRetentionCount,
+                MaxAutomaticBackupRetentionCount);
+            Save();
+        }
+
+        public void RecordAutomaticBackupSuccess(DateTimeOffset completedAt, string backupPath)
+        {
+            AutomaticBackupLastSuccessAt = completedAt;
+            AutomaticBackupLastPath = backupPath;
+            AutomaticBackupLastFailureAt = null;
+            AutomaticBackupLastError = null;
+            Save();
+        }
+
+        public void RecordAutomaticBackupFailure(DateTimeOffset failedAt, string error)
+        {
+            AutomaticBackupLastFailureAt = failedAt;
+            AutomaticBackupLastError = error;
+            Save();
+        }
+
+        public void SetUiLanguage(UiLanguage language)
+        {
+            UiLanguage = NormalizeUiLanguage(language);
+            Save();
+        }
+
+        public void SetWindowPlacement(Rectangle normalBounds, bool isMaximized)
+        {
+            WindowLeft = normalBounds.Left;
+            WindowTop = normalBounds.Top;
+            WindowWidth = normalBounds.Width;
+            WindowHeight = normalBounds.Height;
+            WindowMaximized = isMaximized;
+            Save();
+        }
+
+        public void ResetTableSortStates()
+        {
+            UsageSortProperty = null;
+            UsageSortDescending = null;
+            DailyUsageTrendSortProperty = null;
+            DailyUsageTrendSortDescending = null;
+            TimelineSortProperty = null;
+            TimelineSortDescending = null;
+            RuntimeSortProperty = null;
+            RuntimeSortDescending = null;
+            RuntimeSegmentSortProperty = null;
+            RuntimeSegmentSortDescending = null;
+            TableColumnLayouts.Clear();
+            AppCategoryManagementColumnVisibility.Clear();
+            Save();
+        }
+
+        public void SetImportantUnclassifiedCriteria(
+            int activeMinutes,
+            int switchCount,
+            bool includeRecommendations,
+            bool visibleAppsOnly,
+            bool excludeBackgroundOnly)
+        {
+            ImportantUnclassifiedActiveMinutes = NormalizeImportantUnclassifiedActiveMinutes(activeMinutes);
+            ImportantUnclassifiedSwitchCount = NormalizeImportantUnclassifiedSwitchCount(switchCount);
+            ImportantUnclassifiedIncludeRecommendations = includeRecommendations;
+            ImportantUnclassifiedVisibleAppsOnly = visibleAppsOnly;
+            ImportantUnclassifiedExcludeBackgroundOnly = excludeBackgroundOnly;
+            Save();
+        }
+
+        public void ResetImportantUnclassifiedCriteria()
+        {
+            SetImportantUnclassifiedCriteria(
+                DefaultImportantUnclassifiedActiveMinutes,
+                DefaultImportantUnclassifiedSwitchCount,
+                DefaultImportantUnclassifiedIncludeRecommendations,
+                DefaultImportantUnclassifiedVisibleAppsOnly,
+                DefaultImportantUnclassifiedExcludeBackgroundOnly);
         }
 
         private static int NormalizeIdleThresholdMinutes(int? minutes)
@@ -148,6 +551,28 @@ namespace TimePilot.WinForms.KYS24
                 : DefaultProcessRuntimeTrackingScope;
         }
 
+        private static UiLanguage NormalizeUiLanguage(UiLanguage? language)
+        {
+            return Enum.IsDefined(language ?? DefaultUiLanguage)
+                ? language ?? DefaultUiLanguage
+                : DefaultUiLanguage;
+        }
+
+        internal static UiLanguage GetDefaultUiLanguage(CultureInfo culture)
+        {
+            ArgumentNullException.ThrowIfNull(culture);
+
+            return string.Equals(culture.TwoLetterISOLanguageName, "ko", StringComparison.OrdinalIgnoreCase)
+                ? UiLanguage.Korean
+                : UiLanguage.English;
+        }
+
+        private static ProcessRuntimeTrackingScope? NormalizeNullableProcessRuntimeTrackingScope(
+            ProcessRuntimeTrackingScope? scope)
+        {
+            return Enum.IsDefined(scope ?? DefaultProcessRuntimeTrackingScope) ? scope : null;
+        }
+
         private static int NormalizeProcessRuntimeSampleIntervalSeconds(int? seconds)
         {
             return Math.Clamp(
@@ -156,13 +581,146 @@ namespace TimePilot.WinForms.KYS24
                 MaxProcessRuntimeSampleIntervalSeconds);
         }
 
+        private static int NormalizeImportantUnclassifiedActiveMinutes(int? minutes)
+        {
+            return Math.Clamp(
+                minutes ?? DefaultImportantUnclassifiedActiveMinutes,
+                MinImportantUnclassifiedActiveMinutes,
+                MaxImportantUnclassifiedActiveMinutes);
+        }
+
+        private static int NormalizeImportantUnclassifiedSwitchCount(int? count)
+        {
+            return Math.Clamp(
+                count ?? DefaultImportantUnclassifiedSwitchCount,
+                MinImportantUnclassifiedSwitchCount,
+                MaxImportantUnclassifiedSwitchCount);
+        }
+
+        private static int? NormalizeNullableProcessRuntimeSampleIntervalSeconds(int? seconds)
+        {
+            return seconds is null
+                ? null
+                : NormalizeProcessRuntimeSampleIntervalSeconds(seconds);
+        }
+
+        private static int? NormalizeNullableWindowCoordinate(int? value)
+        {
+            return value is null ? null : Math.Clamp(value.Value, -100000, 100000);
+        }
+
+        private static int? NormalizeNullableWindowSize(int? value)
+        {
+            return value is null ? null : Math.Clamp(value.Value, 1, 100000);
+        }
+
+        private static string? NormalizeNullableText(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        private static Dictionary<string, List<TableColumnLayout>> NormalizeTableColumnLayouts(
+            Dictionary<string, List<TableColumnLayout>>? layouts)
+        {
+            if (layouts is null || layouts.Count == 0)
+                return new Dictionary<string, List<TableColumnLayout>>();
+
+            return layouts
+                .Where(x => !string.IsNullOrWhiteSpace(x.Key) && x.Value.Count > 0)
+                .ToDictionary(
+                    x => x.Key.Trim(),
+                    x => x.Value
+                        .Where(column => !string.IsNullOrWhiteSpace(column.Name))
+                        .Select(column => new TableColumnLayout
+                        {
+                            Name = column.Name.Trim(),
+                            DisplayIndex = Math.Clamp(column.DisplayIndex, 0, 1000),
+                            Width = Math.Clamp(column.Width, 1, 10000)
+                        })
+                        .GroupBy(column => column.Name, StringComparer.Ordinal)
+                        .Select(group => group.First())
+                        .OrderBy(column => column.DisplayIndex)
+                        .ToList(),
+                    StringComparer.Ordinal);
+        }
+
+        private static Dictionary<string, bool> NormalizeColumnVisibility(Dictionary<string, bool>? visibility)
+        {
+            if (visibility is null || visibility.Count == 0)
+                return new Dictionary<string, bool>(StringComparer.Ordinal);
+
+            return visibility
+                .Where(x => !string.IsNullOrWhiteSpace(x.Key))
+                .GroupBy(x => x.Key.Trim(), StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.First().Value,
+                    StringComparer.Ordinal);
+        }
+
+        public static bool IsDangerousProcessRuntimeTracking(
+            bool isEnabled,
+            ProcessRuntimeTrackingScope scope,
+            int sampleIntervalSeconds)
+        {
+            if (!isEnabled)
+                return false;
+
+            var normalizedSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(sampleIntervalSeconds);
+            if (normalizedSeconds <= DangerousAnyScopeSampleIntervalSeconds)
+                return true;
+
+            return scope switch
+            {
+                ProcessRuntimeTrackingScope.AllProcesses =>
+                    normalizedSeconds < DangerousAllProcessesSampleIntervalSeconds,
+                ProcessRuntimeTrackingScope.UserProcesses =>
+                    normalizedSeconds <= DangerousUserProcessesSampleIntervalSeconds,
+                _ => false
+            };
+        }
+
+        private void ClearProcessRuntimeRiskAcceptance()
+        {
+            ApprovedRiskyProcessRuntimeTrackingScope = null;
+            ApprovedRiskyProcessRuntimeSampleIntervalSeconds = null;
+            ProcessRuntimeRiskAcceptedAt = null;
+        }
+
+        private static StartupDisplayMode NormalizeStartupDisplayMode(StartupDisplayMode? displayMode)
+        {
+            return displayMode is StartupDisplayMode.Tray or StartupDisplayMode.MainWindow
+                ? displayMode.Value
+                : DefaultStartupDisplayMode;
+        }
+
         private sealed class PersistedSettings
         {
             public int IdleThresholdMinutes { get; set; } = DefaultIdleThresholdMinutes;
 
             public bool StartWithWindows { get; set; } = DefaultStartWithWindows;
 
+            public StartupDisplayMode StartupDisplayMode { get; set; } = DefaultStartupDisplayMode;
+
             public bool StartupPromptShown { get; set; } = DefaultStartupPromptShown;
+
+            public bool PerformanceDiagnosticsEnabled { get; set; } = DefaultPerformanceDiagnosticsEnabled;
+
+            public bool AutomaticBackupEnabled { get; set; } = DefaultAutomaticBackupEnabled;
+
+            public string? AutomaticBackupDirectory { get; set; }
+
+            public int AutomaticBackupRetentionCount { get; set; } = DefaultAutomaticBackupRetentionCount;
+
+            public DateTimeOffset? AutomaticBackupLastSuccessAt { get; set; }
+
+            public string? AutomaticBackupLastPath { get; set; }
+
+            public DateTimeOffset? AutomaticBackupLastFailureAt { get; set; }
+
+            public string? AutomaticBackupLastError { get; set; }
+
+            public UiLanguage UiLanguage { get; set; } = DefaultUiLanguage;
 
             public bool ProcessRuntimeTrackingEnabled { get; set; } = DefaultProcessRuntimeTrackingEnabled;
 
@@ -171,6 +729,70 @@ namespace TimePilot.WinForms.KYS24
 
             public int ProcessRuntimeSampleIntervalSeconds { get; set; } =
                 DefaultProcessRuntimeSampleIntervalSeconds;
+
+            public ProcessRuntimeTrackingScope? ApprovedRiskyProcessRuntimeTrackingScope { get; set; }
+
+            public int? ApprovedRiskyProcessRuntimeSampleIntervalSeconds { get; set; }
+
+            public DateTimeOffset? ProcessRuntimeRiskAcceptedAt { get; set; }
+
+            public int? WindowLeft { get; set; }
+
+            public int? WindowTop { get; set; }
+
+            public int? WindowWidth { get; set; }
+
+            public int? WindowHeight { get; set; }
+
+            public bool WindowMaximized { get; set; }
+
+            public string? UsageSortProperty { get; set; }
+
+            public bool? UsageSortDescending { get; set; }
+
+            public string? DailyUsageTrendSortProperty { get; set; }
+
+            public bool? DailyUsageTrendSortDescending { get; set; }
+
+            public string? TimelineSortProperty { get; set; }
+
+            public bool? TimelineSortDescending { get; set; }
+
+            public string? RuntimeSortProperty { get; set; }
+
+            public bool? RuntimeSortDescending { get; set; }
+
+            public string? RuntimeSegmentSortProperty { get; set; }
+
+            public bool? RuntimeSegmentSortDescending { get; set; }
+
+            public Dictionary<string, List<TableColumnLayout>> TableColumnLayouts { get; set; } = new();
+
+            public Dictionary<string, bool> AppCategoryManagementColumnVisibility { get; set; } = new();
+
+            public int ImportantUnclassifiedActiveMinutes { get; set; } =
+                DefaultImportantUnclassifiedActiveMinutes;
+
+            public int ImportantUnclassifiedSwitchCount { get; set; } =
+                DefaultImportantUnclassifiedSwitchCount;
+
+            public bool ImportantUnclassifiedIncludeRecommendations { get; set; } =
+                DefaultImportantUnclassifiedIncludeRecommendations;
+
+            public bool ImportantUnclassifiedVisibleAppsOnly { get; set; } =
+                DefaultImportantUnclassifiedVisibleAppsOnly;
+
+            public bool ImportantUnclassifiedExcludeBackgroundOnly { get; set; } =
+                DefaultImportantUnclassifiedExcludeBackgroundOnly;
+        }
+
+        public sealed class TableColumnLayout
+        {
+            public string Name { get; set; } = string.Empty;
+
+            public int DisplayIndex { get; set; }
+
+            public int Width { get; set; }
         }
     }
 }

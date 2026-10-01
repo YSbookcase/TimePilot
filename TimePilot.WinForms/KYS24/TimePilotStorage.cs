@@ -1,3 +1,5 @@
+using System.Drawing;
+using System.Globalization;
 using Microsoft.Data.Sqlite;
 
 namespace TimePilot.WinForms.KYS24
@@ -6,8 +8,11 @@ namespace TimePilot.WinForms.KYS24
     {
         private readonly string databasePath;
         private readonly string connectionString;
+        private readonly HashSet<string> appObservationKeys = new(StringComparer.OrdinalIgnoreCase);
         private long? runtimeSessionId;
         private bool disposed;
+        private static readonly TimeSpan CurrentTimelineSessionTolerance = TimeSpan.FromSeconds(5);
+        private static readonly TimeSpan SystemBootTimeTolerance = TimeSpan.FromSeconds(60);
 
         public TimePilotStorage(string databasePath)
         {
@@ -20,18 +25,26 @@ namespace TimePilot.WinForms.KYS24
 
         public static TimePilotStorage CreateDefault()
         {
-            var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var dataDirectory = Path.Combine(appDataPath, "TimePilot");
-            return new TimePilotStorage(Path.Combine(dataDirectory, "timepilot.db"));
+            return new TimePilotStorage(AppDataPaths.DatabasePath);
         }
 
-        public void Initialize(DateTimeOffset now)
+        public void Initialize(DateTimeOffset now, DateTimeOffset systemBootedAt)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(databasePath)!);
 
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText = """
+                CREATE TABLE IF NOT EXISTS app_categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    color TEXT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    is_builtin INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS apps (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     process_name TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -39,8 +52,33 @@ namespace TimePilot.WinForms.KYS24
                     executable_path TEXT NULL,
                     first_seen_at TEXT NOT NULL,
                     last_seen_at TEXT NOT NULL,
+                    primary_category_id INTEGER NULL,
+                    primary_category_source TEXT NOT NULL DEFAULT 'none',
+                    primary_category_updated_at TEXT NULL,
+                    recommended_category_id INTEGER NULL,
+                    recommended_category_reason TEXT NULL,
+                    recommended_category_confidence REAL NULL,
+                    recommended_category_updated_at TEXT NULL,
                     user_alias TEXT NULL,
-                    is_excluded INTEGER NOT NULL DEFAULT 0
+                    is_excluded INTEGER NOT NULL DEFAULT 0,
+                    FOREIGN KEY (primary_category_id) REFERENCES app_categories(id),
+                    FOREIGN KEY (recommended_category_id) REFERENCES app_categories(id)
+                );
+
+                CREATE TABLE IF NOT EXISTS app_observations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_id INTEGER NOT NULL,
+                    process_name TEXT NOT NULL COLLATE NOCASE,
+                    display_name TEXT NOT NULL,
+                    executable_path TEXT NULL,
+                    normalized_executable_path TEXT NULL COLLATE NOCASE,
+                    file_description TEXT NULL,
+                    product_name TEXT NULL,
+                    company_name TEXT NULL,
+                    first_seen_at TEXT NOT NULL,
+                    last_seen_at TEXT NOT NULL,
+                    observed_count INTEGER NOT NULL DEFAULT 1,
+                    FOREIGN KEY (app_id) REFERENCES apps(id)
                 );
 
                 CREATE TABLE IF NOT EXISTS app_runtime_sessions (
@@ -50,6 +88,7 @@ namespace TimePilot.WinForms.KYS24
                     duration_ms INTEGER NULL,
                     last_heartbeat_at TEXT NULL,
                     shutdown_reason TEXT NULL,
+                    system_booted_at TEXT NULL,
                     app_version TEXT NULL
                 );
 
@@ -88,6 +127,16 @@ namespace TimePilot.WinForms.KYS24
                     FOREIGN KEY (app_id) REFERENCES apps(id)
                 );
 
+                CREATE TABLE IF NOT EXISTS system_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    occurred_at TEXT NOT NULL,
+                    app_runtime_session_id INTEGER NULL,
+                    system_booted_at TEXT NULL,
+                    details TEXT NULL,
+                    FOREIGN KEY (app_runtime_session_id) REFERENCES app_runtime_sessions(id)
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_foreground_sessions_started_at
                     ON foreground_sessions(started_at);
 
@@ -102,17 +151,33 @@ namespace TimePilot.WinForms.KYS24
 
                 CREATE INDEX IF NOT EXISTS idx_process_runtime_sessions_process_id
                     ON process_runtime_sessions(process_id);
+
+                CREATE INDEX IF NOT EXISTS idx_system_events_occurred_at
+                    ON system_events(occurred_at);
+
+                CREATE INDEX IF NOT EXISTS idx_app_observations_app_id
+                    ON app_observations(app_id);
+
+                CREATE UNIQUE INDEX IF NOT EXISTS ux_app_observations_identity
+                    ON app_observations(app_id, process_name, COALESCE(normalized_executable_path, ''));
+
                 """;
             command.ExecuteNonQuery();
 
             EnsureAppsColumns(connection);
+            EnsureRuntimeSessionColumns(connection);
             EnsureForegroundSessionColumns(connection);
+            EnsureIdleSessionColumns(connection);
             EnsureProcessRuntimeSessionColumns(connection);
-            MarkUnexpectedRuntimeSessions(now);
+            SeedAppObservationsFromApps(connection);
+            RenameBuiltinAppCategoriesToCanonical(connection, now);
+            SeedDefaultAppCategories(connection, now);
+            MarkUnexpectedRuntimeSessions(now, systemBootedAt);
+            MarkUnexpectedIdleSessions(now);
             MarkUnexpectedProcessRuntimeSessions(now);
         }
 
-        public void BeginRuntimeSession(DateTimeOffset startedAt, string? appVersion)
+        public void BeginRuntimeSession(DateTimeOffset startedAt, DateTimeOffset systemBootedAt, string? appVersion)
         {
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
@@ -121,14 +186,16 @@ namespace TimePilot.WinForms.KYS24
                     started_at,
                     last_heartbeat_at,
                     shutdown_reason,
+                    system_booted_at,
                     app_version
                 )
-                VALUES ($startedAt, $lastHeartbeatAt, $shutdownReason, $appVersion);
+                VALUES ($startedAt, $lastHeartbeatAt, $shutdownReason, $systemBootedAt, $appVersion);
                 SELECT last_insert_rowid();
                 """;
             command.Parameters.AddWithValue("$startedAt", FormatTimestamp(startedAt));
             command.Parameters.AddWithValue("$lastHeartbeatAt", FormatTimestamp(startedAt));
             command.Parameters.AddWithValue("$shutdownReason", "running");
+            command.Parameters.AddWithValue("$systemBootedAt", FormatTimestamp(systemBootedAt));
             command.Parameters.AddWithValue("$appVersion", (object?)appVersion ?? DBNull.Value);
             runtimeSessionId = (long)command.ExecuteScalar()!;
         }
@@ -268,6 +335,11 @@ namespace TimePilot.WinForms.KYS24
         public void EndIdleSession(long sessionId, DateTimeOffset endedAt)
         {
             using var connection = OpenConnection();
+            EndIdleSession(connection, sessionId, endedAt);
+        }
+
+        private void EndIdleSession(SqliteConnection connection, long sessionId, DateTimeOffset endedAt)
+        {
             using var selectCommand = connection.CreateCommand();
             selectCommand.CommandText = """
                 SELECT started_at
@@ -366,6 +438,661 @@ namespace TimePilot.WinForms.KYS24
             EndProcessRuntimeSession(connection, sessionId, endedAt);
         }
 
+        public void RecordSystemEvent(
+            string eventType,
+            DateTimeOffset occurredAt,
+            DateTimeOffset systemBootedAt,
+            string? details)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO system_events (
+                    event_type,
+                    occurred_at,
+                    app_runtime_session_id,
+                    system_booted_at,
+                    details
+                )
+                VALUES ($eventType, $occurredAt, $appRuntimeSessionId, $systemBootedAt, $details);
+                """;
+            command.Parameters.AddWithValue("$eventType", eventType);
+            command.Parameters.AddWithValue("$occurredAt", FormatTimestamp(occurredAt));
+            command.Parameters.AddWithValue("$appRuntimeSessionId", (object?)runtimeSessionId ?? DBNull.Value);
+            command.Parameters.AddWithValue("$systemBootedAt", FormatTimestamp(systemBootedAt));
+            command.Parameters.AddWithValue("$details", (object?)details ?? DBNull.Value);
+            command.ExecuteNonQuery();
+        }
+
+        public void ClearUsageData()
+        {
+            using var connection = OpenConnection();
+            using var transaction = connection.BeginTransaction();
+
+            foreach (var tableName in new[]
+            {
+                "process_runtime_sessions",
+                "system_events",
+                "foreground_sessions",
+                "idle_sessions",
+                "app_runtime_sessions",
+                "app_observations",
+                "apps"
+            })
+            {
+                using var deleteCommand = connection.CreateCommand();
+                deleteCommand.Transaction = transaction;
+                deleteCommand.CommandText = $"DELETE FROM {tableName};";
+                deleteCommand.ExecuteNonQuery();
+            }
+
+            using var sequenceCommand = connection.CreateCommand();
+            sequenceCommand.Transaction = transaction;
+            sequenceCommand.CommandText = """
+                DELETE FROM sqlite_sequence
+                WHERE name IN (
+                    'process_runtime_sessions',
+                    'system_events',
+                    'foreground_sessions',
+                    'idle_sessions',
+                    'app_runtime_sessions',
+                    'app_observations',
+                    'apps'
+                );
+                """;
+            sequenceCommand.ExecuteNonQuery();
+
+            transaction.Commit();
+            appObservationKeys.Clear();
+        }
+
+        public bool HasRecentRepeatedShortUnexpectedRuntimeSessions(int requiredCount, TimeSpan maxDuration)
+        {
+            if (requiredCount <= 0)
+                return false;
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT started_at, ended_at, duration_ms, shutdown_reason
+                FROM app_runtime_sessions
+                WHERE ended_at IS NOT NULL
+                ORDER BY started_at DESC
+                LIMIT $requiredCount;
+                """;
+            command.Parameters.AddWithValue("$requiredCount", requiredCount);
+
+            var matchedCount = 0;
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var shutdownReason = reader.IsDBNull(3) ? null : reader.GetString(3);
+                if (!string.Equals(shutdownReason, "unexpected", StringComparison.OrdinalIgnoreCase))
+                    return false;
+
+                var startedAt = ParseTimestamp(reader.GetString(0));
+                var endedAt = reader.IsDBNull(1) ? startedAt : ParseTimestamp(reader.GetString(1));
+                var durationMs = reader.IsDBNull(2)
+                    ? Math.Max(0, (long)(endedAt - startedAt).TotalMilliseconds)
+                    : reader.GetInt64(2);
+
+                if (durationMs > maxDuration.TotalMilliseconds)
+                    return false;
+
+                matchedCount++;
+            }
+
+            return matchedCount >= requiredCount;
+        }
+
+        public IReadOnlyList<AppRuntimeSessionDiagnostic> GetRecentRuntimeSessionDiagnostics(int limit)
+        {
+            if (limit <= 0)
+                return Array.Empty<AppRuntimeSessionDiagnostic>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT started_at,
+                       ended_at,
+                       last_heartbeat_at,
+                       duration_ms,
+                       shutdown_reason,
+                       system_booted_at,
+                       app_version
+                FROM app_runtime_sessions
+                WHERE ended_at IS NOT NULL
+                ORDER BY started_at DESC
+                LIMIT $limit;
+                """;
+            command.Parameters.AddWithValue("$limit", limit);
+
+            var sessions = new List<AppRuntimeSessionDiagnostic>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                sessions.Add(new AppRuntimeSessionDiagnostic(
+                    ParseTimestamp(reader.GetString(0)),
+                    reader.IsDBNull(1) ? null : ParseTimestamp(reader.GetString(1)),
+                    reader.IsDBNull(2) ? null : ParseTimestamp(reader.GetString(2)),
+                    reader.IsDBNull(3) ? null : reader.GetInt64(3),
+                    reader.IsDBNull(4) ? null : reader.GetString(4),
+                    reader.IsDBNull(5) ? null : ParseTimestamp(reader.GetString(5)),
+                    reader.IsDBNull(6) ? null : reader.GetString(6)));
+            }
+
+            return sessions;
+        }
+
+        public IReadOnlyList<SystemEventDiagnostic> GetRecentSystemEventDiagnostics(int limit)
+        {
+            if (limit <= 0)
+                return Array.Empty<SystemEventDiagnostic>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT occurred_at,
+                       event_type,
+                       details
+                FROM system_events
+                ORDER BY occurred_at DESC
+                LIMIT $limit;
+                """;
+            command.Parameters.AddWithValue("$limit", limit);
+
+            var events = new List<SystemEventDiagnostic>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                events.Add(new SystemEventDiagnostic(
+                    ParseTimestamp(reader.GetString(0)),
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2)));
+            }
+
+            return events;
+        }
+
+        public IReadOnlyList<AppCategoryOption> GetAppCategoryOptions()
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT id, name, color, sort_order, is_builtin
+                FROM app_categories
+                ORDER BY sort_order, name COLLATE NOCASE;
+                """;
+
+            var categories = new List<AppCategoryOption>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                categories.Add(new AppCategoryOption(
+                    reader.GetInt64(0),
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2),
+                    reader.GetInt32(3),
+                    reader.GetInt32(4) != 0));
+            }
+
+            return categories;
+        }
+
+        public IReadOnlyList<AppCategoryEditorRow> GetAppCategoryEditorRows()
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    c.id,
+                    c.name,
+                    c.color,
+                    c.sort_order,
+                    c.is_builtin,
+                    CAST(COUNT(a.id) AS INTEGER) AS app_count
+                FROM app_categories c
+                LEFT JOIN apps a ON a.primary_category_id = c.id
+                GROUP BY c.id, c.name, c.color, c.sort_order, c.is_builtin
+                ORDER BY c.sort_order, c.name COLLATE NOCASE;
+                """;
+
+            var rows = new List<AppCategoryEditorRow>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                rows.Add(new AppCategoryEditorRow(
+                    reader.GetInt64(0),
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2),
+                    reader.GetInt32(3),
+                    reader.GetInt32(4) != 0,
+                    reader.GetInt32(5)));
+            }
+
+            return rows;
+        }
+
+        public long CreateCustomAppCategory(string name, string? color)
+        {
+            var normalizedName = NormalizeAppCategoryName(name);
+            var normalizedColor = NormalizeAppCategoryColor(color);
+            using var connection = OpenConnection();
+            EnsureAppCategoryNameIsUnique(connection, normalizedName, null);
+            var now = FormatTimestamp(DateTimeOffset.UtcNow);
+            var sortOrder = GetNextCustomAppCategorySortOrder(connection);
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO app_categories (
+                    name,
+                    color,
+                    sort_order,
+                    is_builtin,
+                    created_at,
+                    updated_at
+                )
+                VALUES ($name, $color, $sortOrder, 0, $createdAt, $updatedAt)
+                RETURNING id;
+                """;
+            command.Parameters.AddWithValue("$name", normalizedName);
+            command.Parameters.AddWithValue("$color", (object?)normalizedColor ?? DBNull.Value);
+            command.Parameters.AddWithValue("$sortOrder", sortOrder);
+            command.Parameters.AddWithValue("$createdAt", now);
+            command.Parameters.AddWithValue("$updatedAt", now);
+            return (long)command.ExecuteScalar()!;
+        }
+
+        public void UpdateCustomAppCategory(long categoryId, string name, string? color)
+        {
+            var normalizedName = NormalizeAppCategoryName(name);
+            var normalizedColor = NormalizeAppCategoryColor(color);
+            using var connection = OpenConnection();
+            EnsureAppCategoryNameIsUnique(connection, normalizedName, categoryId);
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE app_categories
+                SET name = $name,
+                    color = $color,
+                    updated_at = $updatedAt
+                WHERE id = $categoryId
+                  AND is_builtin = 0;
+                """;
+            command.Parameters.AddWithValue("$name", normalizedName);
+            command.Parameters.AddWithValue("$color", (object?)normalizedColor ?? DBNull.Value);
+            command.Parameters.AddWithValue("$updatedAt", FormatTimestamp(DateTimeOffset.UtcNow));
+            command.Parameters.AddWithValue("$categoryId", categoryId);
+            command.ExecuteNonQuery();
+        }
+
+        public void UpdateAppCategoryColor(long categoryId, string? color)
+        {
+            var normalizedColor = NormalizeAppCategoryColor(color);
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE app_categories
+                SET color = $color,
+                    updated_at = $updatedAt
+                WHERE id = $categoryId;
+                """;
+            command.Parameters.AddWithValue("$color", (object?)normalizedColor ?? DBNull.Value);
+            command.Parameters.AddWithValue("$updatedAt", FormatTimestamp(DateTimeOffset.UtcNow));
+            command.Parameters.AddWithValue("$categoryId", categoryId);
+            command.ExecuteNonQuery();
+        }
+
+        public void DeleteCustomAppCategory(long categoryId)
+        {
+            using var connection = OpenConnection();
+            using var transaction = connection.BeginTransaction();
+
+            using (var clearCommand = connection.CreateCommand())
+            {
+                clearCommand.Transaction = transaction;
+                clearCommand.CommandText = """
+                    UPDATE apps
+                    SET primary_category_id = NULL,
+                        primary_category_source = $categorySource,
+                        primary_category_updated_at = $updatedAt
+                    WHERE primary_category_id = $categoryId
+                      AND EXISTS (
+                          SELECT 1
+                          FROM app_categories c
+                          WHERE c.id = $categoryId
+                            AND c.is_builtin = 0
+                      );
+                    """;
+                clearCommand.Parameters.AddWithValue("$categorySource", AppCategorySource.None);
+                clearCommand.Parameters.AddWithValue("$updatedAt", FormatTimestamp(DateTimeOffset.UtcNow));
+                clearCommand.Parameters.AddWithValue("$categoryId", categoryId);
+                clearCommand.ExecuteNonQuery();
+            }
+
+            using (var deleteCommand = connection.CreateCommand())
+            {
+                deleteCommand.Transaction = transaction;
+                deleteCommand.CommandText = """
+                    DELETE FROM app_categories
+                    WHERE id = $categoryId
+                      AND is_builtin = 0;
+                    """;
+                deleteCommand.Parameters.AddWithValue("$categoryId", categoryId);
+                deleteCommand.ExecuteNonQuery();
+            }
+
+            transaction.Commit();
+        }
+
+        public void SetAppPrimaryCategory(long appId, long? categoryId)
+        {
+            SetAppPrimaryCategory(
+                appId,
+                categoryId,
+                categoryId is null ? AppCategorySource.None : AppCategorySource.User);
+        }
+
+        public void SetAppPrimaryCategory(long appId, long? categoryId, string categorySource)
+        {
+            var normalizedSource = NormalizeAppCategorySource(categorySource, categoryId);
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE apps
+                SET primary_category_id = $categoryId,
+                    primary_category_source = $categorySource,
+                    primary_category_updated_at = $updatedAt
+                WHERE id = $appId;
+                """;
+            command.Parameters.AddWithValue("$categoryId", (object?)categoryId ?? DBNull.Value);
+            command.Parameters.AddWithValue("$categorySource", normalizedSource);
+            command.Parameters.AddWithValue("$updatedAt", FormatTimestamp(DateTimeOffset.UtcNow));
+            command.Parameters.AddWithValue("$appId", appId);
+            command.ExecuteNonQuery();
+        }
+
+        public void SetAppUserAlias(long appId, string? alias)
+        {
+            var normalizedAlias = string.IsNullOrWhiteSpace(alias) ? null : alias.Trim();
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE apps
+                SET user_alias = $userAlias
+                WHERE id = $appId;
+                """;
+            command.Parameters.AddWithValue("$userAlias", (object?)normalizedAlias ?? DBNull.Value);
+            command.Parameters.AddWithValue("$appId", appId);
+            command.ExecuteNonQuery();
+        }
+
+        public IReadOnlyList<AppCategoryManagementRow> GetAppCategoryManagementRows(DateTimeOffset now)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    a.id,
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name),
+                    a.display_name,
+                    a.user_alias,
+                    a.process_name,
+                    a.executable_path,
+                    a.primary_category_id,
+                    c.name,
+                    f.total_active_ms,
+                    f.switch_count,
+                    f.last_observed_at,
+                    r.total_runtime_ms,
+                    r.segment_count,
+                    r.last_observed_at,
+                    r.has_main_window,
+                    r.is_current_session_process,
+                    o.observation_count,
+                    o.path_count,
+                    o.missing_path_count
+                FROM apps a
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
+                LEFT JOIN (
+                    SELECT
+                        app_id,
+                        SUM(MAX(0, CAST((julianday(COALESCE(ended_at, last_observed_at, started_at)) - julianday(started_at)) * 86400000 AS INTEGER))) AS total_active_ms,
+                        COUNT(*) AS switch_count,
+                        MAX(COALESCE(ended_at, last_observed_at, started_at)) AS last_observed_at
+                    FROM foreground_sessions
+                    GROUP BY app_id
+                ) f ON f.app_id = a.id
+                LEFT JOIN (
+                    SELECT
+                        app_id,
+                        SUM(MAX(0, CAST((julianday(COALESCE(ended_at, last_observed_at, started_at)) - julianday(started_at)) * 86400000 AS INTEGER))) AS total_runtime_ms,
+                        COUNT(*) AS segment_count,
+                        MAX(COALESCE(ended_at, last_observed_at, started_at)) AS last_observed_at,
+                        MAX(COALESCE(has_main_window, 0)) AS has_main_window,
+                        MAX(COALESCE(is_current_session_process, 0)) AS is_current_session_process
+                    FROM process_runtime_sessions
+                    GROUP BY app_id
+                ) r ON r.app_id = a.id
+                LEFT JOIN (
+                    SELECT
+                        app_id,
+                        SUM(observed_count) AS observation_count,
+                        COUNT(DISTINCT normalized_executable_path) AS path_count,
+                        SUM(CASE WHEN normalized_executable_path IS NULL OR TRIM(normalized_executable_path) = '' THEN 1 ELSE 0 END) AS missing_path_count
+                    FROM app_observations
+                    GROUP BY app_id
+                ) o ON o.app_id = a.id
+                ORDER BY COALESCE(f.last_observed_at, r.last_observed_at, '') DESC,
+                         COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name) COLLATE NOCASE;
+                """;
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            var rows = new List<AppCategoryManagementRow>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var foregroundLastObservedAt = reader.IsDBNull(10) ? (DateTimeOffset?)null : ParseTimestamp(reader.GetString(10));
+                var runtimeLastObservedAt = reader.IsDBNull(13) ? (DateTimeOffset?)null : ParseTimestamp(reader.GetString(13));
+                var lastObservedAt = MaxNullable(foregroundLastObservedAt, runtimeLastObservedAt);
+
+                rows.Add(new AppCategoryManagementRow(
+                    reader.GetInt64(0),
+                    reader.GetString(1),
+                    reader.GetString(2),
+                    reader.IsDBNull(3) ? null : reader.GetString(3),
+                    reader.GetString(4),
+                    reader.IsDBNull(5) ? null : reader.GetString(5),
+                    reader.IsDBNull(6) ? (long?)null : reader.GetInt64(6),
+                    reader.IsDBNull(7) ? null : reader.GetString(7),
+                    lastObservedAt,
+                    reader.IsDBNull(8) ? 0 : reader.GetInt64(8),
+                    reader.IsDBNull(11) ? 0 : reader.GetInt64(11),
+                    reader.IsDBNull(9) ? 0 : Convert.ToInt32(reader.GetInt64(9)),
+                    reader.IsDBNull(12) ? 0 : Convert.ToInt32(reader.GetInt64(12)),
+                    HasForegroundActivity: !reader.IsDBNull(8) && reader.GetInt64(8) > 0,
+                    HasMainWindow: !reader.IsDBNull(14) && reader.GetInt64(14) != 0,
+                    IsCurrentSessionProcess: !reader.IsDBNull(15) && reader.GetInt64(15) != 0,
+                    HasRuntimeObservation: !reader.IsDBNull(12) && reader.GetInt64(12) > 0,
+                    ObservationCount: reader.IsDBNull(16) ? 0 : Convert.ToInt32(reader.GetInt64(16)),
+                    ObservationPathCount: reader.IsDBNull(17) ? 0 : Convert.ToInt32(reader.GetInt64(17)),
+                    HasMissingObservationPath: !reader.IsDBNull(18) && reader.GetInt64(18) > 0));
+            }
+
+            return rows;
+        }
+
+        public IReadOnlyList<AppIdentityObservationRow> GetAppIdentityObservations(long appId)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    display_name,
+                    process_name,
+                    executable_path,
+                    first_seen_at,
+                    last_seen_at,
+                    observed_count
+                FROM app_observations
+                WHERE app_id = $appId
+                ORDER BY last_seen_at DESC, executable_path COLLATE NOCASE;
+                """;
+            command.Parameters.AddWithValue("$appId", appId);
+
+            var rows = new List<AppIdentityObservationRow>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                rows.Add(new AppIdentityObservationRow(
+                    reader.GetString(0),
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2),
+                    ParseTimestamp(reader.GetString(3)),
+                    ParseTimestamp(reader.GetString(4)),
+                    Convert.ToInt32(reader.GetInt64(5))));
+            }
+
+            return rows;
+        }
+
+        public IReadOnlyList<RawDataExportTable> GetRawDataExportTables()
+        {
+            return
+            [
+                GetRawDataExportTable(
+                    "app_categories",
+                    [
+                        "id",
+                        "name",
+                        "color",
+                        "sort_order",
+                        "is_builtin",
+                        "created_at",
+                        "updated_at"
+                    ]),
+                GetRawDataExportTable(
+                    "apps",
+                    [
+                        "id",
+                        "process_name",
+                        "display_name",
+                        "executable_path",
+                        "first_seen_at",
+                        "last_seen_at",
+                        "primary_category_id",
+                        "primary_category_source",
+                        "primary_category_updated_at",
+                        "recommended_category_id",
+                        "recommended_category_reason",
+                        "recommended_category_confidence",
+                        "recommended_category_updated_at",
+                        "user_alias",
+                        "is_excluded"
+                    ]),
+                GetRawDataExportTable(
+                    "app_observations",
+                    [
+                        "id",
+                        "app_id",
+                        "process_name",
+                        "display_name",
+                        "executable_path",
+                        "normalized_executable_path",
+                        "file_description",
+                        "product_name",
+                        "company_name",
+                        "first_seen_at",
+                        "last_seen_at",
+                        "observed_count"
+                    ]),
+                GetRawDataExportTable(
+                    "app_runtime_sessions",
+                    [
+                        "id",
+                        "started_at",
+                        "ended_at",
+                        "duration_ms",
+                        "last_heartbeat_at",
+                        "shutdown_reason",
+                        "system_booted_at",
+                        "app_version"
+                    ]),
+                GetRawDataExportTable(
+                    "foreground_sessions",
+                    [
+                        "id",
+                        "app_id",
+                        "started_at",
+                        "ended_at",
+                        "duration_ms",
+                        "last_observed_at"
+                    ]),
+                GetRawDataExportTable(
+                    "idle_sessions",
+                    [
+                        "id",
+                        "started_at",
+                        "ended_at",
+                        "duration_ms",
+                        "threshold_ms",
+                        "foreground_app_id"
+                    ]),
+                GetRawDataExportTable(
+                    "process_runtime_sessions",
+                    [
+                        "id",
+                        "app_id",
+                        "process_id",
+                        "started_at",
+                        "ended_at",
+                        "duration_ms",
+                        "first_observed_at",
+                        "last_observed_at",
+                        "tracking_scope",
+                        "has_main_window",
+                        "is_current_session_process"
+                    ]),
+                GetRawDataExportTable(
+                    "system_events",
+                    [
+                        "id",
+                        "event_type",
+                        "occurred_at",
+                        "app_runtime_session_id",
+                        "system_booted_at",
+                        "details"
+                    ])
+            ];
+        }
+
+        private RawDataExportTable GetRawDataExportTable(string tableName, IReadOnlyList<string> columns)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = $"""
+                SELECT {string.Join(", ", columns)}
+                FROM {tableName}
+                ORDER BY id;
+                """;
+
+            var rows = new List<IReadOnlyList<string>>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var row = new string[columns.Count];
+                for (var i = 0; i < columns.Count; i++)
+                {
+                    row[i] = reader.IsDBNull(i)
+                        ? ""
+                        : Convert.ToString(reader.GetValue(i), CultureInfo.InvariantCulture) ?? "";
+                }
+
+                rows.Add(row);
+            }
+
+            return new RawDataExportTable(tableName, $"{tableName}.csv", columns, rows);
+        }
+
         public IReadOnlyList<ProcessRuntimeSessionStartResult> ApplyProcessRuntimeSessionChanges(
             IReadOnlyList<ProcessRuntimeSessionStart> starts,
             IReadOnlyList<ProcessRuntimeSessionUpdate> updates,
@@ -420,75 +1147,204 @@ namespace TimePilot.WinForms.KYS24
         public IReadOnlyList<ForegroundUsageSummary> GetForegroundUsageForDay(DateTimeOffset now)
         {
             var localDayStart = now.ToLocalTime().Date;
-            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
-            var dayEnd = dayStart.AddDays(1);
+            return GetForegroundUsageForDate(localDayStart);
+        }
 
+        public IReadOnlyList<ForegroundUsageSummary> GetForegroundUsageForDate(DateTime localDate)
+        {
+            var (dayStart, dayEnd) = GetLocalDayRange(localDate);
+            return GetForegroundUsageForPeriod(dayStart, dayEnd);
+        }
+
+        public IReadOnlyList<ForegroundUsageSummary> GetForegroundUsageForPeriod(
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd)
+        {
+            return GetForegroundUsageWithDailyTrendForPeriod(periodStart, periodEnd).ForegroundUsage;
+        }
+
+        public ForegroundUsagePeriodSummary GetForegroundUsageWithDailyTrendForPeriod(
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd)
+        {
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT
-                    a.display_name,
+                    a.id,
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name),
+                    a.process_name,
                     a.executable_path,
+                    a.primary_category_id,
+                    c.name,
+                    c.color,
                     fs.started_at,
                     fs.ended_at,
                     fs.last_observed_at
                 FROM foreground_sessions fs
                 INNER JOIN apps a ON a.id = fs.app_id
-                WHERE fs.started_at < $dayEnd
-                  AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $dayStart;
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
+                WHERE fs.started_at < $periodEnd
+                  AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $periodStart;
                 """;
-            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
-            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
 
-            var totals = new Dictionary<string, UsageAggregation>(StringComparer.OrdinalIgnoreCase);
+            var totals = new Dictionary<long, UsageAggregation>();
+            var dailyTotals = new Dictionary<DateTime, DailyUsageTrendAggregation>();
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                var appName = reader.GetString(0);
-                var executablePath = reader.IsDBNull(1) ? null : reader.GetString(1);
-                var startedAt = ParseTimestamp(reader.GetString(2));
-                var endedAt = reader.IsDBNull(3)
-                    ? reader.IsDBNull(4) ? startedAt : ParseTimestamp(reader.GetString(4))
-                    : ParseTimestamp(reader.GetString(3));
-                var effectiveStart = Max(startedAt, dayStart);
-                var effectiveEnd = Min(endedAt, dayEnd);
+                var appId = reader.GetInt64(0);
+                var appName = reader.GetString(1);
+                var processName = reader.GetString(2);
+                var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
+                var primaryCategoryId = reader.IsDBNull(4) ? (long?)null : reader.GetInt64(4);
+                var categoryName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                var categoryColor = reader.IsDBNull(6) ? null : reader.GetString(6);
+                var startedAt = ParseTimestamp(reader.GetString(7));
+                var endedAt = reader.IsDBNull(8)
+                    ? reader.IsDBNull(9) ? startedAt : ParseTimestamp(reader.GetString(9))
+                    : ParseTimestamp(reader.GetString(8));
+                var effectiveStart = Max(startedAt, periodStart);
+                var effectiveEnd = Min(endedAt, periodEnd);
                 var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
                 if (durationMs <= 0)
                     continue;
 
-                if (!totals.TryGetValue(appName, out var aggregation))
+                AddDailyUsageTrend(dailyTotals, appName, effectiveStart, effectiveEnd);
+                if (!totals.TryGetValue(appId, out var aggregation))
                 {
-                    aggregation = new UsageAggregation(effectiveStart, effectiveEnd, executablePath);
-                    totals[appName] = aggregation;
+                    aggregation = new UsageAggregation(
+                        appId,
+                        appName,
+                        processName,
+                        effectiveStart,
+                        effectiveEnd,
+                        executablePath,
+                        primaryCategoryId,
+                        categoryName,
+                        categoryColor);
+                    totals[appId] = aggregation;
                 }
 
                 aggregation.ExecutablePath ??= executablePath;
+                aggregation.PrimaryCategoryId ??= primaryCategoryId;
+                aggregation.CategoryName ??= categoryName;
+                aggregation.CategoryColor ??= categoryColor;
                 aggregation.ActiveUsageMs += durationMs;
                 aggregation.SwitchCount++;
                 aggregation.FirstStartedAt = Min(aggregation.FirstStartedAt, effectiveStart);
                 aggregation.LastObservedAt = Max(aggregation.LastObservedAt, effectiveEnd);
             }
 
-            return totals
+            AddIdleRecordedTimeToUsageAggregations(connection, totals, periodStart, periodEnd, DateTimeOffset.Now);
+
+            return new ForegroundUsagePeriodSummary(
+                totals
                 .Select(x => new ForegroundUsageSummary(
-                    x.Key,
+                    x.Value.AppId,
+                    x.Value.AppName,
+                    x.Value.ProcessName,
                     x.Value.ExecutablePath,
+                    x.Value.PrimaryCategoryId,
+                    x.Value.CategoryName,
+                    x.Value.CategoryColor,
                     x.Value.ActiveUsageMs,
+                    x.Value.IdleRecordedMs,
                     x.Value.SwitchCount,
                     x.Value.FirstStartedAt,
                     x.Value.LastObservedAt))
                 .OrderByDescending(x => x.ActiveUsageMs)
-                .ToList();
+                .ToList(),
+                CreateDailyUsageTrendRows(dailyTotals));
+        }
+
+        public IdleUsageSummary GetIdleUsageForPeriod(DateTimeOffset periodStart, DateTimeOffset periodEnd)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    started_at,
+                    ended_at
+                FROM idle_sessions
+                WHERE started_at < $periodEnd
+                  AND COALESCE(ended_at, $periodEnd) > $periodStart;
+                """;
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
+
+            var idleIntervals = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = ParseTimestamp(reader.GetString(0));
+                var endedAt = reader.IsDBNull(1) ? periodEnd : ParseTimestamp(reader.GetString(1));
+                var effectiveStart = Max(startedAt, periodStart);
+                var effectiveEnd = Min(endedAt, periodEnd);
+                if (effectiveEnd <= effectiveStart)
+                    continue;
+
+                idleIntervals.Add((effectiveStart, effectiveEnd));
+            }
+
+            return new IdleUsageSummary(GetMergedDurationMs(idleIntervals));
+        }
+
+        public IReadOnlyList<DailyUsageTrendRow> GetDailyUsageTrendForPeriod(
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name),
+                    fs.started_at,
+                    fs.ended_at,
+                    fs.last_observed_at
+                FROM foreground_sessions fs
+                INNER JOIN apps a ON a.id = fs.app_id
+                WHERE fs.started_at < $periodEnd
+                  AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $periodStart;
+                """;
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
+
+            var totals = new Dictionary<DateTime, DailyUsageTrendAggregation>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var appName = reader.GetString(0);
+                var startedAt = ParseTimestamp(reader.GetString(1));
+                var endedAt = reader.IsDBNull(2)
+                    ? reader.IsDBNull(3) ? startedAt : ParseTimestamp(reader.GetString(3))
+                    : ParseTimestamp(reader.GetString(2));
+                var effectiveStart = Max(startedAt, periodStart);
+                var effectiveEnd = Min(endedAt, periodEnd);
+                if (effectiveEnd <= effectiveStart)
+                    continue;
+
+                AddDailyUsageTrend(totals, appName, effectiveStart, effectiveEnd);
+            }
+
+            return CreateDailyUsageTrendRows(totals);
         }
 
         public IReadOnlyList<ActivityTimelineRow> GetActivityTimelineForDay(DateTimeOffset now)
         {
             var localDayStart = now.ToLocalTime().Date;
-            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
-            var dayEnd = dayStart.AddDays(1);
+            return GetActivityTimelineForDate(localDayStart, now);
+        }
+
+        public IReadOnlyList<ActivityTimelineRow> GetActivityTimelineForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var (dayStart, dayEnd) = GetLocalDayRange(localDate);
             var rows = new List<ActivityTimelineRow>();
 
             using var connection = OpenConnection();
+            AddUntrackedTimelineRows(connection, rows, dayStart, dayEnd, now);
             AddForegroundTimelineRows(connection, rows, dayStart, dayEnd, now);
             AddIdleTimelineRows(connection, rows, dayStart, dayEnd, now);
 
@@ -497,19 +1353,726 @@ namespace TimePilot.WinForms.KYS24
                 .ToList();
         }
 
-        public IReadOnlyList<ProcessRuntimeSummaryRow> GetProcessRuntimeUsageForDay(DateTimeOffset now)
+        public IReadOnlyList<CategoryTimelineSegment> GetCategoryTimelineSegmentsForDate(
+            DateTime localDate,
+            DateTimeOffset now,
+            TimeSpan bucketSize,
+            bool wholeDay = false)
+        {
+            if (bucketSize <= TimeSpan.Zero && !wholeDay)
+                bucketSize = TimeSpan.FromMinutes(30);
+
+            var (dayStart, dayEnd) = GetLocalDayRange(localDate);
+            if (dayEnd > now)
+                dayEnd = now;
+
+            if (dayEnd <= dayStart)
+                return Array.Empty<CategoryTimelineSegment>();
+
+            if (wholeDay)
+                bucketSize = TimeSpan.FromDays(1);
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    COALESCE(c.name, $uncategorized),
+                    c.color,
+                    COALESCE(NULLIF(a.user_alias, ''), a.display_name, a.process_name),
+                    fs.started_at,
+                    fs.ended_at,
+                    fs.last_observed_at
+                FROM foreground_sessions fs
+                INNER JOIN apps a ON a.id = fs.app_id
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
+                WHERE fs.started_at < $dayEnd
+                  AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $dayStart;
+                """;
+            command.Parameters.AddWithValue("$uncategorized", UiText.Main.Uncategorized);
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            var bucketCount = Math.Max(1, (int)Math.Ceiling(TimeSpan.FromDays(1).TotalMilliseconds / bucketSize.TotalMilliseconds));
+            var buckets = new Dictionary<int, Dictionary<string, CategoryBucketTotal>>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var categoryName = reader.GetString(0);
+                var color = reader.IsDBNull(1) ? null : reader.GetString(1);
+                var appName = reader.GetString(2);
+                var startedAt = ParseTimestamp(reader.GetString(3));
+                var endedAt = reader.IsDBNull(4)
+                    ? reader.IsDBNull(5) ? startedAt : ParseTimestamp(reader.GetString(5))
+                    : ParseTimestamp(reader.GetString(4));
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(endedAt, dayEnd);
+                if (effectiveEnd <= effectiveStart)
+                    continue;
+
+                AddCategoryBucketDurations(
+                    buckets,
+                    dayStart,
+                    bucketSize,
+                    bucketCount,
+                    categoryName,
+                    color,
+                    appName,
+                    effectiveStart,
+                    effectiveEnd);
+            }
+
+            if (wholeDay)
+            {
+                return buckets.TryGetValue(0, out var totals)
+                    ? [CreateWholeDayCategoryTimelineSegment(dayStart, dayEnd, totals)]
+                    : Array.Empty<CategoryTimelineSegment>();
+            }
+
+            return buckets
+                .OrderBy(x => x.Key)
+                .Select(x => CreateCategoryTimelineSegment(dayStart, bucketSize, x.Key, x.Value))
+                .ToList();
+        }
+
+        public bool HasActivityDataForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var (dayStart, dayEnd) = GetLocalDayRange(localDate);
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM foreground_sessions
+                    WHERE started_at < $dayEnd
+                      AND COALESCE(ended_at, last_observed_at, started_at) > $dayStart
+                    LIMIT 1
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM idle_sessions
+                    WHERE started_at < $dayEnd
+                      AND COALESCE(ended_at, started_at) > $dayStart
+                    LIMIT 1
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM app_runtime_sessions
+                    WHERE started_at < $dayEnd
+                      AND COALESCE(ended_at, last_heartbeat_at, $now) > $dayStart
+                    LIMIT 1
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM process_runtime_sessions
+                    WHERE started_at < $dayEnd
+                      AND COALESCE(ended_at, last_observed_at, started_at) > $dayStart
+                    LIMIT 1
+                );
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture) != 0;
+        }
+
+        public IReadOnlyList<DateTime> GetActivityDates(DateTime rangeStart, DateTime rangeEnd, DateTimeOffset now)
+        {
+            var localStart = rangeStart.Date;
+            var localEnd = rangeEnd.Date;
+            var today = now.ToLocalTime().Date;
+            if (localEnd > today.AddDays(1))
+                localEnd = today.AddDays(1);
+
+            if (localEnd <= localStart)
+                return Array.Empty<DateTime>();
+
+            var (periodStart, _) = GetLocalDayRange(localStart);
+            var (_, periodEnd) = GetLocalDayRange(localEnd.AddDays(-1));
+            var dates = new HashSet<DateTime>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT started_at, COALESCE(ended_at, last_observed_at, started_at)
+                FROM foreground_sessions
+                WHERE started_at < $periodEnd
+                  AND COALESCE(ended_at, last_observed_at, started_at) > $periodStart
+                UNION ALL
+                SELECT started_at, COALESCE(ended_at, started_at)
+                FROM idle_sessions
+                WHERE started_at < $periodEnd
+                  AND COALESCE(ended_at, started_at) > $periodStart
+                UNION ALL
+                SELECT started_at, COALESCE(ended_at, last_heartbeat_at, $now)
+                FROM app_runtime_sessions
+                WHERE started_at < $periodEnd
+                  AND COALESCE(ended_at, last_heartbeat_at, $now) > $periodStart
+                UNION ALL
+                SELECT started_at, COALESCE(ended_at, last_observed_at, started_at)
+                FROM process_runtime_sessions
+                WHERE started_at < $periodEnd
+                  AND COALESCE(ended_at, last_observed_at, started_at) > $periodStart;
+                """;
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = ParseTimestamp(reader.GetString(0));
+                var endedAt = ParseTimestamp(reader.GetString(1));
+                AddActivityDates(dates, Max(startedAt, periodStart), Min(endedAt, periodEnd));
+            }
+
+            return dates
+                .Where(date => date >= localStart && date < localEnd)
+                .OrderBy(date => date)
+                .ToList();
+        }
+
+        public RuntimeCoverageSummary GetRuntimeCoverageForDay(DateTimeOffset now)
         {
             var localDayStart = now.ToLocalTime().Date;
             var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
-            var dayEnd = dayStart.AddDays(1);
+            var dayEnd = Min(dayStart.AddDays(1), now);
+            return GetRuntimeCoverageForPeriod(dayStart, dayEnd, now);
+        }
+
+        public RuntimeCoverageSummary GetRuntimeCoverageForPeriod(
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd,
+            DateTimeOffset now)
+        {
+            var effectiveEnd = Min(periodEnd, now);
+            if (effectiveEnd <= periodStart)
+                return new RuntimeCoverageSummary(0, 0, 0, 0, 0, 0, 0, null);
+
+            using var connection = OpenConnection();
+            var runtimeIntervals = MergeIntervals(GetRuntimeIntervalsForPeriod(connection, periodStart, effectiveEnd, now));
+            var windowsRuntimeIntervals = MergeIntervals(GetWindowsRuntimeIntervalsForPeriod(connection, periodStart, effectiveEnd, now));
+            var systemRanges = GetSystemTimelineRangesForPeriod(connection, periodStart, effectiveEnd);
+            var sleepIntervals = MergeIntervals(systemRanges
+                .Where(range => range.RangeType == SystemTimelineRangeType.SleepEstimate)
+                .Select(range => (range.StartedAt, range.EndedAt))
+                .ToList());
+            var lockIntervals = MergeIntervals(systemRanges
+                .Where(range => range.RangeType == SystemTimelineRangeType.LockSession)
+                .Select(range => (range.StartedAt, range.EndedAt))
+                .ToList());
+            var excludedIntervals = MergeIntervals(sleepIntervals.Concat(lockIntervals).ToList());
+            var recordableIntervals = SubtractIntervals(windowsRuntimeIntervals, excludedIntervals);
+            var trackedRecordableIntervals = IntersectIntervals(runtimeIntervals, recordableIntervals);
+            var windowsRuntimeMs = windowsRuntimeIntervals
+                .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
+            var recordableRuntimeMs = recordableIntervals
+                .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
+            var trackedRuntimeMs = trackedRecordableIntervals
+                .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
+            var missingRuntimeMs = Math.Max(0, recordableRuntimeMs - trackedRuntimeMs);
+            var longestMissingRuntimeMs = GetLongestMissingMs(recordableIntervals, trackedRecordableIntervals);
+            var sleepExcludedMs = GetIntersectedDurationMs(windowsRuntimeIntervals, sleepIntervals);
+            var lockExcludedMs = GetIntersectedDurationMs(windowsRuntimeIntervals, lockIntervals);
+            var bootBeforeTimePilotMs = GetBootBeforeTimePilotMs(connection, periodStart, effectiveEnd);
+
+            return new RuntimeCoverageSummary(
+                windowsRuntimeMs,
+                recordableRuntimeMs,
+                trackedRuntimeMs,
+                missingRuntimeMs,
+                longestMissingRuntimeMs,
+                sleepExcludedMs,
+                lockExcludedMs,
+                bootBeforeTimePilotMs);
+        }
+
+        public IReadOnlyList<TimelineRange> GetWindowsRuntimeRangesForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var dayStart = new DateTimeOffset(localDate.Date, TimeZoneInfo.Local.GetUtcOffset(localDate.Date));
+            var dayEndDate = localDate.Date.AddDays(1);
+            var dayEnd = new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate));
+
+            if (dayEnd > now)
+                dayEnd = now;
+
+            if (dayEnd <= dayStart)
+                return Array.Empty<TimelineRange>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT system_booted_at,
+                       started_at,
+                       COALESCE(ended_at, last_heartbeat_at, $now)
+                FROM app_runtime_sessions
+                WHERE COALESCE(system_booted_at, started_at) < $dayEnd
+                  AND COALESCE(ended_at, last_heartbeat_at, $now) > $dayStart
+                ORDER BY COALESCE(system_booted_at, started_at);
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            var intervals = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = reader.IsDBNull(0)
+                    ? ParseTimestamp(reader.GetString(1))
+                    : ParseTimestamp(reader.GetString(0));
+                var endedAt = ParseTimestamp(reader.GetString(2));
+                if (endedAt <= startedAt)
+                    continue;
+
+                intervals.Add((Max(startedAt, dayStart), Min(endedAt, dayEnd)));
+            }
+
+            return MergeIntervals(intervals)
+                .Select(interval => new TimelineRange(interval.Start, interval.End))
+                .ToList();
+        }
+
+        public IReadOnlyList<SystemTimelineEvent> GetSystemTimelineEventsForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var dayStart = new DateTimeOffset(localDate.Date, TimeZoneInfo.Local.GetUtcOffset(localDate.Date));
+            var dayEndDate = localDate.Date.AddDays(1);
+            var dayEnd = new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate));
+
+            if (dayEnd > now)
+                dayEnd = now;
+
+            if (dayEnd <= dayStart)
+                return Array.Empty<SystemTimelineEvent>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT occurred_at,
+                       event_type,
+                       details
+                FROM system_events
+                WHERE occurred_at >= $dayStart
+                  AND occurred_at < $dayEnd
+                ORDER BY occurred_at;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            var events = new List<SystemTimelineEvent>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                events.Add(new SystemTimelineEvent(
+                    ParseTimestamp(reader.GetString(0)),
+                    reader.GetString(1),
+                    reader.IsDBNull(2) ? null : reader.GetString(2)));
+            }
+
+            return events;
+        }
+
+        public IReadOnlyList<SystemTimelineRange> GetSystemTimelineRangesForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var dayStart = new DateTimeOffset(localDate.Date, TimeZoneInfo.Local.GetUtcOffset(localDate.Date));
+            var dayEndDate = localDate.Date.AddDays(1);
+            var dayEnd = new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate));
+
+            if (dayEnd > now)
+                dayEnd = now;
+
+            if (dayEnd <= dayStart)
+                return Array.Empty<SystemTimelineRange>();
+
+            using var connection = OpenConnection();
+            return GetSystemTimelineRangesForPeriod(connection, dayStart, dayEnd);
+        }
+
+        private static IReadOnlyList<SystemTimelineRange> GetSystemTimelineRangesForPeriod(
+            SqliteConnection connection,
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd)
+        {
+            var lookbackStart = periodStart.AddDays(-1);
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT occurred_at,
+                       event_type
+                FROM system_events
+                WHERE occurred_at >= $lookbackStart
+                  AND occurred_at < $periodEnd
+                ORDER BY occurred_at;
+                """;
+            command.Parameters.AddWithValue("$lookbackStart", FormatTimestamp(lookbackStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
+
+            var ranges = new List<SystemTimelineRange>();
+            DateTimeOffset? sleepStartedAt = null;
+            DateTimeOffset? lockStartedAt = null;
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var occurredAt = ParseTimestamp(reader.GetString(0));
+                var eventType = reader.GetString(1).ToLowerInvariant();
+                switch (eventType)
+                {
+                    case "suspend":
+                        sleepStartedAt = occurredAt;
+                        break;
+                    case "resume":
+                        AddSystemTimelineRange(ranges, sleepStartedAt, occurredAt, periodStart, periodEnd, SystemTimelineRangeType.SleepEstimate);
+                        sleepStartedAt = null;
+                        break;
+                    case "lock":
+                        lockStartedAt = occurredAt;
+                        break;
+                    case "unlock":
+                    case "logon":
+                        AddSystemTimelineRange(ranges, lockStartedAt, occurredAt, periodStart, periodEnd, SystemTimelineRangeType.LockSession);
+                        lockStartedAt = null;
+                        break;
+                    case "logoff":
+                    case "system-shutdown":
+                        lockStartedAt = null;
+                        sleepStartedAt = null;
+                        break;
+                }
+            }
+
+            AddSystemTimelineRange(ranges, sleepStartedAt, periodEnd, periodStart, periodEnd, SystemTimelineRangeType.SleepEstimate);
+            AddSystemTimelineRange(ranges, lockStartedAt, periodEnd, periodStart, periodEnd, SystemTimelineRangeType.LockSession);
+
+            return ranges;
+        }
+
+        public IReadOnlyList<SystemTimelineEvent> GetInferredSystemTimelineEventsForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var dayStart = new DateTimeOffset(localDate.Date, TimeZoneInfo.Local.GetUtcOffset(localDate.Date));
+            var dayEndDate = localDate.Date.AddDays(1);
+            var dayEnd = new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate));
+
+            if (dayEnd > now)
+                dayEnd = now;
+
+            if (dayEnd <= dayStart)
+                return Array.Empty<SystemTimelineEvent>();
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT started_at,
+                       ended_at,
+                       last_heartbeat_at,
+                       shutdown_reason,
+                       system_booted_at
+                FROM app_runtime_sessions
+                WHERE COALESCE(system_booted_at, started_at) < $dayEnd
+                  AND COALESCE(ended_at, last_heartbeat_at, started_at) >= $dayStart
+                ORDER BY COALESCE(system_booted_at, started_at), started_at;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            var events = new List<SystemTimelineEvent>();
+            var bootEstimateGroups = new List<BootEstimateGroup>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = ParseTimestamp(reader.GetString(0));
+                DateTimeOffset? endedAt = reader.IsDBNull(1) ? null : ParseTimestamp(reader.GetString(1));
+                DateTimeOffset? lastHeartbeatAt = reader.IsDBNull(2) ? null : ParseTimestamp(reader.GetString(2));
+                var shutdownReason = reader.IsDBNull(3) ? null : reader.GetString(3);
+                DateTimeOffset? systemBootedAt = reader.IsDBNull(4) ? null : ParseTimestamp(reader.GetString(4));
+
+                if (systemBootedAt is { } bootedAt
+                    && bootedAt >= dayStart
+                    && bootedAt < dayEnd
+                    && bootedAt < startedAt)
+                    AddBootEstimate(bootEstimateGroups, bootedAt, startedAt);
+
+                var endedOrHeartbeatAt = endedAt ?? lastHeartbeatAt;
+                if (endedOrHeartbeatAt is { } recordingEndedAt
+                    && recordingEndedAt >= dayStart
+                    && recordingEndedAt < dayEnd)
+                {
+                    events.Add(new SystemTimelineEvent(
+                        recordingEndedAt,
+                        "recording-end-estimate",
+                        string.IsNullOrWhiteSpace(shutdownReason)
+                            ? "Reason:unknown"
+                            : $"Reason:{shutdownReason}",
+                        IsInferred: true));
+                }
+            }
+
+            events.AddRange(bootEstimateGroups.Select(group => new SystemTimelineEvent(
+                group.BootedAt,
+                "windows-boot-estimate",
+                $"TimePilotStartedAt:{FormatTimestamp(group.NearestTimePilotStartedAt)}",
+                IsInferred: true)));
+
+            return events;
+        }
+
+        private static void AddBootEstimate(
+            ICollection<BootEstimateGroup> bootEstimateGroups,
+            DateTimeOffset bootedAt,
+            DateTimeOffset timePilotStartedAt)
+        {
+            foreach (var group in bootEstimateGroups)
+            {
+                if (Math.Abs((group.BootedAt - bootedAt).TotalSeconds) <= 60)
+                {
+                    group.AddCandidate(bootedAt, timePilotStartedAt);
+                    return;
+                }
+            }
+
+            bootEstimateGroups.Add(new BootEstimateGroup(bootedAt, timePilotStartedAt));
+        }
+
+        private sealed class BootEstimateGroup
+        {
+            public BootEstimateGroup(DateTimeOffset bootedAt, DateTimeOffset timePilotStartedAt)
+            {
+                BootedAt = bootedAt;
+                NearestTimePilotStartedAt = timePilotStartedAt;
+            }
+
+            public DateTimeOffset BootedAt { get; private set; }
+
+            public DateTimeOffset NearestTimePilotStartedAt { get; private set; }
+
+            public void AddCandidate(DateTimeOffset bootedAt, DateTimeOffset timePilotStartedAt)
+            {
+                if (Math.Abs((bootedAt - timePilotStartedAt).TotalMilliseconds)
+                    < Math.Abs((BootedAt - NearestTimePilotStartedAt).TotalMilliseconds))
+                {
+                    BootedAt = bootedAt;
+                    NearestTimePilotStartedAt = timePilotStartedAt;
+                }
+            }
+        }
+
+        private static void AddSystemTimelineRange(
+            ICollection<SystemTimelineRange> ranges,
+            DateTimeOffset? startedAt,
+            DateTimeOffset endedAt,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd,
+            SystemTimelineRangeType rangeType)
+        {
+            if (startedAt is not { } start || endedAt <= start)
+                return;
+
+            var effectiveStart = Max(start, dayStart);
+            var effectiveEnd = Min(endedAt, dayEnd);
+            if (effectiveEnd <= effectiveStart)
+                return;
+
+            ranges.Add(new SystemTimelineRange(effectiveStart, effectiveEnd, rangeType));
+        }
+
+        private void AddUntrackedTimelineRows(
+            SqliteConnection connection,
+            List<ActivityTimelineRow> rows,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd,
+            DateTimeOffset now)
+        {
+            var trackedIntervals = GetRuntimeIntervalsForDay(connection, dayStart, dayEnd, now);
+
+            var cursor = dayStart;
+            foreach (var interval in MergeIntervals(trackedIntervals))
+            {
+                if (interval.Start > cursor)
+                    AddTimelineRow(
+                        rows,
+                        UiText.Main.Untracked,
+                        cursor,
+                        interval.Start,
+                        interval.Start,
+                        UiText.Main.TimePilotUntracked,
+                        null);
+
+                if (interval.End > cursor)
+                    cursor = interval.End;
+            }
+
+            var gapEnd = Min(now, dayEnd);
+            if (gapEnd > cursor)
+                AddTimelineRow(
+                    rows,
+                    UiText.Main.Untracked,
+                    cursor,
+                    gapEnd,
+                    gapEnd,
+                    UiText.Main.TimePilotUntracked,
+                    null);
+        }
+
+        private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> GetRuntimeIntervalsForDay(
+            SqliteConnection connection,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd,
+            DateTimeOffset now)
+        {
+            return GetRuntimeIntervalsForPeriod(connection, dayStart, dayEnd, now);
+        }
+
+        private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> GetRuntimeIntervalsForPeriod(
+            SqliteConnection connection,
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd,
+            DateTimeOffset now)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT started_at,
+                       CASE
+                           WHEN ended_at IS NULL THEN $now
+                           ELSE ended_at
+                       END
+                FROM app_runtime_sessions
+                WHERE started_at < $periodEnd
+                  AND COALESCE(ended_at, last_heartbeat_at, $now) > $periodStart
+                ORDER BY started_at;
+                """;
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            var intervals = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = ParseTimestamp(reader.GetString(0));
+                var endedAt = ParseTimestamp(reader.GetString(1));
+                var effectiveStart = Max(startedAt, periodStart);
+                var effectiveEnd = Min(endedAt, periodEnd);
+
+                if (effectiveEnd > effectiveStart)
+                    intervals.Add((effectiveStart, effectiveEnd));
+            }
+
+            return intervals;
+        }
+
+        private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> GetWindowsRuntimeIntervalsForPeriod(
+            SqliteConnection connection,
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd,
+            DateTimeOffset now)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT system_booted_at,
+                       started_at,
+                       COALESCE(ended_at, last_heartbeat_at, $now)
+                FROM app_runtime_sessions
+                WHERE COALESCE(system_booted_at, started_at) < $periodEnd
+                  AND COALESCE(ended_at, last_heartbeat_at, $now) > $periodStart
+                ORDER BY COALESCE(system_booted_at, started_at);
+                """;
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            var intervals = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var startedAt = reader.IsDBNull(0)
+                    ? ParseTimestamp(reader.GetString(1))
+                    : ParseTimestamp(reader.GetString(0));
+                var endedAt = ParseTimestamp(reader.GetString(2));
+                var effectiveStart = Max(startedAt, periodStart);
+                var effectiveEnd = Min(endedAt, periodEnd);
+
+                if (effectiveEnd > effectiveStart)
+                    intervals.Add((effectiveStart, effectiveEnd));
+            }
+
+            return intervals;
+        }
+
+        private static long GetLongestGapMs(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> intervals,
+            DateTimeOffset windowStart,
+            DateTimeOffset windowEnd)
+        {
+            var longestGapMs = 0L;
+            var cursor = windowStart;
+
+            foreach (var interval in intervals)
+            {
+                if (interval.Start > cursor)
+                    longestGapMs = Math.Max(longestGapMs, (long)(interval.Start - cursor).TotalMilliseconds);
+
+                if (interval.End > cursor)
+                    cursor = interval.End;
+            }
+
+            if (windowEnd > cursor)
+                longestGapMs = Math.Max(longestGapMs, (long)(windowEnd - cursor).TotalMilliseconds);
+
+            return longestGapMs;
+        }
+
+        private static long? GetBootBeforeTimePilotMs(
+            SqliteConnection connection,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT system_booted_at, started_at
+                FROM app_runtime_sessions
+                WHERE system_booted_at IS NOT NULL
+                  AND started_at >= $dayStart
+                  AND started_at < $dayEnd
+                ORDER BY started_at
+                LIMIT 1;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            using var reader = command.ExecuteReader();
+            if (!reader.Read())
+                return null;
+
+            var systemBootedAt = ParseTimestamp(reader.GetString(0));
+            var startedAt = ParseTimestamp(reader.GetString(1));
+            var effectiveBootedAt = Max(systemBootedAt, dayStart);
+            var effectiveStartedAt = Min(startedAt, dayEnd);
+
+            if (effectiveStartedAt <= effectiveBootedAt)
+                return null;
+
+            return (long)(effectiveStartedAt - effectiveBootedAt).TotalMilliseconds;
+        }
+
+        public IReadOnlyList<ProcessRuntimeSummaryRow> GetProcessRuntimeUsageForDay(DateTimeOffset now)
+        {
+            var localDayStart = now.ToLocalTime().Date;
+            return GetProcessRuntimeUsageForDate(localDayStart, now);
+        }
+
+        public IReadOnlyList<ProcessRuntimeSummaryRow> GetProcessRuntimeUsageForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var (dayStart, dayEnd) = GetLocalDayRange(localDate);
 
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT
                     a.id,
-                    a.display_name,
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name),
+                    a.process_name,
                     a.executable_path,
+                    a.primary_category_id,
+                    c.name,
                     prs.started_at,
                     prs.ended_at,
                     prs.last_observed_at,
@@ -517,6 +2080,7 @@ namespace TimePilot.WinForms.KYS24
                     prs.is_current_session_process
                 FROM process_runtime_sessions prs
                 INNER JOIN apps a ON a.id = prs.app_id
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
                 WHERE prs.started_at < $dayEnd
                   AND COALESCE(prs.ended_at, prs.last_observed_at, prs.started_at) > $dayStart;
                 """;
@@ -529,43 +2093,63 @@ namespace TimePilot.WinForms.KYS24
             {
                 var appId = reader.GetInt64(0);
                 var appName = reader.GetString(1);
-                var executablePath = reader.IsDBNull(2) ? null : reader.GetString(2);
-                var startedAt = ParseTimestamp(reader.GetString(3));
-                var hasRunningSession = reader.IsDBNull(4);
-                var observedEnd = hasRunningSession
-                    ? now
-                    : ParseTimestamp(reader.GetString(4));
-                var hasMainWindow = !reader.IsDBNull(6) && reader.GetInt32(6) == 1;
-                var isCurrentSessionProcess = !reader.IsDBNull(7) && reader.GetInt32(7) == 1;
+                var processName = reader.GetString(2);
+                var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
+                var primaryCategoryId = reader.IsDBNull(4) ? (long?)null : reader.GetInt64(4);
+                var categoryName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                var startedAt = ParseTimestamp(reader.GetString(6));
+                var hasRunningSession = reader.IsDBNull(7);
+                var endedAt = hasRunningSession ? (DateTimeOffset?)null : ParseTimestamp(reader.GetString(7));
+                var lastObservedAt = reader.IsDBNull(8)
+                    ? endedAt ?? startedAt
+                    : ParseTimestamp(reader.GetString(8));
+                var runtimeEnd = endedAt ?? now;
+                var hasMainWindow = !reader.IsDBNull(9) && reader.GetInt32(9) == 1;
+                var isCurrentSessionProcess = !reader.IsDBNull(10) && reader.GetInt32(10) == 1;
                 var effectiveStart = Max(startedAt, dayStart);
-                var effectiveEnd = Min(observedEnd, dayEnd);
+                var effectiveEnd = Min(runtimeEnd, dayEnd);
+                var effectiveLastObservedAt = Min(Max(lastObservedAt, dayStart), dayEnd);
                 if (effectiveEnd <= effectiveStart && !hasRunningSession)
                     continue;
 
                 if (!totals.TryGetValue(appId, out var aggregation))
                 {
-                    aggregation = new ProcessRuntimeAggregation(appName, effectiveStart, effectiveEnd, executablePath);
+                    aggregation = new ProcessRuntimeAggregation(
+                        appName,
+                        processName,
+                        effectiveStart,
+                        effectiveLastObservedAt,
+                        executablePath,
+                        primaryCategoryId,
+                        categoryName);
                     totals[appId] = aggregation;
                 }
 
                 aggregation.ExecutablePath ??= executablePath;
+                aggregation.PrimaryCategoryId ??= primaryCategoryId;
+                aggregation.CategoryName ??= categoryName;
                 aggregation.AddRuntimeInterval(effectiveStart, effectiveEnd);
                 aggregation.HasRunningSession |= hasRunningSession;
                 aggregation.HasMainWindow |= hasMainWindow;
                 aggregation.IsCurrentSessionProcess |= isCurrentSessionProcess;
                 aggregation.FirstObservedAt = Min(aggregation.FirstObservedAt, effectiveStart);
-                aggregation.LastObservedAt = Max(aggregation.LastObservedAt, effectiveEnd);
+                aggregation.LastObservedAt = Max(aggregation.LastObservedAt, effectiveLastObservedAt);
             }
 
             AddActiveUsageToRuntimeAggregations(connection, totals, dayStart, dayEnd);
+            AddIdleRecordedTimeToRuntimeAggregations(connection, totals, dayStart, dayEnd, now);
 
             return totals
                 .Select(x => new ProcessRuntimeSummaryRow(
                     x.Key,
                     x.Value.AppName,
+                    x.Value.ProcessName,
                     x.Value.ExecutablePath,
+                    x.Value.PrimaryCategoryId,
+                    x.Value.CategoryName,
                     x.Value.GetMergedRuntimeMs(),
                     x.Value.ActiveUsageMs,
+                    x.Value.IdleRecordedMs,
                     x.Value.GetMergedRuntimeMs() > 0
                         ? Math.Min(1, (double)x.Value.ActiveUsageMs / x.Value.GetMergedRuntimeMs())
                         : null,
@@ -583,8 +2167,15 @@ namespace TimePilot.WinForms.KYS24
         public IReadOnlyList<ProcessRuntimeSegmentRow> GetProcessRuntimeSegmentsForDay(long appId, DateTimeOffset now)
         {
             var localDayStart = now.ToLocalTime().Date;
-            var dayStart = new DateTimeOffset(localDayStart, TimeZoneInfo.Local.GetUtcOffset(localDayStart));
-            var dayEnd = dayStart.AddDays(1);
+            return GetProcessRuntimeSegmentsForDate(appId, localDayStart, now);
+        }
+
+        public IReadOnlyList<ProcessRuntimeSegmentRow> GetProcessRuntimeSegmentsForDate(
+            long appId,
+            DateTime localDate,
+            DateTimeOffset now)
+        {
+            var (dayStart, dayEnd) = GetLocalDayRange(localDate);
 
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
@@ -632,6 +2223,74 @@ namespace TimePilot.WinForms.KYS24
             return rows;
         }
 
+        public IReadOnlyList<ProcessRuntimeSegmentExportRow> GetProcessRuntimeSegmentExportsForDay(DateTimeOffset now)
+        {
+            var localDayStart = now.ToLocalTime().Date;
+            return GetProcessRuntimeSegmentExportsForDate(localDayStart, now);
+        }
+
+        public IReadOnlyList<ProcessRuntimeSegmentExportRow> GetProcessRuntimeSegmentExportsForDate(DateTime localDate, DateTimeOffset now)
+        {
+            var dayStart = new DateTimeOffset(localDate.Date, TimeZoneInfo.Local.GetUtcOffset(localDate.Date));
+            var dayEnd = dayStart.AddDays(1);
+
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name),
+                    c.name,
+                    a.process_name,
+                    prs.started_at,
+                    prs.ended_at,
+                    prs.last_observed_at,
+                    prs.has_main_window,
+                    prs.is_current_session_process
+                FROM process_runtime_sessions prs
+                INNER JOIN apps a ON a.id = prs.app_id
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
+                WHERE prs.started_at < $dayEnd
+                  AND COALESCE(prs.ended_at, prs.last_observed_at, prs.started_at) > $dayStart
+                ORDER BY prs.started_at DESC;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+
+            var rows = new List<ProcessRuntimeSegmentExportRow>();
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var appName = reader.GetString(0);
+                var categoryName = reader.IsDBNull(1) ? null : reader.GetString(1);
+                var processName = reader.GetString(2);
+                var startedAt = ParseTimestamp(reader.GetString(3));
+                DateTimeOffset? endedAt = reader.IsDBNull(4) ? null : ParseTimestamp(reader.GetString(4));
+                var lastObservedAt = reader.IsDBNull(5) ? startedAt : ParseTimestamp(reader.GetString(5));
+                var observedEnd = endedAt ?? Min(lastObservedAt, now);
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(observedEnd, dayEnd);
+                var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+                if (durationMs <= 0 && endedAt is not null)
+                    continue;
+
+                DateTimeOffset? exportedEnd = endedAt is null && now < dayEnd && observedEnd == now
+                    ? null
+                    : effectiveEnd;
+
+                rows.Add(new ProcessRuntimeSegmentExportRow(
+                    appName,
+                    categoryName,
+                    processName,
+                    effectiveStart,
+                    exportedEnd,
+                    durationMs,
+                    !reader.IsDBNull(6) && reader.GetInt32(6) == 1,
+                    !reader.IsDBNull(7) && reader.GetInt32(7) == 1));
+            }
+
+            return rows;
+        }
+
         public void Dispose()
         {
             if (disposed)
@@ -648,6 +2307,246 @@ namespace TimePilot.WinForms.KYS24
                 command.CommandText = "ALTER TABLE apps ADD COLUMN executable_path TEXT NULL;";
                 command.ExecuteNonQuery();
             }
+
+            AddColumnIfMissing(connection, "apps", "primary_category_id", "INTEGER NULL");
+            AddColumnIfMissing(connection, "apps", "primary_category_source", "TEXT NOT NULL DEFAULT 'none'");
+            AddColumnIfMissing(connection, "apps", "primary_category_updated_at", "TEXT NULL");
+            AddColumnIfMissing(connection, "apps", "recommended_category_id", "INTEGER NULL");
+            AddColumnIfMissing(connection, "apps", "recommended_category_reason", "TEXT NULL");
+            AddColumnIfMissing(connection, "apps", "recommended_category_confidence", "REAL NULL");
+            AddColumnIfMissing(connection, "apps", "recommended_category_updated_at", "TEXT NULL");
+            AddColumnIfMissing(connection, "apps", "user_alias", "TEXT NULL");
+            AddColumnIfMissing(connection, "apps", "is_excluded", "INTEGER NOT NULL DEFAULT 0");
+            InitializeAppCategorySourceColumns(connection);
+
+            using var indexCommand = connection.CreateCommand();
+            indexCommand.CommandText = """
+                CREATE INDEX IF NOT EXISTS idx_apps_primary_category_id
+                    ON apps(primary_category_id);
+
+                CREATE INDEX IF NOT EXISTS idx_apps_recommended_category_id
+                    ON apps(recommended_category_id);
+                """;
+            indexCommand.ExecuteNonQuery();
+        }
+
+        private static void InitializeAppCategorySourceColumns(SqliteConnection connection)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE apps
+                SET primary_category_source = CASE
+                        WHEN primary_category_id IS NULL THEN $noneSource
+                        WHEN primary_category_source IS NULL
+                          OR TRIM(primary_category_source) = ''
+                          OR primary_category_source = $noneSource THEN $userSource
+                        ELSE primary_category_source
+                    END,
+                    primary_category_updated_at = CASE
+                        WHEN primary_category_id IS NOT NULL
+                          AND primary_category_updated_at IS NULL THEN last_seen_at
+                        ELSE primary_category_updated_at
+                    END;
+                """;
+            command.Parameters.AddWithValue("$noneSource", AppCategorySource.None);
+            command.Parameters.AddWithValue("$userSource", AppCategorySource.User);
+            command.ExecuteNonQuery();
+        }
+
+        private static void SeedAppObservationsFromApps(SqliteConnection connection)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT OR IGNORE INTO app_observations (
+                    app_id,
+                    process_name,
+                    display_name,
+                    executable_path,
+                    normalized_executable_path,
+                    first_seen_at,
+                    last_seen_at,
+                    observed_count
+                )
+                SELECT
+                    id,
+                    process_name,
+                    display_name,
+                    executable_path,
+                    LOWER(REPLACE(executable_path, '/', '\')),
+                    first_seen_at,
+                    last_seen_at,
+                    1
+                FROM apps;
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        private static void SeedDefaultAppCategories(SqliteConnection connection, DateTimeOffset now)
+        {
+            var timestamp = FormatTimestamp(now);
+            foreach (var category in AppCategoryDisplay.BuiltinCategories)
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = """
+                    INSERT INTO app_categories (
+                        name,
+                        color,
+                        sort_order,
+                        is_builtin,
+                        created_at,
+                        updated_at
+                    )
+                    VALUES ($name, $color, $sortOrder, 1, $createdAt, $updatedAt)
+                    ON CONFLICT(name) DO UPDATE SET
+                        sort_order = excluded.sort_order,
+                        updated_at = excluded.updated_at
+                    WHERE app_categories.is_builtin = 1;
+                    """;
+                command.Parameters.AddWithValue("$name", category.CanonicalName);
+                command.Parameters.AddWithValue("$color", category.Color);
+                command.Parameters.AddWithValue("$sortOrder", category.SortOrder);
+                command.Parameters.AddWithValue("$createdAt", timestamp);
+                command.Parameters.AddWithValue("$updatedAt", timestamp);
+                command.ExecuteNonQuery();
+            }
+        }
+
+        private static void RenameBuiltinAppCategoriesToCanonical(SqliteConnection connection, DateTimeOffset now)
+        {
+            var timestamp = FormatTimestamp(now);
+            foreach (var category in AppCategoryDisplay.BuiltinCategories)
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = """
+                    UPDATE app_categories
+                    SET name = $canonicalName,
+                        updated_at = $updatedAt
+                    WHERE is_builtin = 1
+                      AND sort_order = $sortOrder
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM app_categories existing
+                          WHERE existing.name = $canonicalName
+                            AND existing.id <> app_categories.id
+                      );
+                    """;
+                command.Parameters.AddWithValue("$canonicalName", category.CanonicalName);
+                command.Parameters.AddWithValue("$color", category.Color);
+                command.Parameters.AddWithValue("$sortOrder", category.SortOrder);
+                command.Parameters.AddWithValue("$updatedAt", timestamp);
+                command.ExecuteNonQuery();
+            }
+        }
+
+        private static int GetNextCustomAppCategorySortOrder(SqliteConnection connection)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT COALESCE(MAX(sort_order), 100) + 10
+                FROM app_categories;
+                """;
+            return Convert.ToInt32(command.ExecuteScalar(), CultureInfo.InvariantCulture);
+        }
+
+        private static string NormalizeAppCategoryName(string name)
+        {
+            var normalized = name.Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+                throw new ArgumentException("Category name is required.", nameof(name));
+
+            return normalized;
+        }
+
+        private static void EnsureAppCategoryNameIsUnique(SqliteConnection connection, string name, long? currentCategoryId)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT id, name, sort_order, is_builtin
+                FROM app_categories;
+                """;
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var categoryId = reader.GetInt64(0);
+                if (currentCategoryId.HasValue && categoryId == currentCategoryId.Value)
+                    continue;
+
+                var existingName = reader.GetString(1);
+                var sortOrder = reader.GetInt32(2);
+                var isBuiltin = reader.GetInt32(3) != 0;
+                if (IsSameAppCategoryName(name, existingName, sortOrder, isBuiltin))
+                    throw new InvalidOperationException("A category with the same display name already exists.");
+            }
+        }
+
+        private static bool IsSameAppCategoryName(string name, string existingName, int sortOrder, bool isBuiltin)
+        {
+            if (string.Equals(name, existingName, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            var displayName = AppCategoryDisplay.GetDisplayName(existingName, sortOrder);
+            if (string.Equals(name, displayName, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (!isBuiltin)
+                return false;
+
+            var builtinCategory = AppCategoryDisplay.BuiltinCategories.FirstOrDefault(x =>
+                x.SortOrder == sortOrder
+                || string.Equals(x.CanonicalName, existingName, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(x.KoreanName, existingName, StringComparison.OrdinalIgnoreCase));
+            return builtinCategory is not null
+                && (string.Equals(name, builtinCategory.CanonicalName, StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(name, builtinCategory.KoreanName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string? NormalizeAppCategoryColor(string? color)
+        {
+            var normalized = color?.Trim();
+            if (string.IsNullOrWhiteSpace(normalized))
+                return null;
+
+            try
+            {
+                var parsed = ColorTranslator.FromHtml(normalized);
+                return ColorTranslator.ToHtml(Color.FromArgb(parsed.R, parsed.G, parsed.B));
+            }
+            catch
+            {
+                throw new ArgumentException("Category color must be a valid HTML color.", nameof(color));
+            }
+        }
+
+        private static string NormalizeAppCategorySource(string? source, long? categoryId)
+        {
+            if (categoryId is null)
+                return AppCategorySource.None;
+
+            var normalized = source?.Trim().ToLowerInvariant();
+            return normalized switch
+            {
+                AppCategorySource.User => AppCategorySource.User,
+                AppCategorySource.Recommendation => AppCategorySource.Recommendation,
+                AppCategorySource.Import => AppCategorySource.Import,
+                AppCategorySource.System => AppCategorySource.System,
+                _ => AppCategorySource.User
+            };
+        }
+
+        private static string? NormalizeExecutablePath(string? executablePath)
+        {
+            if (string.IsNullOrWhiteSpace(executablePath))
+                return null;
+
+            return executablePath.Trim()
+                .Replace('/', '\\')
+                .ToLowerInvariant();
+        }
+
+        private static void EnsureRuntimeSessionColumns(SqliteConnection connection)
+        {
+            AddColumnIfMissing(connection, "app_runtime_sessions", "system_booted_at", "TEXT NULL");
         }
 
         private static void EnsureForegroundSessionColumns(SqliteConnection connection)
@@ -658,6 +2557,11 @@ namespace TimePilot.WinForms.KYS24
                 command.CommandText = "ALTER TABLE foreground_sessions ADD COLUMN last_observed_at TEXT NULL;";
                 command.ExecuteNonQuery();
             }
+        }
+
+        private static void EnsureIdleSessionColumns(SqliteConnection connection)
+        {
+            AddColumnIfMissing(connection, "idle_sessions", "threshold_ms", "INTEGER NULL");
         }
 
         private static void EnsureProcessRuntimeSessionColumns(SqliteConnection connection)
@@ -696,33 +2600,54 @@ namespace TimePilot.WinForms.KYS24
             return false;
         }
 
-        private void MarkUnexpectedRuntimeSessions(DateTimeOffset now)
+        private void MarkUnexpectedRuntimeSessions(DateTimeOffset now, DateTimeOffset currentSystemBootedAt)
         {
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText = """
-                SELECT id, started_at, last_heartbeat_at
+                SELECT id, started_at, last_heartbeat_at, system_booted_at
                 FROM app_runtime_sessions
                 WHERE ended_at IS NULL;
                 """;
 
-            var openSessions = new List<(long Id, DateTimeOffset StartedAt, DateTimeOffset EndedAt)>();
+            var openSessions = new List<(
+                long Id,
+                DateTimeOffset StartedAt,
+                DateTimeOffset EndedAt,
+                DateTimeOffset? SystemBootedAt)>();
             using (var reader = command.ExecuteReader())
             {
                 while (reader.Read())
                 {
-                    var startedAt = DateTimeOffset.Parse(reader.GetString(1), null, System.Globalization.DateTimeStyles.RoundtripKind);
+                    var startedAt = ParseTimestamp(reader.GetString(1));
                     var endedAt = reader.IsDBNull(2)
                         ? now
-                        : DateTimeOffset.Parse(reader.GetString(2), null, System.Globalization.DateTimeStyles.RoundtripKind);
-                    openSessions.Add((reader.GetInt64(0), startedAt, endedAt));
+                        : ParseTimestamp(reader.GetString(2));
+                    var systemBootedAt = reader.IsDBNull(3)
+                        ? (DateTimeOffset?)null
+                        : ParseTimestamp(reader.GetString(3));
+                    openSessions.Add((reader.GetInt64(0), startedAt, endedAt, systemBootedAt));
                 }
             }
 
             foreach (var session in openSessions)
             {
-                EndRuntimeSession(connection, session.Id, session.EndedAt, "unexpected");
+                var shutdownReason = IsSameSystemBootSession(session.SystemBootedAt, currentSystemBootedAt)
+                    ? "unexpected"
+                    : "system-shutdown";
+                EndRuntimeSession(connection, session.Id, session.EndedAt, shutdownReason);
             }
+        }
+
+        private static bool IsSameSystemBootSession(
+            DateTimeOffset? previousSystemBootedAt,
+            DateTimeOffset currentSystemBootedAt)
+        {
+            if (previousSystemBootedAt is null)
+                return true;
+
+            var difference = (previousSystemBootedAt.Value - currentSystemBootedAt).Duration();
+            return difference <= SystemBootTimeTolerance;
         }
 
         private void MarkUnexpectedProcessRuntimeSessions(DateTimeOffset now)
@@ -751,6 +2676,55 @@ namespace TimePilot.WinForms.KYS24
             {
                 EndProcessRuntimeSession(connection, session.Id, session.EndedAt);
             }
+        }
+
+        private void MarkUnexpectedIdleSessions(DateTimeOffset now)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT id, started_at
+                FROM idle_sessions
+                WHERE ended_at IS NULL;
+                """;
+
+            var openSessions = new List<(long Id, DateTimeOffset StartedAt)>();
+            using (var reader = command.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    openSessions.Add((
+                        reader.GetInt64(0),
+                        ParseTimestamp(reader.GetString(1))));
+                }
+            }
+
+            foreach (var session in openSessions)
+            {
+                var endedAt = GetRuntimeEndForIdleSession(connection, session.StartedAt)
+                    ?? session.StartedAt;
+                EndIdleSession(connection, session.Id, Min(endedAt, now));
+            }
+        }
+
+        private static DateTimeOffset? GetRuntimeEndForIdleSession(
+            SqliteConnection connection,
+            DateTimeOffset idleStartedAt)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT COALESCE(ended_at, last_heartbeat_at, started_at)
+                FROM app_runtime_sessions
+                WHERE started_at <= $idleStartedAt
+                  AND COALESCE(ended_at, last_heartbeat_at, started_at) >= $idleStartedAt
+                ORDER BY started_at DESC
+                LIMIT 1;
+                """;
+            command.Parameters.AddWithValue("$idleStartedAt", FormatTimestamp(idleStartedAt));
+
+            return command.ExecuteScalar() is string endedAtText
+                ? ParseTimestamp(endedAtText)
+                : null;
         }
 
         private void EndRuntimeSession(SqliteConnection connection, long sessionId, DateTimeOffset endedAt, string shutdownReason)
@@ -928,7 +2902,77 @@ namespace TimePilot.WinForms.KYS24
                 WHERE process_name = $processName;
                 """;
             selectCommand.Parameters.AddWithValue("$processName", app.ProcessName);
-            return (long)selectCommand.ExecuteScalar()!;
+            var appId = (long)selectCommand.ExecuteScalar()!;
+            RecordAppObservation(connection, appId, app, observedAt, transaction);
+            return appId;
+        }
+
+        private void RecordAppObservation(
+            SqliteConnection connection,
+            long appId,
+            AppMetadata app,
+            DateTimeOffset observedAt,
+            SqliteTransaction? transaction)
+        {
+            var normalizedPath = NormalizeExecutablePath(app.ExecutablePath);
+            var cacheKey = $"{appId}|{app.ProcessName}|{normalizedPath ?? ""}";
+            if (!appObservationKeys.Add(cacheKey))
+                return;
+
+            using var updateCommand = connection.CreateCommand();
+            updateCommand.Transaction = transaction;
+            updateCommand.CommandText = """
+                UPDATE app_observations
+                SET display_name = $displayName,
+                    executable_path = COALESCE($executablePath, executable_path),
+                    last_seen_at = $lastSeenAt,
+                    observed_count = observed_count + 1
+                WHERE app_id = $appId
+                  AND process_name = $processName
+                  AND COALESCE(normalized_executable_path, '') = COALESCE($normalizedExecutablePath, '');
+                """;
+            updateCommand.Parameters.AddWithValue("$displayName", app.DisplayName);
+            updateCommand.Parameters.AddWithValue("$executablePath", (object?)app.ExecutablePath ?? DBNull.Value);
+            updateCommand.Parameters.AddWithValue("$lastSeenAt", FormatTimestamp(observedAt));
+            updateCommand.Parameters.AddWithValue("$appId", appId);
+            updateCommand.Parameters.AddWithValue("$processName", app.ProcessName);
+            updateCommand.Parameters.AddWithValue("$normalizedExecutablePath", (object?)normalizedPath ?? DBNull.Value);
+            var updated = updateCommand.ExecuteNonQuery();
+            if (updated > 0)
+                return;
+
+            using var insertCommand = connection.CreateCommand();
+            insertCommand.Transaction = transaction;
+            insertCommand.CommandText = """
+                INSERT OR IGNORE INTO app_observations (
+                    app_id,
+                    process_name,
+                    display_name,
+                    executable_path,
+                    normalized_executable_path,
+                    first_seen_at,
+                    last_seen_at,
+                    observed_count
+                )
+                VALUES (
+                    $appId,
+                    $processName,
+                    $displayName,
+                    $executablePath,
+                    $normalizedExecutablePath,
+                    $firstSeenAt,
+                    $lastSeenAt,
+                    1
+                );
+                """;
+            insertCommand.Parameters.AddWithValue("$appId", appId);
+            insertCommand.Parameters.AddWithValue("$processName", app.ProcessName);
+            insertCommand.Parameters.AddWithValue("$displayName", app.DisplayName);
+            insertCommand.Parameters.AddWithValue("$executablePath", (object?)app.ExecutablePath ?? DBNull.Value);
+            insertCommand.Parameters.AddWithValue("$normalizedExecutablePath", (object?)normalizedPath ?? DBNull.Value);
+            insertCommand.Parameters.AddWithValue("$firstSeenAt", FormatTimestamp(observedAt));
+            insertCommand.Parameters.AddWithValue("$lastSeenAt", FormatTimestamp(observedAt));
+            insertCommand.ExecuteNonQuery();
         }
 
         private void AddForegroundTimelineRows(
@@ -941,13 +2985,18 @@ namespace TimePilot.WinForms.KYS24
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT
-                    a.display_name,
+                    a.id,
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name),
+                    a.process_name,
                     a.executable_path,
+                    a.primary_category_id,
+                    c.name,
                     fs.started_at,
                     fs.ended_at,
                     fs.last_observed_at
                 FROM foreground_sessions fs
                 INNER JOIN apps a ON a.id = fs.app_id
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
                 WHERE fs.started_at < $dayEnd
                   AND COALESCE(fs.ended_at, fs.last_observed_at, fs.started_at) > $dayStart;
                 """;
@@ -957,15 +3006,33 @@ namespace TimePilot.WinForms.KYS24
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                var appName = reader.GetString(0);
-                var executablePath = reader.IsDBNull(1) ? null : reader.GetString(1);
-                var startedAt = ParseTimestamp(reader.GetString(2));
-                DateTimeOffset? endedAt = reader.IsDBNull(3) ? null : ParseTimestamp(reader.GetString(3));
+                var appId = reader.GetInt64(0);
+                var appName = reader.GetString(1);
+                var processName = reader.GetString(2);
+                var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
+                long? primaryCategoryId = reader.IsDBNull(4) ? null : reader.GetInt64(4);
+                var categoryName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                var startedAt = ParseTimestamp(reader.GetString(6));
+                DateTimeOffset? endedAt = reader.IsDBNull(7) ? null : ParseTimestamp(reader.GetString(7));
                 var observedEnd = endedAt
-                    ?? (reader.IsDBNull(4) ? startedAt : ParseTimestamp(reader.GetString(4)));
+                    ?? (reader.IsDBNull(8) ? startedAt : ParseTimestamp(reader.GetString(8)));
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(observedEnd, dayEnd);
-                AddTimelineRow(rows, "활성", effectiveStart, endedAt, effectiveEnd, appName, executablePath);
+                DateTimeOffset? displayEnd = IsCurrentTimelineSession(endedAt, observedEnd, dayEnd, now)
+                    ? null
+                    : effectiveEnd;
+                AddTimelineRow(
+                    rows,
+                    UiText.Main.Active,
+                    effectiveStart,
+                    displayEnd,
+                    effectiveEnd,
+                    appName,
+                    executablePath,
+                    processName,
+                    appId,
+                    primaryCategoryId,
+                    categoryName);
             }
         }
 
@@ -979,12 +3046,18 @@ namespace TimePilot.WinForms.KYS24
             using var command = connection.CreateCommand();
             command.CommandText = """
                 SELECT
-                    COALESCE(a.display_name, 'Idle'),
+                    a.id,
+                    COALESCE(NULLIF(TRIM(a.user_alias), ''), NULLIF(TRIM(a.display_name), ''), a.process_name, 'Idle'),
+                    a.process_name,
                     a.executable_path,
+                    a.primary_category_id,
+                    c.name,
                     i.started_at,
-                    i.ended_at
+                    i.ended_at,
+                    i.threshold_ms
                 FROM idle_sessions i
                 LEFT JOIN apps a ON a.id = i.foreground_app_id
+                LEFT JOIN app_categories c ON c.id = a.primary_category_id
                 WHERE i.started_at < $dayEnd
                   AND COALESCE(i.ended_at, $now) > $dayStart;
                 """;
@@ -995,24 +3068,64 @@ namespace TimePilot.WinForms.KYS24
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                var foregroundAppName = reader.GetString(0);
-                var executablePath = reader.IsDBNull(1) ? null : reader.GetString(1);
-                var startedAt = ParseTimestamp(reader.GetString(2));
-                DateTimeOffset? endedAt = reader.IsDBNull(3) ? null : ParseTimestamp(reader.GetString(3));
+                long? appId = reader.IsDBNull(0) ? null : reader.GetInt64(0);
+                var foregroundAppName = reader.GetString(1);
+                var processName = reader.IsDBNull(2) ? "" : reader.GetString(2);
+                var executablePath = reader.IsDBNull(3) ? null : reader.GetString(3);
+                long? primaryCategoryId = reader.IsDBNull(4) ? null : reader.GetInt64(4);
+                var categoryName = reader.IsDBNull(5) ? null : reader.GetString(5);
+                var startedAt = ParseTimestamp(reader.GetString(6));
+                DateTimeOffset? endedAt = reader.IsDBNull(7) ? null : ParseTimestamp(reader.GetString(7));
+                var idleThresholdMs = reader.IsDBNull(8) ? (int?)null : reader.GetInt32(8);
                 var effectiveStart = Max(startedAt, dayStart);
                 var effectiveEnd = Min(endedAt ?? now, dayEnd);
-                AddTimelineRow(rows, "유휴", effectiveStart, endedAt, effectiveEnd, foregroundAppName, executablePath);
+                DateTimeOffset? displayEnd = IsCurrentTimelineSession(endedAt, effectiveEnd, dayEnd, now)
+                    ? null
+                    : effectiveEnd;
+                AddTimelineRow(
+                    rows,
+                    UiText.Main.Idle,
+                    effectiveStart,
+                    displayEnd,
+                    effectiveEnd,
+                    foregroundAppName,
+                    executablePath,
+                    processName,
+                    appId,
+                    primaryCategoryId,
+                    categoryName,
+                    idleThresholdMs);
             }
+        }
+
+        private static bool IsCurrentTimelineSession(
+            DateTimeOffset? endedAt,
+            DateTimeOffset observedEnd,
+            DateTimeOffset dayEnd,
+            DateTimeOffset now)
+        {
+            if (endedAt is not null)
+                return false;
+
+            if (now >= dayEnd)
+                return false;
+
+            return now - observedEnd <= CurrentTimelineSessionTolerance;
         }
 
         private static void AddTimelineRow(
             List<ActivityTimelineRow> rows,
             string activityType,
             DateTimeOffset effectiveStart,
-            DateTimeOffset? originalEnd,
+            DateTimeOffset? displayEnd,
             DateTimeOffset effectiveEnd,
             string displayName,
-            string? executablePath)
+            string? executablePath,
+            string processName = "",
+            long? appId = null,
+            long? primaryCategoryId = null,
+            string? categoryName = null,
+            int? idleThresholdMs = null)
         {
             var durationMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
             if (durationMs <= 0)
@@ -1021,10 +3134,15 @@ namespace TimePilot.WinForms.KYS24
             rows.Add(new ActivityTimelineRow(
                 activityType,
                 effectiveStart,
-                originalEnd,
+                displayEnd,
                 durationMs,
                 displayName,
-                executablePath));
+                executablePath,
+                ProcessName: processName,
+                AppId: appId,
+                PrimaryCategoryId: primaryCategoryId,
+                CategoryName: categoryName,
+                IdleThresholdMs: idleThresholdMs));
         }
 
         private static void AddActiveUsageToRuntimeAggregations(
@@ -1068,6 +3186,88 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
+        private static void AddIdleRecordedTimeToUsageAggregations(
+            SqliteConnection connection,
+            Dictionary<long, UsageAggregation> totals,
+            DateTimeOffset periodStart,
+            DateTimeOffset periodEnd,
+            DateTimeOffset now)
+        {
+            if (totals.Count == 0)
+                return;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    i.foreground_app_id,
+                    i.started_at,
+                    i.ended_at
+                FROM idle_sessions i
+                WHERE i.foreground_app_id IS NOT NULL
+                  AND i.started_at < $periodEnd
+                  AND COALESCE(i.ended_at, $now) > $periodStart;
+                """;
+            command.Parameters.AddWithValue("$periodStart", FormatTimestamp(periodStart));
+            command.Parameters.AddWithValue("$periodEnd", FormatTimestamp(periodEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var appId = reader.GetInt64(0);
+                if (!totals.TryGetValue(appId, out var aggregation))
+                    continue;
+
+                var startedAt = ParseTimestamp(reader.GetString(1));
+                var endedAt = reader.IsDBNull(2) ? now : ParseTimestamp(reader.GetString(2));
+                var effectiveStart = Max(startedAt, periodStart);
+                var effectiveEnd = Min(endedAt, periodEnd);
+                var idleRecordedMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+                aggregation.IdleRecordedMs += idleRecordedMs;
+            }
+        }
+
+        private static void AddIdleRecordedTimeToRuntimeAggregations(
+            SqliteConnection connection,
+            Dictionary<long, ProcessRuntimeAggregation> totals,
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd,
+            DateTimeOffset now)
+        {
+            if (totals.Count == 0)
+                return;
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT
+                    i.foreground_app_id,
+                    i.started_at,
+                    i.ended_at
+                FROM idle_sessions i
+                WHERE i.foreground_app_id IS NOT NULL
+                  AND i.started_at < $dayEnd
+                  AND COALESCE(i.ended_at, $now) > $dayStart;
+                """;
+            command.Parameters.AddWithValue("$dayStart", FormatTimestamp(dayStart));
+            command.Parameters.AddWithValue("$dayEnd", FormatTimestamp(dayEnd));
+            command.Parameters.AddWithValue("$now", FormatTimestamp(now));
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                var appId = reader.GetInt64(0);
+                if (!totals.TryGetValue(appId, out var aggregation))
+                    continue;
+
+                var startedAt = ParseTimestamp(reader.GetString(1));
+                var endedAt = reader.IsDBNull(2) ? now : ParseTimestamp(reader.GetString(2));
+                var effectiveStart = Max(startedAt, dayStart);
+                var effectiveEnd = Min(endedAt, dayEnd);
+                var idleRecordedMs = Math.Max(0, (long)(effectiveEnd - effectiveStart).TotalMilliseconds);
+                aggregation.IdleRecordedMs += idleRecordedMs;
+            }
+        }
+
         private SqliteConnection OpenConnection()
         {
             var connection = new SqliteConnection(connectionString);
@@ -1095,18 +3295,401 @@ namespace TimePilot.WinForms.KYS24
             return left >= right ? left : right;
         }
 
+        private static DateTimeOffset? MaxNullable(DateTimeOffset? left, DateTimeOffset? right)
+        {
+            return (left, right) switch
+            {
+                ({ } leftValue, { } rightValue) => Max(leftValue, rightValue),
+                ({ } leftValue, null) => leftValue,
+                (null, { } rightValue) => rightValue,
+                _ => null
+            };
+        }
+
+        private static (DateTimeOffset Start, DateTimeOffset End) GetLocalDayRange(DateTime localDate)
+        {
+            var dayStartDate = localDate.Date;
+            var dayEndDate = dayStartDate.AddDays(1);
+            return (
+                new DateTimeOffset(dayStartDate, TimeZoneInfo.Local.GetUtcOffset(dayStartDate)),
+                new DateTimeOffset(dayEndDate, TimeZoneInfo.Local.GetUtcOffset(dayEndDate)));
+        }
+
+        private static void AddActivityDates(HashSet<DateTime> dates, DateTimeOffset start, DateTimeOffset end)
+        {
+            if (end <= start)
+                return;
+
+            var cursor = start;
+            while (cursor < end)
+            {
+                var localDate = cursor.ToLocalTime().Date;
+                dates.Add(localDate);
+
+                var (_, dayEnd) = GetLocalDayRange(localDate);
+                cursor = Min(end, dayEnd);
+            }
+        }
+
+        private static void AddDailyUsageTrend(
+            Dictionary<DateTime, DailyUsageTrendAggregation> totals,
+            string appName,
+            DateTimeOffset start,
+            DateTimeOffset end)
+        {
+            var cursor = start;
+            while (cursor < end)
+            {
+                var localDate = cursor.ToLocalTime().Date;
+                var (_, dayEnd) = GetLocalDayRange(localDate);
+                var segmentEnd = Min(end, dayEnd);
+                var durationMs = Math.Max(0, (long)(segmentEnd - cursor).TotalMilliseconds);
+
+                if (durationMs > 0)
+                {
+                    if (!totals.TryGetValue(localDate, out var aggregation))
+                    {
+                        aggregation = new DailyUsageTrendAggregation();
+                        totals[localDate] = aggregation;
+                    }
+
+                    aggregation.ActiveUsageMs += durationMs;
+                    aggregation.AppTotals.TryGetValue(appName, out var appTotalMs);
+                    aggregation.AppTotals[appName] = appTotalMs + durationMs;
+                }
+
+                cursor = segmentEnd;
+            }
+        }
+
+        private static IReadOnlyList<DailyUsageTrendRow> CreateDailyUsageTrendRows(
+            IReadOnlyDictionary<DateTime, DailyUsageTrendAggregation> totals)
+        {
+            return totals
+                .OrderByDescending(x => x.Key)
+                .Select(x =>
+                {
+                    var topApp = x.Value.AppTotals
+                        .OrderByDescending(app => app.Value)
+                        .ThenBy(app => app.Key, StringComparer.CurrentCultureIgnoreCase)
+                        .FirstOrDefault();
+
+                    return new DailyUsageTrendRow(
+                        x.Key,
+                        x.Value.ActiveUsageMs,
+                        topApp.Key ?? "",
+                        topApp.Value);
+                })
+                .ToList();
+        }
+
+        private static void AddCategoryBucketDurations(
+            Dictionary<int, Dictionary<string, CategoryBucketTotal>> buckets,
+            DateTimeOffset dayStart,
+            TimeSpan bucketSize,
+            int bucketCount,
+            string categoryName,
+            string? color,
+            string appName,
+            DateTimeOffset start,
+            DateTimeOffset end)
+        {
+            var cursor = start;
+            while (cursor < end)
+            {
+                var bucketIndex = (int)Math.Floor((cursor - dayStart).TotalMilliseconds / bucketSize.TotalMilliseconds);
+                bucketIndex = Math.Clamp(bucketIndex, 0, bucketCount - 1);
+                var bucketStart = dayStart + TimeSpan.FromTicks(bucketSize.Ticks * bucketIndex);
+                var bucketEnd = Min(bucketStart + bucketSize, dayStart.AddDays(1));
+                var segmentEnd = Min(end, bucketEnd);
+                var durationMs = Math.Max(0, (long)(segmentEnd - cursor).TotalMilliseconds);
+
+                if (durationMs > 0)
+                {
+                    if (!buckets.TryGetValue(bucketIndex, out var bucket))
+                    {
+                        bucket = new Dictionary<string, CategoryBucketTotal>(StringComparer.OrdinalIgnoreCase);
+                        buckets[bucketIndex] = bucket;
+                    }
+
+                    if (!bucket.TryGetValue(categoryName, out var total))
+                    {
+                        total = new CategoryBucketTotal(categoryName, color);
+                        bucket[categoryName] = total;
+                    }
+
+                    total.ActiveUsageMs += durationMs;
+                    total.AppTotals.TryGetValue(appName, out var appTotalMs);
+                    total.AppTotals[appName] = appTotalMs + durationMs;
+                }
+
+                cursor = segmentEnd;
+            }
+        }
+
+        private static CategoryTimelineSegment CreateCategoryTimelineSegment(
+            DateTimeOffset dayStart,
+            TimeSpan bucketSize,
+            int bucketIndex,
+            IReadOnlyDictionary<string, CategoryBucketTotal> totals)
+        {
+            var startedAt = dayStart + TimeSpan.FromTicks(bucketSize.Ticks * bucketIndex);
+            var endedAt = Min(startedAt + bucketSize, dayStart.AddDays(1));
+            var totalMs = totals.Values.Sum(x => x.ActiveUsageMs);
+            var ordered = totals.Values
+                .OrderByDescending(x => x.ActiveUsageMs)
+                .ThenBy(x => x.CategoryName)
+                .ToList();
+            var top = ordered.First();
+            var topShare = (double)top.ActiveUsageMs / Math.Max(1, totalMs);
+            var isDistributed = topShare < 0.5;
+            var detailParts = ordered
+                .Take(3)
+                .Select(x => $"{AppCategoryDisplay.GetDisplayName(x.CategoryName)} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}");
+            var detailText = string.Join(
+                ", ",
+                isDistributed
+                    ? detailParts.Prepend(UiText.Main.TimelineCategoryDistributed)
+                    : detailParts);
+            var appText = FormatCategorySegmentTopApps(ordered.SelectMany(x => x.AppTotals), totalMs, take: 3);
+            if (!string.IsNullOrWhiteSpace(appText))
+                detailText = string.Join(" | ", detailText, appText);
+
+            return new CategoryTimelineSegment(
+                startedAt,
+                endedAt,
+                AppCategoryDisplay.GetDisplayName(top.CategoryName),
+                top.Color,
+                isDistributed,
+                totalMs,
+                detailText);
+        }
+
+        private static CategoryTimelineSegment CreateWholeDayCategoryTimelineSegment(
+            DateTimeOffset dayStart,
+            DateTimeOffset dayEnd,
+            IReadOnlyDictionary<string, CategoryBucketTotal> totals)
+        {
+            var totalMs = totals.Values.Sum(x => x.ActiveUsageMs);
+            var ordered = totals.Values
+                .OrderByDescending(x => x.ActiveUsageMs)
+                .ThenBy(x => x.CategoryName)
+                .ToList();
+            var top = ordered.First();
+            var topShare = (double)top.ActiveUsageMs / Math.Max(1, totalMs);
+            var isDistributed = topShare < 0.5;
+            var topCategoryName = AppCategoryDisplay.GetDisplayName(top.CategoryName);
+            var categoryName = UiText.Main.TimelineOverallCategoryLabel(topCategoryName, topShare, isDistributed);
+            var detailText = string.Join(
+                " | ",
+                UiText.Main.TimelineCategoryRecordedActiveBasis,
+                string.Join(
+                    ", ",
+                    ordered
+                        .Take(4)
+                        .Select(x => $"{AppCategoryDisplay.GetDisplayName(x.CategoryName)} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}")));
+            var appText = FormatCategorySegmentTopApps(ordered.SelectMany(x => x.AppTotals), totalMs, take: 5);
+            if (!string.IsNullOrWhiteSpace(appText))
+                detailText = string.Join(" | ", detailText, appText);
+
+            return new CategoryTimelineSegment(
+                dayStart,
+                dayEnd,
+                categoryName,
+                top.Color,
+                isDistributed,
+                totalMs,
+                detailText);
+        }
+
+        private static string FormatCategorySegmentTopApps(
+            IEnumerable<KeyValuePair<string, long>> appTotals,
+            long totalMs,
+            int take)
+        {
+            var parts = appTotals
+                .GroupBy(x => x.Key, StringComparer.CurrentCultureIgnoreCase)
+                .Select(group => new
+                {
+                    AppName = group.Key,
+                    ActiveUsageMs = group.Sum(x => x.Value)
+                })
+                .Where(x => x.ActiveUsageMs > 0)
+                .OrderByDescending(x => x.ActiveUsageMs)
+                .ThenBy(x => x.AppName, StringComparer.CurrentCulture)
+                .Take(take)
+                .Select(x => $"{x.AppName} {((double)x.ActiveUsageMs / Math.Max(1, totalMs)).ToString("P0", CultureInfo.CurrentCulture)}")
+                .ToList();
+
+            if (parts.Count == 0)
+                return "";
+
+            var label = UiText.CurrentLanguage == UiLanguage.English ? "Top apps" : "상위 앱";
+            return $"{label}: {string.Join(", ", parts)}";
+        }
+
+        private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> MergeIntervals(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> intervals)
+        {
+            if (intervals.Count == 0)
+                return [];
+
+            var ordered = intervals
+                .OrderBy(interval => interval.Start)
+                .ToList();
+            var merged = new List<(DateTimeOffset Start, DateTimeOffset End)> { ordered[0] };
+
+            foreach (var interval in ordered.Skip(1))
+            {
+                var last = merged[^1];
+                if (interval.Start <= last.End)
+                {
+                    merged[^1] = (last.Start, Max(last.End, interval.End));
+                    continue;
+                }
+
+                merged.Add(interval);
+            }
+
+            return merged;
+        }
+
+        private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> SubtractIntervals(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> sourceIntervals,
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> excludedIntervals)
+        {
+            if (sourceIntervals.Count == 0 || excludedIntervals.Count == 0)
+                return sourceIntervals;
+
+            var result = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            foreach (var source in sourceIntervals)
+            {
+                var cursor = source.Start;
+                foreach (var excluded in excludedIntervals)
+                {
+                    if (excluded.End <= cursor)
+                        continue;
+
+                    if (excluded.Start >= source.End)
+                        break;
+
+                    if (excluded.Start > cursor)
+                        result.Add((cursor, Min(excluded.Start, source.End)));
+
+                    if (excluded.End > cursor)
+                        cursor = Max(cursor, excluded.End);
+
+                    if (cursor >= source.End)
+                        break;
+                }
+
+                if (cursor < source.End)
+                    result.Add((cursor, source.End));
+            }
+
+            return result;
+        }
+
+        private static IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> IntersectIntervals(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> leftIntervals,
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> rightIntervals)
+        {
+            var intersections = new List<(DateTimeOffset Start, DateTimeOffset End)>();
+            var leftIndex = 0;
+            var rightIndex = 0;
+            while (leftIndex < leftIntervals.Count && rightIndex < rightIntervals.Count)
+            {
+                var left = leftIntervals[leftIndex];
+                var right = rightIntervals[rightIndex];
+                var start = Max(left.Start, right.Start);
+                var end = Min(left.End, right.End);
+                if (end > start)
+                    intersections.Add((start, end));
+
+                if (left.End < right.End)
+                    leftIndex++;
+                else
+                    rightIndex++;
+            }
+
+            return intersections;
+        }
+
+        private static long GetIntersectedDurationMs(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> leftIntervals,
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> rightIntervals)
+        {
+            return IntersectIntervals(leftIntervals, rightIntervals)
+                .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
+        }
+
+        private static long GetMergedDurationMs(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> intervals)
+        {
+            return MergeIntervals(intervals)
+                .Sum(interval => Math.Max(0, (long)(interval.End - interval.Start).TotalMilliseconds));
+        }
+
+        private static long GetLongestMissingMs(
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> recordableIntervals,
+            IReadOnlyList<(DateTimeOffset Start, DateTimeOffset End)> trackedIntervals)
+        {
+            var longestMissingMs = 0L;
+            foreach (var recordable in recordableIntervals)
+            {
+                var trackedInWindow = trackedIntervals
+                    .Where(interval => interval.Start < recordable.End && interval.End > recordable.Start)
+                    .Select(interval => (Max(interval.Start, recordable.Start), Min(interval.End, recordable.End)))
+                    .ToList();
+                longestMissingMs = Math.Max(
+                    longestMissingMs,
+                    GetLongestGapMs(MergeIntervals(trackedInWindow), recordable.Start, recordable.End));
+            }
+
+            return longestMissingMs;
+        }
+
         private sealed class UsageAggregation
         {
-            public UsageAggregation(DateTimeOffset firstStartedAt, DateTimeOffset lastObservedAt, string? executablePath)
+            public UsageAggregation(
+                long appId,
+                string appName,
+                string processName,
+                DateTimeOffset firstStartedAt,
+                DateTimeOffset lastObservedAt,
+                string? executablePath,
+                long? primaryCategoryId,
+                string? categoryName,
+                string? categoryColor)
             {
+                AppId = appId;
+                AppName = appName;
+                ProcessName = processName;
                 FirstStartedAt = firstStartedAt;
                 LastObservedAt = lastObservedAt;
                 ExecutablePath = executablePath;
+                PrimaryCategoryId = primaryCategoryId;
+                CategoryName = categoryName;
+                CategoryColor = categoryColor;
             }
+
+            public long AppId { get; }
+
+            public string AppName { get; }
+
+            public string ProcessName { get; }
 
             public long ActiveUsageMs { get; set; }
 
+            public long IdleRecordedMs { get; set; }
+
             public string? ExecutablePath { get; set; }
+
+            public long? PrimaryCategoryId { get; set; }
+
+            public string? CategoryName { get; set; }
+
+            public string? CategoryColor { get; set; }
 
             public int SwitchCount { get; set; }
 
@@ -1115,23 +3698,65 @@ namespace TimePilot.WinForms.KYS24
             public DateTimeOffset LastObservedAt { get; set; }
         }
 
+        private sealed class DailyUsageTrendAggregation
+        {
+            public long ActiveUsageMs { get; set; }
+
+            public Dictionary<string, long> AppTotals { get; } = new(StringComparer.OrdinalIgnoreCase);
+        }
+
+        private sealed class CategoryBucketTotal
+        {
+            public CategoryBucketTotal(string categoryName, string? color)
+            {
+                CategoryName = categoryName;
+                Color = color;
+            }
+
+            public string CategoryName { get; }
+
+            public string? Color { get; }
+
+            public long ActiveUsageMs { get; set; }
+
+            public Dictionary<string, long> AppTotals { get; } = new(StringComparer.CurrentCultureIgnoreCase);
+        }
+
         private sealed class ProcessRuntimeAggregation
         {
             private readonly List<(DateTimeOffset Start, DateTimeOffset End)> runtimeIntervals = new();
 
-            public ProcessRuntimeAggregation(string appName, DateTimeOffset firstObservedAt, DateTimeOffset lastObservedAt, string? executablePath)
+            public ProcessRuntimeAggregation(
+                string appName,
+                string processName,
+                DateTimeOffset firstObservedAt,
+                DateTimeOffset lastObservedAt,
+                string? executablePath,
+                long? primaryCategoryId,
+                string? categoryName)
             {
                 AppName = appName;
+                ProcessName = processName;
                 FirstObservedAt = firstObservedAt;
                 LastObservedAt = lastObservedAt;
                 ExecutablePath = executablePath;
+                PrimaryCategoryId = primaryCategoryId;
+                CategoryName = categoryName;
             }
 
             public string AppName { get; }
 
+            public string ProcessName { get; }
+
             public long ActiveUsageMs { get; set; }
 
+            public long IdleRecordedMs { get; set; }
+
             public string? ExecutablePath { get; set; }
+
+            public long? PrimaryCategoryId { get; set; }
+
+            public string? CategoryName { get; set; }
 
             public bool HasRunningSession { get; set; }
 

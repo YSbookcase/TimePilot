@@ -20,6 +20,8 @@ mono_crash.*
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
+!docs/release/
+!docs/release/**
 [Rr]eleases/
 x64/
 x86/
@@ -221,6 +223,7 @@ rcf/
 AppPackages/
 BundleArtifacts/
 Package.StoreAssociation.xml
+!TimePilot.Packaging/Package.StoreAssociation.xml
 _pkginfo.txt
 *.appx
 *.appxbundle

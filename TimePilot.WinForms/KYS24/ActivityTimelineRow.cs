@@ -9,13 +9,27 @@ namespace TimePilot.WinForms.KYS24
         long DurationMs,
         string DisplayName,
         string? ExecutablePath = null,
-        Image? AppIcon = null)
+        Image? AppIcon = null,
+        string ProcessName = "",
+        long? AppId = null,
+        long? PrimaryCategoryId = null,
+        string? CategoryName = null,
+        int? IdleThresholdMs = null)
     {
+        public string CategoryText => string.IsNullOrWhiteSpace(CategoryName)
+            ? UiText.Main.Uncategorized
+            : AppCategoryDisplay.GetDisplayName(CategoryName);
+
         public string StartedAtText => StartedAt.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture);
 
-        public string EndedAtText => EndedAt?.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture) ?? "진행 중";
+        public string EndedAtText => EndedAt?.ToLocalTime().ToString("HH:mm:ss", CultureInfo.CurrentCulture)
+            ?? UiText.Timeline.InProgress;
 
         public string DurationText => FormatDuration(DurationMs);
+
+        public string IdleThresholdText => IdleThresholdMs is null
+            ? ""
+            : FormatDuration(IdleThresholdMs.Value);
 
         private static string FormatDuration(long durationMs)
         {

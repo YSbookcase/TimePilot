@@ -29,6 +29,9 @@ Develop a desktop application that automatically records and analyzes the user's
 - Separately track foreground usage time, idle time, and background process runtime.
 - Focus on time tracking first; CPU, memory, disk, and network resource tracking are deferred to a later expansion phase.
 - Check state at a regular interval, such as every 1 to 5 seconds.
+- Keep the 1-second foreground detection loop lightweight.
+- Run heavier DB queries and background process aggregation outside the UI thread where practical.
+- Protect risky background process tracking settings with safe-mode behavior.
 
 **Stored data**
 
@@ -37,22 +40,24 @@ Develop a desktop application that automatically records and analyzes the user's
 - End time
 - Total usage time
 - Tracking type, such as foreground, idle, or process runtime
+- Runtime session status and shutdown reason
+- Estimated Windows system start time for distinguishing app interruption from system restart
 
 ---
 
 ### 3.2 Time Aggregation
 
 - Daily usage time
-- Weekly and monthly statistics
-- Total usage time by program
+- Community: total usage time by program and a basic summary for a selected day
+- Pro candidate: weekly, monthly, and yearly statistics with long-term trend comparison
+- Runtime coverage and missing-time statistics are planned so users can understand how complete a day of data is.
 
 ---
 
 ### 3.3 Visualization (UI)
 
-- Usage ratio by program with charts
-- Usage patterns by time range
-- Top list of most-used apps
+- Community: daily activity flow and basic summaries
+- Pro candidate: usage-ratio charts, time-of-day patterns, and long-term top-app analysis
 
 ---
 
@@ -61,10 +66,16 @@ Develop a desktop application that automatically records and analyzes the user's
 - Excluded program settings, such as system processes
 - Recording interval settings
 - Auto-start option
+- Tray resident mode
+- Windows startup preference
+- Performance diagnostics display setting
+- Data folder access and local usage-record deletion
 
 ---
 
 ## 4. System Structure
+
+The following is the long-term target structure. See `docs/architecture/WINFORMS_STRUCTURE.md` for the current WinForms responsibility map and code placement rules.
 
 ### 4.1 Overall Structure
 
@@ -99,6 +110,39 @@ Develop a desktop application that automatically records and analyzes the user's
 
 - Aggregate time.
 - Calculate statistics.
+- Explain missing or untracked intervals without assuming the cause.
+
+---
+
+## 4.3 Current MVP Implementation Notes
+
+The current implementation is a WinForms MVP that keeps all tracking and UI in one desktop process. This is intentional for the early product stage.
+
+Implemented capabilities include:
+
+- Foreground app usage tracking
+- Idle session tracking
+- Background process runtime session tracking
+- App metadata and icon display
+- Summary, timeline, and detail tabs
+- Selected app runtime segment list
+- CSV export for usage data
+- Tray resident mode
+- Windows startup preference and first-run startup prompt
+- Single-instance protection
+- Windows installer and portable package build scripts
+- Runtime missing-gap display in the timeline
+- Background tracking safe mode for risky settings
+- Performance diagnostics display setting
+
+Current design principles:
+
+- Store usage data locally in SQLite.
+- Store timestamps in UTC and display them in local time in the UI.
+- Avoid storing window titles, command lines, document names, or web page titles by default.
+- Keep resource metrics deferred until the time model is stable.
+- Prefer incremental WinForms improvements over a broad rewrite.
+- Treat basic app classification and local recommendation as a user-approved aid, not an automatic background decision. See `docs/features/APP_CLASSIFICATION_RECOMMENDATION.md`.
 
 ---
 
@@ -118,44 +162,54 @@ Develop a desktop application that automatically records and analyzes the user's
 
 ### Phase 1 - MVP (Core Features)
 
-- [ ] Active window detection
-- [ ] Foreground usage time recording
-- [ ] Idle time detection and separation
-- [ ] Console output verification
+- [x] Active window detection
+- [x] Foreground usage time recording
+- [x] Idle time detection and separation
+- [x] Basic UI verification
 
 ---
 
 ### Phase 2 - Data Storage
 
-- [ ] SQLite integration
-- [ ] Foreground session storage
-- [ ] Idle session storage
-- [ ] Query feature
+- [x] SQLite integration
+- [x] Foreground session storage
+- [x] Idle session storage
+- [x] App runtime session storage
+- [x] Process runtime session storage
+- [x] Query feature
 
 ---
 
 ### Phase 3 - UI Implementation
 
-- [ ] Basic dashboard
-- [ ] Daily record display
-- [ ] Separate active usage time and idle time display
+- [x] Basic dashboard
+- [x] Daily summary display
+- [x] Timeline display
+- [x] Detail tab for process runtime
+- [x] Selected app runtime segment list
+- [x] Separate active usage time and idle time display
 
 ---
 
-### Phase 4 - Analytics Features
+### Phase 4 - Community Reliability and Usability
 
-- [ ] Weekly and monthly statistics
-- [ ] Top app analysis
-- [ ] Process runtime tracking for background programs, time-only
+- [x] Process runtime tracking for background programs, time-only
+- [ ] Runtime coverage and missing-time statistics
+- [ ] Improve timeline clarity for recording status and activity flow
 
 ---
 
-### Phase 5 - Expansion
+### Phase 5 - Release Stability and Pro Separation
 
-- [ ] Alert feature for time limit warnings
-- [ ] Goal setting feature
-- [ ] Resource usage tracking, such as CPU and memory, if needed
-- [ ] GitHub publishing and distribution
+- [x] GitHub publishing and distribution
+- [x] Windows installer
+- [x] Korean and English UI with a first-run default based on the Windows display language
+- [x] Full backup and full restore
+  - Merge restore is a Pro candidate; see `docs/features/RESTORE_MERGE_POLICY.md` for the policy.
+- [ ] Complete Microsoft Store public release and installation/update verification
+- [ ] Manage advanced analytics, reporting, and detailed tracking in the private Pro repository
+
+Do not expand weekly/monthly/yearly analytics, heatmaps, time-of-day patterns, goals and alerts, advanced backup/restore, detailed tracking, or data encryption as base Community functionality. Implement those features in the private Pro repository according to the boundary in `docs/PRO_EDITION_STRATEGY.ko.md`.
 
 ---
 
@@ -191,6 +245,8 @@ Develop a desktop application that automatically records and analyzes the user's
 - Consider privacy sensitivity and keep storage local.
 - Ensure accurate active window detection logic.
 - Avoid high-volume resource logging in the early product stage.
+- Avoid treating Windows shutdown, restart, or power-button restart as an application crash.
+- Make tracking intervals and UI refresh intervals clear to the user.
 
 ---
 

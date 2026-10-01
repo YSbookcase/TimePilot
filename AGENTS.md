@@ -14,6 +14,8 @@ For activity tracking and storage design, use `docs/features/ACTIVITY_TRACKING_M
 
 For development conventions, commit messages, branch names, issue format, code style, and privacy rules, use `docs/DEVELOPMENT_GUIDE.md`. The Korean source version is `docs/DEVELOPMENT_GUIDE.ko.md`.
 
+For Korean blog drafts and final WordPress block markup, use `docs/blog/BLOG_POST_STYLE_GUIDE.ko.md` and `docs/blog/WORDPRESS_POST_TEMPLATE.ko.html`. Write the factual Markdown draft first, then adapt it to the established blog structure without carrying old version numbers, links, update notices, or media IDs into the new post.
+
 ## Current Direction
 
 - Prioritize a small MVP before broad expansion.
