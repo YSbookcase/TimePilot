@@ -57,13 +57,29 @@ https://ys-bookcase.com/active-logbook/privacy-policy
 
 ActiveLogbook은 현재 초기 공개 테스트 단계입니다.
 
+기존 공개 테스트 버전은 `TimePilot`이라는 이름으로 배포했습니다. `ActiveLogbook`은 같은
+프로젝트의 현재 공개 제품명이며, 데이터 호환성을 위해 일부 내부 이름과
+`%LocalAppData%\TimePilot` 폴더에는 이전 이름이 남아 있을 수 있습니다.
+
 앱은 실제 사용 가능한 상태로 배포되고 있지만, `v1.0` 이전까지 기능, UI, 데이터 처리 방식이 변경될 수 있습니다.
 
 사용 중 문제가 발생하거나 개선 의견이 있다면 지원 페이지 또는 GitHub Issues를 통해 알려 주세요.
 
 ## 다운로드
 
-GitHub Releases에서 최신 설치 파일과 portable zip을 받을 수 있습니다.
+일반 사용자에게는 Microsoft Store 버전을 권장합니다. Windows에서 설치와 업데이트를 관리하므로
+가장 간단하게 최신 공개 버전을 사용할 수 있습니다.
+
+```text
+https://apps.microsoft.com/detail/9NWXBR051GLM
+```
+
+GitHub Releases의 EXE 설치 파일과 portable zip은 Microsoft Store를 사용할 수 없는 환경,
+오프라인 설치 또는 테스트를 위한 보조·레거시 배포입니다.
+
+Store, EXE, portable 버전을 동시에 사용하면 데이터 폴더와 자동 시작 등록이 나뉠 수 있습니다.
+기존 EXE에서 Store로 전환할 때는 먼저 전체 백업을 만들고, Store 버전에서 기존 기록과 설정을
+확인한 후 EXE를 제거하세요.
 
 ```text
 https://github.com/YSbookcase/TimePilot/releases
@@ -80,7 +96,8 @@ https://ys-bookcase.com/active-logbook/support
 ## 관련 링크
 
 - GitHub 저장소: https://github.com/YSbookcase/TimePilot
-- 릴리스 다운로드: https://github.com/YSbookcase/TimePilot/releases
+- Microsoft Store: https://apps.microsoft.com/detail/9NWXBR051GLM
+- GitHub 보조 배포: https://github.com/YSbookcase/TimePilot/releases
 - 개인정보처리방침: https://ys-bookcase.com/active-logbook/privacy-policy
 - 지원 안내: https://ys-bookcase.com/active-logbook/support
 

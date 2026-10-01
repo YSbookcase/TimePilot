@@ -1,4 +1,5 @@
 using TimePilot.WinForms.KYS24;
+using Windows.ApplicationModel;
 using Xunit;
 
 namespace TimePilot.Tests
@@ -49,6 +50,60 @@ namespace TimePilot.Tests
 
             Assert.Contains("설치형 EXE도 감지되었습니다", text);
             Assert.Contains("두 버전의 자동 시작을 동시에 켜지 마세요", text);
+        }
+
+        [Fact]
+        public void Format_WarnsWhenStoreAndExeStartupAreBothEnabled()
+        {
+            var snapshot = CreateSnapshot(
+                DeploymentChannel.StoreMsix,
+                startupInfo: new DeploymentStartupInfo(
+                    true,
+                    @"""C:\Program Files\ActiveLogbook\ActiveLogbook.exe"" --tray",
+                    null,
+                    StartupTaskState.Enabled));
+
+            var text = DeploymentDiagnosticsFormatter.Format(snapshot, UiLanguage.Korean);
+
+            Assert.Contains("Store 시작 작업과 EXE 자동 시작 항목이 모두 활성화", text);
+            Assert.Contains("EXE 자동 시작 항목을 해제하세요", text);
+        }
+
+        [Fact]
+        public void Format_WarnsUnpackagedChannelWhenStorePackageIsInstalled()
+        {
+            var snapshot = CreateSnapshot(
+                DeploymentChannel.InstalledExe,
+                startupInfo: new DeploymentStartupInfo(
+                    true,
+                    @"""C:\Program Files\ActiveLogbook\ActiveLogbook.exe"" --tray",
+                    null,
+                    null));
+
+            var text = DeploymentDiagnosticsFormatter.Format(snapshot, UiLanguage.Korean);
+
+            Assert.Contains("Microsoft Store 버전도 설치되어 있습니다", text);
+            Assert.Contains("사용할 배포판을 하나 선택하세요", text);
+        }
+
+        [Fact]
+        public void Format_ShowsDistributionAndStartupDetails()
+        {
+            var snapshot = CreateSnapshot(
+                DeploymentChannel.StoreMsix,
+                startupInfo: new DeploymentStartupInfo(
+                    true,
+                    null,
+                    @"""C:\Legacy\TimePilot.exe"" --tray",
+                    StartupTaskState.DisabledByUser));
+
+            var text = DeploymentDiagnosticsFormatter.Format(snapshot, UiLanguage.English);
+
+            Assert.Contains("Distribution and startup status", text);
+            Assert.Contains("Microsoft Store package: Installed", text);
+            Assert.Contains("ActiveLogbook EXE startup: Not registered", text);
+            Assert.Contains("Legacy TimePilot startup: \"C:\\Legacy\\TimePilot.exe\" --tray", text);
+            Assert.Contains("Store startup task: DisabledByUser", text);
         }
 
         [Fact]
@@ -149,7 +204,8 @@ namespace TimePilot.Tests
         private static DeploymentDiagnosticsSnapshot CreateSnapshot(
             DeploymentChannel channel,
             string? installedExeDirectory = null,
-            IReadOnlyList<DeploymentDataLocation>? storeDataLocations = null)
+            IReadOnlyList<DeploymentDataLocation>? storeDataLocations = null,
+            DeploymentStartupInfo? startupInfo = null)
         {
             return new DeploymentDiagnosticsSnapshot(
                 channel,
@@ -163,6 +219,13 @@ namespace TimePilot.Tests
                 true,
                 installedExeDirectory,
                 storeDataLocations ?? Array.Empty<DeploymentDataLocation>(),
+                startupInfo ?? new DeploymentStartupInfo(
+                    channel == DeploymentChannel.StoreMsix,
+                    null,
+                    null,
+                    channel == DeploymentChannel.StoreMsix
+                        ? StartupTaskState.Disabled
+                        : null),
                 DataStorageLocationService.BuildPlan(
                     isPackaged: channel == DeploymentChannel.StoreMsix,
                     legacyDirectory: @"C:\Users\tester\AppData\Local\TimePilot",

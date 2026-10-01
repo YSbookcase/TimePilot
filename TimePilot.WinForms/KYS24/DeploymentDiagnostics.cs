@@ -1,5 +1,8 @@
 using Microsoft.Win32;
+using System.Runtime.InteropServices;
 using System.Text;
+using Windows.ApplicationModel;
+using Windows.Management.Deployment;
 
 namespace TimePilot.WinForms.KYS24
 {
@@ -15,6 +18,12 @@ namespace TimePilot.WinForms.KYS24
         string DatabasePath,
         bool DatabaseExists);
 
+    internal sealed record DeploymentStartupInfo(
+        bool? StorePackageInstalled,
+        string? ActiveLogbookRunCommand,
+        string? LegacyRunCommand,
+        StartupTaskState? StoreStartupTaskState);
+
     internal sealed record DeploymentDiagnosticsSnapshot(
         DeploymentChannel Channel,
         string Version,
@@ -27,6 +36,7 @@ namespace TimePilot.WinForms.KYS24
         bool? LegacyDatabaseExists,
         string? InstalledExeDirectory,
         IReadOnlyList<DeploymentDataLocation> StoreDataLocations,
+        DeploymentStartupInfo StartupInfo,
         DataStorageLocationPlan StoragePlan);
 
     internal static class DeploymentDiagnosticsService
@@ -34,8 +44,12 @@ namespace TimePilot.WinForms.KYS24
         private const string UninstallKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
         private const string InstallerAppId = "B1C2D7C2-0B18-4F41-9B72-9D1B6B92F412";
         private const string PackageDirectoryPrefix = "YSBookcase.ActiveLogbook_";
+        private const string PackageFamilyName = "YSBookcase.ActiveLogbook_qx0xt5p8pr0jp";
+        private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        private const string ActiveLogbookRunValueName = "ActiveLogbook";
+        private const string LegacyRunValueName = "TimePilot";
 
-        public static DeploymentDiagnosticsSnapshot Collect()
+        public static async Task<DeploymentDiagnosticsSnapshot> CollectAsync()
         {
             var executablePath = Application.ExecutablePath;
             var isPackaged = WindowsStartupRegistration.IsPackagedApp();
@@ -52,6 +66,13 @@ namespace TimePilot.WinForms.KYS24
             var storeDataLocations = MergeStoreDataLocations(
                 FindStoreDataLocations(localAppDataDirectory),
                 storagePlan.Candidates);
+            var startupInfo = new DeploymentStartupInfo(
+                isPackaged ? true : TryIsStorePackageInstalled(),
+                TryGetRunCommand(ActiveLogbookRunValueName),
+                TryGetRunCommand(LegacyRunValueName),
+                isPackaged
+                    ? await TryGetPackagedStartupStateAsync()
+                    : null);
 
             return new DeploymentDiagnosticsSnapshot(
                 channel,
@@ -65,7 +86,59 @@ namespace TimePilot.WinForms.KYS24
                 isPackaged ? null : File.Exists(legacyDatabasePath),
                 installedExeDirectory,
                 storeDataLocations,
+                startupInfo,
                 storagePlan);
+        }
+
+        internal static bool? TryIsStorePackageInstalled()
+        {
+            try
+            {
+                var packageManager = new PackageManager();
+                return packageManager
+                    .FindPackagesForUser(string.Empty, PackageFamilyName)
+                    .Any(package => package.Id.Name.Equals(
+                        "YSBookcase.ActiveLogbook",
+                        StringComparison.OrdinalIgnoreCase));
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException
+                or System.Security.SecurityException
+                or InvalidOperationException
+                or ArgumentException
+                or COMException)
+            {
+                return null;
+            }
+        }
+
+        internal static string? TryGetRunCommand(string valueName)
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
+                return key?.GetValue(valueName) as string;
+            }
+            catch (Exception ex) when (ex is IOException
+                or UnauthorizedAccessException
+                or System.Security.SecurityException)
+            {
+                return null;
+            }
+        }
+
+        private static async Task<StartupTaskState?> TryGetPackagedStartupStateAsync()
+        {
+            try
+            {
+                return await WindowsStartupRegistration.GetPackagedStateAsync();
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException
+                or InvalidOperationException
+                or System.Security.SecurityException
+                or COMException)
+            {
+                return null;
+            }
         }
 
         internal static DeploymentChannel ResolveChannel(
@@ -221,6 +294,8 @@ namespace TimePilot.WinForms.KYS24
             builder.AppendLine($"{Label(isEnglish, "Legacy database", "기존 EXE 데이터베이스")}: {FormatNullableExists(snapshot.LegacyDatabaseExists, isEnglish)}");
             builder.AppendLine($"{Label(isEnglish, "Installed EXE", "설치형 EXE")}: {FormatInstalledExe(snapshot.InstalledExeDirectory, isEnglish)}");
             builder.AppendLine();
+            AppendStartupInfo(builder, snapshot.StartupInfo, snapshot.Channel, isEnglish);
+            builder.AppendLine();
             AppendStoragePlan(builder, snapshot.StoragePlan, isEnglish);
             builder.AppendLine();
             builder.AppendLine(Label(isEnglish, "Microsoft Store data locations", "Microsoft Store 데이터 위치"));
@@ -247,6 +322,31 @@ namespace TimePilot.WinForms.KYS24
             }
 
             return builder.ToString().TrimEnd();
+        }
+
+        private static void AppendStartupInfo(
+            StringBuilder builder,
+            DeploymentStartupInfo startupInfo,
+            DeploymentChannel channel,
+            bool isEnglish)
+        {
+            builder.AppendLine(Label(isEnglish, "Distribution and startup status", "배포판 및 자동 시작 상태"));
+            builder.AppendLine(
+                $"{Label(isEnglish, "- Microsoft Store package", "- Microsoft Store 패키지")}: " +
+                FormatNullableDetected(startupInfo.StorePackageInstalled, isEnglish));
+            builder.AppendLine(
+                $"{Label(isEnglish, "- ActiveLogbook EXE startup", "- ActiveLogbook EXE 자동 시작")}: " +
+                FormatRunCommand(startupInfo.ActiveLogbookRunCommand, isEnglish));
+            builder.AppendLine(
+                $"{Label(isEnglish, "- Legacy TimePilot startup", "- 레거시 TimePilot 자동 시작")}: " +
+                FormatRunCommand(startupInfo.LegacyRunCommand, isEnglish));
+            builder.AppendLine(
+                $"{Label(isEnglish, "- Store startup task", "- Store 시작 작업")}: " +
+                FormatStartupTaskState(
+                    startupInfo.StoreStartupTaskState,
+                    channel,
+                    startupInfo.StorePackageInstalled == true,
+                    isEnglish));
         }
 
         private static void AppendStoragePlan(
@@ -277,6 +377,33 @@ namespace TimePilot.WinForms.KYS24
             bool isEnglish)
         {
             var warnings = new List<string>();
+            var hasExeStartup = !string.IsNullOrWhiteSpace(snapshot.StartupInfo.ActiveLogbookRunCommand)
+                || !string.IsNullOrWhiteSpace(snapshot.StartupInfo.LegacyRunCommand);
+            var storeStartupEnabled = snapshot.StartupInfo.StoreStartupTaskState is
+                StartupTaskState.Enabled or StartupTaskState.EnabledByPolicy;
+
+            if (snapshot.Channel == DeploymentChannel.StoreMsix && hasExeStartup)
+            {
+                warnings.Add(storeStartupEnabled
+                    ? Label(
+                        isEnglish,
+                        "Both the Store startup task and an EXE startup entry are enabled. Disable the EXE startup entry before relying on Store startup.",
+                        "Store 시작 작업과 EXE 자동 시작 항목이 모두 활성화되어 있습니다. Store 자동 시작을 사용하기 전에 EXE 자동 시작 항목을 해제하세요.")
+                    : Label(
+                        isEnglish,
+                        "An EXE startup entry remains. Remove it after confirming that the Store startup task works correctly.",
+                        "EXE 자동 시작 항목이 남아 있습니다. Store 시작 작업이 정상 동작하는지 확인한 후 제거하세요."));
+            }
+
+            if (snapshot.Channel != DeploymentChannel.StoreMsix
+                && snapshot.StartupInfo.StorePackageInstalled == true)
+            {
+                warnings.Add(Label(
+                    isEnglish,
+                    "The Microsoft Store version is also installed. Back up both data locations and choose one distribution before changing startup settings.",
+                    "Microsoft Store 버전도 설치되어 있습니다. 자동 시작 설정을 바꾸기 전에 두 데이터 위치를 백업하고 사용할 배포판을 하나 선택하세요."));
+            }
+
             if (snapshot.Channel == DeploymentChannel.StoreMsix
                 && !string.IsNullOrWhiteSpace(snapshot.InstalledExeDirectory))
             {
@@ -455,6 +582,44 @@ namespace TimePilot.WinForms.KYS24
             return string.IsNullOrWhiteSpace(directory)
                 ? Label(isEnglish, "Not detected", "감지되지 않음")
                 : directory;
+        }
+
+        private static string FormatNullableDetected(bool? detected, bool isEnglish)
+        {
+            return detected.HasValue
+                ? detected.Value
+                    ? Label(isEnglish, "Installed", "설치됨")
+                    : Label(isEnglish, "Not detected", "감지되지 않음")
+                : Label(isEnglish, "Could not inspect", "검사할 수 없음");
+        }
+
+        private static string FormatRunCommand(string? command, bool isEnglish)
+        {
+            return string.IsNullOrWhiteSpace(command)
+                ? Label(isEnglish, "Not registered", "등록되지 않음")
+                : command;
+        }
+
+        private static string FormatStartupTaskState(
+            StartupTaskState? state,
+            DeploymentChannel channel,
+            bool storePackageInstalled,
+            bool isEnglish)
+        {
+            if (!state.HasValue)
+            {
+                if (channel == DeploymentChannel.StoreMsix)
+                    return Label(isEnglish, "Could not inspect", "검사할 수 없음");
+
+                return storePackageInstalled
+                    ? Label(
+                        isEnglish,
+                        "Inspect from the running Store version",
+                        "실행 중인 Store 버전에서 확인 가능")
+                    : Label(isEnglish, "Not available", "확인할 수 없음");
+            }
+
+            return state.Value.ToString();
         }
 
         private static string Label(bool isEnglish, string english, string korean)

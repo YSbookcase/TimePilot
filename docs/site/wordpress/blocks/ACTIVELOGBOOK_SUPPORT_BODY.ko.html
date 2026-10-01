@@ -2,6 +2,10 @@
 <p>ActiveLogbook 사용 중 문제가 발생했거나 개선 의견이 있다면 아래 경로로 문의할 수 있습니다.</p>
 <!-- /wp:paragraph -->
 
+<!-- wp:paragraph -->
+<p>기존 공개 테스트 버전은 <code>TimePilot</code>이라는 이름으로 배포했습니다. <code>ActiveLogbook</code>은 같은 프로젝트의 현재 공개 제품명입니다.</p>
+<!-- /wp:paragraph -->
+
 <!-- wp:heading -->
 <h2 class="wp-block-heading">문의 이메일</h2>
 <!-- /wp:heading -->
@@ -28,7 +32,7 @@
 <!-- /wp:list-item -->
 
 <!-- wp:list-item -->
-<li>설치 버전인지 portable 버전인지</li>
+<li>Microsoft Store, EXE 설치판, portable 중 어떤 배포판인지</li>
 <!-- /wp:list-item -->
 
 <!-- wp:list-item -->
@@ -69,11 +73,23 @@
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>최신 공개 버전은 GitHub Releases에서 받을 수 있습니다.</p>
+<p>일반 사용자는 Microsoft Store 버전을 권장합니다.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
-<p><a href="https://github.com/YSbookcase/TimePilot/releases">ActiveLogbook 릴리스 다운로드</a></p>
+<p><a href="https://apps.microsoft.com/detail/9NWXBR051GLM">Microsoft Store에서 ActiveLogbook 받기</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>GitHub Releases의 EXE 설치 파일과 portable 압축 파일은 Microsoft Store를 사용할 수 없는 환경, 오프라인 설치 또는 테스트를 위한 보조·레거시 배포입니다.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><a href="https://github.com/YSbookcase/TimePilot/releases">GitHub 보조 배포 파일</a></p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p>Store와 EXE 또는 portable 버전을 동시에 사용하면 데이터 위치와 자동 시작 등록이 나뉠 수 있습니다. 배포판을 전환하기 전에 전체 백업을 만들고 새 설치에서 기록과 설정을 확인하세요. 확인이 끝난 뒤 이전 설치를 제거하고, 두 버전의 자동 시작을 동시에 활성화하지 마세요.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
@@ -85,12 +101,28 @@
 <!-- /wp:heading -->
 
 <!-- wp:paragraph -->
-<p>ActiveLogbook의 주요 로컬 데이터는 기본적으로 다음 위치에 저장됩니다.</p>
+<p>일반 EXE와 portable 버전의 주요 로컬 데이터는 기본적으로 다음 위치에 저장됩니다.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:paragraph -->
+<p><code>TimePilot</code>이라는 폴더 이름은 기존 사용자 데이터와의 호환성을 위해 유지됩니다. 이름이 다르더라도 ActiveLogbook이 사용하는 정상적인 데이터 경로입니다.</p>
 <!-- /wp:paragraph -->
 
 <!-- wp:code -->
 <pre class="wp-block-code"><code>%LocalAppData%\TimePilot</code></pre>
 <!-- /wp:code -->
+
+<!-- wp:paragraph -->
+<p>Microsoft Store/MSIX 설치본은 다음 패키지별 LocalState 경로를 사용합니다.</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:code -->
+<pre class="wp-block-code"><code>%LocalAppData%\Packages\YSBookcase.ActiveLogbook_qx0xt5p8pr0jp\LocalState\TimePilot</code></pre>
+<!-- /wp:code -->
+
+<!-- wp:paragraph -->
+<p>이전 EXE 또는 초기 MSIX 버전의 데이터가 다른 위치에 남아 있을 수 있습니다. 앱의 환경설정에 있는 설치 및 데이터 정보에서 현재 실행 채널과 실제 데이터 폴더를 확인할 수 있습니다.</p>
+<!-- /wp:paragraph -->
 
 <!-- wp:paragraph -->
 <p>앱 제거 후에도 로컬 데이터와 설정이 남아 있을 수 있습니다. 완전히 삭제하려면 앱의 데이터 삭제 기능을 사용하거나 위 폴더를 확인해 주세요.</p>

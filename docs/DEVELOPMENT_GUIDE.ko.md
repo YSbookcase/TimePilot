@@ -369,3 +369,17 @@ docs/DEVELOPMENT_GUIDE.ko.md
 ```
 
 이슈와 PR 설명은 저장소에서 사용 중인 라벨과 대괄호 이슈 제목 형식에 맞춘다.
+
+### 블로그 글 작성 흐름
+
+먼저 사실관계를 정리한 한국어 Markdown 초안을 작성한다. 실제 WordPress 게시용 본문을 만들 때는
+다음 문서를 참조한다.
+
+```text
+docs/blog/BLOG_POST_STYLE_GUIDE.ko.md
+docs/blog/WORDPRESS_POST_TEMPLATE.ko.html
+```
+
+기존 글에서는 구조와 문체만 재사용한다. 이전 버전 번호, 다운로드 링크, 업데이트 안내, 이미지
+URL, 첨부 ID, 과거 상태에 대한 설명을 새 글로 그대로 가져오지 않는다. 게시 직전에 Store 게시
+상태와 공개 링크를 다시 확인한다.

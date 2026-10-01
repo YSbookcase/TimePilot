@@ -12,6 +12,10 @@ https://ys-bookcase.com/active-logbook/support
 
 ActiveLogbook 사용 중 문제가 발생했거나 개선 의견이 있다면 아래 경로로 문의할 수 있습니다.
 
+기존 공개 테스트 버전은 `TimePilot`이라는 이름으로 배포했습니다. `ActiveLogbook`은 같은
+프로젝트의 현재 공개 제품명입니다. 호환성을 위해 일부 내부 이름과 데이터 폴더에는 `TimePilot`
+표기가 남아 있을 수 있습니다.
+
 ## 문의 이메일
 
 일반 문의, 개인정보처리방침 관련 문의, Microsoft Store 관련 문의는 다음 이메일로 보내 주세요.
@@ -24,7 +28,7 @@ support@ys-bookcase.com
 
 - 사용 중인 ActiveLogbook 버전
 - Windows 버전
-- 설치 버전인지 portable 버전인지
+- Microsoft Store, EXE 설치판, portable 중 어떤 배포판인지
 - 문제가 발생한 화면 또는 기능
 - 재현 방법
 - 오류 메시지 또는 스크린샷
@@ -43,31 +47,44 @@ GitHub Issues는 공개 공간입니다. 개인 정보, 민감한 사용 기록,
 
 ## 다운로드와 업데이트
 
-최신 공개 버전은 GitHub Releases에서 받을 수 있습니다.
+일반 사용자는 Microsoft Store 버전을 권장합니다.
+
+```text
+https://apps.microsoft.com/detail/9NWXBR051GLM
+```
+
+GitHub Releases의 EXE 설치 파일과 portable 압축 파일은 Microsoft Store를 사용할 수 없는 환경,
+오프라인 설치 또는 테스트를 위한 보조·레거시 배포입니다.
 
 ```text
 https://github.com/YSbookcase/TimePilot/releases
 ```
 
-ActiveLogbook은 현재 초기 공개 테스트 단계이므로, 사용 중인 버전의 알려진 제한사항과 릴리스 노트를 함께 확인하는 것을 권장합니다.
+Store와 EXE 또는 portable 버전을 동시에 사용하면 데이터 위치와 자동 시작 등록이 나뉠 수
+있습니다. 배포판을 전환하기 전에 전체 백업을 만들고 새 설치에서 기록과 설정을 확인하세요.
+확인이 끝난 뒤 이전 설치를 제거하고, 두 버전의 자동 시작을 동시에 활성화하지 마세요.
+
+ActiveLogbook은 현재 초기 공개 테스트 단계이므로, 사용 중인 버전의 알려진 제한사항과 릴리스
+노트를 함께 확인하는 것을 권장합니다.
 
 ## 데이터 저장과 삭제
 
-일반 실행 파일의 주요 로컬 데이터는 기본적으로 다음 위치에 저장됩니다.
+일반 실행 파일의 주요 로컬 데이터는 기본적으로 다음 위치에 저장됩니다. 폴더 이름 `TimePilot`은
+이전 제품명과 기존 데이터 호환성을 위해 유지됩니다.
 
 ```text
 %LocalAppData%\TimePilot
 ```
 
-Microsoft Store/MSIX 설치본에서는 Windows의 앱 데이터 가상화에 따라 다음 패키지별 경로에
-실제 파일이 저장됩니다.
+Microsoft Store/MSIX 설치본은 다음 패키지별 LocalState 경로를 사용합니다.
 
 ```text
-%LocalAppData%\Packages\<패키지 제품군 이름>\LocalCache\Local\TimePilot
+%LocalAppData%\Packages\YSBookcase.ActiveLogbook_qx0xt5p8pr0jp\LocalState\TimePilot
 ```
 
-앱의 `환경설정 > 데이터 관리 > 폴더 열기`를 사용하면 현재 설치 방식에 맞는 실제 폴더를
-바로 확인할 수 있습니다.
+이전 EXE 또는 초기 MSIX 버전의 데이터가 다른 위치에 남아 있을 수 있습니다. 앱의
+`환경설정 > 설치 및 데이터 정보`에서 현재 실행 채널과 실제 데이터 폴더를 확인하고,
+`환경설정 > 데이터 관리 > 폴더 열기`로 현재 사용 중인 폴더를 열 수 있습니다.
 
 앱 제거 후에도 로컬 데이터와 설정이 남아 있을 수 있습니다. 완전히 삭제하려면 앱의 데이터 삭제 기능을 사용하거나 위 폴더를 확인해 주세요.
 
