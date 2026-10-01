@@ -27,6 +27,13 @@ Microsoft Store:
 
 https://apps.microsoft.com/detail/9NWXBR051GLM
 
+[이미지 삽입 1
+- 목적: Store에서 실제 제품을 찾고 설치할 수 있음을 보여 주기
+- 화면: Microsoft Store의 ActiveLogbook 제품 페이지
+- 촬영 상태: 최신 게시 버전과 설치 또는 열기 버튼이 보이는 상태
+- 가릴 정보: Microsoft 계정 이름, 이메일, 개인화된 추천 정보
+- 대체 텍스트: Microsoft Store의 ActiveLogbook 제품 페이지]
+
 ## 기존 EXE 사용자가 전환하기 전에
 
 기존 GitHub EXE 설치판과 Microsoft Store 버전은 별개의 설치입니다. 두 버전은 데이터 폴더와
@@ -38,6 +45,20 @@ Windows 자동 시작 등록이 다를 수 있으므로 바로 기존 앱을 제
 4. 필요한 경우 백업 ZIP을 이용해 데이터를 복원하고 결과를 다시 확인합니다.
 5. Store 자동 시작이 정상 동작하는지 확인합니다.
 6. 모든 확인이 끝난 뒤 기존 EXE 설치판을 제거합니다.
+
+[이미지 삽입 2
+- 목적: 현재 설치 유형과 데이터 위치를 앱에서 확인하는 방법 보여 주기
+- 화면: ActiveLogbook 환경설정의 `설치 및 데이터 정보`
+- 촬영 상태: Store 설치 유형과 LocalState 데이터 폴더가 보이는 상태
+- 가릴 정보: Windows 사용자 이름, 전체 로컬 경로, 개인 사용 기록
+- 대체 텍스트: ActiveLogbook 설치 및 데이터 정보 화면]
+
+[이미지 삽입 3
+- 목적: 전환 전에 전체 백업을 만드는 위치 보여 주기
+- 화면: ActiveLogbook 환경설정의 전체 백업 기능
+- 촬영 상태: 백업 버튼과 안내 문구가 보이고 백업 작업은 실행하지 않은 상태
+- 가릴 정보: 백업 대상 경로, 사용자 이름, 파일 이름에 포함된 개인 정보
+- 대체 텍스트: ActiveLogbook 전체 백업 설정 화면]
 
 전환 중에는 EXE와 Store 버전의 자동 시작을 동시에 켜지 않는 것이 좋습니다. 앱이 실행 중인
 상태에서 데이터베이스 파일을 직접 복사하거나 덮어쓰지 마세요.
@@ -51,6 +72,13 @@ https://github.com/YSbookcase/TimePilot/releases
 
 새로 설치하는 일반 사용자라면 Microsoft Store 버전을 먼저 선택해 주세요. 이미 EXE 버전을
 사용하고 있다면 데이터를 백업하고 Store 버전에서 확인을 끝낸 뒤 전환하는 것이 안전합니다.
+
+[이미지 삽입 4 - 선택 사항
+- 목적: Store와 GitHub 보조 배포의 역할 차이를 보여 주기
+- 화면: GitHub Releases의 최신 공개 릴리스
+- 촬영 상태: Store 링크와 보조 배포 안내가 반영된 릴리스 설명
+- 가릴 정보: 로그인 계정, 비공개 알림, 초안 릴리스 정보
+- 대체 텍스트: ActiveLogbook GitHub 보조 배포 파일]
 
 ## 데이터와 개인정보
 
