@@ -366,3 +366,14 @@ docs/DEVELOPMENT_GUIDE.md
 ```
 
 Keep issue and PR descriptions aligned with the current labels and the bracketed issue title style used in the repository.
+
+### Blog post workflow
+
+Write the factual Korean Markdown draft first. When preparing the actual WordPress post, follow:
+
+```text
+docs/blog/BLOG_POST_STYLE_GUIDE.ko.md
+docs/blog/WORDPRESS_POST_TEMPLATE.ko.html
+```
+
+Reuse the established structure and tone, but never copy stale version numbers, download links, update notices, image URLs, attachment IDs, or claims from an older post. Verify Store publication status and public links immediately before publishing.

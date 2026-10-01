@@ -1,6 +1,9 @@
 # ActiveLogbook Microsoft Store 배포 안내 초안
 
 > 게시 전 확인: Store에 표시되는 최신 버전과 게시 날짜를 확인하고 아래 대괄호 항목을 교체한다.
+>
+> 실제 WordPress 게시본으로 변환할 때는 `docs/blog/BLOG_POST_STYLE_GUIDE.ko.md`와
+> `docs/blog/WORDPRESS_POST_TEMPLATE.ko.html`을 참조한다.
 
 ## ActiveLogbook을 Microsoft Store에서 설치할 수 있습니다
 
