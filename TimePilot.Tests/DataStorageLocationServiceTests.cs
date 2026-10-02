@@ -258,6 +258,53 @@ namespace TimePilot.Tests
             }
         }
 
+        [Fact]
+        public void InspectDatabase_RecoversHotJournalBeforeValidation()
+        {
+            var root = Path.Combine(Path.GetTempPath(), $"TimePilotHotJournal-{Guid.NewGuid():N}");
+            var sourcePath = Path.Combine(root, "source.db");
+            var snapshotPath = Path.Combine(root, "snapshot.db");
+
+            try
+            {
+                CreateValidDatabase(sourcePath);
+                using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
+                       {
+                           DataSource = sourcePath,
+                           Pooling = false
+                       }.ToString()))
+                {
+                    connection.Open();
+                    using var command = connection.CreateCommand();
+                    command.CommandText = """
+                        PRAGMA journal_mode = DELETE;
+                        PRAGMA synchronous = FULL;
+                        BEGIN IMMEDIATE;
+                        INSERT INTO apps (id) VALUES (1);
+                        """;
+                    command.ExecuteNonQuery();
+
+                    File.Copy(sourcePath, snapshotPath);
+                    File.Copy(sourcePath + "-journal", snapshotPath + "-journal");
+                }
+
+                Assert.True(File.Exists(snapshotPath + "-journal"));
+
+                var result = DataStorageLocationService.InspectDatabase(
+                    snapshotPath,
+                    canInspect: true);
+
+                Assert.Equal(DataStorageDatabaseState.Valid, result.State);
+                Assert.Null(result.Error);
+            }
+            finally
+            {
+                SqliteConnection.ClearAllPools();
+                if (Directory.Exists(root))
+                    Directory.Delete(root, recursive: true);
+            }
+        }
+
         private static void CreateValidDatabase(string path)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);

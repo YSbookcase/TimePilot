@@ -217,7 +217,7 @@ namespace TimePilot.WinForms.KYS24
         {
             var plan = DataStorageLocationService.Collect();
             var decision = plan.MigrationDecision;
-            var selectedDirectory = plan.CurrentDirectory;
+            var selectedDirectory = SelectInitialDirectory(plan);
             var attempted = false;
             var succeeded = false;
             string? error = null;
@@ -259,6 +259,18 @@ namespace TimePilot.WinForms.KYS24
                 attempted,
                 succeeded,
                 error);
+        }
+
+        internal static string SelectInitialDirectory(DataStorageLocationPlan plan)
+        {
+            // Once migration has completed, LocalState is authoritative. Falling back to
+            // the legacy source after a transient inspection failure would split writes
+            // across two databases and can make recent Store data appear to disappear.
+            return plan.IsPackaged
+                && plan.HasCompletedMigration
+                && plan.IsTargetAvailable
+                    ? plan.TargetDirectory
+                    : plan.CurrentDirectory;
         }
     }
 }

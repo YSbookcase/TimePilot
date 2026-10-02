@@ -113,6 +113,46 @@ namespace TimePilot.Tests
             }
         }
 
+        [Fact]
+        public void SelectInitialDirectory_KeepsCompletedMigrationTargetAfterInspectionFailure()
+        {
+            var current = new DataStorageCandidate(
+                DataStorageLocationKind.LegacyExe,
+                @"C:\Data\TimePilot",
+                IsCurrent: true,
+                IsTarget: false,
+                CanInspect: true,
+                DatabaseExists: true,
+                SettingsExists: true,
+                BackupDirectoryExists: true,
+                DataStorageDatabaseState.Valid,
+                DatabaseInspectionError: null);
+            var target = new DataStorageCandidate(
+                DataStorageLocationKind.MsixLocalState,
+                @"C:\Data\Packages\ActiveLogbook\LocalState\TimePilot",
+                IsCurrent: false,
+                IsTarget: true,
+                CanInspect: true,
+                DatabaseExists: true,
+                SettingsExists: true,
+                BackupDirectoryExists: true,
+                DataStorageDatabaseState.Unavailable,
+                DatabaseInspectionError: "database is locked");
+            var plan = new DataStorageLocationPlan(
+                IsPackaged: true,
+                CurrentDirectory: current.DirectoryPath,
+                TargetDirectory: target.DirectoryPath,
+                Candidates: [current, target],
+                HasCompletedMigration: true);
+
+            Assert.Equal(
+                DataStorageMigrationDecisionKind.InspectionFailed,
+                plan.MigrationDecision.Kind);
+            Assert.Equal(
+                target.DirectoryPath,
+                DataStorageBootstrapper.SelectInitialDirectory(plan));
+        }
+
         private static StorageTestPaths CreateTestPaths()
         {
             var root = Path.Combine(
