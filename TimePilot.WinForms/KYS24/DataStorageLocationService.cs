@@ -265,7 +265,9 @@ namespace TimePilot.WinForms.KYS24
                 using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
                 {
                     DataSource = databasePath,
-                    Mode = SqliteOpenMode.ReadOnly,
+                    // Opening read/write allows SQLite to roll back a hot journal left by
+                    // an interrupted shutdown before the integrity check runs.
+                    Mode = SqliteOpenMode.ReadWrite,
                     Pooling = false
                 }.ToString());
                 connection.Open();
