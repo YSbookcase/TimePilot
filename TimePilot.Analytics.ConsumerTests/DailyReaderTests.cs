@@ -8,6 +8,7 @@ namespace TimePilot.Analytics.ConsumerTests;
 
 public sealed class DailyReaderTests
 {
+    private static readonly DateTimeOffset CaptureTime = new(2031, 1, 1, 0, 0, 0, TimeSpan.Zero);
     private static DateTimeOffset At(int day, int hour = 0) => new(2024, 2, day, hour, 0, 0, TimeSpan.Zero);
     private static DailyQuery Query(int start = 28, int end = 29) =>
         new(new DateOnly(2024, 2, start), new DateOnly(2024, 2, end), TimeZoneInfo.Utc, At(29, 23));
@@ -23,9 +24,9 @@ public sealed class DailyReaderTests
         fixture.Idle(At(28, 13), At(28, 15));
         fixture.Runtime(At(28, 8), At(28, 16));
         fixture.Runtime(At(28, 9), At(28, 10));
-        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath);
+        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime);
         var snapshot = reader.Read(Query());
-        Assert.Equal("1.0.0", snapshot.ContractVersion);
+        Assert.Equal("2.0.0", snapshot.ContractVersion);
         var day = Assert.Single(snapshot.Days);
         Assert.Equal(4 * 3_600_000, day.ActiveMilliseconds);
         Assert.Equal(2 * 3_600_000, day.IdleMilliseconds);
@@ -33,8 +34,8 @@ public sealed class DailyReaderTests
         Assert.Equal(3, day.Categories.Count);
         Assert.Equal(3_600_000, day.Categories.Single(c => c.CategoryId == 20).ActiveMilliseconds);
         Assert.Equal(3_600_000, day.Categories.Single(c => c.CategoryId is null).ActiveMilliseconds);
-        Assert.Equal(8 * 3_600_000, day.Coverage.RecordedMilliseconds);
-        Assert.Equal(16 * 3_600_000, day.Coverage.UnobservedMilliseconds);
+        Assert.Equal(8 * 3_600_000, day.RecorderCalendarCoverage.RecorderRunningMilliseconds);
+        Assert.Equal(16 * 3_600_000, day.RecorderCalendarCoverage.CalendarGapMilliseconds);
     }
 
     [Fact]
@@ -44,7 +45,7 @@ public sealed class DailyReaderTests
         fixture.Foreground(1, At(28, 9), At(28, 10));
         var logical = fixture.LogicalContents();
         var before = fixture.Files();
-        var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath);
+        var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime);
         reader.Read(Query());
         reader.Read(Query());
         Assert.Equal(before.OrderBy(p => p.Key), fixture.Files().OrderBy(p => p.Key));
@@ -59,7 +60,7 @@ public sealed class DailyReaderTests
     public void SourceLeaseRejectsWriterAndReleasesAfterDispose()
     {
         using var fixture = new DailyFixture();
-        using (var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath))
+        using (var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime))
         {
             Assert.Throws<IOException>(() => new FileStream(fixture.DatabasePath, FileMode.Open, FileAccess.Write).Dispose());
             reader.Read(Query());
@@ -74,7 +75,7 @@ public sealed class DailyReaderTests
         using var writer = fixture.Connect();
         var before = fixture.Files();
         Assert.Equal(AnalyticsError.SourceUnavailable,
-            Assert.Throws<AnalyticsReadException>(() => SqliteDailyAnalyticsReader.Open(fixture.DatabasePath)).Error);
+            Assert.Throws<AnalyticsReadException>(() => SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime)).Error);
         Assert.Equal(before.OrderBy(p => p.Key), fixture.Files().OrderBy(p => p.Key));
     }
 
@@ -88,7 +89,7 @@ public sealed class DailyReaderTests
         File.WriteAllText(fixture.DatabasePath + suffix, "synthetic sidecar");
         var before = fixture.Files();
         Assert.Equal(AnalyticsError.UnsupportedJournal,
-            Assert.Throws<AnalyticsReadException>(() => SqliteDailyAnalyticsReader.Open(fixture.DatabasePath)).Error);
+            Assert.Throws<AnalyticsReadException>(() => SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime)).Error);
         Assert.Equal(before.OrderBy(p => p.Key), fixture.Files().OrderBy(p => p.Key));
     }
 
@@ -99,7 +100,7 @@ public sealed class DailyReaderTests
         fixture.Execute("PRAGMA journal_mode=WAL;");
         var before = fixture.Files();
         Assert.Equal(AnalyticsError.UnsupportedJournal,
-            Assert.Throws<AnalyticsReadException>(() => SqliteDailyAnalyticsReader.Open(fixture.DatabasePath)).Error);
+            Assert.Throws<AnalyticsReadException>(() => SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime)).Error);
         Assert.Equal(before.OrderBy(p => p.Key), fixture.Files().OrderBy(p => p.Key));
     }
 
@@ -108,9 +109,9 @@ public sealed class DailyReaderTests
     {
         var path = Path.Combine(Path.GetTempPath(), "TimePilotMissing-" + Guid.NewGuid(), "missing.db");
         Assert.Equal(AnalyticsError.SourceUnavailable,
-            Assert.Throws<AnalyticsReadException>(() => SqliteDailyAnalyticsReader.Open(path)).Error);
+            Assert.Throws<AnalyticsReadException>(() => SqliteDailyAnalyticsReader.Open(path, CaptureTime)).Error);
         Assert.False(Directory.Exists(Path.GetDirectoryName(path)));
-        Assert.Throws<ArgumentException>(() => SqliteDailyAnalyticsReader.Open("relative.db"));
+        Assert.Throws<ArgumentException>(() => SqliteDailyAnalyticsReader.Open("relative.db", CaptureTime));
     }
 
     [Theory]
@@ -123,7 +124,7 @@ public sealed class DailyReaderTests
         fixture.Execute(change);
         var before = fixture.Files();
         Assert.Equal(AnalyticsError.UnsupportedSchema,
-            Assert.Throws<AnalyticsReadException>(() => SqliteDailyAnalyticsReader.Open(fixture.DatabasePath)).Error);
+            Assert.Throws<AnalyticsReadException>(() => SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime)).Error);
         Assert.Equal(before.OrderBy(p => p.Key), fixture.Files().OrderBy(p => p.Key));
     }
 
@@ -132,11 +133,11 @@ public sealed class DailyReaderTests
     {
         using var fixture = new DailyFixture();
         fixture.Execute("INSERT INTO idle_sessions(started_at,ended_at) VALUES ('bad', 'also bad');");
-        using (var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath))
+        using (var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime))
             Assert.Equal(AnalyticsError.InvalidData, Assert.Throws<AnalyticsReadException>(() => reader.Read(Query())).Error);
         File.WriteAllText(fixture.DatabasePath, "corrupt database");
         Assert.Equal(AnalyticsError.InvalidData,
-            Assert.Throws<AnalyticsReadException>(() => SqliteDailyAnalyticsReader.Open(fixture.DatabasePath)).Error);
+            Assert.Throws<AnalyticsReadException>(() => SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime)).Error);
     }
 
     [Fact]
@@ -146,13 +147,13 @@ public sealed class DailyReaderTests
         fixture.Foreground(1, At(28, 23), null, At(29, 4));
         fixture.Idle(At(29), null);
         fixture.Runtime(At(28, 23), null, At(29, 4));
-        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath);
+        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime);
         var result = reader.Read(new DailyQuery(new(2024, 2, 28), new(2024, 3, 1), TimeZoneInfo.Utc, At(29, 2)));
         Assert.Equal(2, result.Days.Count);
         Assert.Equal(3_600_000, result.Days[0].ActiveMilliseconds);
         Assert.Equal(7_200_000, result.Days[1].ActiveMilliseconds);
         Assert.Equal(7_200_000, result.Days[1].IdleMilliseconds);
-        Assert.Equal(7_200_000, result.Days[1].Coverage.ObservedMilliseconds);
+        Assert.Equal(7_200_000, result.Days[1].RecorderCalendarCoverage.ElapsedCalendarMilliseconds);
     }
 
     [Theory]
@@ -162,11 +163,11 @@ public sealed class DailyReaderTests
     {
         using var fixture = new DailyFixture();
         var date = new DateOnly(year, month, day);
-        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath);
+        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime);
         var result = reader.Read(new DailyQuery(date, date.AddDays(1),
             TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"), new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)));
         var activity = Assert.Single(result.Days);
-        Assert.Equal(hours * 3_600_000L, activity.Coverage.ObservedMilliseconds);
+        Assert.Equal(hours * 3_600_000L, activity.RecorderCalendarCoverage.ElapsedCalendarMilliseconds);
         Assert.Equal(hours, (activity.EndsAt - activity.StartsAt).TotalHours);
         Assert.Null(activity.TopApp);
     }
@@ -175,8 +176,12 @@ public sealed class DailyReaderTests
     public void EmptyFutureInvalidRangeAndCancellationArePredictable()
     {
         using var fixture = new DailyFixture();
-        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath);
-        Assert.Equal(0, reader.Read(Query() with { ObservedAt = At(27) }).Days[0].Coverage.ObservedMilliseconds);
+        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime);
+        var futureCoverage = reader.Read(Query() with { ObservedAt = At(27) }).Days[0].RecorderCalendarCoverage;
+        Assert.Equal(0, futureCoverage.ElapsedCalendarMilliseconds);
+        Assert.Equal(0, futureCoverage.RecorderRunningMilliseconds);
+        Assert.Equal(0, futureCoverage.CalendarGapMilliseconds);
+        Assert.Equal(0, futureCoverage.RecorderToCalendarRatio);
         Assert.Throws<ArgumentOutOfRangeException>(() => reader.Read(Query() with { EndDateExclusive = new(2024, 2, 27) }));
         Assert.Throws<ArgumentOutOfRangeException>(() => reader.Read(Query() with { EndDateExclusive = new(2026, 2, 27) }));
         using var cancellation = new CancellationTokenSource();
@@ -192,7 +197,7 @@ public sealed class DailyReaderTests
         var start = new DateTimeOffset(2024, 12, 31, 14, 0, 0, TimeSpan.Zero);
         fixture.Foreground(1, start, start.AddHours(2));
         fixture.Foreground(2, start, start.AddHours(1));
-        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath);
+        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime);
         var query = new DailyQuery(new(2024, 12, 31), new(2025, 1, 2),
             TimeZoneInfo.CreateCustomTimeZone("UTC+09", TimeSpan.FromHours(9), "UTC+09", "UTC+09"), start.AddDays(2));
         var days = reader.Read(query).Days;
@@ -211,7 +216,7 @@ public sealed class DailyReaderTests
             INSERT INTO idle_sessions(started_at,ended_at)
             SELECT '2024-02-28T09:00:00.0000000+00:00', '2024-02-28T10:00:00.0000000+00:00' FROM n;
             """);
-        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath);
+        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime);
         Assert.Equal(AnalyticsError.LimitExceeded,
             Assert.Throws<AnalyticsReadException>(() => reader.Read(Query())).Error);
     }
@@ -226,7 +231,7 @@ public sealed class DailyReaderTests
             SELECT 1, strftime('%Y-%m-%dT%H:%M:%f', '2024-01-01', '+' || (x*30) || ' minutes') || '0000+00:00',
                       strftime('%Y-%m-%dT%H:%M:%f', '2024-01-01', '+' || (x*30+10) || ' minutes') || '0000+00:00' FROM n;
             """);
-        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath);
+        using var reader = SqliteDailyAnalyticsReader.Open(fixture.DatabasePath, CaptureTime);
         var watch = Stopwatch.StartNew();
         var result = reader.Read(new(new(2024, 1, 1), new(2025, 1, 1), TimeZoneInfo.Utc, new DateTimeOffset(2025, 1, 1, 0, 0, 0, TimeSpan.Zero)));
         Assert.Equal(366, result.Days.Count);

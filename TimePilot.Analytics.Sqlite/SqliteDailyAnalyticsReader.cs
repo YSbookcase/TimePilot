@@ -11,15 +11,30 @@ public sealed class SqliteDailyAnalyticsReader : IDailyAnalyticsReader
     private readonly FileStream sourceLease;
     private readonly SqliteConnection connection;
     private readonly object gate = new();
+    private readonly DateTimeOffset sourceCapturedAt;
     private bool disposed;
 
-    private SqliteDailyAnalyticsReader(FileStream sourceLease, SqliteConnection connection)
+    public DateTimeOffset SourceCapturedAt => sourceCapturedAt;
+
+    private SqliteDailyAnalyticsReader(FileStream sourceLease, SqliteConnection connection, DateTimeOffset sourceCapturedAt)
     {
         this.sourceLease = sourceLease;
         this.connection = connection;
+        this.sourceCapturedAt = sourceCapturedAt.ToUniversalTime();
     }
 
-    public static IDailyAnalyticsReader Open(string databasePath)
+    /// <summary>Open an imported offline snapshot with its trusted capture timestamp, not the current time.</summary>
+    public static IDailyAnalyticsReader Open(string databasePath, DateTimeOffset sourceCapturedAt)
+    {
+        if (sourceCapturedAt == default || sourceCapturedAt == DateTimeOffset.MaxValue)
+            throw new ArgumentOutOfRangeException(nameof(sourceCapturedAt), "A known snapshot capture timestamp is required.");
+        return OpenCore(databasePath, sourceCapturedAt);
+    }
+
+    internal static IDailyAnalyticsReader OpenForPreparation(string databasePath) =>
+        OpenCore(databasePath, DateTimeOffset.MaxValue);
+
+    private static SqliteDailyAnalyticsReader OpenCore(string databasePath, DateTimeOffset sourceCapturedAt)
     {
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("The source write-exclusion lease requires Windows.");
@@ -56,7 +71,7 @@ public sealed class SqliteDailyAnalyticsReader : IDailyAnalyticsReader
                 command.ExecuteNonQuery();
             }
             ValidateSchema(db);
-            return new SqliteDailyAnalyticsReader(lease, db);
+            return new SqliteDailyAnalyticsReader(lease, db, sourceCapturedAt);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqliteException)
         {
@@ -113,6 +128,8 @@ public sealed class SqliteDailyAnalyticsReader : IDailyAnalyticsReader
         var count = query.EndDateExclusive.DayNumber - query.StartDate.DayNumber;
         if (count is < 1 or > AnalyticsContract.MaximumDays)
             throw new ArgumentOutOfRangeException(nameof(query), "Request between 1 and 366 calendar days.");
+        if (query.ObservedAt > sourceCapturedAt)
+            throw new ArgumentOutOfRangeException(nameof(query), "ObservedAt must not exceed the snapshot capture timestamp.");
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
@@ -154,10 +171,10 @@ public sealed class SqliteDailyAnalyticsReader : IDailyAnalyticsReader
                     days.Add(new DailyActivity(date, dayStart, dayEnd, apps.Sum(app => app.ActiveMilliseconds),
                         UnionMilliseconds(idle, dayStart, observedEnd), apps.FirstOrDefault(),
                         Array.AsReadOnly(apps), Array.AsReadOnly(categories),
-                        new RecordingCoverage(Math.Max(0, (long)(observedEnd - dayStart).TotalMilliseconds),
+                        new RecorderCalendarCoverage(Math.Max(0, (long)(observedEnd - dayStart).TotalMilliseconds),
                             UnionMilliseconds(runtime, dayStart, observedEnd))));
                 }
-                return new DailySnapshot(AnalyticsContract.Version, AnalyticsContract.SchemaProfile, query, days.AsReadOnly());
+                return new DailySnapshot(AnalyticsContract.Version, AnalyticsContract.SchemaProfile, sourceCapturedAt, query, days.AsReadOnly());
             }
             catch (SqliteException ex)
             {

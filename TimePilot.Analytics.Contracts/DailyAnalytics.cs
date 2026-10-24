@@ -2,12 +2,13 @@ namespace TimePilot.Analytics.Contracts;
 
 public static class AnalyticsContract
 {
-    public const string Version = "1.0.0";
+    public const string Version = "2.0.0";
     public const string SchemaProfile = "community-daily-v1";
     public const int MaximumDays = 366;
 }
 
 // EndDateExclusive is a calendar date in TimeZone, not a fixed 24-hour offset.
+// ObservedAt is an evaluation cutoff, never later than the source snapshot capture time.
 public sealed record DailyQuery(
     DateOnly StartDate,
     DateOnly EndDateExclusive,
@@ -16,12 +17,14 @@ public sealed record DailyQuery(
 
 public interface IDailyAnalyticsReader : IDisposable
 {
+    DateTimeOffset SourceCapturedAt { get; }
     DailySnapshot Read(DailyQuery query, CancellationToken cancellationToken = default);
 }
 
 public sealed record DailySnapshot(
     string ContractVersion,
     string SchemaProfile,
+    DateTimeOffset SourceCapturedAt,
     DailyQuery Query,
     IReadOnlyList<DailyActivity> Days);
 
@@ -34,16 +37,19 @@ public sealed record DailyActivity(
     AppActivity? TopApp,
     IReadOnlyList<AppActivity> Apps,
     IReadOnlyList<CategoryActivity> Categories,
-    RecordingCoverage Coverage);
+    RecorderCalendarCoverage RecorderCalendarCoverage);
 
 public sealed record AppActivity(long AppId, string DisplayName, long? CategoryId, long ActiveMilliseconds);
 public sealed record CategoryActivity(long? CategoryId, string? Name, long ActiveMilliseconds);
 
-// Calendar coverage only: gaps are unknown, not necessarily OS downtime or inactivity.
-public sealed record RecordingCoverage(long ObservedMilliseconds, long RecordedMilliseconds)
+/// <summary>
+/// Recorder runtime divided by elapsed calendar time, NOT the Community UI's Windows-recordable coverage.
+/// No sleep, lock or OS-off exclusions are applied. Calendar gaps are unknown, not evidence of inactivity.
+/// </summary>
+public sealed record RecorderCalendarCoverage(long ElapsedCalendarMilliseconds, long RecorderRunningMilliseconds)
 {
-    public long UnobservedMilliseconds => Math.Max(0, ObservedMilliseconds - RecordedMilliseconds);
-    public double Ratio => ObservedMilliseconds == 0 ? 0 : (double)RecordedMilliseconds / ObservedMilliseconds;
+    public long CalendarGapMilliseconds => Math.Max(0, ElapsedCalendarMilliseconds - RecorderRunningMilliseconds);
+    public double RecorderToCalendarRatio => ElapsedCalendarMilliseconds == 0 ? 0 : (double)RecorderRunningMilliseconds / ElapsedCalendarMilliseconds;
 }
 
 public enum AnalyticsError
