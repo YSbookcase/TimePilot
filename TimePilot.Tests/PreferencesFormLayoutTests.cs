@@ -21,10 +21,15 @@ namespace TimePilot.Tests
                     Directory.CreateDirectory(settings.AutomaticBackupDirectory!);
                     using var form = new PreferencesForm(settings);
                     using var folderDialog = form.CreateAutomaticBackupFolderDialog();
+                    Assert.Equal(settings.AutomaticBackupDirectory, folderDialog.InitialDirectory);
                     Assert.Equal(settings.AutomaticBackupDirectory, folderDialog.SelectedPath);
                     Assert.True(folderDialog.ShowNewFolderButton);
                     Assert.True(folderDialog.UseDescriptionForTitle);
                     Assert.Equal(UiText.Preferences.AutomaticBackupFolderDialogDescription, folderDialog.Description);
+                    Directory.Delete(settings.AutomaticBackupDirectory!);
+                    using var missingFolderDialog = form.CreateAutomaticBackupFolderDialog();
+                    Assert.Empty(missingFolderDialog.InitialDirectory);
+                    Assert.Empty(missingFolderDialog.SelectedPath);
                     form.Show();
                     Application.DoEvents();
 

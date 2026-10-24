@@ -624,7 +624,10 @@ namespace TimePilot.WinForms
                 UseDescriptionForTitle = true
             };
             if (Directory.Exists(automaticBackupDirectoryTextBox.Text))
+            {
+                dialog.InitialDirectory = automaticBackupDirectoryTextBox.Text;
                 dialog.SelectedPath = automaticBackupDirectoryTextBox.Text;
+            }
             return dialog;
         }
 
