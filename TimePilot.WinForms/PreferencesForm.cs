@@ -26,6 +26,7 @@ namespace TimePilot.WinForms
         private readonly CheckBox automaticBackupCheckBox = new();
         private readonly TextBox automaticBackupDirectoryTextBox = new();
         private readonly Button chooseAutomaticBackupFolderButton = new();
+        private readonly Button openAutomaticBackupFolderButton = new();
         private readonly NumericUpDown automaticBackupRetentionNumeric = new();
         private readonly Label automaticBackupCopiesLabel = new();
         private readonly Button openDataFolderButton = new();
@@ -294,6 +295,7 @@ namespace TimePilot.WinForms
             automaticBackupGroupBox.Controls.Add(automaticBackupFolderLabel);
             automaticBackupGroupBox.Controls.Add(automaticBackupDirectoryTextBox);
             automaticBackupGroupBox.Controls.Add(chooseAutomaticBackupFolderButton);
+            automaticBackupGroupBox.Controls.Add(openAutomaticBackupFolderButton);
             automaticBackupGroupBox.Controls.Add(automaticBackupRetentionLabel);
             automaticBackupGroupBox.Controls.Add(automaticBackupRetentionNumeric);
             automaticBackupGroupBox.Controls.Add(automaticBackupCopiesLabel);
@@ -320,12 +322,19 @@ namespace TimePilot.WinForms
             automaticBackupDirectoryTextBox.Name = "automaticBackupDirectoryTextBox";
             automaticBackupDirectoryTextBox.ReadOnly = true;
             automaticBackupDirectoryTextBox.Size = new Size(280, 23);
+            automaticBackupDirectoryTextBox.TextChanged += (_, _) => UpdateOpenAutomaticBackupFolderButton();
 
             chooseAutomaticBackupFolderButton.Location = new Point(302, 77);
             chooseAutomaticBackupFolderButton.Name = "chooseAutomaticBackupFolderButton";
             chooseAutomaticBackupFolderButton.Size = new Size(90, 25);
             chooseAutomaticBackupFolderButton.Text = UiText.Preferences.ChooseAutomaticBackupFolder;
             chooseAutomaticBackupFolderButton.Click += OnChooseAutomaticBackupFolderButtonClick;
+
+            openAutomaticBackupFolderButton.Location = new Point(302, 112);
+            openAutomaticBackupFolderButton.Name = "openAutomaticBackupFolderButton";
+            openAutomaticBackupFolderButton.Size = new Size(90, 25);
+            openAutomaticBackupFolderButton.Text = UiText.Preferences.OpenDataFolder;
+            openAutomaticBackupFolderButton.Click += OnOpenAutomaticBackupFolderButtonClick;
 
             automaticBackupRetentionLabel.AutoSize = true;
             automaticBackupRetentionLabel.Location = new Point(16, 116);
@@ -603,6 +612,43 @@ namespace TimePilot.WinForms
             automaticBackupDirectoryTextBox.Enabled = isEnabled;
             chooseAutomaticBackupFolderButton.Enabled = isEnabled;
             automaticBackupRetentionNumeric.Enabled = isEnabled;
+            UpdateOpenAutomaticBackupFolderButton();
+        }
+
+        private void UpdateOpenAutomaticBackupFolderButton()
+        {
+            openAutomaticBackupFolderButton.Enabled = Directory.Exists(automaticBackupDirectoryTextBox.Text);
+        }
+
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            UpdateOpenAutomaticBackupFolderButton();
+        }
+
+        private void OnOpenAutomaticBackupFolderButtonClick(object? sender, EventArgs e)
+        {
+            UpdateOpenAutomaticBackupFolderButton();
+            if (!openAutomaticBackupFolderButton.Enabled)
+                return;
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = Path.GetFullPath(automaticBackupDirectoryTextBox.Text),
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Preferences.BackupFolderOpenFailed(ex.Message),
+                    UiText.Preferences.AutomaticBackupFolder,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
         }
 
         private void OnChooseAutomaticBackupFolderButtonClick(object? sender, EventArgs e)

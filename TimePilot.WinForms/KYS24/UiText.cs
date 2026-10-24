@@ -371,6 +371,9 @@ namespace TimePilot.WinForms.KYS24
                 return current.Preferences.DataFolderOpenFailed(message);
             }
 
+            public static string BackupFolderOpenFailed(string message) =>
+                current.Preferences.BackupFolderOpenFailed(message);
+
             public static string SponsorOpenFailed(string message)
             {
                 return current.Preferences.SponsorOpenFailed(message);
@@ -776,6 +779,7 @@ namespace TimePilot.WinForms.KYS24
                         UserProcessesRiskMessage: "모든 사용자 프로세스를 5초 이하 주기로 추적하면 CPU 사용량과 저장 데이터가 크게 증가할 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
                         AnyScopeRiskMessage: "3초 이하 확인 주기는 추적 범위와 관계없이 시스템 부하와 저장 데이터 증가를 유발할 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
                         DataFolderOpenFailed: message => $"데이터 폴더를 열 수 없습니다.\n\n{message}",
+                        BackupFolderOpenFailed: message => $"백업 폴더를 열 수 없습니다.\n\n{message}",
                         SponsorOpenFailed: message => $"후원 페이지를 열 수 없습니다.\n\n{message}"),
                     new DateStatusText("기록 있음", "기록 없음", "확인 전"),
                     new CalendarPickerText(
@@ -1144,6 +1148,7 @@ namespace TimePilot.WinForms.KYS24
                         UserProcessesRiskMessage: "Tracking all user processes every 5 seconds or less can significantly increase CPU usage and stored data.\n\nIf repeated unexpected exits happen shortly after launch with the same setting, background app tracking will be disabled on the next launch.\n\nSave this risky setting?",
                         AnyScopeRiskMessage: "Check intervals of 3 seconds or less can increase system load and stored data regardless of tracking scope.\n\nIf repeated unexpected exits happen shortly after launch with the same setting, background app tracking will be disabled on the next launch.\n\nSave this risky setting?",
                         DataFolderOpenFailed: message => $"Could not open the data folder.\n\n{message}",
+                        BackupFolderOpenFailed: message => $"Could not open the backup folder.\n\n{message}",
                         SponsorOpenFailed: message => $"Could not open the sponsor page.\n\n{message}"),
                     new DateStatusText("Has records", "No records", "Not checked"),
                     new CalendarPickerText(
@@ -1472,6 +1477,7 @@ namespace TimePilot.WinForms.KYS24
             string UserProcessesRiskMessage,
             string AnyScopeRiskMessage,
             Func<string, string> DataFolderOpenFailed,
+            Func<string, string> BackupFolderOpenFailed,
             Func<string, string> SponsorOpenFailed);
 
         private sealed record DateStatusText(string HasData, string NoData, string NotChecked);

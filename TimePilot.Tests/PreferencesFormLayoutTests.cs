@@ -52,6 +52,9 @@ namespace TimePilot.Tests
                     _ = dataTab.Handle;
                     tabControl.PerformLayout();
                     AssertControlsFit(dataTab);
+                    var backupGroup = Assert.IsType<GroupBox>(
+                        Assert.Single(dataTab.Controls.Find("automaticBackupGroupBox", false)));
+                    AssertControlsFit(backupGroup);
                 }
                 catch (Exception ex)
                 {
@@ -111,6 +114,58 @@ namespace TimePilot.Tests
             thread.Start();
             thread.Join();
 
+            if (failure is not null)
+                ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+
+        [Fact]
+        public void PreferencesForm_OpenBackupFolderUsesUnsavedPathEvenWhenBackupsAreDisabled()
+        {
+            Exception? failure = null;
+            var thread = new Thread(() =>
+            {
+                var root = Path.Combine(Path.GetTempPath(), $"TimePilotPreferences-{Guid.NewGuid():N}");
+                try
+                {
+                    var original = Path.Combine(root, "original");
+                    var replacement = Path.Combine(root, "replacement");
+                    Directory.CreateDirectory(original);
+                    Directory.CreateDirectory(replacement);
+                    var settings = AppSettings.Load(Path.Combine(root, "settings.json"));
+                    settings.SetAutomaticBackup(false, original, 14);
+                    using var form = new PreferencesForm(settings);
+                    form.Show();
+                    var tabs = Assert.Single(form.Controls.OfType<TabControl>());
+                    tabs.SelectedIndex = 1;
+                    Application.DoEvents();
+                    var path = Assert.IsType<TextBox>(
+                        Assert.Single(form.Controls.Find("automaticBackupDirectoryTextBox", true)));
+                    var open = Assert.IsType<Button>(
+                        Assert.Single(form.Controls.Find("openAutomaticBackupFolderButton", true)));
+                    Assert.True(open.Enabled);
+                    path.Text = replacement;
+                    Assert.True(open.Enabled);
+                    using var picker = form.CreateAutomaticBackupFolderDialog();
+                    Assert.Equal(replacement, picker.InitialDirectory);
+                    Assert.Equal(original, settings.AutomaticBackupDirectory);
+                    path.Text = Path.Combine(root, "missing");
+                    Assert.False(open.Enabled);
+                    path.Text = string.Empty;
+                    Assert.False(open.Enabled);
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+                finally
+                {
+                    if (Directory.Exists(root))
+                        Directory.Delete(root, recursive: true);
+                }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
             if (failure is not null)
                 ExceptionDispatchInfo.Capture(failure).Throw();
         }
