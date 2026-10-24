@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TimePilot.WinForms\TimePilot.WinForms.csproj" />
+    <ProjectReference Include="..\TimePilot.Analytics.Sqlite\TimePilot.Analytics.Sqlite.csproj" />
   </ItemGroup>
 
 </Project>

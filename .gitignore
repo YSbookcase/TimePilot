@@ -279,6 +279,7 @@ ServiceFabricBackup/
 *.db-wal
 *.sqlite
 *.sqlite3
+!/TimePilot.Analytics.Sqlite/
 
 # Business Intelligence projects
 *.rdl.data
