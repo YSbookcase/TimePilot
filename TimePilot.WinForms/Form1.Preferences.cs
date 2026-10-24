@@ -28,25 +28,28 @@ namespace TimePilot.WinForms
                 System.Diagnostics.Debug.WriteLine($"Failed to read startup task state: {ex}");
             }
 
-            using var form = new PreferencesForm(settings, effectiveStartupEnabled);
+            var allowStartupChanges = !AppDataPaths.IsDevelopmentDataDirectory;
+            using var form = new PreferencesForm(settings, effectiveStartupEnabled, allowStartupChanges);
             if (form.ShowDialog(this) != DialogResult.OK)
                 return;
 
             settings.SetIdleThresholdMinutes(form.IdleThresholdMinutes);
             var languageChanged = settings.UiLanguage != form.UiLanguage;
             settings.SetUiLanguage(form.UiLanguage);
+            if (settings.KoreanWebSearchSuffix != form.KoreanWebSearchSuffix)
+                settings.SetKoreanWebSearchSuffix(form.KoreanWebSearchSuffix);
             if (languageChanged)
             {
                 UiText.UseLanguage(settings.UiLanguage);
                 ApplyUiText();
             }
 
-            if (form.StartupDisplayMode != settings.StartupDisplayMode)
+            if (allowStartupChanges && form.StartupDisplayMode != settings.StartupDisplayMode)
                 settings.SetStartupDisplayMode(form.StartupDisplayMode);
 
-            if (form.StartWithWindows != settings.StartWithWindows
+            if (allowStartupChanges && (form.StartWithWindows != settings.StartWithWindows
                 || effectiveStartupEnabled.HasValue
-                    && form.StartWithWindows != effectiveStartupEnabled.Value)
+                    && form.StartWithWindows != effectiveStartupEnabled.Value))
             {
                 try
                 {

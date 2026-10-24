@@ -297,6 +297,11 @@ namespace TimePilot.WinForms.KYS24
             public static string GeneralTab => current.Preferences.GeneralTab;
             public static string DataTab => current.Preferences.DataTab;
             public static string LanguageLabel => current.Preferences.LanguageLabel;
+            public static string KoreanWebSearchSuffixLabel => current.Preferences.KoreanWebSearchSuffixLabel;
+            public static string RestoreDefault => current.Preferences.RestoreDefault;
+            public static string ResetSettings => current.Preferences.ResetSettings;
+            public static string ResetSettingsConfirmation => current.Preferences.ResetSettingsConfirmation;
+            public static string DevelopmentResetSettingsConfirmation => current.Preferences.DevelopmentResetSettingsConfirmation;
             public static string IdleThresholdLabel => current.Preferences.IdleThresholdLabel;
             public static string MinuteUnit => current.Preferences.MinuteUnit;
             public static string SecondUnit => current.Preferences.SecondUnit;
@@ -336,6 +341,8 @@ namespace TimePilot.WinForms.KYS24
                 current.Preferences.AutomaticBackupFolderMustBeExternal;
             public static string AutomaticBackupFolderDialogDescription =>
                 current.Preferences.AutomaticBackupFolderDialogDescription;
+            public static string AutomaticBackupSelectCurrentFolder =>
+                current.Preferences.AutomaticBackupSelectCurrentFolder;
             public static string DataManagementDescription => current.Preferences.DataManagementDescription;
             public static string OpenDataFolder => current.Preferences.OpenDataFolder;
             public static string InstallationInfo => current.Preferences.InstallationInfo;
@@ -703,6 +710,11 @@ namespace TimePilot.WinForms.KYS24
                         GeneralTab: "일반",
                         DataTab: "데이터 및 백업",
                         LanguageLabel: "표시 언어",
+                        KoreanWebSearchSuffixLabel: "한국어 검색 접미사",
+                        RestoreDefault: "기본값",
+                        ResetSettings: "설정 초기화...",
+                        DevelopmentResetSettingsConfirmation: "이 창의 동작 옵션을 기본값으로 되돌릴까요? 자동백업 사용은 꺼집니다.\n\n개발 데이터 실행에서는 Windows 자동실행 설정을 변경하지 않습니다. 표시 언어, 백업 폴더와 백업 이력은 유지합니다. 사용 기록, 앱 분류, 백업 파일, 화면 배치는 변경하지 않습니다. 예약된 기록 삭제도 취소합니다.\n\n저장을 눌러야 적용됩니다. 취소하면 기존 설정을 유지합니다.",
+                        ResetSettingsConfirmation: "이 창의 동작 옵션을 기본값으로 되돌릴까요? Windows 자동실행은 켜지고 자동백업 사용은 꺼집니다.\n\n표시 언어, 백업 폴더와 백업 이력은 유지합니다. 사용 기록, 앱 분류, 백업 파일, 화면 배치는 삭제하거나 변경하지 않습니다. 예약된 기록 삭제도 취소합니다.\n\n저장을 눌러야 적용됩니다. 취소하면 기존 설정을 유지합니다.",
                         IdleThresholdLabel: "유휴 판단 대기시간",
                         MinuteUnit: "분",
                         SecondUnit: "초",
@@ -741,7 +753,8 @@ namespace TimePilot.WinForms.KYS24
                         AutomaticBackupLastFailure: (at, error) => $"최근 실패: {at.ToLocalTime():yyyy-MM-dd HH:mm}\n{error}",
                         AutomaticBackupFolderRequired: "자동 백업을 사용하려면 백업 폴더를 선택하세요.",
                         AutomaticBackupFolderMustBeExternal: "자동 백업 폴더는 앱 데이터 폴더 밖에 있어야 합니다.",
-                        AutomaticBackupFolderDialogDescription: "ActiveLogbook 자동 백업을 저장할 외부 폴더를 선택하세요.",
+                        AutomaticBackupFolderDialogDescription: "ZIP 파일을 선택하면 그 파일이 있는 폴더가 자동 백업 폴더로 설정됩니다. 새 폴더는 이 폴더 사용을 누르세요.",
+                        AutomaticBackupSelectCurrentFolder: "이 폴더 사용",
                         DataManagementDescription: "기록과 설정 저장 위치를 관리합니다.",
                         OpenDataFolder: "폴더 열기",
                         InstallationInfo: "설치 및 데이터 정보",
@@ -1066,6 +1079,11 @@ namespace TimePilot.WinForms.KYS24
                         GeneralTab: "General",
                         DataTab: "Data and backup",
                         LanguageLabel: "Display language",
+                        KoreanWebSearchSuffixLabel: "Korean web search suffix",
+                        RestoreDefault: "Default",
+                        ResetSettings: "Reset settings...",
+                        DevelopmentResetSettingsConfirmation: "Restore the behavior options in this dialog to their defaults? Automatic backups will be turned off.\n\nWindows startup settings cannot be changed in a development data session. Display language, backup folder and backup history will be kept. Usage records, app categories, backup files and window layouts will not be changed. Pending record deletion will be canceled.\n\nChanges apply only when you select Save. Select Cancel to keep your existing settings.",
+                        ResetSettingsConfirmation: "Restore the behavior options in this dialog to their defaults? Windows startup will be turned on and automatic backups will be turned off.\n\nThe display language, backup folder and backup history will be kept. Usage records, app categories, backup files and window layouts will not be deleted or changed. Any pending record deletion will be canceled.\n\nChanges apply only when you select Save. Select Cancel to keep your existing settings.",
                         IdleThresholdLabel: "Idle threshold",
                         MinuteUnit: "min",
                         SecondUnit: "sec",
@@ -1104,7 +1122,8 @@ namespace TimePilot.WinForms.KYS24
                         AutomaticBackupLastFailure: (at, error) => $"Last failure: {at.ToLocalTime():yyyy-MM-dd HH:mm}\n{error}",
                         AutomaticBackupFolderRequired: "Select a backup folder to enable automatic backup.",
                         AutomaticBackupFolderMustBeExternal: "The automatic backup folder must be outside the application data folder.",
-                        AutomaticBackupFolderDialogDescription: "Select an external folder for ActiveLogbook automatic backups.",
+                        AutomaticBackupFolderDialogDescription: "Select a ZIP file to use its folder for automatic backups. Choose Use this folder for a new folder.",
+                        AutomaticBackupSelectCurrentFolder: "Use this folder",
                         DataManagementDescription: "Manage where records and settings are stored.",
                         OpenDataFolder: "Open folder",
                         InstallationInfo: "Installation and data info",
@@ -1394,6 +1413,11 @@ namespace TimePilot.WinForms.KYS24
             string GeneralTab,
             string DataTab,
             string LanguageLabel,
+            string KoreanWebSearchSuffixLabel,
+            string RestoreDefault,
+            string ResetSettings,
+            string DevelopmentResetSettingsConfirmation,
+            string ResetSettingsConfirmation,
             string IdleThresholdLabel,
             string MinuteUnit,
             string SecondUnit,
@@ -1428,6 +1452,7 @@ namespace TimePilot.WinForms.KYS24
             string AutomaticBackupFolderRequired,
             string AutomaticBackupFolderMustBeExternal,
             string AutomaticBackupFolderDialogDescription,
+            string AutomaticBackupSelectCurrentFolder,
             string DataManagementDescription,
             string OpenDataFolder,
             string InstallationInfo,

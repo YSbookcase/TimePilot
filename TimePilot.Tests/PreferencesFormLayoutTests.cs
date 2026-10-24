@@ -34,10 +34,57 @@ namespace TimePilot.Tests
                     Assert.Single(generalTab.Controls.OfType<GroupBox>());
                     Assert.Equal(2, dataTab.Controls.OfType<GroupBox>().Count());
                     AssertControlsFit(generalTab);
+                    var suffixInput = Assert.IsType<TextBox>(
+                        Assert.Single(generalTab.Controls.Find("koreanWebSearchSuffixTextBox", false)));
+                    Assert.Equal(settings.KoreanWebSearchSuffix, suffixInput.Text);
                     tabControl.SelectedTab = dataTab;
                     _ = dataTab.Handle;
                     tabControl.PerformLayout();
                     AssertControlsFit(dataTab);
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+                finally
+                {
+                    if (Directory.Exists(root))
+                        Directory.Delete(root, recursive: true);
+                }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+
+            if (failure is not null)
+                ExceptionDispatchInfo.Capture(failure).Throw();
+        }
+
+        [Theory]
+        [InlineData(" 사용법 ", "사용법")]
+        [InlineData("", "")]
+        public void PreferencesForm_SaveReturnsEditedSearchSuffix(string editedText, string expected)
+        {
+            Exception? failure = null;
+            var thread = new Thread(() =>
+            {
+                var root = Path.Combine(Path.GetTempPath(), $"TimePilotPreferences-{Guid.NewGuid():N}");
+                try
+                {
+                    var settings = AppSettings.Load(Path.Combine(root, "settings.json"));
+                    using var form = new PreferencesForm(settings);
+                    form.Show();
+                    Application.DoEvents();
+                    var input = Assert.IsType<TextBox>(
+                        Assert.Single(form.Controls.Find("koreanWebSearchSuffixTextBox", true)));
+                    input.Text = editedText;
+                    var saveButton = Assert.IsType<Button>(
+                        Assert.Single(form.Controls.Find("okButton", true)));
+                    saveButton.PerformClick();
+
+                    Assert.Equal(DialogResult.OK, form.DialogResult);
+                    Assert.Equal(expected, form.KoreanWebSearchSuffix);
+                    Assert.Equal("이란", settings.KoreanWebSearchSuffix);
                 }
                 catch (Exception ex)
                 {

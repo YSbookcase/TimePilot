@@ -17,6 +17,9 @@ namespace TimePilot.WinForms.KYS24
 
         public static Task SetEnabledAsync(bool isEnabled)
         {
+            if (AppDataPaths.IsDevelopmentDataDirectory)
+                throw new InvalidOperationException("Windows startup changes are disabled for a development data session.");
+
             if (IsPackagedApp())
                 return SetPackagedStartupTaskEnabledAsync(isEnabled);
 
@@ -26,6 +29,9 @@ namespace TimePilot.WinForms.KYS24
 
         public static Task SynchronizeAsync(bool isEnabled)
         {
+            if (AppDataPaths.IsDevelopmentDataDirectory)
+                return Task.CompletedTask;
+
             if (IsPackagedApp())
                 return Task.CompletedTask;
 

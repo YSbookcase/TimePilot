@@ -18,6 +18,7 @@ namespace TimePilot.WinForms.KYS24
         public const int DefaultAutomaticBackupRetentionCount = 14;
         public const int MinAutomaticBackupRetentionCount = 1;
         public const int MaxAutomaticBackupRetentionCount = 100;
+        public const string DefaultKoreanWebSearchSuffix = "이란";
         public static UiLanguage DefaultUiLanguage => GetDefaultUiLanguage(CultureInfo.CurrentUICulture);
         public const ProcessRuntimeTrackingScope DefaultProcessRuntimeTrackingScope = ProcessRuntimeTrackingScope.WindowedApps;
         public const int DefaultProcessRuntimeSampleIntervalSeconds = 60;
@@ -73,6 +74,8 @@ namespace TimePilot.WinForms.KYS24
         public string? AutomaticBackupLastError { get; set; }
 
         public UiLanguage UiLanguage { get; set; } = DefaultUiLanguage;
+
+        public string KoreanWebSearchSuffix { get; set; } = DefaultKoreanWebSearchSuffix;
 
         public ProcessRuntimeTrackingScope ProcessRuntimeTrackingScope { get; set; } = DefaultProcessRuntimeTrackingScope;
 
@@ -151,6 +154,12 @@ namespace TimePilot.WinForms.KYS24
             return Load(AppDataPaths.SettingsPath);
         }
 
+        internal static void ValidateSettingsFile(string settingsPath)
+        {
+            _ = JsonSerializer.Deserialize<PersistedSettings>(File.ReadAllText(settingsPath))
+                ?? throw new InvalidDataException("The settings file must contain a JSON object.");
+        }
+
         internal static AppSettings Load(string settingsPath)
         {
             var settings = new AppSettings(settingsPath);
@@ -181,6 +190,7 @@ namespace TimePilot.WinForms.KYS24
                 settings.AutomaticBackupLastFailureAt = persisted?.AutomaticBackupLastFailureAt;
                 settings.AutomaticBackupLastError = NormalizeNullableText(persisted?.AutomaticBackupLastError);
                 settings.UiLanguage = NormalizeUiLanguage(persisted?.UiLanguage);
+                settings.KoreanWebSearchSuffix = NormalizeKoreanWebSearchSuffix(persisted?.KoreanWebSearchSuffix);
                 settings.ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(
                     persisted?.ProcessRuntimeTrackingScope);
                 settings.ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
@@ -238,6 +248,7 @@ namespace TimePilot.WinForms.KYS24
                 settings.AutomaticBackupLastFailureAt = null;
                 settings.AutomaticBackupLastError = null;
                 settings.UiLanguage = DefaultUiLanguage;
+                settings.KoreanWebSearchSuffix = DefaultKoreanWebSearchSuffix;
                 settings.ProcessRuntimeTrackingScope = DefaultProcessRuntimeTrackingScope;
                 settings.ProcessRuntimeSampleIntervalSeconds = DefaultProcessRuntimeSampleIntervalSeconds;
                 settings.ApprovedRiskyProcessRuntimeTrackingScope = null;
@@ -293,6 +304,7 @@ namespace TimePilot.WinForms.KYS24
                 AutomaticBackupLastFailureAt = AutomaticBackupLastFailureAt,
                 AutomaticBackupLastError = NormalizeNullableText(AutomaticBackupLastError),
                 UiLanguage = NormalizeUiLanguage(UiLanguage),
+                KoreanWebSearchSuffix = NormalizeKoreanWebSearchSuffix(KoreanWebSearchSuffix),
                 ProcessRuntimeTrackingEnabled = ProcessRuntimeTrackingEnabled,
                 ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(ProcessRuntimeTrackingScope),
                 ProcessRuntimeSampleIntervalSeconds = NormalizeProcessRuntimeSampleIntervalSeconds(
@@ -342,6 +354,7 @@ namespace TimePilot.WinForms.KYS24
             AutomaticBackupLastFailureAt = persisted.AutomaticBackupLastFailureAt;
             AutomaticBackupLastError = persisted.AutomaticBackupLastError;
             UiLanguage = persisted.UiLanguage;
+            KoreanWebSearchSuffix = persisted.KoreanWebSearchSuffix;
             ProcessRuntimeTrackingEnabled = persisted.ProcessRuntimeTrackingEnabled;
             ProcessRuntimeTrackingScope = persisted.ProcessRuntimeTrackingScope;
             ProcessRuntimeSampleIntervalSeconds = persisted.ProcessRuntimeSampleIntervalSeconds;
@@ -481,6 +494,17 @@ namespace TimePilot.WinForms.KYS24
         {
             UiLanguage = NormalizeUiLanguage(language);
             Save();
+        }
+
+        public void SetKoreanWebSearchSuffix(string? suffix)
+        {
+            KoreanWebSearchSuffix = NormalizeKoreanWebSearchSuffix(suffix);
+            Save();
+        }
+
+        private static string NormalizeKoreanWebSearchSuffix(string? suffix)
+        {
+            return suffix?.Trim() ?? DefaultKoreanWebSearchSuffix;
         }
 
         public void SetWindowPlacement(Rectangle normalBounds, bool isMaximized)
@@ -721,6 +745,8 @@ namespace TimePilot.WinForms.KYS24
             public string? AutomaticBackupLastError { get; set; }
 
             public UiLanguage UiLanguage { get; set; } = DefaultUiLanguage;
+
+            public string KoreanWebSearchSuffix { get; set; } = DefaultKoreanWebSearchSuffix;
 
             public bool ProcessRuntimeTrackingEnabled { get; set; } = DefaultProcessRuntimeTrackingEnabled;
 

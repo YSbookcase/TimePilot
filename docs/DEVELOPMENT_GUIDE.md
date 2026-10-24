@@ -315,6 +315,10 @@ clear-data
 
 ## 9. Build And Release Verification
 
+For opt-in local development that continues recording into existing Store data,
+see `docs/DEVELOPMENT_DATA_SESSION.md` (Korean: `docs/DEVELOPMENT_DATA_SESSION.ko.md`).
+Do not use the shared daily-data profile for automated tests or incompatible schema changes.
+
 For normal verification builds, use the alternate output path so local app binaries do not interfere with installed or running copies:
 
 ```powershell
