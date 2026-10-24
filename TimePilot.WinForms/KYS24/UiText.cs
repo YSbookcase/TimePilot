@@ -341,8 +341,6 @@ namespace TimePilot.WinForms.KYS24
                 current.Preferences.AutomaticBackupFolderMustBeExternal;
             public static string AutomaticBackupFolderDialogDescription =>
                 current.Preferences.AutomaticBackupFolderDialogDescription;
-            public static string AutomaticBackupSelectCurrentFolder =>
-                current.Preferences.AutomaticBackupSelectCurrentFolder;
             public static string DataManagementDescription => current.Preferences.DataManagementDescription;
             public static string OpenDataFolder => current.Preferences.OpenDataFolder;
             public static string InstallationInfo => current.Preferences.InstallationInfo;
@@ -753,8 +751,7 @@ namespace TimePilot.WinForms.KYS24
                         AutomaticBackupLastFailure: (at, error) => $"최근 실패: {at.ToLocalTime():yyyy-MM-dd HH:mm}\n{error}",
                         AutomaticBackupFolderRequired: "자동 백업을 사용하려면 백업 폴더를 선택하세요.",
                         AutomaticBackupFolderMustBeExternal: "자동 백업 폴더는 앱 데이터 폴더 밖에 있어야 합니다.",
-                        AutomaticBackupFolderDialogDescription: "ZIP 파일을 선택하면 그 파일이 있는 폴더가 자동 백업 폴더로 설정됩니다. 새 폴더는 이 폴더 사용을 누르세요.",
-                        AutomaticBackupSelectCurrentFolder: "이 폴더 사용",
+                        AutomaticBackupFolderDialogDescription: "ActiveLogbook 자동 백업을 저장할 외부 폴더를 선택하세요.",
                         DataManagementDescription: "기록과 설정 저장 위치를 관리합니다.",
                         OpenDataFolder: "폴더 열기",
                         InstallationInfo: "설치 및 데이터 정보",
@@ -1122,8 +1119,7 @@ namespace TimePilot.WinForms.KYS24
                         AutomaticBackupLastFailure: (at, error) => $"Last failure: {at.ToLocalTime():yyyy-MM-dd HH:mm}\n{error}",
                         AutomaticBackupFolderRequired: "Select a backup folder to enable automatic backup.",
                         AutomaticBackupFolderMustBeExternal: "The automatic backup folder must be outside the application data folder.",
-                        AutomaticBackupFolderDialogDescription: "Select a ZIP file to use its folder for automatic backups. Choose Use this folder for a new folder.",
-                        AutomaticBackupSelectCurrentFolder: "Use this folder",
+                        AutomaticBackupFolderDialogDescription: "Select an external folder for ActiveLogbook automatic backups.",
                         DataManagementDescription: "Manage where records and settings are stored.",
                         OpenDataFolder: "Open folder",
                         InstallationInfo: "Installation and data info",
@@ -1452,7 +1448,6 @@ namespace TimePilot.WinForms.KYS24
             string AutomaticBackupFolderRequired,
             string AutomaticBackupFolderMustBeExternal,
             string AutomaticBackupFolderDialogDescription,
-            string AutomaticBackupSelectCurrentFolder,
             string DataManagementDescription,
             string OpenDataFolder,
             string InstallationInfo,

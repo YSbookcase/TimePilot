@@ -18,7 +18,13 @@ namespace TimePilot.Tests
                 {
                     var settings = AppSettings.Load(Path.Combine(root, "settings.json"));
                     settings.SetAutomaticBackup(true, Path.Combine(root, "external"), 14);
+                    Directory.CreateDirectory(settings.AutomaticBackupDirectory!);
                     using var form = new PreferencesForm(settings);
+                    using var folderDialog = form.CreateAutomaticBackupFolderDialog();
+                    Assert.Equal(settings.AutomaticBackupDirectory, folderDialog.SelectedPath);
+                    Assert.True(folderDialog.ShowNewFolderButton);
+                    Assert.True(folderDialog.UseDescriptionForTitle);
+                    Assert.Equal(UiText.Preferences.AutomaticBackupFolderDialogDescription, folderDialog.Description);
                     form.Show();
                     Application.DoEvents();
 

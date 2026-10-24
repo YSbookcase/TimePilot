@@ -607,36 +607,25 @@ namespace TimePilot.WinForms
 
         private void OnChooseAutomaticBackupFolderButtonClick(object? sender, EventArgs e)
         {
-            using var dialog = new OpenFileDialog
-            {
-                Title = UiText.Preferences.AutomaticBackupFolderDialogDescription,
-                Filter = UiText.Main.ZipFilter,
-                CheckFileExists = false,
-                CheckPathExists = true,
-                ValidateNames = false,
-                RestoreDirectory = true,
-                FileName = UiText.Preferences.AutomaticBackupSelectCurrentFolder
-            };
-            if (Directory.Exists(automaticBackupDirectoryTextBox.Text))
-                dialog.InitialDirectory = automaticBackupDirectoryTextBox.Text;
+            using var dialog = CreateAutomaticBackupFolderDialog();
 
             if (dialog.ShowDialog(this) != DialogResult.OK)
                 return;
 
-            var selectedFolder = GetBackupFolderFromSelection(dialog.FileName);
-            if (!string.IsNullOrWhiteSpace(selectedFolder))
-                automaticBackupDirectoryTextBox.Text = selectedFolder;
+            automaticBackupDirectoryTextBox.Text = dialog.SelectedPath;
         }
 
-        private static string? GetBackupFolderFromSelection(string selectedPath)
+        internal FolderBrowserDialog CreateAutomaticBackupFolderDialog()
         {
-            if (string.IsNullOrWhiteSpace(selectedPath))
-                return null;
-
-            if (Directory.Exists(selectedPath))
-                return selectedPath;
-
-            return Path.GetDirectoryName(selectedPath);
+            var dialog = new FolderBrowserDialog
+            {
+                Description = UiText.Preferences.AutomaticBackupFolderDialogDescription,
+                ShowNewFolderButton = true,
+                UseDescriptionForTitle = true
+            };
+            if (Directory.Exists(automaticBackupDirectoryTextBox.Text))
+                dialog.SelectedPath = automaticBackupDirectoryTextBox.Text;
+            return dialog;
         }
 
         private static IReadOnlyList<IdleThresholdOption> GetIdleThresholdOptions()
