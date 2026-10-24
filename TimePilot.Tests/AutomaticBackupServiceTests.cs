@@ -75,6 +75,79 @@ namespace TimePilot.Tests
         }
 
         [Fact]
+        public void CreateIfDue_TrimsExtraAutomaticBackupsWhenTodaysBackupAlreadyExists()
+        {
+            var paths = CreateTestPaths();
+
+            try
+            {
+                CreateValidDatabase(paths.DatabasePath);
+                File.SetLastWriteTimeUtc(paths.DatabasePath, new DateTime(2026, 9, 22, 11, 0, 0, DateTimeKind.Utc));
+                Directory.CreateDirectory(paths.BackupDirectory);
+                CreateOldAutomaticBackup(paths.BackupDirectory, "2026-09-18-010000", 4);
+                CreateOldAutomaticBackup(paths.BackupDirectory, "2026-09-19-010000", 3);
+                CreateOldAutomaticBackup(paths.BackupDirectory, "2026-09-20-010000", 2);
+                CreateOldAutomaticBackup(paths.BackupDirectory, "2026-09-21-010000", 1);
+                var manualBackup = Path.Combine(paths.BackupDirectory, "ActiveLogbook-backup-2026-09-21-0900.zip");
+                File.WriteAllText(manualBackup, "keep");
+
+                var service = new AutomaticBackupService(paths.DataDirectory);
+                var result = service.CreateIfDue(
+                    paths.BackupDirectory,
+                    retentionCount: 2,
+                    new DateTimeOffset(2026, 9, 22, 12, 0, 0, TimeSpan.Zero),
+                    new DateTimeOffset(2026, 9, 22, 10, 0, 0, TimeSpan.Zero));
+
+                Assert.Equal(AutomaticBackupResultKind.SkippedAlreadyCreatedToday, result.Kind);
+                Assert.Equal(2, result.DeletedBackupCount);
+                var remaining = Directory.EnumerateFiles(
+                    paths.BackupDirectory,
+                    $"{AutomaticBackupService.FileNamePrefix}*.zip").ToList();
+                Assert.Equal(2, remaining.Count);
+                Assert.Contains(remaining, path => path.Contains("2026-09-21-010000", StringComparison.Ordinal));
+                Assert.Contains(remaining, path => path.Contains("2026-09-20-010000", StringComparison.Ordinal));
+                Assert.True(File.Exists(manualBackup));
+            }
+            finally
+            {
+                DeleteTestRoot(paths.Root);
+            }
+        }
+
+        [Fact]
+        public void CreateIfDue_KeepsNewestFileNameWhenOlderBackupWasTouchedLater()
+        {
+            var paths = CreateTestPaths();
+
+            try
+            {
+                CreateValidDatabase(paths.DatabasePath);
+                File.SetLastWriteTimeUtc(paths.DatabasePath, new DateTime(2026, 9, 22, 11, 0, 0, DateTimeKind.Utc));
+                Directory.CreateDirectory(paths.BackupDirectory);
+                var oldestBackup = CreateOldAutomaticBackup(paths.BackupDirectory, "2026-09-01-010000", 10);
+                CreateOldAutomaticBackup(paths.BackupDirectory, "2026-09-20-010000", 2);
+                File.SetLastWriteTimeUtc(oldestBackup, DateTime.UtcNow);
+
+                var service = new AutomaticBackupService(paths.DataDirectory);
+                var result = service.CreateIfDue(
+                    paths.BackupDirectory,
+                    retentionCount: 1,
+                    new DateTimeOffset(2026, 9, 22, 12, 0, 0, TimeSpan.Zero),
+                    new DateTimeOffset(2026, 9, 22, 10, 0, 0, TimeSpan.Zero));
+
+                Assert.Equal(1, result.DeletedBackupCount);
+                var remaining = Directory.EnumerateFiles(
+                    paths.BackupDirectory,
+                    $"{AutomaticBackupService.FileNamePrefix}*.zip").Single();
+                Assert.Contains("2026-09-20-010000", remaining, StringComparison.Ordinal);
+            }
+            finally
+            {
+                DeleteTestRoot(paths.Root);
+            }
+        }
+
+        [Fact]
         public void CreateIfDue_SkipsWhenDatabaseHasNotChangedSinceLastBackup()
         {
             var paths = CreateTestPaths();
@@ -146,6 +219,90 @@ namespace TimePilot.Tests
             }
         }
 
+        [Fact]
+        public void CreateIfDue_ProtectsCreatedBackupAfterClockMovesBackwards()
+        {
+            var paths = CreateTestPaths();
+            try
+            {
+                CreateValidDatabase(paths.DatabasePath);
+                Directory.CreateDirectory(paths.BackupDirectory);
+                var futureBackup = CreateOldAutomaticBackup(paths.BackupDirectory, "2030-09-22-010000", 1);
+
+                var result = new AutomaticBackupService(paths.DataDirectory).CreateIfDue(
+                    paths.BackupDirectory, 1,
+                    new DateTimeOffset(2026, 9, 22, 12, 0, 0, TimeSpan.Zero), null);
+
+                Assert.Equal(AutomaticBackupResultKind.Created, result.Kind);
+                Assert.True(File.Exists(result.BackupPath));
+                Assert.False(File.Exists(futureBackup));
+                Assert.Equal(1, result.DeletedBackupCount);
+            }
+            finally
+            {
+                DeleteTestRoot(paths.Root);
+            }
+        }
+
+        [Fact]
+        public void CreateIfDue_ContinuesRetentionWhenAnOldBackupIsLocked()
+        {
+            var paths = CreateTestPaths();
+            try
+            {
+                CreateValidDatabase(paths.DatabasePath);
+                Directory.CreateDirectory(paths.BackupDirectory);
+                var lockedBackup = CreateOldAutomaticBackup(paths.BackupDirectory, "2026-09-20-010000", 2);
+                var olderBackup = CreateOldAutomaticBackup(paths.BackupDirectory, "2026-09-19-010000", 3);
+                using var locked = new FileStream(lockedBackup, FileMode.Open, FileAccess.Read, FileShare.None);
+
+                var result = new AutomaticBackupService(paths.DataDirectory).CreateIfDue(
+                    paths.BackupDirectory, 1,
+                    new DateTimeOffset(2026, 9, 22, 12, 0, 0, TimeSpan.Zero), null);
+
+                Assert.Equal(AutomaticBackupResultKind.Created, result.Kind);
+                Assert.True(File.Exists(result.BackupPath));
+                Assert.True(File.Exists(lockedBackup));
+                Assert.False(File.Exists(olderBackup));
+                Assert.Equal(1, result.DeletedBackupCount);
+            }
+            finally
+            {
+                DeleteTestRoot(paths.Root);
+            }
+        }
+
+        [Fact]
+        public void CreateIfDue_TrimsUnchangedDatabaseBackupsWithoutTouchingOtherFiles()
+        {
+            var paths = CreateTestPaths();
+            try
+            {
+                CreateValidDatabase(paths.DatabasePath);
+                File.SetLastWriteTimeUtc(paths.DatabasePath, new DateTime(2026, 9, 20, 9, 0, 0, DateTimeKind.Utc));
+                Directory.CreateDirectory(paths.BackupDirectory);
+                CreateOldAutomaticBackup(paths.BackupDirectory, "2026-09-19-010000", 3);
+                CreateOldAutomaticBackup(paths.BackupDirectory, "2026-09-20-010000", 2);
+                var preserved = new[] { "manual.zip", "ActiveLogbook-before-development-test.zip", "safety.zip", "timepilot.db" };
+                foreach (var name in preserved)
+                    File.WriteAllText(Path.Combine(paths.BackupDirectory, name), "keep");
+
+                var result = new AutomaticBackupService(paths.DataDirectory).CreateIfDue(
+                    paths.BackupDirectory, 1,
+                    new DateTimeOffset(2026, 9, 22, 12, 0, 0, TimeSpan.Zero),
+                    new DateTimeOffset(2026, 9, 21, 10, 0, 0, TimeSpan.Zero));
+
+                Assert.Equal(AutomaticBackupResultKind.SkippedUnchanged, result.Kind);
+                Assert.Equal(1, result.DeletedBackupCount);
+                foreach (var name in preserved)
+                    Assert.Equal("keep", File.ReadAllText(Path.Combine(paths.BackupDirectory, name)));
+            }
+            finally
+            {
+                DeleteTestRoot(paths.Root);
+            }
+        }
+
         private static BackupTestPaths CreateTestPaths()
         {
             var root = Path.Combine(Path.GetTempPath(), $"TimePilotAutomaticBackup-{Guid.NewGuid():N}");
@@ -178,11 +335,12 @@ namespace TimePilot.Tests
             command.ExecuteNonQuery();
         }
 
-        private static void CreateOldAutomaticBackup(string directory, string timestamp, int ageDays)
+        private static string CreateOldAutomaticBackup(string directory, string timestamp, int ageDays)
         {
             var path = Path.Combine(directory, $"{AutomaticBackupService.FileNamePrefix}{timestamp}.zip");
             File.WriteAllText(path, "old");
             File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-ageDays));
+            return path;
         }
 
         private static void DeleteTestRoot(string root)
