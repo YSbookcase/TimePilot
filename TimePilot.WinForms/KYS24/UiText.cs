@@ -297,6 +297,11 @@ namespace TimePilot.WinForms.KYS24
             public static string GeneralTab => current.Preferences.GeneralTab;
             public static string DataTab => current.Preferences.DataTab;
             public static string LanguageLabel => current.Preferences.LanguageLabel;
+            public static string KoreanWebSearchSuffixLabel => current.Preferences.KoreanWebSearchSuffixLabel;
+            public static string RestoreDefault => current.Preferences.RestoreDefault;
+            public static string ResetSettings => current.Preferences.ResetSettings;
+            public static string ResetSettingsConfirmation => current.Preferences.ResetSettingsConfirmation;
+            public static string DevelopmentResetSettingsConfirmation => current.Preferences.DevelopmentResetSettingsConfirmation;
             public static string IdleThresholdLabel => current.Preferences.IdleThresholdLabel;
             public static string MinuteUnit => current.Preferences.MinuteUnit;
             public static string SecondUnit => current.Preferences.SecondUnit;
@@ -365,6 +370,9 @@ namespace TimePilot.WinForms.KYS24
             {
                 return current.Preferences.DataFolderOpenFailed(message);
             }
+
+            public static string BackupFolderOpenFailed(string message) =>
+                current.Preferences.BackupFolderOpenFailed(message);
 
             public static string SponsorOpenFailed(string message)
             {
@@ -703,6 +711,11 @@ namespace TimePilot.WinForms.KYS24
                         GeneralTab: "일반",
                         DataTab: "데이터 및 백업",
                         LanguageLabel: "표시 언어",
+                        KoreanWebSearchSuffixLabel: "한국어 검색 접미사",
+                        RestoreDefault: "기본값",
+                        ResetSettings: "설정 초기화...",
+                        DevelopmentResetSettingsConfirmation: "이 창의 동작 옵션을 기본값으로 되돌릴까요? 자동백업 사용은 꺼집니다.\n\n개발 데이터 실행에서는 Windows 자동실행 설정을 변경하지 않습니다. 표시 언어, 백업 폴더와 백업 이력은 유지합니다. 사용 기록, 앱 분류, 백업 파일, 화면 배치는 변경하지 않습니다. 예약된 기록 삭제도 취소합니다.\n\n저장을 눌러야 적용됩니다. 취소하면 기존 설정을 유지합니다.",
+                        ResetSettingsConfirmation: "이 창의 동작 옵션을 기본값으로 되돌릴까요? Windows 자동실행은 켜지고 자동백업 사용은 꺼집니다.\n\n표시 언어, 백업 폴더와 백업 이력은 유지합니다. 사용 기록, 앱 분류, 백업 파일, 화면 배치는 삭제하거나 변경하지 않습니다. 예약된 기록 삭제도 취소합니다.\n\n저장을 눌러야 적용됩니다. 취소하면 기존 설정을 유지합니다.",
                         IdleThresholdLabel: "유휴 판단 대기시간",
                         MinuteUnit: "분",
                         SecondUnit: "초",
@@ -766,6 +779,7 @@ namespace TimePilot.WinForms.KYS24
                         UserProcessesRiskMessage: "모든 사용자 프로세스를 5초 이하 주기로 추적하면 CPU 사용량과 저장 데이터가 크게 증가할 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
                         AnyScopeRiskMessage: "3초 이하 확인 주기는 추적 범위와 관계없이 시스템 부하와 저장 데이터 증가를 유발할 수 있습니다.\n\n같은 설정으로 짧은 실행 후 비정상 종료가 반복되면 다음 실행에서 백그라운드 앱 추적이 자동으로 꺼집니다.\n\n이 위험 설정을 저장하시겠습니까?",
                         DataFolderOpenFailed: message => $"데이터 폴더를 열 수 없습니다.\n\n{message}",
+                        BackupFolderOpenFailed: message => $"백업 폴더를 열 수 없습니다.\n\n{message}",
                         SponsorOpenFailed: message => $"후원 페이지를 열 수 없습니다.\n\n{message}"),
                     new DateStatusText("기록 있음", "기록 없음", "확인 전"),
                     new CalendarPickerText(
@@ -1066,6 +1080,11 @@ namespace TimePilot.WinForms.KYS24
                         GeneralTab: "General",
                         DataTab: "Data and backup",
                         LanguageLabel: "Display language",
+                        KoreanWebSearchSuffixLabel: "Korean web search suffix",
+                        RestoreDefault: "Default",
+                        ResetSettings: "Reset settings...",
+                        DevelopmentResetSettingsConfirmation: "Restore the behavior options in this dialog to their defaults? Automatic backups will be turned off.\n\nWindows startup settings cannot be changed in a development data session. Display language, backup folder and backup history will be kept. Usage records, app categories, backup files and window layouts will not be changed. Pending record deletion will be canceled.\n\nChanges apply only when you select Save. Select Cancel to keep your existing settings.",
+                        ResetSettingsConfirmation: "Restore the behavior options in this dialog to their defaults? Windows startup will be turned on and automatic backups will be turned off.\n\nThe display language, backup folder and backup history will be kept. Usage records, app categories, backup files and window layouts will not be deleted or changed. Any pending record deletion will be canceled.\n\nChanges apply only when you select Save. Select Cancel to keep your existing settings.",
                         IdleThresholdLabel: "Idle threshold",
                         MinuteUnit: "min",
                         SecondUnit: "sec",
@@ -1129,6 +1148,7 @@ namespace TimePilot.WinForms.KYS24
                         UserProcessesRiskMessage: "Tracking all user processes every 5 seconds or less can significantly increase CPU usage and stored data.\n\nIf repeated unexpected exits happen shortly after launch with the same setting, background app tracking will be disabled on the next launch.\n\nSave this risky setting?",
                         AnyScopeRiskMessage: "Check intervals of 3 seconds or less can increase system load and stored data regardless of tracking scope.\n\nIf repeated unexpected exits happen shortly after launch with the same setting, background app tracking will be disabled on the next launch.\n\nSave this risky setting?",
                         DataFolderOpenFailed: message => $"Could not open the data folder.\n\n{message}",
+                        BackupFolderOpenFailed: message => $"Could not open the backup folder.\n\n{message}",
                         SponsorOpenFailed: message => $"Could not open the sponsor page.\n\n{message}"),
                     new DateStatusText("Has records", "No records", "Not checked"),
                     new CalendarPickerText(
@@ -1394,6 +1414,11 @@ namespace TimePilot.WinForms.KYS24
             string GeneralTab,
             string DataTab,
             string LanguageLabel,
+            string KoreanWebSearchSuffixLabel,
+            string RestoreDefault,
+            string ResetSettings,
+            string DevelopmentResetSettingsConfirmation,
+            string ResetSettingsConfirmation,
             string IdleThresholdLabel,
             string MinuteUnit,
             string SecondUnit,
@@ -1452,6 +1477,7 @@ namespace TimePilot.WinForms.KYS24
             string UserProcessesRiskMessage,
             string AnyScopeRiskMessage,
             Func<string, string> DataFolderOpenFailed,
+            Func<string, string> BackupFolderOpenFailed,
             Func<string, string> SponsorOpenFailed);
 
         private sealed record DateStatusText(string HasData, string NoData, string NotChecked);

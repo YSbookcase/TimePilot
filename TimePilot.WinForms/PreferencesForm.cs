@@ -5,7 +5,11 @@ namespace TimePilot.WinForms
 {
     internal sealed class PreferencesForm : Form
     {
+        private readonly bool allowStartupChanges;
         private readonly ComboBox languageComboBox = new();
+        private readonly TextBox koreanWebSearchSuffixTextBox = new();
+        private readonly Button resetWebSearchSuffixButton = new();
+        private readonly Button resetPreferencesButton = new();
         private readonly ComboBox idleThresholdComboBox = new();
         private readonly NumericUpDown customIdleThresholdNumeric = new();
         private readonly Label customIdleThresholdUnitLabel = new();
@@ -22,6 +26,7 @@ namespace TimePilot.WinForms
         private readonly CheckBox automaticBackupCheckBox = new();
         private readonly TextBox automaticBackupDirectoryTextBox = new();
         private readonly Button chooseAutomaticBackupFolderButton = new();
+        private readonly Button openAutomaticBackupFolderButton = new();
         private readonly NumericUpDown automaticBackupRetentionNumeric = new();
         private readonly Label automaticBackupCopiesLabel = new();
         private readonly Button openDataFolderButton = new();
@@ -31,10 +36,12 @@ namespace TimePilot.WinForms
         private readonly Button okButton = new();
         private readonly Button cancelButton = new();
 
-        public PreferencesForm(AppSettings settings, bool? effectiveStartWithWindows = null)
+        public PreferencesForm(AppSettings settings, bool? effectiveStartWithWindows = null, bool allowStartupChanges = true)
         {
+            this.allowStartupChanges = allowStartupChanges;
             IdleThresholdMinutes = settings.IdleThresholdMinutes;
             UiLanguage = settings.UiLanguage;
+            KoreanWebSearchSuffix = settings.KoreanWebSearchSuffix;
             StartWithWindows = effectiveStartWithWindows ?? settings.StartWithWindows;
             StartupDisplayMode = settings.StartupDisplayMode;
             PerformanceDiagnosticsEnabled = settings.PerformanceDiagnosticsEnabled;
@@ -60,6 +67,8 @@ namespace TimePilot.WinForms
         public int IdleThresholdMinutes { get; private set; }
 
         public UiLanguage UiLanguage { get; private set; }
+
+        public string KoreanWebSearchSuffix { get; private set; }
 
         public bool StartWithWindows { get; private set; }
 
@@ -95,6 +104,7 @@ namespace TimePilot.WinForms
         {
             var idleThresholdLabel = new Label();
             var languageLabel = new Label();
+            var koreanWebSearchSuffixLabel = new Label();
             var startupDisplayModeLabel = new Label();
             var tabControl = new TabControl();
             var generalTabPage = new TabPage();
@@ -205,6 +215,23 @@ namespace TimePilot.WinForms
             processRuntimeGroupBox.TabStop = false;
             processRuntimeGroupBox.Text = UiText.Preferences.ProcessRuntimeGroup;
 
+            koreanWebSearchSuffixLabel.AutoSize = true;
+            koreanWebSearchSuffixLabel.Location = new Point(20, 422);
+            koreanWebSearchSuffixLabel.Name = "koreanWebSearchSuffixLabel";
+            koreanWebSearchSuffixLabel.Text = UiText.Preferences.KoreanWebSearchSuffixLabel;
+
+            koreanWebSearchSuffixTextBox.Location = new Point(208, 418);
+            koreanWebSearchSuffixTextBox.Name = "koreanWebSearchSuffixTextBox";
+            koreanWebSearchSuffixTextBox.Size = new Size(128, 23);
+            koreanWebSearchSuffixTextBox.Text = KoreanWebSearchSuffix;
+
+            resetWebSearchSuffixButton.Location = new Point(344, 418);
+            resetWebSearchSuffixButton.Name = "resetWebSearchSuffixButton";
+            resetWebSearchSuffixButton.Size = new Size(62, 23);
+            resetWebSearchSuffixButton.Text = UiText.Preferences.RestoreDefault;
+            resetWebSearchSuffixButton.Click += (_, _) =>
+                koreanWebSearchSuffixTextBox.Text = AppSettings.DefaultKoreanWebSearchSuffix;
+
             processRuntimeTrackingCheckBox.AutoSize = true;
             processRuntimeTrackingCheckBox.Location = new Point(16, 28);
             processRuntimeTrackingCheckBox.Name = "processRuntimeTrackingCheckBox";
@@ -268,6 +295,7 @@ namespace TimePilot.WinForms
             automaticBackupGroupBox.Controls.Add(automaticBackupFolderLabel);
             automaticBackupGroupBox.Controls.Add(automaticBackupDirectoryTextBox);
             automaticBackupGroupBox.Controls.Add(chooseAutomaticBackupFolderButton);
+            automaticBackupGroupBox.Controls.Add(openAutomaticBackupFolderButton);
             automaticBackupGroupBox.Controls.Add(automaticBackupRetentionLabel);
             automaticBackupGroupBox.Controls.Add(automaticBackupRetentionNumeric);
             automaticBackupGroupBox.Controls.Add(automaticBackupCopiesLabel);
@@ -294,12 +322,19 @@ namespace TimePilot.WinForms
             automaticBackupDirectoryTextBox.Name = "automaticBackupDirectoryTextBox";
             automaticBackupDirectoryTextBox.ReadOnly = true;
             automaticBackupDirectoryTextBox.Size = new Size(280, 23);
+            automaticBackupDirectoryTextBox.TextChanged += (_, _) => UpdateOpenAutomaticBackupFolderButton();
 
             chooseAutomaticBackupFolderButton.Location = new Point(302, 77);
             chooseAutomaticBackupFolderButton.Name = "chooseAutomaticBackupFolderButton";
             chooseAutomaticBackupFolderButton.Size = new Size(90, 25);
             chooseAutomaticBackupFolderButton.Text = UiText.Preferences.ChooseAutomaticBackupFolder;
             chooseAutomaticBackupFolderButton.Click += OnChooseAutomaticBackupFolderButtonClick;
+
+            openAutomaticBackupFolderButton.Location = new Point(302, 112);
+            openAutomaticBackupFolderButton.Name = "openAutomaticBackupFolderButton";
+            openAutomaticBackupFolderButton.Size = new Size(90, 25);
+            openAutomaticBackupFolderButton.Text = UiText.Preferences.OpenDataFolder;
+            openAutomaticBackupFolderButton.Click += OnOpenAutomaticBackupFolderButtonClick;
 
             automaticBackupRetentionLabel.AutoSize = true;
             automaticBackupRetentionLabel.Location = new Point(16, 116);
@@ -384,6 +419,13 @@ namespace TimePilot.WinForms
             cancelButton.Size = new Size(75, 27);
             cancelButton.Text = UiText.Common.Cancel;
 
+            resetPreferencesButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
+            resetPreferencesButton.Location = new Point(20, 518);
+            resetPreferencesButton.Name = "resetPreferencesButton";
+            resetPreferencesButton.Size = new Size(150, 27);
+            resetPreferencesButton.Text = UiText.Preferences.ResetSettings;
+            resetPreferencesButton.Click += OnResetPreferencesButtonClick;
+
             AcceptButton = okButton;
             CancelButton = cancelButton;
             AutoScaleMode = AutoScaleMode.Font;
@@ -399,12 +441,16 @@ namespace TimePilot.WinForms
             generalTabPage.Controls.Add(startupDisplayModeComboBox);
             generalTabPage.Controls.Add(performanceDiagnosticsCheckBox);
             generalTabPage.Controls.Add(processRuntimeGroupBox);
+            generalTabPage.Controls.Add(koreanWebSearchSuffixLabel);
+            generalTabPage.Controls.Add(koreanWebSearchSuffixTextBox);
+            generalTabPage.Controls.Add(resetWebSearchSuffixButton);
             dataTabPage.Controls.Add(automaticBackupGroupBox);
             dataTabPage.Controls.Add(dataManagementGroupBox);
             dataTabPage.Controls.Add(sponsorLinkLabel);
             Controls.Add(tabControl);
             Controls.Add(okButton);
             Controls.Add(cancelButton);
+            Controls.Add(resetPreferencesButton);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
@@ -426,6 +472,46 @@ namespace TimePilot.WinForms
             dataManagementGroupBox.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
+        }
+
+        private void OnResetPreferencesButtonClick(object? sender, EventArgs e)
+        {
+            var result = CenteredMessageDialog.Show(
+                this,
+                allowStartupChanges
+                    ? UiText.Preferences.ResetSettingsConfirmation
+                    : UiText.Preferences.DevelopmentResetSettingsConfirmation,
+                UiText.Preferences.ResetSettings,
+                MessageBoxButtons.OKCancel,
+                MessageBoxIcon.Warning);
+            if (result == DialogResult.OK)
+                RestoreDefaultPreferences();
+        }
+
+        internal void RestoreDefaultPreferences()
+        {
+            idleThresholdComboBox.SelectedItem = idleThresholdComboBox.Items.Cast<IdleThresholdOption>()
+                .First(option => option.Minutes == AppSettings.DefaultIdleThresholdMinutes);
+            customIdleThresholdNumeric.Value = AppSettings.DefaultIdleThresholdMinutes;
+            if (allowStartupChanges)
+            {
+                // First-run registration stays opt-in; restoring preferences recommends startup on save.
+                startWithWindowsCheckBox.Checked = true;
+                startupDisplayModeComboBox.SelectedValue = AppSettings.DefaultStartupDisplayMode;
+            }
+            performanceDiagnosticsCheckBox.Checked = AppSettings.DefaultPerformanceDiagnosticsEnabled;
+            processRuntimeTrackingCheckBox.Checked = AppSettings.DefaultProcessRuntimeTrackingEnabled;
+            processRuntimeScopeComboBox.SelectedValue = AppSettings.DefaultProcessRuntimeTrackingScope;
+            processRuntimeIntervalComboBox.SelectedItem = processRuntimeIntervalComboBox.Items
+                .Cast<ProcessRuntimeIntervalOption>()
+                .First(option => option.Seconds == AppSettings.DefaultProcessRuntimeSampleIntervalSeconds);
+            customProcessRuntimeIntervalNumeric.Value = AppSettings.DefaultProcessRuntimeSampleIntervalSeconds;
+            ProcessRuntimeRiskAccepted = false;
+            automaticBackupCheckBox.Checked = AppSettings.DefaultAutomaticBackupEnabled;
+            automaticBackupRetentionNumeric.Value = AppSettings.DefaultAutomaticBackupRetentionCount;
+            koreanWebSearchSuffixTextBox.Text = AppSettings.DefaultKoreanWebSearchSuffix;
+            ClearUsageDataRequested = false;
+            clearUsageDataButton.Text = UiText.Preferences.ClearUsageData;
         }
 
         private void ConfigureIdleThresholdControls()
@@ -526,21 +612,69 @@ namespace TimePilot.WinForms
             automaticBackupDirectoryTextBox.Enabled = isEnabled;
             chooseAutomaticBackupFolderButton.Enabled = isEnabled;
             automaticBackupRetentionNumeric.Enabled = isEnabled;
+            UpdateOpenAutomaticBackupFolderButton();
+        }
+
+        private void UpdateOpenAutomaticBackupFolderButton()
+        {
+            openAutomaticBackupFolderButton.Enabled = Directory.Exists(automaticBackupDirectoryTextBox.Text);
+        }
+
+        protected override void OnActivated(EventArgs e)
+        {
+            base.OnActivated(e);
+            UpdateOpenAutomaticBackupFolderButton();
+        }
+
+        private void OnOpenAutomaticBackupFolderButtonClick(object? sender, EventArgs e)
+        {
+            UpdateOpenAutomaticBackupFolderButton();
+            if (!openAutomaticBackupFolderButton.Enabled)
+                return;
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = Path.GetFullPath(automaticBackupDirectoryTextBox.Text),
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                CenteredMessageDialog.Show(
+                    this,
+                    UiText.Preferences.BackupFolderOpenFailed(ex.Message),
+                    UiText.Preferences.AutomaticBackupFolder,
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
         }
 
         private void OnChooseAutomaticBackupFolderButtonClick(object? sender, EventArgs e)
         {
-            using var dialog = new FolderBrowserDialog
+            using var dialog = CreateAutomaticBackupFolderDialog();
+
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            automaticBackupDirectoryTextBox.Text = dialog.SelectedPath;
+        }
+
+        internal FolderBrowserDialog CreateAutomaticBackupFolderDialog()
+        {
+            var dialog = new FolderBrowserDialog
             {
                 Description = UiText.Preferences.AutomaticBackupFolderDialogDescription,
                 ShowNewFolderButton = true,
                 UseDescriptionForTitle = true
             };
             if (Directory.Exists(automaticBackupDirectoryTextBox.Text))
+            {
                 dialog.InitialDirectory = automaticBackupDirectoryTextBox.Text;
-
-            if (dialog.ShowDialog(this) == DialogResult.OK)
-                automaticBackupDirectoryTextBox.Text = dialog.SelectedPath;
+                dialog.SelectedPath = automaticBackupDirectoryTextBox.Text;
+            }
+            return dialog;
         }
 
         private static IReadOnlyList<IdleThresholdOption> GetIdleThresholdOptions()
@@ -591,14 +725,15 @@ namespace TimePilot.WinForms
             startupDisplayModeComboBox.DisplayMember = nameof(StartupDisplayModeOption.Label);
             startupDisplayModeComboBox.ValueMember = nameof(StartupDisplayModeOption.Mode);
             startWithWindowsCheckBox.Checked = StartWithWindows;
+            startWithWindowsCheckBox.Enabled = allowStartupChanges;
             startupDisplayModeComboBox.SelectedValue = StartupDisplayMode;
-            startupDisplayModeComboBox.Enabled = StartWithWindows;
+            startupDisplayModeComboBox.Enabled = allowStartupChanges && StartWithWindows;
             performanceDiagnosticsCheckBox.Checked = PerformanceDiagnosticsEnabled;
         }
 
         private void OnStartWithWindowsCheckedChanged(object? sender, EventArgs e)
         {
-            startupDisplayModeComboBox.Enabled = startWithWindowsCheckBox.Checked;
+            startupDisplayModeComboBox.Enabled = allowStartupChanges && startWithWindowsCheckBox.Checked;
         }
 
         private void OnIdleThresholdSelectionChanged(object? sender, EventArgs e)
@@ -690,6 +825,7 @@ namespace TimePilot.WinForms
             UiLanguage = languageComboBox.SelectedItem is LanguageOption languageOption
                 ? languageOption.Language
                 : AppSettings.DefaultUiLanguage;
+            KoreanWebSearchSuffix = koreanWebSearchSuffixTextBox.Text.Trim();
             StartWithWindows = startWithWindowsCheckBox.Checked;
             StartupDisplayMode = startupDisplayModeComboBox.SelectedItem is StartupDisplayModeOption startupOption
                 ? startupOption.Mode

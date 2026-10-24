@@ -93,7 +93,8 @@ namespace TimePilot.WinForms
 
         private async Task ShowStartupPromptIfNeededAsync()
         {
-            if (settings.StartupPromptShown || startMinimizedToTray || isClosing)
+            if (AppDataPaths.IsDevelopmentDataDirectory
+                || settings.StartupPromptShown || startMinimizedToTray || isClosing)
                 return;
 
             var result = CenteredMessageDialog.Show(

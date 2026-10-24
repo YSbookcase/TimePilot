@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace TimePilot.WinForms.KYS24
 {
     internal sealed class AutomaticBackupService
@@ -32,21 +34,32 @@ namespace TimePilot.WinForms.KYS24
             if (!File.Exists(databasePath))
                 return new AutomaticBackupResult(AutomaticBackupResultKind.SkippedNoDatabase, null, 0);
 
-            var databaseLastWriteAt = new DateTimeOffset(File.GetLastWriteTimeUtc(databasePath), TimeSpan.Zero);
-            if (lastSuccessAt is { } previousSuccess)
-            {
-                if (databaseLastWriteAt <= previousSuccess.ToUniversalTime())
-                    return new AutomaticBackupResult(AutomaticBackupResultKind.SkippedUnchanged, null, 0);
-
-                if (previousSuccess.ToLocalTime().Date == now.ToLocalTime().Date)
-                    return new AutomaticBackupResult(AutomaticBackupResultKind.SkippedAlreadyCreatedToday, null, 0);
-            }
-
             var targetDirectory = Path.GetFullPath(backupDirectory);
             if (IsSameOrChildPath(targetDirectory, _dataDirectory))
             {
                 throw new InvalidOperationException(
                     UiText.Preferences.AutomaticBackupFolderMustBeExternal);
+            }
+
+            var keepCount = Math.Max(1, retentionCount);
+            var databaseLastWriteAt = new DateTimeOffset(File.GetLastWriteTimeUtc(databasePath), TimeSpan.Zero);
+            if (lastSuccessAt is { } previousSuccess)
+            {
+                if (databaseLastWriteAt <= previousSuccess.ToUniversalTime())
+                {
+                    return new AutomaticBackupResult(
+                        AutomaticBackupResultKind.SkippedUnchanged,
+                        null,
+                        TrimIfDirectoryExists(targetDirectory, keepCount));
+                }
+
+                if (previousSuccess.ToLocalTime().Date == now.ToLocalTime().Date)
+                {
+                    return new AutomaticBackupResult(
+                        AutomaticBackupResultKind.SkippedAlreadyCreatedToday,
+                        null,
+                        TrimIfDirectoryExists(targetDirectory, keepCount));
+                }
             }
 
             Directory.CreateDirectory(targetDirectory);
@@ -56,8 +69,16 @@ namespace TimePilot.WinForms.KYS24
 
             var backupService = new DataBackupService(_dataDirectory);
             backupService.CreateBackup(backupPath, now);
-            var deletedCount = ApplyRetentionPolicy(targetDirectory, Math.Max(1, retentionCount), backupPath);
+            var deletedCount = ApplyRetentionPolicy(targetDirectory, keepCount, backupPath);
             return new AutomaticBackupResult(AutomaticBackupResultKind.Created, backupPath, deletedCount);
+        }
+
+        private static int TrimIfDirectoryExists(string backupDirectory, int keepCount)
+        {
+            if (!Directory.Exists(backupDirectory))
+                return 0;
+
+            return ApplyRetentionPolicy(backupDirectory, keepCount);
         }
 
         private static bool IsSameOrChildPath(string candidatePath, string parentPath)
@@ -70,28 +91,49 @@ namespace TimePilot.WinForms.KYS24
                     StringComparison.OrdinalIgnoreCase);
         }
 
-        private static int ApplyRetentionPolicy(
-            string backupDirectory,
-            int retentionCount,
-            string createdBackupPath)
+        private static int ApplyRetentionPolicy(string backupDirectory, int keepCount, string? createdBackupPath = null)
         {
             var automaticBackups = Directory
                 .EnumerateFiles(backupDirectory, $"{FileNamePrefix}*.zip", SearchOption.TopDirectoryOnly)
                 .Select(path => new FileInfo(path))
-                .OrderByDescending(file => file.LastWriteTimeUtc)
-                .ThenByDescending(file => file.Name, StringComparer.Ordinal)
+                .OrderByDescending(file => string.Equals(file.FullName, createdBackupPath, StringComparison.OrdinalIgnoreCase))
+                .ThenByDescending(GetBackupSortTime)
+                .ThenByDescending(file => file.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             var deletedCount = 0;
-            foreach (var oldBackup in automaticBackups.Skip(retentionCount))
+            foreach (var oldBackup in automaticBackups.Skip(keepCount))
             {
-                if (string.Equals(oldBackup.FullName, createdBackupPath, StringComparison.OrdinalIgnoreCase))
+                try
+                {
+                    oldBackup.Delete();
+                    deletedCount++;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
                     continue;
-
-                oldBackup.Delete();
-                deletedCount++;
+                }
             }
 
             return deletedCount;
+        }
+
+        private static DateTime GetBackupSortTime(FileInfo file)
+        {
+            var timestamp = Path.GetFileNameWithoutExtension(file.Name);
+            if (timestamp.StartsWith(FileNamePrefix, StringComparison.OrdinalIgnoreCase))
+                timestamp = timestamp[FileNamePrefix.Length..];
+
+            if (DateTime.TryParseExact(
+                timestamp,
+                "yyyy-MM-dd-HHmmss",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsed))
+            {
+                return parsed;
+            }
+
+            return file.LastWriteTimeUtc;
         }
     }
 

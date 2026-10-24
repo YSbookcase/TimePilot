@@ -7,7 +7,7 @@ namespace TimePilot.WinForms
     {
         private void ApplyUiText()
         {
-            Text = UiText.AppName;
+            Text = UiText.AppName + (AppDataPaths.IsDevelopmentDataDirectory ? " [DEV]" : string.Empty);
             mainMenuController.ApplyText(CreateMainMenuText());
 
             summaryTab.Text = UiText.Main.SummaryTab;
@@ -118,7 +118,7 @@ namespace TimePilot.WinForms
                     exitItem.Text = UiText.Main.Exit;
             }
 
-            trayIcon.Text = UiText.AppName;
+            trayIcon.Text = Text;
             ApplyLocalizedToolTips();
             RefreshDetailRuntimeFilterOptions();
             RefreshSummaryPeriodOptions(DateTime.Today);

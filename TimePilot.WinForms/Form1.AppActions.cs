@@ -101,12 +101,10 @@ namespace TimePilot.WinForms
 
         private void OpenAppWebSearch(string appName, string processName)
         {
-            var query = BuildAppWebSearchQuery(appName, processName);
+            var query = AppWebSearchQueryFormatter.Format(
+                appName, processName, settings.UiLanguage, settings.KoreanWebSearchSuffix);
             if (string.IsNullOrWhiteSpace(query))
                 return;
-
-            if (settings.UiLanguage != UiLanguage.English)
-                query += " 이란";
 
             var url =
                 "https://www.google.com/search?q=" + Uri.EscapeDataString(query);
@@ -128,18 +126,6 @@ namespace TimePilot.WinForms
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
             }
-        }
-
-        private static string BuildAppWebSearchQuery(
-            string appName,
-            string processName)
-        {
-            var parts = new[] { appName, processName }
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Select(value => value!.Trim())
-                .Distinct(StringComparer.CurrentCultureIgnoreCase)
-                .Take(2);
-            return string.Join(" ", parts);
         }
 
         private void SetRuntimeAppCategory(

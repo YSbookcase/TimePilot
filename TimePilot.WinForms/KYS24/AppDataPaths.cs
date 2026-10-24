@@ -5,6 +5,8 @@ namespace TimePilot.WinForms.KYS24
         private const string DataDirectoryName = "TimePilot";
         private static string? activeDataDirectory;
 
+        public static bool IsDevelopmentDataDirectory { get; private set; }
+
         public static string DataDirectory => activeDataDirectory ?? GetLegacyDataDirectory();
 
         public static string DataDirectoryForShell => activeDataDirectory ?? ResolveDataDirectoryForShell(
@@ -33,6 +35,12 @@ namespace TimePilot.WinForms.KYS24
                 throw new ArgumentException("The active data directory is required.", nameof(directory));
 
             activeDataDirectory = Path.GetFullPath(directory);
+        }
+
+        internal static void SetDevelopmentDataDirectory(string directory)
+        {
+            SetActiveDataDirectory(directory);
+            IsDevelopmentDataDirectory = true;
         }
 
         private static string GetLegacyDataDirectory()

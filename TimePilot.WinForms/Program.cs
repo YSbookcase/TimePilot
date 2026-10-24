@@ -10,6 +10,19 @@
         [STAThread]
         static void Main(string[] args)
         {
+            KYS24.DevelopmentDataOptions? developmentOptions;
+            try
+            {
+                developmentOptions = KYS24.DevelopmentDataOptions.Parse(
+                    args, KYS24.WindowsStartupRegistration.IsPackagedApp());
+            }
+            catch (Exception ex) when (ex is ArgumentException or IOException
+                or NotSupportedException or System.Security.SecurityException)
+            {
+                ShowDevelopmentDataError(ex);
+                return;
+            }
+
             if (args.Contains(KYS24.AppShutdownSignal.ShutdownArgument))
             {
                 KYS24.AppShutdownSignal.RequestShutdown();
@@ -85,7 +98,36 @@
                 return;
             }
 
-            var storageBootstrap = KYS24.DataStorageBootstrapper.Prepare();
+            KYS24.DataStorageBootstrapResult storageBootstrap;
+            string? developmentSafetyBackupPath = null;
+            if (developmentOptions is not null)
+            {
+                try
+                {
+                    var backupDirectory = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "ActiveLogbookDevelopment", "backups");
+                    var preparation = KYS24.DevelopmentDataSession.Prepare(
+                        developmentOptions.DataDirectory, backupDirectory);
+                    developmentSafetyBackupPath = preparation.SafetyBackupPath;
+                    KYS24.AppDataPaths.SetDevelopmentDataDirectory(preparation.DataDirectory);
+                    storageBootstrap = new KYS24.DataStorageBootstrapResult(
+                        KYS24.DataStorageMigrationDecisionKind.UseExistingTarget,
+                        preparation.DataDirectory, false, false, null);
+                }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException
+                    or System.Security.SecurityException or ArgumentException
+                    or InvalidOperationException or NotSupportedException
+                    or System.Text.Json.JsonException or Microsoft.Data.Sqlite.SqliteException)
+                {
+                    ShowDevelopmentDataError(ex);
+                    return;
+                }
+            }
+            else
+            {
+                storageBootstrap = KYS24.DataStorageBootstrapper.Prepare();
+            }
             var settings = KYS24.AppSettings.LoadDefault();
             var startInTray = KYS24.StartupDisplayModeResolver.ShouldStartInTray(
                 isStartupLaunch,
@@ -101,6 +143,8 @@
                 StartupDisplayMode = settings.StartupDisplayMode.ToString(),
                 StartInTray = startInTray,
                 Executable = Application.ExecutablePath,
+                IsDevelopmentDataDirectory = KYS24.AppDataPaths.IsDevelopmentDataDirectory,
+                DevelopmentSafetyBackup = developmentSafetyBackupPath,
                 StorageDecision = storageBootstrap.Decision.ToString(),
                 storageBootstrap.SelectedDirectory,
                 storageBootstrap.MigrationAttempted,
@@ -160,6 +204,17 @@
             MessageBox.Show(
                 message.TrimEnd(),
                 KYS24.UiText.AppName,
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+
+        private static void ShowDevelopmentDataError(Exception error)
+        {
+            MessageBox.Show(
+                "개발 데이터 폴더를 사용할 수 없어 실행을 중단했습니다. 다른 DB로 전환하지 않습니다.\n"
+                + "The development data session could not start. No fallback database will be used.\n\n"
+                + error.Message,
+                "ActiveLogbook - Development data",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Warning);
         }
