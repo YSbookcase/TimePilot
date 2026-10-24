@@ -369,10 +369,10 @@ namespace TimePilot.WinForms
             Point location)
         {
             timelineGridMenu.Items.Clear();
-            var segmentItem = new ToolStripMenuItem(GetHighlightTimelineSegmentMenuText());
+            var segmentItem = new ToolStripMenuItem(TimelineHighlightMenuText.ForSegment(UiText.CurrentLanguage));
             segmentItem.Click += (_, _) => HighlightTimelineSegment(row);
             timelineGridMenu.Items.Add(segmentItem);
-            var appItem = new ToolStripMenuItem(GetHighlightTimelineAppMenuText());
+            var appItem = new ToolStripMenuItem(TimelineHighlightMenuText.ForApp(UiText.CurrentLanguage));
             appItem.Click += (_, _) => HighlightTimelineRow(row);
             timelineGridMenu.Items.Add(appItem);
             if (row.AppId is { } appId)
@@ -463,20 +463,6 @@ namespace TimePilot.WinForms
             timelineOverviewControl.SetHighlightedActivitySegment(row);
             UpdateTimelineHighlightUi();
             timelineGrid.Invalidate();
-        }
-
-        private static string GetHighlightTimelineSegmentMenuText()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? "Highlight this segment"
-                : "이 구간 강조";
-        }
-
-        private static string GetHighlightTimelineAppMenuText()
-        {
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? "Highlight this app"
-                : "이 앱 강조";
         }
 
         private DateTime GetTimelineDateForSummarySelection(UsageSummaryRow row)

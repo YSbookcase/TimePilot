@@ -178,7 +178,7 @@ namespace TimePilot.WinForms
 
             UpdateDateNavigationButtons();
             if (movedDate)
-                SetStatusText(GetDateAutoAdvancedStatusText(today));
+                SetStatusText(DateNavigationStatusFormatter.BuildAutoAdvancedStatus(today, UiText.CurrentLanguage));
         }
 
         private bool IsMainWindowActivelyViewed()
@@ -189,14 +189,5 @@ namespace TimePilot.WinForms
                 && (ContainsFocus || ActiveForm == this);
         }
 
-        private static string GetDateAutoAdvancedStatusText(DateTime today)
-        {
-            var dateText = today.ToString(
-                "yyyy-MM-dd",
-                System.Globalization.CultureInfo.CurrentCulture);
-            return UiText.CurrentLanguage == UiLanguage.English
-                ? $"Moved today's views to {dateText}"
-                : $"오늘 보기 날짜를 {dateText}(으)로 갱신했습니다.";
-        }
     }
 }

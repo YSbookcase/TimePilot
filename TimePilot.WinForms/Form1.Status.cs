@@ -101,17 +101,11 @@ namespace TimePilot.WinForms
                 performanceStatusExpiresAt = null;
             }
 
-            var parts = new List<string> { statusText };
-            if (!string.IsNullOrWhiteSpace(exportStatusText))
-                parts.Add(exportStatusText);
-            if (!string.IsNullOrWhiteSpace(viewRefreshStatusText))
-                parts.Add(viewRefreshStatusText);
-            if (!string.IsNullOrWhiteSpace(performanceStatusText))
-                parts.Add(performanceStatusText);
-
-            statusLabel.Text = string.Join(
-                " | ",
-                parts.Where(part => !string.IsNullOrWhiteSpace(part)));
+            statusLabel.Text = StatusLabelFormatter.Format(
+                statusText,
+                exportStatusText,
+                viewRefreshStatusText,
+                performanceStatusText);
         }
     }
 }

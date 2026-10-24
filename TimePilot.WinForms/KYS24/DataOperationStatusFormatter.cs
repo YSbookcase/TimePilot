@@ -4,6 +4,30 @@ namespace TimePilot.WinForms.KYS24
 {
     internal static class DataOperationStatusFormatter
     {
+        public static string BuildBackupProgressStatus(DataBackupProgressStage stage, UiLanguage language)
+        {
+            if (language == UiLanguage.English)
+            {
+                return stage switch
+                {
+                    DataBackupProgressStage.CopyingDatabase => "Creating a database snapshot...",
+                    DataBackupProgressStage.CompressingFiles => "Compressing backup files...",
+                    DataBackupProgressStage.VerifyingBackup => "Verifying the backup...",
+                    DataBackupProgressStage.Finalizing => "Finishing the backup...",
+                    _ => "Preparing the backup..."
+                };
+            }
+
+            return stage switch
+            {
+                DataBackupProgressStage.CopyingDatabase => "데이터베이스 복사본을 만드는 중...",
+                DataBackupProgressStage.CompressingFiles => "백업 파일을 압축하는 중...",
+                DataBackupProgressStage.VerifyingBackup => "백업 파일을 확인하는 중...",
+                DataBackupProgressStage.Finalizing => "백업을 마무리하는 중...",
+                _ => "백업을 준비하는 중..."
+            };
+        }
+
         public static string FormatCsvExportRangeForFileName(DateTime startDate, DateTime endDate)
         {
             return startDate.Date == endDate.Date

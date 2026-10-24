@@ -33,7 +33,7 @@ namespace TimePilot.WinForms
             var wasTimerEnabled = sampleTimer.Enabled;
             using var progressForm = new OperationProgressForm(
                 UiText.Main.DataBackupTitle,
-                BuildManualBackupProgressStatus(DataBackupProgressStage.Preparing));
+                DataOperationStatusFormatter.BuildBackupProgressStatus(DataBackupProgressStage.Preparing, UiText.CurrentLanguage));
             using var progressDelayCancellation = new CancellationTokenSource();
             var progressDisplayTask = ShowManualBackupProgressAfterDelayAsync(
                 progressForm,
@@ -42,14 +42,14 @@ namespace TimePilot.WinForms
             {
                 SetExportRunning(
                     true,
-                    BuildManualBackupProgressStatus(DataBackupProgressStage.Preparing));
+                    DataOperationStatusFormatter.BuildBackupProgressStatus(DataBackupProgressStage.Preparing, UiText.CurrentLanguage));
                 sampleTimer.Stop();
                 storage.UpdateRuntimeHeartbeat(now);
 
                 var fileName = dialog.FileName;
                 var progress = new Progress<DataBackupProgressStage>(stage =>
                 {
-                    var status = BuildManualBackupProgressStatus(stage);
+                    var status = DataOperationStatusFormatter.BuildBackupProgressStatus(stage, UiText.CurrentLanguage);
                     SetExportRunning(true, status);
                     progressForm.SetStatus(status);
                 });
@@ -114,30 +114,6 @@ namespace TimePilot.WinForms
 
             if (!isClosing && !progressForm.IsDisposed)
                 progressForm.ShowCentered(this);
-        }
-
-        private static string BuildManualBackupProgressStatus(DataBackupProgressStage stage)
-        {
-            if (UiText.CurrentLanguage == UiLanguage.English)
-            {
-                return stage switch
-                {
-                    DataBackupProgressStage.CopyingDatabase => "Creating a database snapshot...",
-                    DataBackupProgressStage.CompressingFiles => "Compressing backup files...",
-                    DataBackupProgressStage.VerifyingBackup => "Verifying the backup...",
-                    DataBackupProgressStage.Finalizing => "Finishing the backup...",
-                    _ => "Preparing the backup..."
-                };
-            }
-
-            return stage switch
-            {
-                DataBackupProgressStage.CopyingDatabase => "데이터베이스 복사본을 만드는 중...",
-                DataBackupProgressStage.CompressingFiles => "백업 파일을 압축하는 중...",
-                DataBackupProgressStage.VerifyingBackup => "백업 파일을 확인하는 중...",
-                DataBackupProgressStage.Finalizing => "백업을 마무리하는 중...",
-                _ => "백업을 준비하는 중..."
-            };
         }
     }
 }

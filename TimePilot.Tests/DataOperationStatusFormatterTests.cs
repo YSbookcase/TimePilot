@@ -37,5 +37,25 @@ namespace TimePilot.Tests
             Assert.Equal("Export completed.", DataOperationStatusFormatter.BuildCompletedStatus("Export"));
             Assert.Equal("Export failed.", DataOperationStatusFormatter.BuildFailedStatus("Export"));
         }
+
+        [Theory]
+        [InlineData(0, "Preparing the backup...", "백업을 준비하는 중...")]
+        [InlineData(1, "Creating a database snapshot...", "데이터베이스 복사본을 만드는 중...")]
+        [InlineData(2, "Compressing backup files...", "백업 파일을 압축하는 중...")]
+        [InlineData(3, "Verifying the backup...", "백업 파일을 확인하는 중...")]
+        [InlineData(4, "Finishing the backup...", "백업을 마무리하는 중...")]
+        [InlineData(-1, "Preparing the backup...", "백업을 준비하는 중...")]
+        public void BuildBackupProgressStatus_PreservesMessagesInBothLanguages(
+            int stageValue,
+            string expectedEnglish,
+            string expectedKorean)
+        {
+            var stage = (DataBackupProgressStage)stageValue;
+
+            Assert.Equal(expectedEnglish,
+                DataOperationStatusFormatter.BuildBackupProgressStatus(stage, UiLanguage.English));
+            Assert.Equal(expectedKorean,
+                DataOperationStatusFormatter.BuildBackupProgressStatus(stage, UiLanguage.Korean));
+        }
     }
 }
