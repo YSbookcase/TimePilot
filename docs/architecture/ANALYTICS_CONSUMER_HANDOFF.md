@@ -70,6 +70,9 @@ For a .NET 8 or compatible Windows .NET 8 Pro project, define CommunityRoot as a
 local MSBuild property (not a committed developer-specific absolute path):
 
 ```xml
+<PropertyGroup>
+  <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
+</PropertyGroup>
 <ItemGroup>
   <ProjectReference Include="$(CommunityRoot)\TimePilot.Analytics.Contracts\TimePilot.Analytics.Contracts.csproj" />
   <ProjectReference Include="$(CommunityRoot)\TimePilot.Analytics.Sqlite\TimePilot.Analytics.Sqlite.csproj" />
@@ -83,7 +86,11 @@ dotnet build TimePilot.Pro.sln -c Release "-p:CommunityRoot=C:\absolute\Communit
 ```
 
 Referenced projects need not be listed separately in the solution to build; they
-are resolved through ProjectReference. The build must not redirect them to a moving
+are resolved through ProjectReference. The property above preserves the chosen
+configuration for references outside the solution; otherwise MSBuild may build
+them with their default Debug configuration even when the solution uses Release.
+Alternatively explicitly include/map the public projects in the Pro solution.
+The build must not redirect them to a moving
 branch or mix contract/adapter revisions. This command is a Pro setup example;
 Community validation does not run or modify the private Pro repository.
 

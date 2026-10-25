@@ -24,6 +24,9 @@ Pro의 작업 폴더와 Community의 활성 개발 폴더를 공유하지 말고
 
 Pro 프로젝트는 `$(CommunityRoot)`를 기준으로 두 csproj를 ProjectReference하고 다음처럼
 자기 솔루션을 빌드한다. 개인 절대 경로는 커밋하지 않는다.
+솔루션 밖 참조도 Release 설정을 따르도록 예제는
+`ShouldUnsetParentConfigurationAndPlatform=false`를 지정했다.
+대안으로 두 공개 프로젝트를 솔루션에 직접 포함하고 구성을 매핑할 수 있다.
 
 ```powershell
 dotnet build TimePilot.Pro.sln -c Release "-p:CommunityRoot=C:\absolute\CommunityPinned"
