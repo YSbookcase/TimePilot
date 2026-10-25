@@ -4,6 +4,9 @@ Issue #349 is the first delivery under #333. This is a data boundary, not a Pro 
 or a live recording integration. No production WinForms file references the new
 adapter, so Community startup, tracking, migration and backup paths are unchanged.
 
+For SDK/platform conditions, fixed-commit external solution builds and one-command
+synthetic reproduction, see [the consumer handoff](ANALYTICS_CONSUMER_HANDOFF.md).
+
 ## Projects And Version
 
 - `TimePilot.Analytics.Contracts`: .NET 8, public DTOs and `IDailyAnalyticsReader`,
@@ -106,7 +109,7 @@ using TimePilot.Analytics.Contracts;
 using TimePilot.Analytics.Sqlite;
 
 // Explicit preparation, separate from querying. Both paths are absolute;
-// source is offline and destination does not exist outside the source folder.
+// source is offline; destination is a new directory outside the source folder.
 var prepared = OfflineAnalyticsSnapshot.Create(sourcePath, newSnapshotDirectory, cancellationToken);
 
 // Later, including in another process, transfer/read the full prepared directory.

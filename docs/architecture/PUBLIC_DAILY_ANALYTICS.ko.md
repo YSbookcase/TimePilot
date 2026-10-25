@@ -3,6 +3,9 @@
 #349의 첫 구현이다. 상세 계약과 예제·오류 정책은
 `PUBLIC_DAILY_ANALYTICS.md`를 기준으로 한다.
 
+고정 커밋 외부 솔루션 빌드·SDK/플랫폼 조건·한 명령 합성 검증은
+`ANALYTICS_CONSUMER_HANDOFF.ko.md`와 영문 상세 문서에 정리했다.
+
 ## 이번에 제공하는 것
 
 - `TimePilot.Analytics.Contracts`: .NET 8 공개 DTO/인터페이스, 계약 버전 2.0.0.

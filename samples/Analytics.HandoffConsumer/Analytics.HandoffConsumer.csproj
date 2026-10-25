@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <CommunityRoot Condition="'$(CommunityRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..'))</CommunityRoot>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(CommunityRoot)\TimePilot.Analytics.Contracts\TimePilot.Analytics.Contracts.csproj" />
+    <ProjectReference Include="$(CommunityRoot)\TimePilot.Analytics.Sqlite\TimePilot.Analytics.Sqlite.csproj" />
+  </ItemGroup>
+</Project>
