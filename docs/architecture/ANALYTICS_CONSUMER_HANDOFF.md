@@ -70,9 +70,6 @@ For a .NET 8 or compatible Windows .NET 8 Pro project, define CommunityRoot as a
 local MSBuild property (not a committed developer-specific absolute path):
 
 ```xml
-<PropertyGroup>
-  <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
-</PropertyGroup>
 <ItemGroup>
   <ProjectReference Include="$(CommunityRoot)\TimePilot.Analytics.Contracts\TimePilot.Analytics.Contracts.csproj" />
   <ProjectReference Include="$(CommunityRoot)\TimePilot.Analytics.Sqlite\TimePilot.Analytics.Sqlite.csproj" />
@@ -82,14 +79,16 @@ local MSBuild property (not a committed developer-specific absolute path):
 Then build the owning external solution, for example:
 
 ```powershell
-dotnet build TimePilot.Pro.sln -c Release "-p:CommunityRoot=C:\absolute\CommunityPinned"
+dotnet build TimePilot.Pro.sln -c Release "-p:CommunityRoot=C:\absolute\CommunityPinned" -p:ShouldUnsetParentConfigurationAndPlatform=false
 ```
 
 Referenced projects need not be listed separately in the solution to build; they
-are resolved through ProjectReference. The property above preserves the chosen
+are resolved through ProjectReference. The command-line global property preserves the chosen
 configuration for references outside the solution; otherwise MSBuild may build
 them with their default Debug configuration even when the solution uses Release.
 Alternatively explicitly include/map the public projects in the Pro solution.
+Setting this only as a local property in the consumer csproj is insufficient for
+transitive references; the command-line property propagates through the whole graph.
 The build must not redirect them to a moving
 branch or mix contract/adapter revisions. This command is a Pro setup example;
 Community validation does not run or modify the private Pro repository.
@@ -128,7 +127,7 @@ generated synthetic data, not private production records.
 Manual equivalent in a fixed checkout:
 
 ```powershell
-dotnet build samples/Analytics.HandoffConsumer/Analytics.HandoffConsumer.sln -c Release
+dotnet build samples/Analytics.HandoffConsumer/Analytics.HandoffConsumer.sln -c Release -p:ShouldUnsetParentConfigurationAndPlatform=false
 dotnet run --project samples/Analytics.HandoffConsumer/Analytics.HandoffConsumer.csproj -c Release --no-build -- 'C:\absolute\scratch\new-synthetic-run'
 dotnet test TimePilot.Analytics.ConsumerTests/TimePilot.Analytics.ConsumerTests.csproj -c Release
 ```

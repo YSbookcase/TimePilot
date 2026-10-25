@@ -54,7 +54,7 @@ if ($LASTEXITCODE -ne 0) { throw 'A .NET SDK is required.' }
 
 # The external solution references only two fixed-source projects via an explicit MSBuild property.
 $solution = Join-Path $consumer 'Analytics.HandoffConsumer.sln'
-& dotnet build $solution -c Release "-p:CommunityRoot=$community"
+& dotnet build $solution -c Release "-p:CommunityRoot=$community" -p:ShouldUnsetParentConfigurationAndPlatform=false
 if ($LASTEXITCODE -ne 0) { throw 'External solution build failed.' }
 & dotnet run --project (Join-Path $consumer 'Analytics.HandoffConsumer.csproj') -c Release `
     --no-build --no-restore "-p:CommunityRoot=$community" -- (Join-Path $output 'synthetic-run')
