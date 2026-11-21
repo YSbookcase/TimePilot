@@ -58,6 +58,7 @@ namespace TimePilot.WinForms
                     var service = new DataBackupService();
                     return service.CreateBackup(fileName, now, progress);
                 });
+                TryRecordExternalBackup(fileName, DateTimeOffset.UtcNow);
 
                 progressDelayCancellation.Cancel();
                 await progressDisplayTask;

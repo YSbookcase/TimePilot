@@ -32,6 +32,7 @@ namespace TimePilot.WinForms
         private readonly Button openDataFolderButton = new();
         private readonly Button deploymentDiagnosticsButton = new();
         private readonly Button clearUsageDataButton = new();
+        private readonly Button backupRemovalButton = new();
         private readonly LinkLabel sponsorLinkLabel = new();
         private readonly Button okButton = new();
         private readonly Button cancelButton = new();
@@ -85,6 +86,8 @@ namespace TimePilot.WinForms
         public bool ProcessRuntimeRiskAccepted { get; private set; }
 
         public bool ClearUsageDataRequested { get; private set; }
+
+        public event EventHandler? BackupRemovalRequested;
 
         public bool AutomaticBackupEnabled { get; private set; }
 
@@ -365,9 +368,10 @@ namespace TimePilot.WinForms
             dataManagementGroupBox.Controls.Add(openDataFolderButton);
             dataManagementGroupBox.Controls.Add(deploymentDiagnosticsButton);
             dataManagementGroupBox.Controls.Add(clearUsageDataButton);
+            dataManagementGroupBox.Controls.Add(backupRemovalButton);
             dataManagementGroupBox.Location = new Point(10, 247);
             dataManagementGroupBox.Name = "dataManagementGroupBox";
-            dataManagementGroupBox.Size = new Size(410, 108);
+            dataManagementGroupBox.Size = new Size(410, 142);
             dataManagementGroupBox.TabIndex = 6;
             dataManagementGroupBox.TabStop = false;
             dataManagementGroupBox.Text = UiText.Preferences.DataManagementGroup;
@@ -396,8 +400,14 @@ namespace TimePilot.WinForms
             clearUsageDataButton.Text = UiText.Preferences.ClearUsageData;
             clearUsageDataButton.Click += OnClearUsageDataButtonClick;
 
+            backupRemovalButton.Location = new Point(16, 101);
+            backupRemovalButton.Name = "backupRemovalButton";
+            backupRemovalButton.Size = new Size(376, 27);
+            backupRemovalButton.Text = new BackupRemovalText(UiText.CurrentLanguage).Title;
+            backupRemovalButton.Click += (_, _) => BackupRemovalRequested?.Invoke(this, EventArgs.Empty);
+
             sponsorLinkLabel.AutoSize = true;
-            sponsorLinkLabel.Location = new Point(10, 385);
+            sponsorLinkLabel.Location = new Point(10, 408);
             sponsorLinkLabel.Name = "sponsorLinkLabel";
             sponsorLinkLabel.Size = new Size(120, 15);
             sponsorLinkLabel.TabStop = true;
