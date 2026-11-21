@@ -30,6 +30,7 @@ namespace TimePilot.WinForms
 
             var allowStartupChanges = !AppDataPaths.IsDevelopmentDataDirectory;
             using var form = new PreferencesForm(settings, effectiveStartupEnabled, allowStartupChanges);
+            form.BackupRemovalRequested += (_, _) => ShowBackupRemovalDialog(form);
             if (form.ShowDialog(this) != DialogResult.OK)
                 return;
 
