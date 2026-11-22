@@ -73,6 +73,10 @@ namespace TimePilot.WinForms.KYS24
 
         public string? AutomaticBackupLastError { get; set; }
 
+        public DateTimeOffset? LastExternalBackupAt { get; set; }
+
+        public string? LastExternalBackupPath { get; set; }
+
         public UiLanguage UiLanguage { get; set; } = DefaultUiLanguage;
 
         public string KoreanWebSearchSuffix { get; set; } = DefaultKoreanWebSearchSuffix;
@@ -189,6 +193,8 @@ namespace TimePilot.WinForms.KYS24
                 settings.AutomaticBackupLastPath = NormalizeNullableText(persisted?.AutomaticBackupLastPath);
                 settings.AutomaticBackupLastFailureAt = persisted?.AutomaticBackupLastFailureAt;
                 settings.AutomaticBackupLastError = NormalizeNullableText(persisted?.AutomaticBackupLastError);
+                settings.LastExternalBackupAt = persisted?.LastExternalBackupAt;
+                settings.LastExternalBackupPath = NormalizeNullableText(persisted?.LastExternalBackupPath);
                 settings.UiLanguage = NormalizeUiLanguage(persisted?.UiLanguage);
                 settings.KoreanWebSearchSuffix = NormalizeKoreanWebSearchSuffix(persisted?.KoreanWebSearchSuffix);
                 settings.ProcessRuntimeTrackingScope = NormalizeProcessRuntimeTrackingScope(
@@ -247,6 +253,8 @@ namespace TimePilot.WinForms.KYS24
                 settings.AutomaticBackupLastPath = null;
                 settings.AutomaticBackupLastFailureAt = null;
                 settings.AutomaticBackupLastError = null;
+                settings.LastExternalBackupAt = null;
+                settings.LastExternalBackupPath = null;
                 settings.UiLanguage = DefaultUiLanguage;
                 settings.KoreanWebSearchSuffix = DefaultKoreanWebSearchSuffix;
                 settings.ProcessRuntimeTrackingScope = DefaultProcessRuntimeTrackingScope;
@@ -303,6 +311,8 @@ namespace TimePilot.WinForms.KYS24
                 AutomaticBackupLastPath = NormalizeNullableText(AutomaticBackupLastPath),
                 AutomaticBackupLastFailureAt = AutomaticBackupLastFailureAt,
                 AutomaticBackupLastError = NormalizeNullableText(AutomaticBackupLastError),
+                LastExternalBackupAt = LastExternalBackupAt,
+                LastExternalBackupPath = NormalizeNullableText(LastExternalBackupPath),
                 UiLanguage = NormalizeUiLanguage(UiLanguage),
                 KoreanWebSearchSuffix = NormalizeKoreanWebSearchSuffix(KoreanWebSearchSuffix),
                 ProcessRuntimeTrackingEnabled = ProcessRuntimeTrackingEnabled,
@@ -353,6 +363,8 @@ namespace TimePilot.WinForms.KYS24
             AutomaticBackupLastPath = persisted.AutomaticBackupLastPath;
             AutomaticBackupLastFailureAt = persisted.AutomaticBackupLastFailureAt;
             AutomaticBackupLastError = persisted.AutomaticBackupLastError;
+            LastExternalBackupAt = persisted.LastExternalBackupAt;
+            LastExternalBackupPath = persisted.LastExternalBackupPath;
             UiLanguage = persisted.UiLanguage;
             KoreanWebSearchSuffix = persisted.KoreanWebSearchSuffix;
             ProcessRuntimeTrackingEnabled = persisted.ProcessRuntimeTrackingEnabled;
@@ -487,6 +499,13 @@ namespace TimePilot.WinForms.KYS24
         {
             AutomaticBackupLastFailureAt = failedAt;
             AutomaticBackupLastError = error;
+            Save();
+        }
+
+        public void RecordExternalBackupSuccess(DateTimeOffset completedAt, string path)
+        {
+            LastExternalBackupAt = completedAt;
+            LastExternalBackupPath = path;
             Save();
         }
 
@@ -743,6 +762,10 @@ namespace TimePilot.WinForms.KYS24
             public DateTimeOffset? AutomaticBackupLastFailureAt { get; set; }
 
             public string? AutomaticBackupLastError { get; set; }
+
+            public DateTimeOffset? LastExternalBackupAt { get; set; }
+
+            public string? LastExternalBackupPath { get; set; }
 
             public UiLanguage UiLanguage { get; set; } = DefaultUiLanguage;
 

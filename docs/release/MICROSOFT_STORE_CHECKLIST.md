@@ -88,6 +88,8 @@ Microsoft currently supports both MSIX and MSI/EXE submission paths for Win32 ap
 - [ ] CSV export works.
 - [ ] Raw data export works.
 - [ ] Backup creation works.
+- [ ] Backup and removal preparation creates an external DB/settings ZIP, blocks failed/deleted/changed backups, and opens only Windows installed apps (no automatic uninstall).
+- [ ] Publish the matching support/privacy/removal notes only with the actual feature release; do not claim that uninstall preserves MSIX LocalState.
 - [ ] Restore flow works according to the current restore policy.
 - [ ] Clear local data flow works.
 

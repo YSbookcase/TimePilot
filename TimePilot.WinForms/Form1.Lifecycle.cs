@@ -72,6 +72,12 @@ namespace TimePilot.WinForms
 
         private void OnFormClosing(object? sender, FormClosingEventArgs e)
         {
+            if (isBackupRemovalOpen && e.CloseReason == CloseReason.UserClosing)
+            {
+                isExplicitExitRequested = false;
+                e.Cancel = true;
+                return;
+            }
             StartupLaunchDiagnostics.Record("form-closing", new
             {
                 CloseReason = e.CloseReason.ToString(),

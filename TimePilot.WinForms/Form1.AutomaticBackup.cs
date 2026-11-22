@@ -14,6 +14,7 @@ namespace TimePilot.WinForms
             nextAutomaticBackupCheckAt = now + AutomaticBackupCheckInterval;
             if (isClosing
                 || isAutomaticBackupRunning
+                || isBackupRemovalOpen
                 || isExportRunning
                 || !settings.AutomaticBackupEnabled
                 || string.IsNullOrWhiteSpace(settings.AutomaticBackupDirectory))
@@ -37,6 +38,7 @@ namespace TimePilot.WinForms
                     && result.BackupPath is { } backupPath)
                 {
                     settings.RecordAutomaticBackupSuccess(DateTimeOffset.UtcNow, backupPath);
+                    TryRecordExternalBackup(backupPath, DateTimeOffset.UtcNow);
                 }
             }
             catch (Exception ex)
