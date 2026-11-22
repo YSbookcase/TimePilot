@@ -7,6 +7,7 @@ namespace TimePilot.WinForms.Menus
         string CreateDataBackup,
         string RestoreDataBackup,
         string ImportAppCategories,
+        string ExportAppCategories,
         string Exit,
         string Settings,
         string Preferences,

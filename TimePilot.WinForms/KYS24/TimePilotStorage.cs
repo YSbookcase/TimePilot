@@ -973,6 +973,7 @@ namespace TimePilot.WinForms.KYS24
                         "color",
                         "sort_order",
                         "is_builtin",
+                        "source",
                         "created_at",
                         "updated_at"
                     ]),

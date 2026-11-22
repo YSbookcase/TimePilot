@@ -28,13 +28,14 @@ internal sealed class CategoryImportForm : Form
         MinimizeBox = false;
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 6 };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, plan.ProcessNameOnly ? 112 : 66));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
-        layout.Controls.Add(new Label { Dock = DockStyle.Fill, Text = text.Warning }, 0, 0);
+        layout.Controls.Add(new Label { Name = "categoryImportWarning", Dock = DockStyle.Fill,
+            Text = plan.ProcessNameOnly ? text.Warning + "\n\n" + text.ProcessNameOnlyWarning : text.Warning }, 0, 0);
         layout.Controls.Add(new Label { Dock = DockStyle.Fill, Text = text.Summary(plan) }, 0, 1);
         var grid = new DataGridView
         {

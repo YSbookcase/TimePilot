@@ -10,7 +10,8 @@ File > Import app categories is separate from the record-merge restore proposed
 below. It adds missing custom categories and assigns only currently unclassified
 apps; all current assignments are kept regardless of source. It never adds missing
 apps or restores sessions/settings. A preview and safety backup precede transactional
-apply. See `CATEGORY_IMPORT.md` for policy and verification. Keep-later-records
+apply. Category-only JSON export/import and existing backup ZIP input are supported.
+See `CATEGORY_IMPORT.md` for policy and verification. Keep-later-records
 restore (#346) remains separate work.
 
 TimePilot's current full restore replaces the current data with the backup `timepilot.db` and settings file.

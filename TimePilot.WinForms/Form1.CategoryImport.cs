@@ -4,11 +4,11 @@ public partial class Form1
 {
     private async void OnImportAppCategoriesMenuItemClick(object? sender, EventArgs e)
     {
-        if (storage is null || isExportRunning || isAutomaticBackupRunning || isCategoryImportOpen || isBackupRemovalOpen) return;
+        if (storage is null || isExportRunning || isAutomaticBackupRunning || isCategoryTransferOpen || isBackupRemovalOpen) return;
         var text = new CategoryImportText(settings.UiLanguage);
-        using var file = new OpenFileDialog { DefaultExt = "zip", Filter = UiText.Main.ZipFilter, Title = text.Title };
+        using var file = new OpenFileDialog { DefaultExt = "json", Filter = text.ImportFilter, Title = text.Title };
         if (file.ShowDialog(this) != DialogResult.OK) return;
-        isCategoryImportOpen = true;
+        isCategoryTransferOpen = true;
         using var progress = new OperationProgressForm(text.Title, text.Analyzing);
         try
         {
@@ -58,7 +58,7 @@ public partial class Form1
         finally
         {
             progress.Close();
-            isCategoryImportOpen = false;
+            isCategoryTransferOpen = false;
             if (!IsDisposed) { SetExportRunning(false, null); ClearExportStatus(); }
         }
     }

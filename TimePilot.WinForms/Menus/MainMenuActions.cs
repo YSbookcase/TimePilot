@@ -6,6 +6,7 @@ namespace TimePilot.WinForms.Menus
         EventHandler CreateDataBackup,
         EventHandler RestoreDataBackup,
         EventHandler ImportAppCategories,
+        EventHandler ExportAppCategories,
         EventHandler Exit,
         EventHandler Preferences,
         EventHandler AppCategoryManagement,

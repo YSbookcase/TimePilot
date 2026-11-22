@@ -1,4 +1,4 @@
-# Category-Only Backup Import (#347)
+# Category Export And Import (#347)
 
 ## Scope
 
@@ -8,9 +8,39 @@ checks SQLite integrity and loads category/app metadata. Nothing else in the ZIP
 is extracted or restored. The selected archive is not modified. Settings are not
 required in the selected archive; the pre-apply safety backup must contain them.
 
+It also accepts the category-only JSON described below. JSON does not contain a DB
+or settings and is never accepted as a full restore backup.
+
 The current database is previewed in a read transaction. Preview and cancel do not
 change it. The backup's metadata is frozen in memory after preview; changing or
 deleting the selected ZIP afterward cannot substitute a different import payload.
+The same frozen-payload rule applies to JSON input.
+
+## Category-Only Export
+
+File > Export app categories writes a new `.json` file using format
+`activelogbook-categories`, version 1. Export is read-only and uses a consistent
+read transaction. It never overwrites an existing file; publication uses a unique
+owned staging file in the chosen directory. A failure can leave a private-data
+staging file only if cleanup is blocked by permissions or locks.
+
+The file uses an explicit whitelist:
+
+- Header: Format, Version, ExportedAtUtc (export time, not usage time).
+- Categories: file-local Id, Name, Color, SortOrder, IsBuiltin.
+- Assignments: ProcessName and file-local CategoryId, for classified apps only.
+
+No session rows, usage durations/timestamps, settings, executable paths, display
+names, user aliases, exclusions, recommendations or original database IDs are
+serialized. It includes unused categories too. Category names and classified app
+process names remain potentially sensitive; this is not anonymization or encryption.
+Review user-authored names before sharing and use a full backup for recovery.
+
+JSON input is limited to 8 MiB and depth 32, rejects unknown format versions,
+missing required/unknown fields, null entries, duplicates and invalid references.
+Because the file deliberately excludes executable paths, app matching is by process
+name only. The preview explicitly warns about this limitation; current assignments
+remain protected. ZIP input retains path-conflict checks when both paths are known.
 
 ## Conservative Mapping
 
@@ -83,6 +113,9 @@ custom matching, user/current assignment protection, path conflicts, missing app
 stale previews, legacy provenance, safety-backup failure, transaction rollback,
 session/settings preservation, invalid ZIP/DB/schema/references, idempotency and
 KO/EN dialog state/layout. No real user data or Store package is changed.
+They also verify the JSON field whitelist, export/import roundtrip, source
+nonmutation, file-local IDs, no overwrite, invalid JSON/version/reference rejection,
+size limits and the process-name-only warning in both UI languages.
 
 Before release, manually verify the File menu, file chooser cancellation, preview
 details, progress/completion and refreshed category display in both languages.

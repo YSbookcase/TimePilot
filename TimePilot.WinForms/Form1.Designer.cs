@@ -25,6 +25,7 @@
             createDataBackupMenuItem = new ToolStripMenuItem();
             restoreDataBackupMenuItem = new ToolStripMenuItem();
             importAppCategoriesMenuItem = new ToolStripMenuItem();
+            exportAppCategoriesMenuItem = new ToolStripMenuItem();
             exitMenuItem = new ToolStripMenuItem();
             settingsMenuItem = new ToolStripMenuItem();
             preferencesMenuItem = new ToolStripMenuItem();
@@ -174,7 +175,7 @@
             // 
             // fileMenuItem
             // 
-            fileMenuItem.DropDownItems.AddRange(new ToolStripItem[] { exportCsvMenuItem, exportRawDataMenuItem, createDataBackupMenuItem, restoreDataBackupMenuItem, importAppCategoriesMenuItem, exitMenuItem });
+            fileMenuItem.DropDownItems.AddRange(new ToolStripItem[] { exportCsvMenuItem, exportRawDataMenuItem, createDataBackupMenuItem, restoreDataBackupMenuItem, exportAppCategoriesMenuItem, importAppCategoriesMenuItem, exitMenuItem });
             fileMenuItem.Name = "fileMenuItem";
             fileMenuItem.Size = new Size(43, 20);
             fileMenuItem.Text = UiText.Main.FileMenu;
@@ -204,6 +205,8 @@
             restoreDataBackupMenuItem.Text = UiText.Main.RestoreDataBackup;
             importAppCategoriesMenuItem.Name = "importAppCategoriesMenuItem";
             importAppCategoriesMenuItem.Text = new CategoryImportText(UiText.CurrentLanguage).Title;
+            exportAppCategoriesMenuItem.Name = "exportAppCategoriesMenuItem";
+            exportAppCategoriesMenuItem.Text = new CategoryImportText(UiText.CurrentLanguage).ExportTitle;
             // 
             // exitMenuItem
             // 
@@ -1536,6 +1539,7 @@
         private ToolStripMenuItem createDataBackupMenuItem;
         private ToolStripMenuItem restoreDataBackupMenuItem;
         private ToolStripMenuItem importAppCategoriesMenuItem;
+        private ToolStripMenuItem exportAppCategoriesMenuItem;
         private ToolStripMenuItem exitMenuItem;
         private ToolStripMenuItem settingsMenuItem;
         private ToolStripMenuItem preferencesMenuItem;

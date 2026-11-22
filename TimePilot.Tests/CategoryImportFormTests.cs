@@ -9,15 +9,23 @@ namespace TimePilot.Tests;
 public sealed class CategoryImportFormTests
 {
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    public void PreviewBlocksDuplicateApplyAndCloseThenShowsExplicitCompletion(int languageValue)
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(0, true)]
+    [InlineData(1, true)]
+    public void PreviewBlocksDuplicateApplyAndCloseThenShowsExplicitCompletion(int languageValue, bool portable)
     {
         InSta(() =>
         {
             using var fixture = new CategoryImportFixture();
             fixture.PrepareApp();
-            var plan = new CategoryImportService(fixture.TargetDb).Preview(fixture.Zip);
+            var file = fixture.Zip;
+            if (portable)
+            {
+                file = Path.Combine(fixture.Root, "categories.json");
+                CategoryTransferFile.Export(fixture.SourceDb, file, fixture.Now);
+            }
+            var plan = new CategoryImportService(fixture.TargetDb).Preview(file);
             var pending = new TaskCompletionSource<string>();
             var calls = 0;
             using var form = new CategoryImportForm(plan, (UiLanguage)languageValue, () => { calls++; return pending.Task; });
@@ -25,7 +33,9 @@ public sealed class CategoryImportFormTests
             Assert.Equal(languageValue == (int)UiLanguage.English ? "Development" : "개발", text.Category("Development"));
             form.Show();
             Application.DoEvents();
-            SaveScreenshot(form, $"category-import-{languageValue}-preview.png");
+            if (portable) Assert.Contains(text.ProcessNameOnlyWarning, Find<Label>(form, "categoryImportWarning").Text);
+            var suffix = portable ? "-portable" : "";
+            SaveScreenshot(form, $"category-import-{languageValue}{suffix}-preview.png");
             var operation = form.ApplyAsync();
             var apply = Find<Button>(form, "categoryImportApply");
             var close = Find<Button>(form, "categoryImportClose");
@@ -41,7 +51,7 @@ public sealed class CategoryImportFormTests
             Assert.False(apply.Enabled);
             Assert.True(close.Enabled);
             Assert.Contains("safety.zip", Find<TextBox>(form, "categoryImportStatus").Text);
-            SaveScreenshot(form, $"category-import-{languageValue}-complete.png");
+            SaveScreenshot(form, $"category-import-{languageValue}{suffix}-complete.png");
             AssertLayout(form);
         });
     }

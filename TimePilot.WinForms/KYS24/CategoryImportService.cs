@@ -12,7 +12,7 @@ internal enum CategoryImportAction { AddCategory, Assign, KeepCurrent, KeepUser,
 internal sealed record CategoryImportRow(string App, string? Current, string? Backup, CategoryImportAction Action,
     long? AppId = null, long? BackupCategoryId = null);
 internal sealed record CategoryImportPlan(string DatabasePath, string CurrentFingerprint, CategoryImportState Backup,
-    IReadOnlyList<CategoryImportRow> Rows)
+    IReadOnlyList<CategoryImportRow> Rows, bool ProcessNameOnly = false)
 {
     public int AddedCategories => Rows.Count(r => r.Action == CategoryImportAction.AddCategory);
     public int AssignedApps => Rows.Count(r => r.Action == CategoryImportAction.Assign);
@@ -32,12 +32,18 @@ internal sealed class CategoryImportService(string databasePath)
         Apply(approved, now);
     }
 
-    public CategoryImportPlan Preview(string zipPath)
+    public CategoryImportPlan Preview(string filePath)
     {
-        var backup = ReadBackup(zipPath);
-        using var current = Open(databasePath, readOnly: true);
+        var portable = string.Equals(Path.GetExtension(filePath), ".json", StringComparison.OrdinalIgnoreCase);
+        var backup = portable ? CategoryTransferFile.Read(filePath) : ReadBackup(filePath);
+        return BuildPlan(ReadCurrentState(databasePath), backup, portable);
+    }
+
+    internal static CategoryImportState ReadCurrentState(string path)
+    {
+        using var current = Open(path, readOnly: true);
         using var transaction = current.BeginTransaction(deferred: true);
-        return BuildPlan(ReadState(current, transaction), backup);
+        return ReadState(current, transaction);
     }
 
     public void Apply(CategoryImportPlan approved, DateTimeOffset now)
@@ -93,7 +99,7 @@ internal sealed class CategoryImportService(string databasePath)
         transaction.Commit();
     }
 
-    private CategoryImportPlan BuildPlan(CategoryImportState current, CategoryImportState backup)
+    private CategoryImportPlan BuildPlan(CategoryImportState current, CategoryImportState backup, bool processNameOnly = false)
     {
         var rows = new List<CategoryImportRow>();
         var supported = new HashSet<long>();
@@ -126,7 +132,7 @@ internal sealed class CategoryImportService(string databasePath)
             rows.Add(new(match?.Display ?? app.Display, currentCategory, category.Name, action,
                 match?.Id ?? -app.Id, category.Id));
         }
-        return new(databasePath, Fingerprint(current), backup, rows.AsReadOnly());
+        return new(databasePath, Fingerprint(current), backup, rows.AsReadOnly(), processNameOnly);
     }
 
     private static ImportCategory? MatchCategory(ImportCategory[] current, ImportCategory backup) =>
@@ -209,13 +215,6 @@ internal sealed class CategoryImportService(string databasePath)
             {
                 var name = reader.GetString(1);
                 var color = reader.IsDBNull(2) ? null : reader.GetString(2);
-                if (string.IsNullOrWhiteSpace(name) || name != name.Trim())
-                    throw new InvalidDataException("A category name is invalid.");
-                if (!string.IsNullOrWhiteSpace(color))
-                {
-                    try { _ = ColorTranslator.FromHtml(color); }
-                    catch (Exception ex) { throw new InvalidDataException("A category color is invalid.", ex); }
-                }
                 categories.Add(new(reader.GetInt64(0), name, color, reader.GetInt32(3), reader.GetInt64(4) != 0));
             }
         }
@@ -230,10 +229,30 @@ internal sealed class CategoryImportService(string databasePath)
                     reader.IsDBNull(3) ? null : reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetInt64(4),
                     reader.IsDBNull(5) ? AppCategorySource.User : reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetString(6)));
         }
-        if (categories.Select(c => c.Id).Distinct().Count() != categories.Count
-            || categories.Select(c => c.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != categories.Count
-            || apps.Select(a => a.Process).Distinct(StringComparer.OrdinalIgnoreCase).Count() != apps.Count)
+        return ValidateState(new(categories.ToArray(), apps.ToArray()));
+    }
+
+    internal static CategoryImportState ValidateState(CategoryImportState state)
+    {
+        foreach (var category in state.Categories)
+        {
+            if (category.Id <= 0 || string.IsNullOrWhiteSpace(category.Name) || category.Name != category.Name.Trim())
+                throw new InvalidDataException("A category identity or name is invalid.");
+            if (!string.IsNullOrWhiteSpace(category.Color))
+            {
+                try { _ = ColorTranslator.FromHtml(category.Color); }
+                catch (Exception ex) { throw new InvalidDataException("A category color is invalid.", ex); }
+            }
+        }
+        if (state.Categories.Select(c => c.Id).Distinct().Count() != state.Categories.Length
+            || state.Categories.Select(c => c.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != state.Categories.Length
+            || state.Apps.Select(a => a.Id).Distinct().Count() != state.Apps.Length
+            || state.Apps.Select(a => a.Process).Distinct(StringComparer.OrdinalIgnoreCase).Count() != state.Apps.Length)
             throw new InvalidDataException("The backup contains ambiguous app or category identities.");
-        return new(categories.ToArray(), apps.ToArray());
+        var ids = state.Categories.Select(c => c.Id).ToHashSet();
+        if (state.Apps.Any(a => a.Id <= 0 || string.IsNullOrWhiteSpace(a.Process) || a.Process != a.Process.Trim()
+            || (a.CategoryId is { } categoryId && !ids.Contains(categoryId))))
+            throw new InvalidDataException("An app identity or category reference is invalid.");
+        return state;
     }
 }
