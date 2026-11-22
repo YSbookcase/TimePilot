@@ -1,0 +1,15 @@
+{
+  "Format": "activelogbook-categories",
+  "Version": 1,
+  "ExportedAtUtc": "2026-11-22T00:00:00Z",
+  "Categories": [
+    {
+      "Id": 1,
+      "Name": "가져오기 확인용 (테스트)",
+      "Color": "#0F766E",
+      "SortOrder": 1000,
+      "IsBuiltin": false
+    }
+  ],
+  "Assignments": []
+}

@@ -105,6 +105,28 @@ public sealed class CategoryTransferFileTests
     }
 
     [Fact]
+    public void ManualSmokeFileAddsOnlyUnusedTestCategoryAndCanBeRepeatedAfterCleanup()
+    {
+        using var f = new CategoryImportFixture();
+        using var sample = typeof(CategoryTransferFileTests).Assembly.GetManifestResourceStream("CategoryImportSmoke.json")!;
+        var path = Path.Combine(f.Root, "smoke.json");
+        using (var output = File.Create(path)) sample.CopyTo(output);
+        var records = f.RecordSnapshot();
+        var settings = f.Hash(f.Settings);
+        var service = new CategoryImportService(f.TargetDb);
+        var plan = service.Preview(path);
+        Assert.Equal(1, plan.AddedCategories);
+        Assert.Equal(0, plan.AssignedApps);
+        service.Apply(plan, f.Now);
+        Assert.Equal(records, f.RecordSnapshot());
+        Assert.Equal(settings, f.Hash(f.Settings));
+        Assert.Empty(Directory.GetFiles(f.Root, "*.zip"));
+        Assert.Equal(0, service.Preview(path).AddedCategories);
+        f.Target.DeleteCustomAppCategory(f.Category(f.TargetDb, "가져오기 확인용 (테스트)"));
+        Assert.Equal(1, service.Preview(path).AddedCategories);
+    }
+
+    [Fact]
     public void RawExportRemainsDiagnosticCsvRatherThanBackupOrCategoryTransfer()
     {
         using var f = new CategoryImportFixture();

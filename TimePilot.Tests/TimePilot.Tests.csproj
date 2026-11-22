@@ -22,4 +22,8 @@
     <ProjectReference Include="..\TimePilot.Analytics.Sqlite\TimePilot.Analytics.Sqlite.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="..\docs\testing\fixtures\category-import-smoke.json" LogicalName="CategoryImportSmoke.json" />
+  </ItemGroup>
+
 </Project>

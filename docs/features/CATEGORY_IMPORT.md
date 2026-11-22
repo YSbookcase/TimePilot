@@ -63,8 +63,11 @@ remain protected. ZIP input retains path-conflict checks when both paths are kno
 
 ## Apply And Safety
 
-The dialog requires a verified pre-import safety ZIP before applying. Its path is
-shown on completion. This backup is in the app's normal backup directory; it is not
+The dialog defaults to creating a verified pre-import safety ZIP before applying.
+Users can explicitly uncheck the recommendation and confirm applying without one;
+the choice is not persisted. Completion shows either the safety ZIP path or that
+the user skipped backup. When selected, backup failure still blocks application
+and never silently falls back to skipping. This backup is in the app's normal backup directory; it is not
 an external removal backup and may disappear on MSIX uninstall/reset. ZIPs are not
 encrypted and contain sensitive records. A safety ZIP can remain even when the
 subsequent import fails; normal backup management applies.
@@ -93,6 +96,8 @@ The UI prevents duplicate apply/close while applying, shows progress and explici
 completion/failure, and requires reopening the backup after failure. Automatic
 backup is suppressed while this dialog is open. No Windows removal or full restore
 is invoked by this workflow.
+With zero planned changes, apply and backup selection are disabled with an explicit
+no-changes status; closing does not create a backup or run an import.
 
 Input is limited to one database entry of at most 1 GiB; archive entry names cannot
 choose extraction paths. Temporary extraction cleanup is best effort. A file lock
@@ -122,3 +127,8 @@ details, progress/completion and refreshed category display in both languages.
 Use disposable test data before pressing Apply. No version bump or Store update is
 part of this PR. Time-based merge restore (#346), real-time DB/WAL consumption and
 Pro-only analytics remain separate work.
+
+For repeatable manual testing, see `../testing/CATEGORY_IMPORT_SMOKE.ko.md` and its
+synthetic JSON fixture. It contains one unused custom category and no assignments.
+Applying it adds that test category to the current DB, not usage records or app
+assignments. Remove the unused test category in category management before repeating.

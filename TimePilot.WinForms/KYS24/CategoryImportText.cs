@@ -17,11 +17,20 @@ internal sealed class CategoryImportText(UiLanguage language)
         ? "This category-only file excludes executable paths. Apps are matched by process name only; current assignments are still kept. Check the preview carefully."
         : "분류 전용 파일에는 실행 경로가 없어 프로세스명으로만 앱을 맞춥니다. 현재 지정 분류는 유지합니다. 미리보기를 주의 깊게 확인하세요.";
     public string Warning => English
-        ? "Only categories and assignments to existing apps are imported. Current assignments, usage records, times and settings are kept. Apps with different executable paths are skipped. A safety backup is required before applying."
-        : "분류와 현재 PC에 있는 앱의 분류 지정만 가져옵니다. 현재 지정된 분류, 사용 기록·시간·설정은 유지합니다. 실행 경로가 다른 앱은 건너뜁니다. 적용 전 안전 백업을 생성합니다.";
+        ? "Only categories and assignments to existing apps are imported. Current assignments, usage records, times and settings are kept. Apps with different executable paths are skipped. A safety backup is recommended."
+        : "분류와 현재 PC에 있는 앱의 분류 지정만 가져옵니다. 현재 지정된 분류, 사용 기록·시간·설정은 유지합니다. 실행 경로가 다른 앱은 건너뜁니다. 안전 백업 생성을 권장합니다.";
     public string Analyzing => English ? "Reading the category or backup file..." : "분류 또는 백업 파일을 확인하는 중...";
     public string Applying => English ? "Creating safety backup and applying categories..." : "안전 백업 생성 및 분류 적용 중...";
-    public string Apply => English ? "Create safety backup and apply" : "안전 백업 후 적용";
+    public string ApplyingWithoutBackup => English ? "Applying categories without a safety backup..." : "안전 백업 없이 분류 적용 중...";
+    public string ApplyWithBackup => English ? "Create safety backup and apply" : "안전 백업 후 적용";
+    public string ApplyWithoutBackup => English ? "Apply without backup" : "백업 없이 적용";
+    public string CreateBackup => English ? "Create safety backup before applying (recommended)" : "적용 전 안전 백업 만들기 (권장)";
+    public string SkipBackupConfirmation => English
+        ? "Apply without creating a safety backup? Usage records and settings will remain, but there will be no new recovery backup for category changes."
+        : "안전 백업을 만들지 않고 적용할까요? 사용 기록과 설정은 유지하지만, 분류 변경을 되돌릴 새 복구용 백업은 생성되지 않습니다.";
+    public string NoChanges => English
+        ? "There are no changes to apply. Review kept or skipped entries, then close this window. No backup or import will run."
+        : "현재 데이터에 적용할 변경이 없습니다. 유지·건너뛰기 항목을 확인하고 닫으세요. 백업이나 가져오기는 실행하지 않습니다.";
     public string Cancel => English ? "Cancel" : "취소";
     public string Close => English ? "Close" : "닫기";
     public string App => English ? "App / category" : "앱 / 분류";
@@ -39,9 +48,11 @@ internal sealed class CategoryImportText(UiLanguage language)
     public string Summary(CategoryImportPlan plan) => English
         ? $"New categories: {plan.AddedCategories} | App assignments: {plan.AssignedApps}. Review kept and skipped entries below."
         : $"추가할 분류: {plan.AddedCategories}개 | 지정할 앱: {plan.AssignedApps}개. 아래의 유지·건너뛰기 항목도 확인하세요.";
-    public string Completed(string safetyPath) => English
-        ? $"Category import completed. Usage records and settings were not restored.\nSafety backup: {safetyPath}"
-        : $"분류 가져오기 완료. 사용 기록과 설정은 복원하지 않았습니다.\n안전 백업: {safetyPath}";
+    public string Completed(string? safetyPath) => safetyPath is null
+        ? English ? "Category import completed. Usage records and settings were not restored.\nNo safety backup was created by your choice."
+            : "분류 가져오기 완료. 사용 기록과 설정은 복원하지 않았습니다.\n사용자 선택에 따라 안전 백업을 생성하지 않았습니다."
+        : English ? $"Category import completed. Usage records and settings were not restored.\nSafety backup: {safetyPath}"
+            : $"분류 가져오기 완료. 사용 기록과 설정은 복원하지 않았습니다.\n안전 백업: {safetyPath}";
     public string RefreshFailed(string reason) => English
         ? $"Categories were imported, but the view could not refresh. Reopen the app.\n{reason}"
         : $"분류는 반영했지만 화면을 갱신하지 못했습니다. 앱을 다시 실행하세요.\n{reason}";

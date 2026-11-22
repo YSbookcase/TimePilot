@@ -26,13 +26,14 @@ public sealed class CategoryImportFormTests
                 CategoryTransferFile.Export(fixture.SourceDb, file, fixture.Now);
             }
             var plan = new CategoryImportService(fixture.TargetDb).Preview(file);
-            var pending = new TaskCompletionSource<string>();
+            var pending = new TaskCompletionSource<string?>();
             var calls = 0;
-            using var form = new CategoryImportForm(plan, (UiLanguage)languageValue, () => { calls++; return pending.Task; });
+            using var form = new CategoryImportForm(plan, (UiLanguage)languageValue, backup => { Assert.True(backup); calls++; return pending.Task; });
             var text = new CategoryImportText((UiLanguage)languageValue);
             Assert.Equal(languageValue == (int)UiLanguage.English ? "Development" : "개발", text.Category("Development"));
             form.Show();
             Application.DoEvents();
+            Assert.True(Find<CheckBox>(form, "categoryImportCreateBackup").Checked);
             if (portable) Assert.Contains(text.ProcessNameOnlyWarning, Find<Label>(form, "categoryImportWarning").Text);
             var suffix = portable ? "-portable" : "";
             SaveScreenshot(form, $"category-import-{languageValue}{suffix}-preview.png");
@@ -41,6 +42,7 @@ public sealed class CategoryImportFormTests
             var close = Find<Button>(form, "categoryImportClose");
             Assert.False(apply.Enabled);
             Assert.False(close.Enabled);
+            Assert.False(Find<CheckBox>(form, "categoryImportCreateBackup").Enabled);
             form.Close();
             Assert.False(form.IsDisposed);
             Wait(form.ApplyAsync());
@@ -65,13 +67,48 @@ public sealed class CategoryImportFormTests
             fixture.PrepareApp();
             var plan = new CategoryImportService(fixture.TargetDb).Preview(fixture.Zip);
             using var form = new CategoryImportForm(plan, UiLanguage.Korean,
-                () => Task.FromException<string>(new IOException("Synthetic safety backup failure")));
+                _ => Task.FromException<string?>(new IOException("Synthetic safety backup failure")));
             form.Show();
             Wait(form.ApplyAsync());
             Assert.False(form.Applied);
             Assert.Contains("실패", Find<TextBox>(form, "categoryImportStatus").Text);
             Assert.False(Find<Button>(form, "categoryImportApply").Enabled);
             Assert.True(Find<Button>(form, "categoryImportClose").Enabled);
+        });
+    }
+
+    [Fact]
+    public void SkippingBackupRequiresConfirmationAndPassesChoiceWithoutClaimingBackup()
+    {
+        InSta(() =>
+        {
+            using var fixture = new CategoryImportFixture();
+            fixture.PrepareApp();
+            var plan = new CategoryImportService(fixture.TargetDb).Preview(fixture.Zip);
+            var calls = 0;
+            var confirmed = false;
+            using var form = new CategoryImportForm(plan, UiLanguage.Korean, backup =>
+            {
+                Assert.False(backup);
+                calls++;
+                return Task.FromResult<string?>(null);
+            }, () => confirmed);
+            form.Show();
+            Find<CheckBox>(form, "categoryImportCreateBackup").Checked = false;
+            Assert.Equal(new CategoryImportText(UiLanguage.Korean).ApplyWithoutBackup, Find<Button>(form, "categoryImportApply").Text);
+            Wait(form.ApplyAsync());
+            Assert.Equal(0, calls);
+            Assert.False(form.Applied);
+            Assert.True(Find<Button>(form, "categoryImportApply").Enabled);
+            SaveScreenshot(form, "category-import-without-backup-preview.png");
+            confirmed = true;
+            Wait(form.ApplyAsync());
+            Assert.True(form.Applied);
+            Assert.Equal(1, calls);
+            Assert.Equal(new CategoryImportText(UiLanguage.Korean).Completed(null), Find<TextBox>(form, "categoryImportStatus").Text);
+            SaveScreenshot(form, "category-import-without-backup-complete.png");
+            using var reopened = new CategoryImportForm(plan, UiLanguage.Korean, _ => throw new Exception("Must not apply"));
+            Assert.True(Find<CheckBox>(reopened, "categoryImportCreateBackup").Checked);
         });
     }
 
@@ -84,9 +121,13 @@ public sealed class CategoryImportFormTests
             fixture.BuildZip();
             var before = fixture.Hash(fixture.TargetDb);
             var plan = new CategoryImportService(fixture.TargetDb).Preview(fixture.Zip);
-            using var form = new CategoryImportForm(plan, UiLanguage.English, () => throw new Exception("Must not apply"));
+            using var form = new CategoryImportForm(plan, UiLanguage.English, _ => throw new Exception("Must not apply"));
             form.Show();
             Assert.False(Find<Button>(form, "categoryImportApply").Enabled);
+            Assert.False(Find<CheckBox>(form, "categoryImportCreateBackup").Enabled);
+            Assert.Equal(new CategoryImportText(UiLanguage.English).NoChanges, Find<TextBox>(form, "categoryImportStatus").Text);
+            Wait(form.ApplyAsync());
+            SaveScreenshot(form, "category-import-no-changes.png");
             form.Close();
             Assert.False(form.Applied);
             Assert.Equal(before, fixture.Hash(fixture.TargetDb));

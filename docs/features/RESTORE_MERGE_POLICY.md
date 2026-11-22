@@ -9,7 +9,7 @@ Korean source planning document: `docs/features/RESTORE_MERGE_POLICY.ko.md`.
 File > Import app categories is separate from the record-merge restore proposed
 below. It adds missing custom categories and assigns only currently unclassified
 apps; all current assignments are kept regardless of source. It never adds missing
-apps or restores sessions/settings. A preview and safety backup precede transactional
+apps or restores sessions/settings. A preview and optional (default-on) safety backup precede transactional
 apply. Category-only JSON export/import and existing backup ZIP input are supported.
 See `CATEGORY_IMPORT.md` for policy and verification. Keep-later-records
 restore (#346) remains separate work.

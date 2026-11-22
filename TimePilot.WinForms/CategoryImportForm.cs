@@ -5,7 +5,9 @@ namespace TimePilot.WinForms;
 internal sealed class CategoryImportForm : Form
 {
     private readonly CategoryImportText text;
-    private readonly Func<Task<string>> apply;
+    private readonly Func<bool, Task<string?>> apply;
+    private readonly Func<bool> confirmWithoutBackup;
+    private readonly CheckBox createBackup = new();
     private readonly Button applyButton = new();
     private readonly Button closeButton = new();
     private readonly TextBox status = new();
@@ -13,24 +15,29 @@ internal sealed class CategoryImportForm : Form
     private bool busy;
     public bool Applied { get; private set; }
 
-    public CategoryImportForm(CategoryImportPlan plan, UiLanguage language, Func<Task<string>> apply)
+    public CategoryImportForm(CategoryImportPlan plan, UiLanguage language, Func<bool, Task<string?>> apply,
+        Func<bool>? confirmWithoutBackup = null)
     {
         text = new(language);
         this.apply = apply;
+        this.confirmWithoutBackup = confirmWithoutBackup ?? (() => CenteredMessageDialog.Show(this,
+            text.SkipBackupConfirmation, text.Title, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes);
         Text = text.Title;
         Name = nameof(CategoryImportForm);
         StartPosition = FormStartPosition.CenterParent;
         AutoScaleMode = AutoScaleMode.Font;
-        ClientSize = new Size(900, 580);
-        MinimumSize = new Size(740, 540);
+        ClientSize = new Size(900, 612);
+        MinimumSize = new Size(740, 572);
         ShowIcon = false;
         ShowInTaskbar = false;
         MinimizeBox = false;
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 6 };
+        var hasChanges = plan.AddedCategories + plan.AssignedApps > 0;
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 7 };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, plan.ProcessNameOnly ? 112 : 66));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
@@ -49,29 +56,37 @@ internal sealed class CategoryImportForm : Form
             grid.Rows.Add(string.IsNullOrEmpty(row.App) ? (language == UiLanguage.English ? "Category" : "분류") : row.App,
                 text.Category(row.Current), text.Category(row.Backup), text.Action(row.Action));
         layout.Controls.Add(grid, 0, 2);
+        createBackup.Name = "categoryImportCreateBackup";
+        createBackup.Text = text.CreateBackup;
+        createBackup.Dock = DockStyle.Fill;
+        createBackup.Checked = true;
+        createBackup.Enabled = hasChanges;
+        createBackup.CheckedChanged += (_, _) => applyButton.Text = createBackup.Checked ? text.ApplyWithBackup : text.ApplyWithoutBackup;
+        layout.Controls.Add(createBackup, 0, 3);
         status.Name = "categoryImportStatus";
         status.Dock = DockStyle.Fill;
         status.Multiline = true;
         status.ReadOnly = true;
         status.ScrollBars = ScrollBars.Vertical;
-        layout.Controls.Add(status, 0, 3);
+        if (!hasChanges) status.Text = text.NoChanges;
+        layout.Controls.Add(status, 0, 4);
         progress.Dock = DockStyle.Fill;
         progress.Style = ProgressBarStyle.Marquee;
         progress.Visible = false;
-        layout.Controls.Add(progress, 0, 4);
+        layout.Controls.Add(progress, 0, 5);
         var footer = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, WrapContents = false };
         closeButton.Name = "categoryImportClose";
-        closeButton.Text = text.Cancel;
+        closeButton.Text = hasChanges ? text.Cancel : text.Close;
         closeButton.Size = new Size(90, 30);
         closeButton.Click += (_, _) => Close();
         applyButton.Name = "categoryImportApply";
-        applyButton.Text = text.Apply;
+        applyButton.Text = text.ApplyWithBackup;
         applyButton.Size = new Size(300, 30);
-        applyButton.Enabled = plan.AddedCategories + plan.AssignedApps > 0;
+        applyButton.Enabled = hasChanges;
         applyButton.Click += async (_, _) => await ApplyAsync();
         footer.Controls.Add(closeButton);
         footer.Controls.Add(applyButton);
-        layout.Controls.Add(footer, 0, 5);
+        layout.Controls.Add(footer, 0, 6);
         Controls.Add(layout);
         CancelButton = closeButton;
     }
@@ -79,14 +94,17 @@ internal sealed class CategoryImportForm : Form
     internal async Task ApplyAsync()
     {
         if (busy || !applyButton.Enabled) return;
+        var shouldCreateBackup = createBackup.Checked;
+        if (!shouldCreateBackup && !confirmWithoutBackup()) return;
         busy = true;
         applyButton.Enabled = false;
         closeButton.Enabled = false;
+        createBackup.Enabled = false;
         progress.Visible = true;
-        status.Text = text.Applying;
+        status.Text = shouldCreateBackup ? text.Applying : text.ApplyingWithoutBackup;
         try
         {
-            var safetyPath = await apply();
+            var safetyPath = await apply(shouldCreateBackup);
             Applied = true;
             if (!IsDisposed) status.Text = text.Completed(safetyPath);
         }
