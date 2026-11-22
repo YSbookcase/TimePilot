@@ -4,6 +4,15 @@ Korean source planning document: `docs/features/RESTORE_MERGE_POLICY.ko.md`.
 
 ## 1. Goal
 
+### Implemented Category-Only Scope (#347)
+
+File > Import app categories is separate from the record-merge restore proposed
+below. It adds missing custom categories and assigns only currently unclassified
+apps; all current assignments are kept regardless of source. It never adds missing
+apps or restores sessions/settings. A preview and safety backup precede transactional
+apply. See `CATEGORY_IMPORT.md` for policy and verification. Keep-later-records
+restore (#346) remains separate work.
+
 TimePilot's current full restore replaces the current data with the backup `timepilot.db` and settings file.
 
 Merge restore is different. It is for cases where the user wants to return to a backup state while keeping records collected on the current PC after that backup.

@@ -7,6 +7,7 @@ namespace TimePilot.WinForms.Menus
         ToolStripMenuItem ExportRawData,
         ToolStripMenuItem CreateDataBackup,
         ToolStripMenuItem RestoreDataBackup,
+        ToolStripMenuItem ImportAppCategories,
         ToolStripMenuItem Exit,
         ToolStripMenuItem Settings,
         ToolStripMenuItem Preferences,

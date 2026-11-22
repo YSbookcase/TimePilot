@@ -15,6 +15,7 @@ namespace TimePilot.WinForms
             if (isClosing
                 || isAutomaticBackupRunning
                 || isBackupRemovalOpen
+                || isCategoryImportOpen
                 || isExportRunning
                 || !settings.AutomaticBackupEnabled
                 || string.IsNullOrWhiteSpace(settings.AutomaticBackupDirectory))

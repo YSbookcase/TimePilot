@@ -21,6 +21,23 @@ namespace TimePilot.Tests
         }
 
         [Fact]
+        public void CategoryImportMenuUsesItsOwnAction()
+        {
+            using var menuStrip = CreateMenuStrip();
+            var imported = false;
+            var restored = false;
+            var actions = CreateActions() with
+            {
+                RestoreDataBackup = (_, _) => restored = true,
+                ImportAppCategories = (_, _) => imported = true
+            };
+            _ = new MainMenuController(CreateControls(menuStrip), actions);
+            FindMenuItem(menuStrip, "importAppCategoriesMenuItem").PerformClick();
+            Assert.True(imported);
+            Assert.False(restored);
+        }
+
+        [Fact]
         public void ApplyText_UpdatesBuiltInMenuLabels()
         {
             using var menuStrip = CreateMenuStrip();
@@ -32,6 +49,7 @@ namespace TimePilot.Tests
                 "Export Raw Data",
                 "Create Backup",
                 "Restore Backup",
+                "Import App Categories",
                 "Exit",
                 "Settings",
                 "Preferences",
@@ -45,6 +63,7 @@ namespace TimePilot.Tests
             Assert.Equal("File", FindMenuItem(menuStrip, "fileMenuItem").Text);
             Assert.Equal("App Categories", FindMenuItem(menuStrip, "appCategoryManagementMenuItem").Text);
             Assert.Equal("About", FindMenuItem(menuStrip, "aboutMenuItem").Text);
+            Assert.Equal("Import App Categories", FindMenuItem(menuStrip, "importAppCategoriesMenuItem").Text);
         }
 
         [Fact]
@@ -82,6 +101,7 @@ namespace TimePilot.Tests
             Assert.False(FindMenuItem(menuStrip, "exportRawDataMenuItem").Enabled);
             Assert.False(FindMenuItem(menuStrip, "createDataBackupMenuItem").Enabled);
             Assert.False(FindMenuItem(menuStrip, "restoreDataBackupMenuItem").Enabled);
+            Assert.False(FindMenuItem(menuStrip, "importAppCategoriesMenuItem").Enabled);
         }
 
         [Fact]
@@ -120,6 +140,7 @@ namespace TimePilot.Tests
                 "exportRawDataMenuItem",
                 "createDataBackupMenuItem",
                 "restoreDataBackupMenuItem",
+                "importAppCategoriesMenuItem",
                 "exitMenuItem");
             var settings = CreateMenu("settingsMenuItem",
                 "preferencesMenuItem",
@@ -158,6 +179,7 @@ namespace TimePilot.Tests
                 FindMenuItem(menuStrip, "exportRawDataMenuItem"),
                 FindMenuItem(menuStrip, "createDataBackupMenuItem"),
                 FindMenuItem(menuStrip, "restoreDataBackupMenuItem"),
+                FindMenuItem(menuStrip, "importAppCategoriesMenuItem"),
                 FindMenuItem(menuStrip, "exitMenuItem"),
                 FindMenuItem(menuStrip, "settingsMenuItem"),
                 FindMenuItem(menuStrip, "preferencesMenuItem"),
@@ -185,6 +207,7 @@ namespace TimePilot.Tests
             EventHandler noOp = (_, _) => { };
             return new MainMenuActions(
                 exportCsv ?? noOp,
+                noOp,
                 noOp,
                 noOp,
                 noOp,

@@ -118,6 +118,7 @@ namespace TimePilot.WinForms
         private bool systemEventHandlersRegistered;
         private bool isAutomaticBackupRunning;
         private bool isBackupRemovalOpen;
+        private bool isCategoryImportOpen;
         private DateTimeOffset? nextAutomaticBackupCheckAt;
         private TimelineHighlightState timelineHighlightState = TimelineHighlightState.Empty;
         private string? lastForegroundViewKey;
