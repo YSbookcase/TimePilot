@@ -39,15 +39,16 @@ Review user-authored names before sharing and use a full backup for recovery.
 JSON input is limited to 8 MiB and depth 32, rejects unknown format versions,
 missing required/unknown fields, null entries, duplicates and invalid references.
 Because the file deliberately excludes executable paths, app matching is by process
-name only. The preview explicitly warns about this limitation; current assignments
-remain protected. ZIP input retains path-conflict checks when both paths are known.
+name only. The preview explicitly warns about this limitation. ZIP input retains
+path-conflict checks when both paths are known, even in file-priority mode.
 
 ## Conservative Mapping
 
 - Builtins match recognized canonical names, including their known Korean aliases.
   Unknown builtins are skipped, not silently converted into custom categories.
 - Custom categories match existing custom names, case-insensitively. Existing
-  colors and order are kept. Missing custom categories, even unused ones, are added.
+  order is kept; colors are kept unless separately selected for replacement.
+  Missing custom categories, even unused ones, are added.
   Names colliding with either language of a builtin are skipped.
 - Apps match process names case-insensitively. If both executable paths are known
   and differ (ignoring case and slash direction), the app is skipped. Missing paths
@@ -55,11 +56,41 @@ remain protected. ZIP input retains path-conflict checks when both paths are kno
   not executable identity verification.
 - Only apps already in the current database can receive assignments. Backup-only
   apps are shown as skipped and are not created.
-- Every current assignment is retained, including `user`, `recommendation`, and
+- By default every current assignment is retained, including `user`, `recommendation`, and
   earlier `import` assignments. Explicit `user` source is retained even with no
   category. Only unclassified, non-user apps receive an `import` assignment.
 - The preview shows added/matched categories and each classified backup app's
-  current category, backup category, and keep/assign/skip decision.
+  current category, file category, and keep/assign/skip/replace decision.
+
+## Conflict Choices And Explicit Approval
+
+- **Keep current assignments (default)** retains the conservative behavior above.
+- **Use file assignments** replaces conflicting assignments on matching existing
+  apps, including `user` assignments, only after explicit approval of the preview.
+  Replaced assignments receive `import` provenance. Identical assignments are not
+  rewritten and keep their existing provenance.
+- **Use file colors for existing categories** is a separate, default-off checkbox,
+  independent of assignment priority. It can update matched builtin and custom
+  colors, including clearing a color when the file explicitly contains no color.
+  Existing category names/order/provenance are not replaced. Equivalent HTML color
+  representations are treated as the same color.
+- Current/file color values and swatches appear in the preview. A shared category
+  color affects every app using it, even apps absent from the file; the approval
+  prompt explicitly warns about this and counts color and assignment replacements,
+  including the subset of user assignments.
+- The UI asks for overwrite approval on every apply attempt that would replace
+  existing values. Cancel leaves all data and controls unchanged. The service also
+  rejects such a plan without the approval flag, including before safety-backup
+  creation. Backup skipping requires its own separate confirmation.
+- Neither priority deletes categories/apps nor clears current assignments for
+  missing or unclassified input entries. Version 1 JSON omits unclassified apps,
+  and ZIP category import ignores unclassified assignments as well. This is not a
+  complete historical category restore; that needs a separately versioned policy.
+
+Choice changes recalculate the preview from the same frozen current/file metadata;
+they do not reopen the input or silently refresh the approval basis. Apply still
+checks the current database fingerprint in its write transaction. A changed current
+state requires reopening the file. Priority/color options reset when a new dialog opens.
 
 ## Apply And Safety
 
@@ -78,8 +109,8 @@ a new preview. Recording timestamps and new session rows do not invalidate a pla
 New app identities do invalidate it. SQLite rolls back all category/assignment
 changes on any apply error, including errors after category creation.
 
-Only `app_categories` insertions and the three `apps.primary_category_*` assignment
-fields are written. Aliases, exclusion flags, recommendations, usage sessions,
+Only `app_categories` insertions, approved color/updated_at changes, and the three
+`apps.primary_category_*` assignment fields are written. Aliases, exclusion flags, recommendations, usage sessions,
 durations, settings and source archives are not restored or replaced. Recording
 continues during preview. Foreground sampling pauses during safety backup/apply and
 resumes afterward; existing sessions are not ended or recreated.
@@ -97,7 +128,8 @@ completion/failure, and requires reopening the backup after failure. Automatic
 backup is suppressed while this dialog is open. No Windows removal or full restore
 is invoked by this workflow.
 With zero planned changes, apply and backup selection are disabled with an explicit
-no-changes status; closing does not create a backup or run an import.
+no-changes status; priority/color choices remain available to review alternatives.
+Closing does not create a backup or run an import.
 
 Input is limited to one database entry of at most 1 GiB; archive entry names cannot
 choose extraction paths. Temporary extraction cleanup is best effort. A file lock
@@ -121,6 +153,10 @@ KO/EN dialog state/layout. No real user data or Store package is changed.
 They also verify the JSON field whitelist, export/import roundtrip, source
 nonmutation, file-local IDs, no overwrite, invalid JSON/version/reference rejection,
 size limits and the process-name-only warning in both UI languages.
+Policy tests cover explicit approval/refusal, default preservation, approved user
+assignment replacement, shared/cleared/equivalent colors, absent/unclassified entries,
+path conflicts, stale approved plans, and rollback of color/addition/assignment changes
+together. UI tests verify that the exact displayed plan reaches the apply callback.
 
 Before release, manually verify the File menu, file chooser cancellation, preview
 details, progress/completion and refreshed category display in both languages.

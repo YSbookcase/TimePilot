@@ -14,11 +14,22 @@ internal sealed class CategoryImportText(UiLanguage language)
     public string ExportCompleted(string path) => English ? $"Category export completed.\n{path}" : $"분류 내보내기 완료.\n{path}";
     public string ExportFailed(string reason) => English ? $"Could not export categories.\n{reason}" : $"분류 내보내기에 실패했습니다.\n{reason}";
     public string ProcessNameOnlyWarning => English
-        ? "This category-only file excludes executable paths. Apps are matched by process name only; current assignments are still kept. Check the preview carefully."
-        : "분류 전용 파일에는 실행 경로가 없어 프로세스명으로만 앱을 맞춥니다. 현재 지정 분류는 유지합니다. 미리보기를 주의 깊게 확인하세요.";
+        ? "This category-only file excludes executable paths. Apps are matched by process name only. Missing entries never clear current assignments. This is not a complete category restore."
+        : "분류 전용 파일에는 실행 경로가 없어 프로세스명으로만 앱을 맞춥니다. 파일에 없는 항목은 초기화하지 않습니다. 완전한 분류 복원은 아닙니다.";
     public string Warning => English
-        ? "Only categories and assignments to existing apps are imported. Current assignments, usage records, times and settings are kept. Apps with different executable paths are skipped. A safety backup is recommended."
-        : "분류와 현재 PC에 있는 앱의 분류 지정만 가져옵니다. 현재 지정된 분류, 사용 기록·시간·설정은 유지합니다. 실행 경로가 다른 앱은 건너뜁니다. 안전 백업 생성을 권장합니다.";
+        ? "Keep current assignments by default, or choose file priority. Usage records and settings remain unchanged. Missing or unclassified entries never clear current assignments. Known path conflicts are skipped. A safety backup is recommended."
+        : "기본값은 현재 분류 유지이며 파일 우선도 선택할 수 있습니다. 사용 기록·시간·설정은 변경하지 않습니다. 파일에 없거나 미분류인 항목은 초기화하지 않으며 실행 경로 충돌은 건너뜁니다. 안전 백업 생성을 권장합니다.";
+    public string Priority => English ? "Priority" : "적용 기준";
+    public string CurrentPriority => English ? "Keep current assignments (default)" : "현재 분류 유지 (기본)";
+    public string FilePriority => English ? "Use file assignments" : "파일 분류 우선";
+    public string ReplaceColors => English ? "Use file colors for existing categories" : "기존 분류 색상도 파일 값으로 변경";
+    public string CurrentColor => English ? "Current color" : "현재 색상";
+    public string FileColor => English ? "File color" : "파일 색상";
+    public string CategoryRow => English ? "Category" : "분류";
+    public string ColorValue(string? value) => string.IsNullOrWhiteSpace(value) ? English ? "Default" : "기본색" : value;
+    public string OverwriteConfirmation(CategoryImportPlan plan) => English
+        ? $"Replace {plan.ReplacedApps} app assignments, including {plan.ReplacedUserApps} user assignments, and change {plan.ChangedColors} existing category colors? Color changes affect all apps using those categories. Approve the changes shown in the preview? Usage records and settings will not be restored."
+        : $"앱 지정 {plan.ReplacedApps}개(사용자 지정 {plan.ReplacedUserApps}개 포함)를 교체하고 기존 분류 색상 {plan.ChangedColors}개를 변경할까요? 색상 변경은 해당 분류를 사용하는 모든 앱에 영향을 줍니다. 미리보기에 표시된 변경을 승인하면 적용합니다. 사용 기록과 설정은 복원하지 않습니다.";
     public string Analyzing => English ? "Reading the category or backup file..." : "분류 또는 백업 파일을 확인하는 중...";
     public string Applying => English ? "Creating safety backup and applying categories..." : "안전 백업 생성 및 분류 적용 중...";
     public string ApplyingWithoutBackup => English ? "Applying categories without a safety backup..." : "안전 백업 없이 분류 적용 중...";
@@ -35,7 +46,7 @@ internal sealed class CategoryImportText(UiLanguage language)
     public string Close => English ? "Close" : "닫기";
     public string App => English ? "App / category" : "앱 / 분류";
     public string Current => English ? "Current category" : "현재 분류";
-    public string Backup => English ? "Backup category" : "백업 분류";
+    public string Backup => English ? "File category" : "파일 분류";
     public string Result => English ? "Action" : "처리";
     public string Category(string? name)
     {
@@ -46,8 +57,8 @@ internal sealed class CategoryImportText(UiLanguage language)
         return builtin is null ? name : English ? builtin.CanonicalName : builtin.KoreanName;
     }
     public string Summary(CategoryImportPlan plan) => English
-        ? $"New categories: {plan.AddedCategories} | App assignments: {plan.AssignedApps}. Review kept and skipped entries below."
-        : $"추가할 분류: {plan.AddedCategories}개 | 지정할 앱: {plan.AssignedApps}개. 아래의 유지·건너뛰기 항목도 확인하세요.";
+        ? $"New categories: {plan.AddedCategories} | New assignments: {plan.AssignedApps} | Replaced assignments: {plan.ReplacedApps} (user: {plan.ReplacedUserApps}) | Colors: {plan.ChangedColors}"
+        : $"분류 추가: {plan.AddedCategories}개 | 새 지정: {plan.AssignedApps}개 | 지정 교체: {plan.ReplacedApps}개(사용자 {plan.ReplacedUserApps}개) | 색상 변경: {plan.ChangedColors}개";
     public string Completed(string? safetyPath) => safetyPath is null
         ? English ? "Category import completed. Usage records and settings were not restored.\nNo safety backup was created by your choice."
             : "분류 가져오기 완료. 사용 기록과 설정은 복원하지 않았습니다.\n사용자 선택에 따라 안전 백업을 생성하지 않았습니다."
@@ -61,6 +72,12 @@ internal sealed class CategoryImportText(UiLanguage language)
         : $"가져오기에 실패하여 분류 변경을 반영하지 않았습니다. 파일을 다시 열어 시도하세요.\n{reason}";
     public string Action(CategoryImportAction action) => (English, action) switch
     {
+        (true, CategoryImportAction.Replace) => "Replace with file assignment",
+        (false, CategoryImportAction.Replace) => "파일 분류로 교체",
+        (true, CategoryImportAction.ReplaceUser) => "Replace user assignment (approval)",
+        (false, CategoryImportAction.ReplaceUser) => "사용자 지정을 파일 값으로 교체 (승인)",
+        (true, CategoryImportAction.UpdateColor) => "Change shared category color (approval)",
+        (false, CategoryImportAction.UpdateColor) => "공유 분류 색상 변경 (승인)",
         (true, CategoryImportAction.AddCategory) => "Add category (import)",
         (false, CategoryImportAction.AddCategory) => "분류 추가 (import)",
         (true, CategoryImportAction.Assign) => "Assign (import)",

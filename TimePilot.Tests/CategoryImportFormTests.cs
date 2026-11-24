@@ -28,7 +28,7 @@ public sealed class CategoryImportFormTests
             var plan = new CategoryImportService(fixture.TargetDb).Preview(file);
             var pending = new TaskCompletionSource<string?>();
             var calls = 0;
-            using var form = new CategoryImportForm(plan, (UiLanguage)languageValue, backup => { Assert.True(backup); calls++; return pending.Task; });
+            using var form = new CategoryImportForm(plan, (UiLanguage)languageValue, (_, backup, _) => { Assert.True(backup); calls++; return pending.Task; });
             var text = new CategoryImportText((UiLanguage)languageValue);
             Assert.Equal(languageValue == (int)UiLanguage.English ? "Development" : "개발", text.Category("Development"));
             form.Show();
@@ -67,7 +67,7 @@ public sealed class CategoryImportFormTests
             fixture.PrepareApp();
             var plan = new CategoryImportService(fixture.TargetDb).Preview(fixture.Zip);
             using var form = new CategoryImportForm(plan, UiLanguage.Korean,
-                _ => Task.FromException<string?>(new IOException("Synthetic safety backup failure")));
+                (_, _, _) => Task.FromException<string?>(new IOException("Synthetic safety backup failure")));
             form.Show();
             Wait(form.ApplyAsync());
             Assert.False(form.Applied);
@@ -87,7 +87,7 @@ public sealed class CategoryImportFormTests
             var plan = new CategoryImportService(fixture.TargetDb).Preview(fixture.Zip);
             var calls = 0;
             var confirmed = false;
-            using var form = new CategoryImportForm(plan, UiLanguage.Korean, backup =>
+            using var form = new CategoryImportForm(plan, UiLanguage.Korean, (_, backup, _) =>
             {
                 Assert.False(backup);
                 calls++;
@@ -107,8 +107,96 @@ public sealed class CategoryImportFormTests
             Assert.Equal(1, calls);
             Assert.Equal(new CategoryImportText(UiLanguage.Korean).Completed(null), Find<TextBox>(form, "categoryImportStatus").Text);
             SaveScreenshot(form, "category-import-without-backup-complete.png");
-            using var reopened = new CategoryImportForm(plan, UiLanguage.Korean, _ => throw new Exception("Must not apply"));
+            using var reopened = new CategoryImportForm(plan, UiLanguage.Korean, (_, _, _) => throw new Exception("Must not apply"));
             Assert.True(Find<CheckBox>(reopened, "categoryImportCreateBackup").Checked);
+        });
+    }
+
+    [Fact]
+    public void PolicyControlsStayDisabledDuringApply()
+    {
+        InSta(() =>
+        {
+            using var fixture = new CategoryImportFixture();
+            fixture.PrepareApp();
+            var plan = new CategoryImportService(fixture.TargetDb).Preview(fixture.Zip);
+            var pending = new TaskCompletionSource<string?>();
+            using var form = new CategoryImportForm(plan, UiLanguage.English, (_, _, _) => pending.Task);
+            form.Show();
+            var operation = form.ApplyAsync();
+            Assert.False(Find<ComboBox>(form, "categoryImportPriority").Enabled);
+            Assert.False(Find<CheckBox>(form, "categoryImportReplaceColors").Enabled);
+            pending.SetResult("safety.zip");
+            Wait(operation);
+            Assert.False(Find<ComboBox>(form, "categoryImportPriority").Enabled);
+        });
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void PolicySelectionRebuildsPreviewAndOnlyAppliesConfirmedVisiblePlan(int languageValue)
+    {
+        InSta(() =>
+        {
+            using var fixture = new CategoryImportFixture();
+            var app = fixture.PrepareApp();
+            fixture.Target.CreateCustomAppCategory("Imported", "#123456");
+            fixture.Target.SetAppPrimaryCategory(app, fixture.Category(fixture.TargetDb, "Game"));
+            fixture.Source.UpdateAppCategoryColor(fixture.Category(fixture.SourceDb, "Game"), "#010203");
+            fixture.BuildZip();
+            var service = new CategoryImportService(fixture.TargetDb);
+            var plan = service.Preview(fixture.Zip);
+            Assert.False(plan.HasChanges);
+            var approved = false;
+            var applyCalls = 0;
+            using var form = new CategoryImportForm(plan, (UiLanguage)languageValue, async (selected, backup, overwrite) =>
+            {
+                Assert.False(backup);
+                Assert.True(overwrite);
+                Assert.Equal(new CategoryImportOptions(true, true), selected.Options);
+                Assert.Equal(1, selected.ReplacedUserApps);
+                Assert.Equal(1, selected.ChangedColors);
+                applyCalls++;
+                await Task.Run(() => service.Apply(selected, fixture.Now, overwrite));
+                return null;
+            }, () => true, selected =>
+            {
+                Assert.Equal(1, selected.ReplacedUserApps);
+                Assert.Equal(1, selected.ChangedColors);
+                return approved;
+            });
+            form.Show();
+            var apply = Find<Button>(form, "categoryImportApply");
+            var priority = Find<ComboBox>(form, "categoryImportPriority");
+            var colors = Find<CheckBox>(form, "categoryImportReplaceColors");
+            Assert.Equal(0, priority.SelectedIndex);
+            Assert.False(colors.Checked);
+            Assert.False(apply.Enabled);
+            priority.SelectedIndex = 1;
+            Assert.True(apply.Enabled);
+            colors.Checked = true;
+            priority.SelectedIndex = 0;
+            Assert.True(apply.Enabled);
+            colors.Checked = false;
+            Assert.False(apply.Enabled);
+            priority.SelectedIndex = 1;
+            colors.Checked = true;
+            Find<CheckBox>(form, "categoryImportCreateBackup").Checked = false;
+            var before = fixture.Hash(fixture.TargetDb);
+            SaveScreenshot(form, $"category-import-{languageValue}-file-priority.png");
+            AssertLayout(form);
+            Wait(form.ApplyAsync());
+            Assert.Equal(0, applyCalls);
+            Assert.False(form.Applied);
+            Assert.Equal(before, fixture.Hash(fixture.TargetDb));
+            approved = true;
+            Wait(form.ApplyAsync());
+            Assert.True(form.Applied);
+            Assert.Equal(1, applyCalls);
+            Assert.Equal("import", fixture.Scalar("SELECT primary_category_source FROM apps WHERE process_name='test';"));
+            Assert.Equal("#010203", fixture.Scalar("SELECT color FROM app_categories WHERE name='Game';"));
+            SaveScreenshot(form, $"category-import-{languageValue}-file-priority-complete.png");
         });
     }
 
@@ -121,7 +209,7 @@ public sealed class CategoryImportFormTests
             fixture.BuildZip();
             var before = fixture.Hash(fixture.TargetDb);
             var plan = new CategoryImportService(fixture.TargetDb).Preview(fixture.Zip);
-            using var form = new CategoryImportForm(plan, UiLanguage.English, _ => throw new Exception("Must not apply"));
+            using var form = new CategoryImportForm(plan, UiLanguage.English, (_, _, _) => throw new Exception("Must not apply"));
             form.Show();
             Assert.False(Find<Button>(form, "categoryImportApply").Enabled);
             Assert.False(Find<CheckBox>(form, "categoryImportCreateBackup").Enabled);

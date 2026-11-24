@@ -7,8 +7,10 @@ Korean source planning document: `docs/features/RESTORE_MERGE_POLICY.ko.md`.
 ### Implemented Category-Only Scope (#347)
 
 File > Import app categories is separate from the record-merge restore proposed
-below. It adds missing custom categories and assigns only currently unclassified
-apps; all current assignments are kept regardless of source. It never adds missing
+below. By default it adds missing custom categories and assigns only unclassified
+apps. File priority can replace current (including user) assignments after preview
+and explicit approval; color replacement is a separate default-off choice affecting
+all apps sharing that category. Missing/unclassified input never clears assignments. It never adds missing
 apps or restores sessions/settings. A preview and optional (default-on) safety backup precede transactional
 apply. Category-only JSON export/import and existing backup ZIP input are supported.
 See `CATEGORY_IMPORT.md` for policy and verification. Keep-later-records

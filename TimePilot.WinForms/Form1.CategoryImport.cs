@@ -20,7 +20,7 @@ public partial class Form1
             progress.Close();
             SetExportRunning(false, null);
             if (isClosing || IsDisposed) return;
-            using var preview = new CategoryImportForm(plan, settings.UiLanguage, async createBackup =>
+            using var preview = new CategoryImportForm(plan, settings.UiLanguage, async (approvedPlan, createBackup, overwriteApproved) =>
             {
                 var wasEnabled = sampleTimer.Enabled;
                 sampleTimer.Stop();
@@ -30,13 +30,13 @@ public partial class Form1
                     {
                         if (!createBackup)
                         {
-                            service.Apply(plan, DateTimeOffset.UtcNow);
+                            service.Apply(approvedPlan, DateTimeOffset.UtcNow, overwriteApproved);
                             return (string?)null;
                         }
                         Directory.CreateDirectory(AppDataPaths.BackupDirectory);
                         var safetyPath = Path.Combine(AppDataPaths.BackupDirectory,
                             $"ActiveLogbook-before-category-import-{Guid.NewGuid():N}.zip");
-                        service.ApplyWithSafetyBackup(plan, new DataBackupService(), safetyPath, DateTimeOffset.UtcNow);
+                        service.ApplyWithSafetyBackup(approvedPlan, new DataBackupService(), safetyPath, DateTimeOffset.UtcNow, overwriteApproved);
                         return safetyPath;
                     });
                 }
