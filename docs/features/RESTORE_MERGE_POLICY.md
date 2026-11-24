@@ -2,6 +2,16 @@
 
 Korean source planning document: `docs/features/RESTORE_MERGE_POLICY.ko.md`.
 
+## Phase 1 Status (#346)
+
+Detailed analysis now offers a read-only keep-later preview, not an apply action.
+Reference provenance and before/after/crossing/open/invalid buckets are separate
+from legacy overlap diagnostics. Both future restore choices remain disabled.
+See `KEEP_LATER_RESTORE_PREVIEW.md` for exact boundary/fallback rules, verification
+and unresolved mapping/settings policies. The plan below is not an implemented
+record writer. Cancel the chooser after preview-only testing; Continue full restore
+still invokes the existing full-replacement workflow.
+
 ## 1. Goal
 
 ### Implemented Category-Only Scope (#347)

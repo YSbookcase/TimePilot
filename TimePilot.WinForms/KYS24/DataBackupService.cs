@@ -119,13 +119,13 @@ namespace TimePilot.WinForms.KYS24
                 DetailedComparison: null);
         }
 
-        public DataBackupDetailedComparison? InspectBackupDetailedComparison(string zipFilePath)
+        public DataBackupDetailedComparison? InspectBackupDetailedComparison(string zipFilePath, DateTimeOffset? observedAt = null)
         {
             using var archive = OpenBackupArchive(zipFilePath);
             if (archive.GetEntry(DatabaseEntryName) is null)
                 throw new InvalidDataException(UiText.Main.DataRestoreMissingDatabase);
 
-            return InspectDetailedComparisonIfAvailable(archive);
+            return InspectDetailedComparisonIfAvailable(archive, observedAt);
         }
 
         public DataBackupRestoreResult RestoreBackup(string zipFilePath)
@@ -328,7 +328,7 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
-        private DataBackupDetailedComparison? InspectDetailedComparisonIfAvailable(ZipArchive archive)
+        private DataBackupDetailedComparison? InspectDetailedComparisonIfAvailable(ZipArchive archive, DateTimeOffset? observedAt)
         {
             if (!File.Exists(_databasePath))
                 return null;
@@ -358,7 +358,9 @@ namespace TimePilot.WinForms.KYS24
                     CompareTable("foreground_sessions", backupIntervals.ForegroundSessions, currentIntervals.ForegroundSessions),
                     CompareTable("idle_sessions", backupIntervals.IdleSessions, currentIntervals.IdleSessions),
                     CompareTable("app_runtime_sessions", backupIntervals.AppRuntimeSessions, currentIntervals.AppRuntimeSessions),
-                    CompareTable("process_runtime_sessions", backupIntervals.ProcessRuntimeSessions, currentIntervals.ProcessRuntimeSessions));
+                    CompareTable("process_runtime_sessions", backupIntervals.ProcessRuntimeSessions, currentIntervals.ProcessRuntimeSessions),
+                    KeepLaterRestorePreviewReader.Read(backupConnection, currentConnection,
+                        ReadMetadataCreatedAt(archive), observedAt ?? DateTimeOffset.UtcNow));
             }
             catch
             {
@@ -463,8 +465,12 @@ namespace TimePilot.WinForms.KYS24
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                var startedAt = ParseTimestamp(reader.GetString(0));
-                var endedAt = ParseTimestamp(reader.GetString(1));
+                if (reader.GetValue(0) is not string startText || reader.GetValue(1) is not string endText
+                    || !DateTimeOffset.TryParse(startText, System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out var startedAt)
+                    || !DateTimeOffset.TryParse(endText, System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out var endedAt))
+                    continue;
                 var matchKey = reader.IsDBNull(2) ? null : reader.GetString(2);
                 if (string.IsNullOrWhiteSpace(matchKey))
                     matchKey = null;
@@ -611,8 +617,15 @@ namespace TimePilot.WinForms.KYS24
             try
             {
                 using var stream = entry.Open();
-                var metadata = JsonSerializer.Deserialize<DataBackupMetadata>(stream);
-                return metadata?.CreatedAtUtc;
+                using var metadata = JsonDocument.Parse(stream);
+                var root = metadata.RootElement;
+                if (!root.TryGetProperty("SchemaVersion", out var version) || !version.TryGetInt32(out var schema) || schema != 1
+                    || !root.TryGetProperty("CreatedAtUtc", out var created) || created.ValueKind != JsonValueKind.String)
+                    return null;
+                var value = created.GetString();
+                if (value is null || !(value.EndsWith('Z') || value.LastIndexOf('+') > 9 || value.LastIndexOf('-') > 9)) return null;
+                return DateTimeOffset.TryParse(value, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var at) ? at.ToUniversalTime() : null;
             }
             catch
             {
@@ -666,7 +679,8 @@ namespace TimePilot.WinForms.KYS24
         DataBackupTableComparison ForegroundSessions,
         DataBackupTableComparison IdleSessions,
         DataBackupTableComparison AppRuntimeSessions,
-        DataBackupTableComparison ProcessRuntimeSessions)
+        DataBackupTableComparison ProcessRuntimeSessions,
+        KeepLaterRestorePreview? KeepLaterPreview = null)
     {
         public int CurrentRecordsWithoutBackupOverlap =>
             ForegroundSessions.CurrentRecordsWithoutBackupOverlap

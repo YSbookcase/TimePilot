@@ -5,15 +5,18 @@ namespace TimePilot.WinForms
     internal sealed class RestoreModeChoiceForm : Form
     {
         private readonly bool isEnglish;
+        private readonly UiLanguage language;
         private readonly Func<DataBackupDetailedComparison?>? detailedComparisonLoader;
         private DataBackupRestorePlan plan;
         private readonly Label planLabel = new();
         private Label? keepLaterDescriptionLabel;
         private Label? importBackupDescriptionLabel;
         private readonly Button detailedAnalysisButton = new();
+        private readonly Button keepLaterPreviewButton = new();
         private readonly Button continueButton = new();
         private readonly Button cancelButton = new();
         private bool detailedAnalysisAttempted;
+        private bool isAnalyzing;
 
         public RestoreModeChoiceForm(
             UiLanguage language,
@@ -21,6 +24,7 @@ namespace TimePilot.WinForms
             Func<DataBackupDetailedComparison?>? detailedComparisonLoader = null)
         {
             isEnglish = language == UiLanguage.English;
+            this.language = language;
             this.plan = plan;
             this.detailedComparisonLoader = detailedComparisonLoader;
             InitializeComponent();
@@ -39,7 +43,7 @@ namespace TimePilot.WinForms
             MinimizeBox = false;
             ShowIcon = false;
             ShowInTaskbar = false;
-            ClientSize = new Size(720, 540);
+            ClientSize = new Size(760, 670);
 
             var root = new TableLayoutPanel
             {
@@ -50,7 +54,7 @@ namespace TimePilot.WinForms
             };
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 250));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 270));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -65,7 +69,7 @@ namespace TimePilot.WinForms
 
             planLabel.AutoSize = false;
             planLabel.Dock = DockStyle.Top;
-            planLabel.Height = 148;
+            planLabel.Height = 120;
             planLabel.Text = BuildPlanText();
 
             var modesPanel = new TableLayoutPanel
@@ -104,7 +108,8 @@ namespace TimePilot.WinForms
             {
                 AutoSize = false,
                 Dock = DockStyle.Fill,
-                Text = UiText.Main.DataRestoreWarning
+                Name = "fullRestoreWarning",
+                Text = UiText.Main.DataRestoreWarningFor(language)
             };
 
             var buttonPanel = new FlowLayoutPanel
@@ -115,24 +120,38 @@ namespace TimePilot.WinForms
                 WrapContents = false
             };
 
-            continueButton.Text = isEnglish ? "Continue" : "계속";
+            continueButton.Name = "continueFullRestore";
+            continueButton.Text = isEnglish ? "Continue full restore" : "전체 복원 계속";
             continueButton.AutoSize = true;
             continueButton.DialogResult = DialogResult.OK;
             continueButton.Click += (_, _) => Choice = RestoreModeChoice.FullReplace;
 
             cancelButton.Text = isEnglish ? "Cancel" : "취소";
+            cancelButton.Name = "cancelRestore";
             cancelButton.Width = 84;
             cancelButton.DialogResult = DialogResult.Cancel;
             cancelButton.Click += (_, _) => Choice = RestoreModeChoice.Cancel;
 
             detailedAnalysisButton.Text = isEnglish ? "Detailed analysis" : "상세 분석";
+            detailedAnalysisButton.Name = "analyzeRestore";
             detailedAnalysisButton.AutoSize = true;
             detailedAnalysisButton.Enabled = detailedComparisonLoader is not null;
             detailedAnalysisButton.Click += OnDetailedAnalysisButtonClick;
+            keepLaterPreviewButton.Name = "keepLaterPreview";
+            keepLaterPreviewButton.Text = isEnglish ? "Keep-later preview" : "이후 기록 유지 미리보기";
+            keepLaterPreviewButton.AutoSize = true;
+            keepLaterPreviewButton.Enabled = plan.DetailedComparison?.KeepLaterPreview is not null;
+            keepLaterPreviewButton.Click += (_, _) =>
+            {
+                if (plan.DetailedComparison?.KeepLaterPreview is not { } preview) return;
+                using var form = new KeepLaterRestorePreviewForm(preview, language);
+                form.ShowDialog(this);
+            };
 
             buttonPanel.Controls.Add(cancelButton);
             buttonPanel.Controls.Add(continueButton);
             buttonPanel.Controls.Add(detailedAnalysisButton);
+            buttonPanel.Controls.Add(keepLaterPreviewButton);
 
             AcceptButton = continueButton;
             CancelButton = cancelButton;
@@ -229,16 +248,21 @@ namespace TimePilot.WinForms
             }
 
             return isEnglish
-                ? "\nCurrent-data comparison: "
-                    + $"current records keepable after backup restore {comparison.CurrentRecordsWithoutBackupOverlap:N0}, "
-                    + $"backup records importable into current data {comparison.BackupRecordsWithoutCurrentOverlap:N0}."
-                : "\n현재 데이터 비교: "
-                    + $"백업 복원 후 보존 가능한 현재 기록 {comparison.CurrentRecordsWithoutBackupOverlap:N0}개, "
-                    + $"현재 데이터로 가져올 수 있는 백업 기록 {comparison.BackupRecordsWithoutCurrentOverlap:N0}개.";
+                ? $"\nOverlap comparison only (not a cutoff restore plan): current nonoverlap {comparison.CurrentRecordsWithoutBackupOverlap:N0}, backup nonoverlap {comparison.BackupRecordsWithoutCurrentOverlap:N0}."
+                : $"\n겹침 비교 참고(기준 시각 복원 계획 아님): 현재 비겹침 {comparison.CurrentRecordsWithoutBackupOverlap:N0}개, 백업 비겹침 {comparison.BackupRecordsWithoutCurrentOverlap:N0}개.";
         }
 
         private string BuildKeepLaterRecordsDescription()
         {
+            if (plan.DetailedComparison?.KeepLaterPreview is { } preview)
+            {
+                if (preview.ReferenceAt is null)
+                    return isEnglish ? "Preview only. No reference time could be determined; review the preview. Applying is not supported."
+                        : "기준 시각을 결정할 수 없습니다. 미리보기를 검토하세요. 적용은 아직 지원하지 않습니다.";
+                return isEnglish
+                    ? $"Preview only; applying is not supported. Current before/after-reference candidates: {preview.CurrentBefore}/{preview.CurrentAfter}; crossing/open records require review."
+                    : $"미리보기만 제공하며 적용은 아직 지원하지 않습니다. 현재 기준 이전/이후 후보 {preview.CurrentBefore}/{preview.CurrentAfter}개. 경계·진행 중 기록은 검토가 필요합니다.";
+            }
             if (plan.DetailedComparison is not { } comparison)
             {
                 return isEnglish
@@ -266,30 +290,52 @@ namespace TimePilot.WinForms
         }
 
         private async void OnDetailedAnalysisButtonClick(object? sender, EventArgs e)
+            => await AnalyzeAsync();
+
+        internal async Task AnalyzeAsync()
         {
-            if (detailedComparisonLoader is null)
+            if (detailedComparisonLoader is null || isAnalyzing)
                 return;
 
+            isAnalyzing = true;
+            continueButton.Enabled = false;
+            cancelButton.Enabled = false;
+            keepLaterPreviewButton.Enabled = false;
             detailedAnalysisButton.Enabled = false;
             detailedAnalysisButton.Text = isEnglish ? "Analyzing..." : "분석 중...";
             try
             {
                 var comparison = await Task.Run(detailedComparisonLoader);
+                if (IsDisposed) return;
                 detailedAnalysisAttempted = true;
                 plan = plan with { DetailedComparison = comparison };
                 RefreshPlanText();
             }
             catch
             {
+                if (IsDisposed) return;
                 detailedAnalysisAttempted = true;
                 plan = plan with { DetailedComparison = null };
                 RefreshPlanText();
             }
             finally
             {
-                detailedAnalysisButton.Text = isEnglish ? "Detailed analysis" : "상세 분석";
-                detailedAnalysisButton.Enabled = true;
+                isAnalyzing = false;
+                if (!IsDisposed)
+                {
+                    detailedAnalysisButton.Text = isEnglish ? "Detailed analysis" : "상세 분석";
+                    detailedAnalysisButton.Enabled = true;
+                    continueButton.Enabled = true;
+                    cancelButton.Enabled = true;
+                    keepLaterPreviewButton.Enabled = plan.DetailedComparison?.KeepLaterPreview is not null;
+                }
             }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (isAnalyzing && e.CloseReason is CloseReason.UserClosing or CloseReason.FormOwnerClosing) e.Cancel = true;
+            base.OnFormClosing(e);
         }
 
         private void RefreshPlanText()
