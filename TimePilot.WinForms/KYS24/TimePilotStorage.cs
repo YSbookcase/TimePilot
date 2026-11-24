@@ -164,6 +164,12 @@ namespace TimePilot.WinForms.KYS24
                 """;
             command.ExecuteNonQuery();
 
+            AddColumnIfMissing(connection, "app_categories", "source", "TEXT NOT NULL DEFAULT 'user'");
+            using (var categorySourceCommand = connection.CreateCommand())
+            {
+                categorySourceCommand.CommandText = "UPDATE app_categories SET source = 'system' WHERE is_builtin = 1 AND source <> 'system';";
+                categorySourceCommand.ExecuteNonQuery();
+            }
             EnsureAppsColumns(connection);
             EnsureRuntimeSessionColumns(connection);
             EnsureForegroundSessionColumns(connection);
@@ -967,6 +973,7 @@ namespace TimePilot.WinForms.KYS24
                         "color",
                         "sort_order",
                         "is_builtin",
+                        "source",
                         "created_at",
                         "updated_at"
                     ]),
@@ -2393,10 +2400,11 @@ namespace TimePilot.WinForms.KYS24
                         color,
                         sort_order,
                         is_builtin,
+                        source,
                         created_at,
                         updated_at
                     )
-                    VALUES ($name, $color, $sortOrder, 1, $createdAt, $updatedAt)
+                    VALUES ($name, $color, $sortOrder, 1, 'system', $createdAt, $updatedAt)
                     ON CONFLICT(name) DO UPDATE SET
                         sort_order = excluded.sort_order,
                         updated_at = excluded.updated_at

@@ -14,6 +14,23 @@ The regular `Export CSV` command exports user-friendly summary, timeline, and ru
 
 This is not a backup and restore feature. Restorable backups should be handled separately using the SQLite database and settings files.
 
+## Distinct Workflows
+
+- Export CSV: selected-period summaries, timelines and segments for reading or spreadsheets.
+- Export all raw data: full-period internal table CSVs for external analysis and diagnostics;
+  these files cannot be imported as a restore backup.
+- Create backup: SQLite DB/settings ZIP for full recovery inside the app.
+- Export app categories: category/assignment JSON, without usage records, settings,
+  executable paths or aliases. It still contains category names and classified app
+  process names. Read it using Import app categories.
+
+Raw export was introduced in #70 for advanced analysis/diagnostics. It is optional
+for ordinary users but retained because backups serve a different purpose. The ZIP's
+README.txt lists the actual files and columns. Current exports include categories,
+apps, identity observations, app runtime, foreground, idle, process runtime and system
+events; the following sections describe the main data. The added category source
+metadata is included in diagnostic CSV output too.
+
 ## Privacy Notice
 
 The exported ZIP can include personal usage records for the full stored period, such as app names, process names, executable paths, usage times, runtime segments, and Windows system events such as lock, unlock, suspend, and resume.

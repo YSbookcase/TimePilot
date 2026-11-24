@@ -72,7 +72,7 @@ namespace TimePilot.WinForms
 
         private void OnFormClosing(object? sender, FormClosingEventArgs e)
         {
-            if (isBackupRemovalOpen && e.CloseReason == CloseReason.UserClosing)
+            if ((isBackupRemovalOpen || isCategoryTransferOpen) && e.CloseReason == CloseReason.UserClosing)
             {
                 isExplicitExitRequested = false;
                 e.Cancel = true;

@@ -10,6 +10,8 @@ namespace TimePilot.WinForms.Menus
         private readonly ToolStripMenuItem exportRawDataMenuItem;
         private readonly ToolStripMenuItem createDataBackupMenuItem;
         private readonly ToolStripMenuItem restoreDataBackupMenuItem;
+        private readonly ToolStripMenuItem importAppCategoriesMenuItem;
+        private readonly ToolStripMenuItem exportAppCategoriesMenuItem;
         private readonly ToolStripMenuItem exitMenuItem;
         private readonly ToolStripMenuItem settingsMenuItem;
         private readonly ToolStripMenuItem preferencesMenuItem;
@@ -30,6 +32,8 @@ namespace TimePilot.WinForms.Menus
             exportRawDataMenuItem = controls.ExportRawData;
             createDataBackupMenuItem = controls.CreateDataBackup;
             restoreDataBackupMenuItem = controls.RestoreDataBackup;
+            importAppCategoriesMenuItem = controls.ImportAppCategories;
+            exportAppCategoriesMenuItem = controls.ExportAppCategories;
             exitMenuItem = controls.Exit;
             settingsMenuItem = controls.Settings;
             preferencesMenuItem = controls.Preferences;
@@ -44,6 +48,8 @@ namespace TimePilot.WinForms.Menus
             exportRawDataMenuItem.Click += actions.ExportRawData;
             createDataBackupMenuItem.Click += actions.CreateDataBackup;
             restoreDataBackupMenuItem.Click += actions.RestoreDataBackup;
+            importAppCategoriesMenuItem.Click += actions.ImportAppCategories;
+            exportAppCategoriesMenuItem.Click += actions.ExportAppCategories;
             exitMenuItem.Click += actions.Exit;
             preferencesMenuItem.Click += actions.Preferences;
             appCategoryManagementMenuItem.Click += actions.AppCategoryManagement;
@@ -62,6 +68,8 @@ namespace TimePilot.WinForms.Menus
             exportRawDataMenuItem.Text = text.ExportRawData;
             createDataBackupMenuItem.Text = text.CreateDataBackup;
             restoreDataBackupMenuItem.Text = text.RestoreDataBackup;
+            importAppCategoriesMenuItem.Text = text.ImportAppCategories;
+            exportAppCategoriesMenuItem.Text = text.ExportAppCategories;
             exitMenuItem.Text = text.Exit;
             settingsMenuItem.Text = text.Settings;
             preferencesMenuItem.Text = text.Preferences;
@@ -79,6 +87,8 @@ namespace TimePilot.WinForms.Menus
             exportRawDataMenuItem.Enabled = isEnabled;
             createDataBackupMenuItem.Enabled = isEnabled;
             restoreDataBackupMenuItem.Enabled = isEnabled;
+            importAppCategoriesMenuItem.Enabled = isEnabled;
+            exportAppCategoriesMenuItem.Enabled = isEnabled;
         }
 
         public void ApplyFeatureRegistrations(IReadOnlyList<TimePilotMenuRegistration> registrations)

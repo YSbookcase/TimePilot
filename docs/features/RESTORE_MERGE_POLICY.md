@@ -4,6 +4,18 @@ Korean source planning document: `docs/features/RESTORE_MERGE_POLICY.ko.md`.
 
 ## 1. Goal
 
+### Implemented Category-Only Scope (#347)
+
+File > Import app categories is separate from the record-merge restore proposed
+below. By default it adds missing custom categories and assigns only unclassified
+apps. File priority can replace current (including user) assignments after preview
+and explicit approval; color replacement is a separate default-off choice affecting
+all apps sharing that category. Missing/unclassified input never clears assignments. It never adds missing
+apps or restores sessions/settings. A preview and optional (default-on) safety backup precede transactional
+apply. Category-only JSON export/import and existing backup ZIP input are supported.
+See `CATEGORY_IMPORT.md` for policy and verification. Keep-later-records
+restore (#346) remains separate work.
+
 TimePilot's current full restore replaces the current data with the backup `timepilot.db` and settings file.
 
 Merge restore is different. It is for cases where the user wants to return to a backup state while keeping records collected on the current PC after that backup.
