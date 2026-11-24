@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
@@ -214,7 +215,7 @@ namespace TimePilot.WinForms.KYS24
                 {
                     source.Open();
                     destination.Open();
-                    source.BackupDatabase(destination);
+                    BackupDatabaseWithRetry(source, destination);
                 }
 
                 SqliteConnection.ClearAllPools();
@@ -236,6 +237,36 @@ namespace TimePilot.WinForms.KYS24
             }
             catch
             {
+            }
+        }
+
+        internal static void BackupDatabaseWithRetry(
+            SqliteConnection source,
+            SqliteConnection destination,
+            TimeSpan? retryTimeout = null,
+            Action? beforeRetry = null)
+        {
+            var timeout = retryTimeout ?? TimeSpan.FromSeconds(5);
+            if (timeout < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(retryTimeout));
+            var watch = Stopwatch.StartNew();
+            while (true)
+            {
+                try
+                {
+                    // BackupDatabase bypasses command busy-timeout retries in Microsoft.Data.Sqlite.
+                    source.BackupDatabase(destination);
+                    return;
+                }
+                catch (SqliteException ex) when (ex.SqliteErrorCode is 5 or 6)
+                {
+                    var remaining = timeout - watch.Elapsed;
+                    if (remaining <= TimeSpan.Zero)
+                        throw new TimeoutException(UiText.CurrentLanguage == UiLanguage.English
+                            ? "The database is busy. The backup was stopped without applying changes. Wait for other data operations to finish and try again."
+                            : "데이터베이스 잠금이 해제되지 않아 백업을 중단했습니다. 다른 데이터 작업이 끝난 뒤 다시 시도하세요. 백업을 이용한 후속 변경은 진행하지 않습니다.", ex);
+                    beforeRetry?.Invoke();
+                    Thread.Sleep(remaining < TimeSpan.FromMilliseconds(50) ? remaining : TimeSpan.FromMilliseconds(50));
+                }
             }
         }
 
@@ -351,7 +382,7 @@ namespace TimePilot.WinForms.KYS24
             }.ToString());
 
             destination.Open();
-            source.BackupDatabase(destination);
+            BackupDatabaseWithRetry(source, destination);
         }
 
         private static DataBackupTableComparison CompareTable(

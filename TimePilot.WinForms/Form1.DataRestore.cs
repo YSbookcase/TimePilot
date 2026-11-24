@@ -78,7 +78,7 @@ namespace TimePilot.WinForms
                     SetExportRunning(true, UiText.Main.DataRestoreCreatingSafetyBackup);
                     progressForm.SetStep(2, UiText.Main.DataRestoreCreatingSafetyBackup);
                     await AllowUiToRenderAsync();
-                    safetyBackupPath = CreatePreRestoreSafetyBackup(service, now);
+                    safetyBackupPath = await Task.Run(() => CreatePreRestoreSafetyBackup(service, now));
                 }
                 else
                 {
