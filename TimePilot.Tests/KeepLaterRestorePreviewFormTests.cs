@@ -36,6 +36,11 @@ public sealed class KeepLaterRestorePreviewFormTests
             Assert.True(entered.Wait(TimeSpan.FromSeconds(2)));
             Assert.False(Find<Button>(chooser, "continueFullRestore").Enabled);
             Assert.False(Find<Button>(chooser, "cancelRestore").Enabled);
+            Assert.True(Find<ProgressBar>(chooser, "restoreAnalysisProgress").Visible);
+            Assert.Equal(ProgressBarStyle.Marquee, Find<ProgressBar>(chooser, "restoreAnalysisProgress").Style);
+            Assert.Contains(language == (int)UiLanguage.English ? "Analyzing" : "분석 중", Find<Label>(chooser, "restoreAnalysisStatus").Text);
+            Application.DoEvents();
+            Save(chooser, $"restore-analysis-busy-{language}.png");
             chooser.Close();
             Assert.False(chooser.IsDisposed);
             Wait(chooser.AnalyzeAsync());
@@ -43,6 +48,8 @@ public sealed class KeepLaterRestorePreviewFormTests
             release.Set();
             Wait(analysis);
             Assert.True(Find<Button>(chooser, "keepLaterPreview").Enabled);
+            Assert.False(Find<ProgressBar>(chooser, "restoreAnalysisProgress").Visible);
+            Assert.Contains(language == (int)UiLanguage.English ? "completed" : "완료", Find<Label>(chooser, "restoreAnalysisStatus").Text);
             Assert.Equal(RestoreModeChoice.Cancel, chooser.Choice);
             var radios = Children(chooser).OfType<RadioButton>().ToArray();
             Assert.Equal(1, radios.Count(r => r.Enabled));
@@ -74,6 +81,9 @@ public sealed class KeepLaterRestorePreviewFormTests
             Assert.False(Find<Button>(form, "keepLaterPreview").Enabled);
             Assert.True(Find<Button>(form, "continueFullRestore").Enabled);
             Assert.Equal(RestoreModeChoice.Cancel, form.Choice);
+            Assert.False(Find<ProgressBar>(form, "restoreAnalysisProgress").Visible);
+            Assert.Contains("실패", Find<Label>(form, "restoreAnalysisStatus").Text);
+            AssertLayout(form);
         });
     }
 

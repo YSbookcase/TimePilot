@@ -71,6 +71,9 @@ Analysis runs off the UI thread. Duplicate analysis, chooser continuation and
 user closing are blocked while it runs; failures leave the future restore modes
 disabled. New preview warnings use the selected KO/EN language independently of
 global language settings.
+The chooser shows an indeterminate animated progress bar and a persistent analysis
+status. It does not invent a percentage or ETA. Completion, unavailable results and
+failure are distinct; the bar disappears when work ends and retry remains available.
 
 ## Verification And Follow-Up
 

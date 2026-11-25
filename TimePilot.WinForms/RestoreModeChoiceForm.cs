@@ -15,6 +15,8 @@ namespace TimePilot.WinForms
         private readonly Button keepLaterPreviewButton = new();
         private readonly Button continueButton = new();
         private readonly Button cancelButton = new();
+        private readonly Label analysisStatusLabel = new();
+        private readonly ProgressBar analysisProgressBar = new();
         private bool detailedAnalysisAttempted;
         private bool isAnalyzing;
 
@@ -49,13 +51,14 @@ namespace TimePilot.WinForms
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 1,
-                RowCount = 5,
+                RowCount = 6,
                 Padding = new Padding(18)
             };
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 270));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
             root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
             var titleLabel = new Label
@@ -160,7 +163,23 @@ namespace TimePilot.WinForms
             root.Controls.Add(planLabel, 0, 1);
             root.Controls.Add(modesPanel, 0, 2);
             root.Controls.Add(warningLabel, 0, 3);
-            root.Controls.Add(buttonPanel, 0, 4);
+            var analysisPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+            analysisPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            analysisPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+            analysisPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            analysisStatusLabel.Name = "restoreAnalysisStatus";
+            analysisStatusLabel.Dock = DockStyle.Fill;
+            analysisStatusLabel.Text = isEnglish ? "Select Detailed analysis to compare records. No data will be changed."
+                : "상세 분석을 누르면 기록을 비교합니다. 데이터는 변경하지 않습니다.";
+            analysisProgressBar.Name = "restoreAnalysisProgress";
+            analysisProgressBar.Dock = DockStyle.Fill;
+            analysisProgressBar.Style = ProgressBarStyle.Marquee;
+            analysisProgressBar.MarqueeAnimationSpeed = 30;
+            analysisProgressBar.Visible = false;
+            analysisPanel.Controls.Add(analysisStatusLabel, 0, 0);
+            analysisPanel.Controls.Add(analysisProgressBar, 0, 1);
+            root.Controls.Add(analysisPanel, 0, 4);
+            root.Controls.Add(buttonPanel, 0, 5);
             Controls.Add(root);
 
             ResumeLayout(false);
@@ -303,6 +322,10 @@ namespace TimePilot.WinForms
             keepLaterPreviewButton.Enabled = false;
             detailedAnalysisButton.Enabled = false;
             detailedAnalysisButton.Text = isEnglish ? "Analyzing..." : "분석 중...";
+            analysisProgressBar.Visible = true;
+            analysisStatusLabel.Text = isEnglish
+                ? "Analyzing backup and current records... Large databases may take time. No data is being restored."
+                : "백업과 현재 기록을 분석 중입니다... 기록이 많으면 시간이 걸릴 수 있습니다. 복원은 실행하지 않습니다.";
             try
             {
                 var comparison = await Task.Run(detailedComparisonLoader);
@@ -310,6 +333,14 @@ namespace TimePilot.WinForms
                 detailedAnalysisAttempted = true;
                 plan = plan with { DetailedComparison = comparison };
                 RefreshPlanText();
+                analysisStatusLabel.Text = comparison is null
+                    ? (isEnglish ? "Analysis unavailable. No data was changed. You can retry."
+                        : "분석 결과를 만들지 못했습니다. 데이터는 변경하지 않았습니다. 다시 시도할 수 있습니다.")
+                    : comparison.KeepLaterPreview is null
+                        ? (isEnglish ? "Overlap analysis completed; keep-later preview unavailable. No data was changed."
+                            : "겹침 분석 완료. 이후 기록 유지 미리보기는 사용할 수 없습니다. 데이터는 변경하지 않았습니다.")
+                        : (isEnglish ? "Analysis completed. Open Keep-later preview to review the results. No data was changed."
+                            : "분석 완료. 이후 기록 유지 미리보기에서 결과를 확인하세요. 데이터는 변경하지 않았습니다.");
             }
             catch
             {
@@ -317,12 +348,15 @@ namespace TimePilot.WinForms
                 detailedAnalysisAttempted = true;
                 plan = plan with { DetailedComparison = null };
                 RefreshPlanText();
+                analysisStatusLabel.Text = isEnglish ? "Analysis failed. No data was changed. You can retry."
+                    : "분석 실패. 데이터는 변경하지 않았습니다. 다시 시도할 수 있습니다.";
             }
             finally
             {
                 isAnalyzing = false;
                 if (!IsDisposed)
                 {
+                    analysisProgressBar.Visible = false;
                     detailedAnalysisButton.Text = isEnglish ? "Detailed analysis" : "상세 분석";
                     detailedAnalysisButton.Enabled = true;
                     continueButton.Enabled = true;
