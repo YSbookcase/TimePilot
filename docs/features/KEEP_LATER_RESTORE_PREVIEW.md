@@ -88,6 +88,9 @@ After a successful analysis the button reads Reanalyze, and the status states th
 results reflect that analysis snapshot rather than live data. Failure/unavailable
 results use Retry analysis. Reanalysis remains available because recording can
 continue after a previous analysis; it replaces the old result, not accumulates it.
+When results already exist, Reanalyze asks for confirmation before starting work.
+Cancel keeps the existing result, status and preview availability unchanged. The
+first analysis (or retry without results) does not require this extra confirmation.
 
 ## Verification And Follow-Up
 

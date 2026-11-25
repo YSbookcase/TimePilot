@@ -7,6 +7,7 @@ namespace TimePilot.WinForms
         private readonly bool isEnglish;
         private readonly UiLanguage language;
         private readonly Func<IProgress<RestoreAnalysisProgress>, DataBackupDetailedComparison?>? detailedComparisonLoader;
+        private readonly Func<bool> confirmReanalysis;
         private DataBackupRestorePlan plan;
         private readonly Label planLabel = new();
         private Label? keepLaterDescriptionLabel;
@@ -19,17 +20,24 @@ namespace TimePilot.WinForms
         private readonly ProgressBar analysisProgressBar = new();
         private bool detailedAnalysisAttempted;
         private bool isAnalyzing;
+        private bool isConfirmingReanalysis;
         private int analysisGeneration;
 
         public RestoreModeChoiceForm(
             UiLanguage language,
             DataBackupRestorePlan plan,
-            Func<IProgress<RestoreAnalysisProgress>, DataBackupDetailedComparison?>? detailedComparisonLoader = null)
+            Func<IProgress<RestoreAnalysisProgress>, DataBackupDetailedComparison?>? detailedComparisonLoader = null,
+            Func<bool>? confirmReanalysis = null)
         {
             isEnglish = language == UiLanguage.English;
             this.language = language;
             this.plan = plan;
             this.detailedComparisonLoader = detailedComparisonLoader;
+            this.confirmReanalysis = confirmReanalysis ?? (() => CenteredMessageDialog.Show(this,
+                isEnglish
+                    ? "Analysis results already exist. Run the analysis again? Results will be refreshed and this may take time. No data will be restored."
+                    : "이미 분석한 결과가 있습니다. 다시 분석할까요? 결과를 새로 계산하며 시간이 걸릴 수 있습니다. 데이터 복원은 실행하지 않습니다.",
+                isEnglish ? "Confirm reanalysis" : "재분석 확인", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) == DialogResult.OK);
             InitializeComponent();
         }
 
@@ -314,8 +322,19 @@ namespace TimePilot.WinForms
 
         internal async Task AnalyzeAsync()
         {
-            if (detailedComparisonLoader is null || isAnalyzing)
+            if (detailedComparisonLoader is null || isAnalyzing || isConfirmingReanalysis)
                 return;
+
+            if (plan.DetailedComparison is not null)
+            {
+                isConfirmingReanalysis = true;
+                try
+                {
+                    if (!confirmReanalysis()) return;
+                }
+                finally { isConfirmingReanalysis = false; }
+                if (IsDisposed) return;
+            }
 
             isAnalyzing = true;
             var generation = ++analysisGeneration;
