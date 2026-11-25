@@ -19,6 +19,8 @@ internal sealed class KeepLaterRestorePreparation
     public string CurrentSha256 { get; }
     public string PlanSha256 { get; }
     public RestoreSettingsChoice SettingsChoice { get; }
+    public DateTimeOffset? ReferenceAt => preview.ReferenceAt;
+    public DateTimeOffset ObservedAt => preview.ObservedAt;
     public IReadOnlyList<RestoreRecordSelection> Records { get; }
     public IReadOnlyList<RestoreIdentityMapping> Categories { get; }
     public IReadOnlyList<RestoreIdentityMapping> Apps { get; }

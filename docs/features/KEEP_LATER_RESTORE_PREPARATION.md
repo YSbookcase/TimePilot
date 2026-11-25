@@ -12,6 +12,8 @@ a policy updates this report in memory; it does not save settings or perform a
 backup/restore. Full replacement restore elsewhere in the chooser is unchanged.
 
 **There is no writer, output database or atomic replacement in this phase.**
+The subsequent [offline staging phase](KEEP_LATER_STAGING.md) adds a separate
+internal result builder, without connecting it to this UI or live replacement.
 An empty blocker list is not certification that a restore can safely be run. Record
 IDs, runtime foreign keys, full payload schemas and output integrity are not yet
 planned/validated. The type is deliberately called Preparation rather than an
