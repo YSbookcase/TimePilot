@@ -8,7 +8,7 @@ public sealed class KeepLaterStagingBuilderTests
 {
     private static string Output(CategoryImportFixture f) => Path.Combine(f.Root, "result.db");
 
-    private static KeepLaterRestorePreparation Prepare(CategoryImportFixture f)
+    internal static KeepLaterRestorePreparation Prepare(CategoryImportFixture f)
     {
         SqliteConnection.ClearAllPools();
         using var backup = Connect(f.SourceDb);
@@ -36,7 +36,7 @@ public sealed class KeepLaterStagingBuilderTests
     }
 
     // Both sources deliberately reuse numeric IDs for unrelated apps and runtime sessions.
-    private static void Populate(CategoryImportFixture f)
+    internal static void Populate(CategoryImportFixture f)
     {
         f.Source.CreateCustomAppCategory("Backup custom", "Red");
         var custom = f.Target.CreateCustomAppCategory("Current custom", "Blue");
