@@ -36,6 +36,8 @@ namespace TimePilot.WinForms.KYS24
         public static class Main
         {
             public static string FileMenu => current.Main.FileMenu;
+            public static string DataRestoreWarningFor(UiLanguage language) =>
+                (language == UiLanguage.English ? English : Korean).Main.DataRestoreWarning;
             public static string ExportCsv => current.Main.ExportCsv;
             public static string ExportRawData => current.Main.ExportRawData;
             public static string CreateDataBackup => current.Main.CreateDataBackup;

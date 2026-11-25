@@ -119,13 +119,14 @@ namespace TimePilot.WinForms.KYS24
                 DetailedComparison: null);
         }
 
-        public DataBackupDetailedComparison? InspectBackupDetailedComparison(string zipFilePath)
+        public DataBackupDetailedComparison? InspectBackupDetailedComparison(string zipFilePath, DateTimeOffset? observedAt = null,
+            IProgress<RestoreAnalysisProgress>? progress = null)
         {
             using var archive = OpenBackupArchive(zipFilePath);
             if (archive.GetEntry(DatabaseEntryName) is null)
                 throw new InvalidDataException(UiText.Main.DataRestoreMissingDatabase);
 
-            return InspectDetailedComparisonIfAvailable(archive);
+            return InspectDetailedComparisonIfAvailable(archive, observedAt, progress);
         }
 
         public DataBackupRestoreResult RestoreBackup(string zipFilePath)
@@ -328,7 +329,8 @@ namespace TimePilot.WinForms.KYS24
             }
         }
 
-        private DataBackupDetailedComparison? InspectDetailedComparisonIfAvailable(ZipArchive archive)
+        private DataBackupDetailedComparison? InspectDetailedComparisonIfAvailable(ZipArchive archive, DateTimeOffset? observedAt,
+            IProgress<RestoreAnalysisProgress>? progress)
         {
             if (!File.Exists(_databasePath))
                 return null;
@@ -346,19 +348,28 @@ namespace TimePilot.WinForms.KYS24
                 if (entry is null)
                     return null;
 
+                progress?.Report(new(RestoreAnalysisStage.ExtractBackup));
                 entry.ExtractToFile(backupTempPath, overwrite: true);
+                progress?.Report(new(RestoreAnalysisStage.SnapshotCurrent));
                 CreateDatabaseSnapshot(_databasePath, currentTempPath);
 
                 using var backupConnection = OpenReadOnlyConnection(backupTempPath);
                 using var currentConnection = OpenReadOnlyConnection(currentTempPath);
-                var backupIntervals = ReadComparisonIntervals(backupConnection);
-                var currentIntervals = ReadComparisonIntervals(currentConnection);
+                var backupIntervals = ReadComparisonIntervals(backupConnection, progress, RestoreAnalysisStage.ReadBackup);
+                var currentIntervals = ReadComparisonIntervals(currentConnection, progress, RestoreAnalysisStage.ReadCurrent);
 
-                return new DataBackupDetailedComparison(
-                    CompareTable("foreground_sessions", backupIntervals.ForegroundSessions, currentIntervals.ForegroundSessions),
-                    CompareTable("idle_sessions", backupIntervals.IdleSessions, currentIntervals.IdleSessions),
-                    CompareTable("app_runtime_sessions", backupIntervals.AppRuntimeSessions, currentIntervals.AppRuntimeSessions),
-                    CompareTable("process_runtime_sessions", backupIntervals.ProcessRuntimeSessions, currentIntervals.ProcessRuntimeSessions));
+                progress?.Report(new(RestoreAnalysisStage.Compare, 0, 4));
+                var foreground = CompareTable("foreground_sessions", backupIntervals.ForegroundSessions, currentIntervals.ForegroundSessions);
+                progress?.Report(new(RestoreAnalysisStage.Compare, 1, 4));
+                var idle = CompareTable("idle_sessions", backupIntervals.IdleSessions, currentIntervals.IdleSessions);
+                progress?.Report(new(RestoreAnalysisStage.Compare, 2, 4));
+                var runtime = CompareTable("app_runtime_sessions", backupIntervals.AppRuntimeSessions, currentIntervals.AppRuntimeSessions);
+                progress?.Report(new(RestoreAnalysisStage.Compare, 3, 4));
+                var process = CompareTable("process_runtime_sessions", backupIntervals.ProcessRuntimeSessions, currentIntervals.ProcessRuntimeSessions);
+                progress?.Report(new(RestoreAnalysisStage.Compare, 4, 4));
+                return new DataBackupDetailedComparison(foreground, idle, runtime, process,
+                    KeepLaterRestorePreviewReader.Read(backupConnection, currentConnection,
+                        ReadMetadataCreatedAt(archive), observedAt ?? DateTimeOffset.UtcNow, progress));
             }
             catch
             {
@@ -396,29 +407,34 @@ namespace TimePilot.WinForms.KYS24
                 RestoreIntervalComparisonService.Compare(currentIntervals, backupIntervals));
         }
 
-        private static DataBackupComparisonIntervals ReadComparisonIntervals(SqliteConnection connection)
+        private static DataBackupComparisonIntervals ReadComparisonIntervals(SqliteConnection connection,
+            IProgress<RestoreAnalysisProgress>? progress, RestoreAnalysisStage stage)
         {
+            var completed = 0;
+            progress?.Report(new(stage, 0, 4));
+            IReadOnlyList<RestoreAnalysisInterval> Read(string table, string start, string end, string? appId)
+            {
+                var rows = ReadSessionIntervals(connection, table, start, end, appId);
+                progress?.Report(new(stage, ++completed, 4));
+                return rows;
+            }
             return new DataBackupComparisonIntervals(
-                ForegroundSessions: ReadSessionIntervals(
-                    connection,
+                ForegroundSessions: Read(
                     "foreground_sessions",
                     "started_at",
                     GetBestEndColumn(connection, "foreground_sessions", "ended_at", "last_observed_at"),
                     "app_id"),
-                IdleSessions: ReadSessionIntervals(
-                    connection,
+                IdleSessions: Read(
                     "idle_sessions",
                     "started_at",
                     "ended_at",
                     "foreground_app_id"),
-                AppRuntimeSessions: ReadSessionIntervals(
-                    connection,
+                AppRuntimeSessions: Read(
                     "app_runtime_sessions",
                     "started_at",
                     GetBestEndColumn(connection, "app_runtime_sessions", "ended_at", "last_heartbeat_at"),
-                    appIdColumn: null),
-                ProcessRuntimeSessions: ReadSessionIntervals(
-                    connection,
+                    appId: null),
+                ProcessRuntimeSessions: Read(
                     "process_runtime_sessions",
                     "started_at",
                     GetBestEndColumn(connection, "process_runtime_sessions", "ended_at", "last_observed_at"),
@@ -463,8 +479,12 @@ namespace TimePilot.WinForms.KYS24
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
-                var startedAt = ParseTimestamp(reader.GetString(0));
-                var endedAt = ParseTimestamp(reader.GetString(1));
+                if (reader.GetValue(0) is not string startText || reader.GetValue(1) is not string endText
+                    || !DateTimeOffset.TryParse(startText, System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out var startedAt)
+                    || !DateTimeOffset.TryParse(endText, System.Globalization.CultureInfo.InvariantCulture,
+                        System.Globalization.DateTimeStyles.None, out var endedAt))
+                    continue;
                 var matchKey = reader.IsDBNull(2) ? null : reader.GetString(2);
                 if (string.IsNullOrWhiteSpace(matchKey))
                     matchKey = null;
@@ -611,8 +631,15 @@ namespace TimePilot.WinForms.KYS24
             try
             {
                 using var stream = entry.Open();
-                var metadata = JsonSerializer.Deserialize<DataBackupMetadata>(stream);
-                return metadata?.CreatedAtUtc;
+                using var metadata = JsonDocument.Parse(stream);
+                var root = metadata.RootElement;
+                if (!root.TryGetProperty("SchemaVersion", out var version) || !version.TryGetInt32(out var schema) || schema != 1
+                    || !root.TryGetProperty("CreatedAtUtc", out var created) || created.ValueKind != JsonValueKind.String)
+                    return null;
+                var value = created.GetString();
+                if (value is null || !(value.EndsWith('Z') || value.LastIndexOf('+') > 9 || value.LastIndexOf('-') > 9)) return null;
+                return DateTimeOffset.TryParse(value, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.None, out var at) ? at.ToUniversalTime() : null;
             }
             catch
             {
@@ -666,7 +693,8 @@ namespace TimePilot.WinForms.KYS24
         DataBackupTableComparison ForegroundSessions,
         DataBackupTableComparison IdleSessions,
         DataBackupTableComparison AppRuntimeSessions,
-        DataBackupTableComparison ProcessRuntimeSessions)
+        DataBackupTableComparison ProcessRuntimeSessions,
+        KeepLaterRestorePreview? KeepLaterPreview = null)
     {
         public int CurrentRecordsWithoutBackupOverlap =>
             ForegroundSessions.CurrentRecordsWithoutBackupOverlap

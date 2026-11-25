@@ -46,7 +46,7 @@ namespace TimePilot.WinForms
             using var restoreModeChoiceForm = new RestoreModeChoiceForm(
                 settings.UiLanguage,
                 plan,
-                () => service.InspectBackupDetailedComparison(dialog.FileName));
+                progress => service.InspectBackupDetailedComparison(dialog.FileName, progress: progress));
             restoreModeChoiceForm.Icon = Icon;
             if (restoreModeChoiceForm.ShowDialog(this) != DialogResult.OK
                 || restoreModeChoiceForm.Choice != RestoreModeChoice.FullReplace)
