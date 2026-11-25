@@ -2,6 +2,14 @@
 
 Korean source planning document: `docs/features/RESTORE_MERGE_POLICY.ko.md`.
 
+## Phase 2 Preparation (#346)
+
+The read-only preview now links to preparation diagnostics: source-scoped identity
+candidates, unsafe-record/conflict blockers, settings-policy comparison and DB/plan
+hashes. No writer or staging output is added; even zero reported blockers do not
+certify an executable restore. See `KEEP_LATER_RESTORE_PREPARATION.md` for explicit
+policies, limits, tests and remaining record-ID/foreign-key/recovery work.
+
 ## Phase 1 Status (#346)
 
 Detailed analysis now offers a read-only keep-later preview, not an apply action.

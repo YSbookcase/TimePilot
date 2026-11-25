@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
@@ -367,9 +368,29 @@ namespace TimePilot.WinForms.KYS24
                 progress?.Report(new(RestoreAnalysisStage.Compare, 3, 4));
                 var process = CompareTable("process_runtime_sessions", backupIntervals.ProcessRuntimeSessions, currentIntervals.ProcessRuntimeSessions);
                 progress?.Report(new(RestoreAnalysisStage.Compare, 4, 4));
-                return new DataBackupDetailedComparison(foreground, idle, runtime, process,
-                    KeepLaterRestorePreviewReader.Read(backupConnection, currentConnection,
-                        ReadMetadataCreatedAt(archive), observedAt ?? DateTimeOffset.UtcNow, progress));
+                var preview = KeepLaterRestorePreviewReader.Read(backupConnection, currentConnection,
+                    ReadMetadataCreatedAt(archive), observedAt ?? DateTimeOffset.UtcNow, progress);
+                progress?.Report(new(RestoreAnalysisStage.PrepareMapping));
+                CategoryImportState? backupIdentity = null, currentIdentity = null;
+                try
+                {
+                    backupIdentity = CategoryImportService.ReadState(backupConnection);
+                    currentIdentity = CategoryImportService.ReadState(currentConnection);
+                }
+                catch (Exception ex) when (ex is SqliteException or InvalidDataException)
+                {
+                    // Keep record diagnostics available, but block preparation for unsupported identity schemas.
+                    backupIdentity = null;
+                    currentIdentity = null;
+                }
+                static string HashSnapshot(string path)
+                {
+                    using var file = File.OpenRead(path);
+                    return Convert.ToHexString(SHA256.HashData(file));
+                }
+                var preparation = KeepLaterRestorePreparation.Build(preview, backupIdentity, currentIdentity,
+                    HashSnapshot(backupTempPath), HashSnapshot(currentTempPath), backupHasSettings: archive.GetEntry(SettingsEntryName) is not null);
+                return new DataBackupDetailedComparison(foreground, idle, runtime, process, preview, preparation);
             }
             catch
             {
@@ -694,7 +715,8 @@ namespace TimePilot.WinForms.KYS24
         DataBackupTableComparison IdleSessions,
         DataBackupTableComparison AppRuntimeSessions,
         DataBackupTableComparison ProcessRuntimeSessions,
-        KeepLaterRestorePreview? KeepLaterPreview = null)
+        KeepLaterRestorePreview? KeepLaterPreview = null,
+        KeepLaterRestorePreparation? Preparation = null)
     {
         public int CurrentRecordsWithoutBackupOverlap =>
             ForegroundSessions.CurrentRecordsWithoutBackupOverlap

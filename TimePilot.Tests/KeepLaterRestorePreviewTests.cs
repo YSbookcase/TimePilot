@@ -113,6 +113,13 @@ public sealed class KeepLaterRestorePreviewTests
         Assert.Equal(currentHash, f.Hash(f.TargetDb));
         Assert.Equal(settingsHash, f.Hash(f.Settings));
         Assert.Equal(zipHash, f.Hash(f.Zip));
+        Assert.NotNull(comparison.Preparation);
+        Assert.Equal(64, comparison.Preparation.PlanSha256.Length);
+        Assert.Equal(64, comparison.Preparation.BackupSha256.Length);
+        Assert.Equal(64, comparison.Preparation.CurrentSha256.Length);
+        Assert.Contains("settings-choice-required", comparison.Preparation.Blockers);
+        Assert.Contains("crossing-sessions", comparison.Preparation.Blockers);
+        Assert.Equal(2, comparison.Preparation.Apps.Count);
         Assert.Equal(Enum.GetValues<RestoreAnalysisStage>(), progress.Values.Select(v => v.Stage).Distinct());
         foreach (var group in progress.Values.Where(v => v.Total is not null).GroupBy(v => v.Stage))
         {
@@ -120,7 +127,8 @@ public sealed class KeepLaterRestorePreviewTests
             Assert.Equal(group.Last().Total, group.Last().Completed);
             Assert.Equal(group.Select(v => v.Completed).OrderBy(v => v), group.Select(v => v.Completed));
         }
-        Assert.Equal(15, progress.Values.Last().Completed);
+        Assert.Equal(15, progress.Values.Last(v => v.Stage == RestoreAnalysisStage.Classify).Completed);
+        Assert.Equal(RestoreAnalysisStage.PrepareMapping, progress.Values.Last().Stage);
     }
 
     [Theory]

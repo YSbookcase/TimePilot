@@ -31,6 +31,7 @@ public sealed class KeepLaterRestorePreviewFormTests
                 return comparison;
             });
             chooser.Show();
+            Assert.Equal(language == (int)UiLanguage.English ? "Detailed analysis" : "상세 분석", Find<Button>(chooser, "analyzeRestore").Text);
             Assert.False(Find<Button>(chooser, "keepLaterPreview").Enabled);
             var analysis = chooser.AnalyzeAsync();
             Assert.True(entered.Wait(TimeSpan.FromSeconds(2)));
@@ -48,6 +49,8 @@ public sealed class KeepLaterRestorePreviewFormTests
             release.Set();
             Wait(analysis);
             Assert.True(Find<Button>(chooser, "keepLaterPreview").Enabled);
+            Assert.Equal(language == (int)UiLanguage.English ? "Reanalyze" : "재분석", Find<Button>(chooser, "analyzeRestore").Text);
+            Assert.Contains(language == (int)UiLanguage.English ? "last analysis" : "분석 당시", Find<Label>(chooser, "restoreAnalysisStatus").Text);
             Assert.False(Find<ProgressBar>(chooser, "restoreAnalysisProgress").Visible);
             Assert.Contains(language == (int)UiLanguage.English ? "completed" : "완료", Find<Label>(chooser, "restoreAnalysisStatus").Text);
             Assert.Equal(RestoreModeChoice.Cancel, chooser.Choice);
@@ -90,7 +93,7 @@ public sealed class KeepLaterRestorePreviewFormTests
             Assert.True(entered.Wait(TimeSpan.FromSeconds(2)));
             reporter!.Report(new(RestoreAnalysisStage.SnapshotCurrent));
             Application.DoEvents();
-            Assert.Contains("2/6단계", Find<Label>(form, "restoreAnalysisStatus").Text);
+            Assert.Contains("2/7단계", Find<Label>(form, "restoreAnalysisStatus").Text);
             Assert.Equal(ProgressBarStyle.Marquee, Find<ProgressBar>(form, "restoreAnalysisProgress").Style);
             reporter.Report(new(RestoreAnalysisStage.Compare, 2, 4));
             Application.DoEvents();
@@ -125,7 +128,71 @@ public sealed class KeepLaterRestorePreviewFormTests
             Assert.Equal(RestoreModeChoice.Cancel, form.Choice);
             Assert.False(Find<ProgressBar>(form, "restoreAnalysisProgress").Visible);
             Assert.Contains("실패", Find<Label>(form, "restoreAnalysisStatus").Text);
+            Assert.Equal("분석 다시 시도", Find<Button>(form, "analyzeRestore").Text);
             AssertLayout(form);
+        });
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void ReanalysisRefreshesResultsAndUnavailableResultChangesToRetry(int language)
+    {
+        InSta(() =>
+        {
+            var empty = new RestoreIntervalComparisonResult([], []);
+            var table = new DataBackupTableComparison("foreground_sessions", empty, empty);
+            var comparison = new DataBackupDetailedComparison(table, table, table, table, CreatePreview());
+            var plan = new DataBackupRestorePlan(true, false, 0, null, DataBackupRecordCounts.Empty, comparison);
+            var calls = 0;
+            using var form = new RestoreModeChoiceForm((UiLanguage)language, plan, _ => ++calls == 1 ? null : comparison, () => true);
+            form.Show();
+            var button = Find<Button>(form, "analyzeRestore");
+            Assert.Equal(language == (int)UiLanguage.English ? "Reanalyze" : "재분석", button.Text);
+            Wait(form.AnalyzeAsync());
+            Assert.Equal(language == (int)UiLanguage.English ? "Retry analysis" : "분석 다시 시도", button.Text);
+            Assert.False(Find<Button>(form, "keepLaterPreview").Enabled);
+            Wait(form.AnalyzeAsync());
+            Assert.Equal(2, calls);
+            Assert.Equal(language == (int)UiLanguage.English ? "Reanalyze" : "재분석", button.Text);
+            Assert.True(Find<Button>(form, "keepLaterPreview").Enabled);
+            AssertLayout(form);
+        });
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void ReanalysisConfirmationCancellationPreservesResultAndConfirmedRunReplacesIt(int language)
+    {
+        InSta(() =>
+        {
+            var empty = new RestoreIntervalComparisonResult([], []);
+            var table = new DataBackupTableComparison("foreground_sessions", empty, empty);
+            var comparison = new DataBackupDetailedComparison(table, table, table, table, CreatePreview());
+            var plan = new DataBackupRestorePlan(true, false, 0, null, DataBackupRecordCounts.Empty, null);
+            var calls = 0;
+            var confirmations = 0;
+            var allow = false;
+            using var form = new RestoreModeChoiceForm((UiLanguage)language, plan, _ => { calls++; return comparison; }, () => { confirmations++; return allow; });
+            form.Show();
+            Wait(form.AnalyzeAsync());
+            Assert.Equal(1, calls);
+            Assert.Equal(0, confirmations);
+            var status = Find<Label>(form, "restoreAnalysisStatus").Text;
+            var planText = Children(form).OfType<Label>().Select(l => l.Text).ToArray();
+            Wait(form.AnalyzeAsync());
+            Assert.Equal(1, confirmations);
+            Assert.Equal(1, calls);
+            Assert.Equal(status, Find<Label>(form, "restoreAnalysisStatus").Text);
+            Assert.Equal(planText, Children(form).OfType<Label>().Select(l => l.Text).ToArray());
+            Assert.True(Find<Button>(form, "keepLaterPreview").Enabled);
+            Assert.False(Find<ProgressBar>(form, "restoreAnalysisProgress").Visible);
+            allow = true;
+            Wait(form.AnalyzeAsync());
+            Assert.Equal(2, confirmations);
+            Assert.Equal(2, calls);
+            Assert.True(Find<Button>(form, "keepLaterPreview").Enabled);
         });
     }
 

@@ -8,6 +8,10 @@ cancel that chooser to finish analysis without changing data. **Continue full
 restore** still starts the existing full-replacement workflow, not keep-later
 restore. Both merge/import radio choices remain disabled.
 
+Phase 2 preparation now adds an Inspect preparation button from the preview;
+see `KEEP_LATER_RESTORE_PREPARATION.md` for identity candidates, settings choices,
+blockers and frozen DB/plan hashes. It still does not enable live restoration.
+
 This phase does not implement a writer, ID remapping, settings restore, recovery
 or session splicing. It must not be interpreted as completion of #346.
 
@@ -71,14 +75,22 @@ Analysis runs off the UI thread. Duplicate analysis, chooser continuation and
 user closing are blocked while it runs; failures leave the future restore modes
 disabled. New preview warnings use the selected KO/EN language independently of
 global language settings.
-The chooser shows six real stages: backup extraction, current DB snapshot, backup
-record reads, current record reads, interval comparisons, and cutoff classification.
+The chooser shows seven real stages: backup extraction, current DB snapshot, backup
+record reads, current record reads, interval comparisons, cutoff classification,
+and identity mapping/snapshot hash preparation.
 Extraction/snapshot use an indeterminate bar. Read/compare stages show completed
 table passes out of four; cutoff classification shows five reference-evidence
 passes followed by ten source/table count passes (15 total). These are actual work
 units, not weighted overall time percentages or an ETA. Unequal table sizes mean a
 single pass can take much longer than another. Completion, unavailable results and
 failure remain distinct; late progress callbacks cannot replace the final outcome.
+After a successful analysis the button reads Reanalyze, and the status states that
+results reflect that analysis snapshot rather than live data. Failure/unavailable
+results use Retry analysis. Reanalysis remains available because recording can
+continue after a previous analysis; it replaces the old result, not accumulates it.
+When results already exist, Reanalyze asks for confirmation before starting work.
+Cancel keeps the existing result, status and preview availability unchanged. The
+first analysis (or retry without results) does not require this extra confirmation.
 
 ## Verification And Follow-Up
 

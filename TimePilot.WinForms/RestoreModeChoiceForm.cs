@@ -7,6 +7,7 @@ namespace TimePilot.WinForms
         private readonly bool isEnglish;
         private readonly UiLanguage language;
         private readonly Func<IProgress<RestoreAnalysisProgress>, DataBackupDetailedComparison?>? detailedComparisonLoader;
+        private readonly Func<bool> confirmReanalysis;
         private DataBackupRestorePlan plan;
         private readonly Label planLabel = new();
         private Label? keepLaterDescriptionLabel;
@@ -19,17 +20,24 @@ namespace TimePilot.WinForms
         private readonly ProgressBar analysisProgressBar = new();
         private bool detailedAnalysisAttempted;
         private bool isAnalyzing;
+        private bool isConfirmingReanalysis;
         private int analysisGeneration;
 
         public RestoreModeChoiceForm(
             UiLanguage language,
             DataBackupRestorePlan plan,
-            Func<IProgress<RestoreAnalysisProgress>, DataBackupDetailedComparison?>? detailedComparisonLoader = null)
+            Func<IProgress<RestoreAnalysisProgress>, DataBackupDetailedComparison?>? detailedComparisonLoader = null,
+            Func<bool>? confirmReanalysis = null)
         {
             isEnglish = language == UiLanguage.English;
             this.language = language;
             this.plan = plan;
             this.detailedComparisonLoader = detailedComparisonLoader;
+            this.confirmReanalysis = confirmReanalysis ?? (() => CenteredMessageDialog.Show(this,
+                isEnglish
+                    ? "Analysis results already exist. Run the analysis again? Results will be refreshed and this may take time. No data will be restored."
+                    : "이미 분석한 결과가 있습니다. 다시 분석할까요? 결과를 새로 계산하며 시간이 걸릴 수 있습니다. 데이터 복원은 실행하지 않습니다.",
+                isEnglish ? "Confirm reanalysis" : "재분석 확인", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) == DialogResult.OK);
             InitializeComponent();
         }
 
@@ -136,7 +144,7 @@ namespace TimePilot.WinForms
             cancelButton.DialogResult = DialogResult.Cancel;
             cancelButton.Click += (_, _) => Choice = RestoreModeChoice.Cancel;
 
-            detailedAnalysisButton.Text = isEnglish ? "Detailed analysis" : "상세 분석";
+            detailedAnalysisButton.Text = AnalysisButtonText();
             detailedAnalysisButton.Name = "analyzeRestore";
             detailedAnalysisButton.AutoSize = true;
             detailedAnalysisButton.Enabled = detailedComparisonLoader is not null;
@@ -148,7 +156,7 @@ namespace TimePilot.WinForms
             keepLaterPreviewButton.Click += (_, _) =>
             {
                 if (plan.DetailedComparison?.KeepLaterPreview is not { } preview) return;
-                using var form = new KeepLaterRestorePreviewForm(preview, language);
+                using var form = new KeepLaterRestorePreviewForm(preview, language, plan.DetailedComparison.Preparation);
                 form.ShowDialog(this);
             };
 
@@ -314,8 +322,19 @@ namespace TimePilot.WinForms
 
         internal async Task AnalyzeAsync()
         {
-            if (detailedComparisonLoader is null || isAnalyzing)
+            if (detailedComparisonLoader is null || isAnalyzing || isConfirmingReanalysis)
                 return;
+
+            if (plan.DetailedComparison is not null)
+            {
+                isConfirmingReanalysis = true;
+                try
+                {
+                    if (!confirmReanalysis()) return;
+                }
+                finally { isConfirmingReanalysis = false; }
+                if (IsDisposed) return;
+            }
 
             isAnalyzing = true;
             var generation = ++analysisGeneration;
@@ -345,10 +364,10 @@ namespace TimePilot.WinForms
                     ? (isEnglish ? "Analysis unavailable. No data was changed. You can retry."
                         : "분석 결과를 만들지 못했습니다. 데이터는 변경하지 않았습니다. 다시 시도할 수 있습니다.")
                     : comparison.KeepLaterPreview is null
-                        ? (isEnglish ? "Overlap analysis completed; keep-later preview unavailable. No data was changed."
-                            : "겹침 분석 완료. 이후 기록 유지 미리보기는 사용할 수 없습니다. 데이터는 변경하지 않았습니다.")
-                        : (isEnglish ? "Analysis completed. Open Keep-later preview to review the results. No data was changed."
-                            : "분석 완료. 이후 기록 유지 미리보기에서 결과를 확인하세요. 데이터는 변경하지 않았습니다.");
+                        ? (isEnglish ? "Overlap analysis completed; keep-later preview unavailable. No data was changed.\nResults reflect the last analysis. Reanalyze to refresh them."
+                            : "겹침 분석 완료. 이후 기록 유지 미리보기는 사용할 수 없습니다. 데이터는 변경하지 않았습니다.\n결과는 마지막 분석 당시 기준입니다. 갱신하려면 재분석을 누르세요.")
+                        : (isEnglish ? "Analysis completed. Open Keep-later preview. No data was changed.\nResults reflect the last analysis. Reanalyze to refresh them."
+                            : "분석 완료. 이후 기록 유지 미리보기에서 결과를 확인하세요. 데이터는 변경하지 않았습니다.\n결과는 마지막 분석 당시 기준입니다. 갱신하려면 재분석을 누르세요.");
             }
             catch
             {
@@ -365,7 +384,7 @@ namespace TimePilot.WinForms
                 if (!IsDisposed)
                 {
                     analysisProgressBar.Visible = false;
-                    detailedAnalysisButton.Text = isEnglish ? "Detailed analysis" : "상세 분석";
+                    detailedAnalysisButton.Text = AnalysisButtonText();
                     detailedAnalysisButton.Enabled = true;
                     continueButton.Enabled = true;
                     cancelButton.Enabled = true;
@@ -373,6 +392,12 @@ namespace TimePilot.WinForms
                 }
             }
         }
+
+        private string AnalysisButtonText() => plan.DetailedComparison is not null
+            ? (isEnglish ? "Reanalyze" : "재분석")
+            : detailedAnalysisAttempted
+                ? (isEnglish ? "Retry analysis" : "분석 다시 시도")
+                : (isEnglish ? "Detailed analysis" : "상세 분석");
 
         private void ShowAnalysisProgress(RestoreAnalysisProgress progress)
         {
@@ -383,9 +408,11 @@ namespace TimePilot.WinForms
                 RestoreAnalysisStage.ReadBackup => isEnglish ? "Reading backup records" : "백업 기록 조회 중",
                 RestoreAnalysisStage.ReadCurrent => isEnglish ? "Reading current records" : "현재 기록 조회 중",
                 RestoreAnalysisStage.Compare => isEnglish ? "Comparing record intervals" : "기록 구간 비교 중",
+                RestoreAnalysisStage.PrepareMapping => isEnglish ? "Checking identity mapping and snapshot hashes" : "앱·분류 연결과 스냅샷 해시 점검 중",
                 _ => isEnglish ? "Classifying records by reference time" : "기준 시각별 기록 집계 중"
             };
             var step = (int)progress.Stage + 1;
+            var stages = Enum.GetValues<RestoreAnalysisStage>().Length;
             var unitText = "";
             if (progress.Total is > 0)
             {
@@ -397,8 +424,8 @@ namespace TimePilot.WinForms
             }
             else analysisProgressBar.Style = ProgressBarStyle.Marquee;
             analysisStatusLabel.Text = isEnglish
-                ? $"Step {step}/6: {stage}{unitText}\nThe bar shows this stage, not overall time remaining. No data is being restored."
-                : $"{step}/6단계: {stage}{unitText}\n막대는 현재 단계의 처리량이며 남은 시간 비율이 아닙니다. 복원은 실행하지 않습니다.";
+                ? $"Step {step}/{stages}: {stage}{unitText}\nThe bar shows this stage, not overall time remaining. No data is being restored."
+                : $"{step}/{stages}단계: {stage}{unitText}\n막대는 현재 단계의 처리량이며 남은 시간 비율이 아닙니다. 복원은 실행하지 않습니다.";
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
