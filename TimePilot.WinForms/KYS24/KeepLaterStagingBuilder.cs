@@ -253,6 +253,12 @@ internal static class KeepLaterStagingBuilder
         }
     }
 
+    internal static void ValidateSnapshot(string path)
+    {
+        using var connection = Open(CheckSnapshot(path), true);
+        ValidateSource(connection);
+    }
+
     private static void ValidateResult(SqliteConnection output, SqliteTransaction tx, KeepLaterRestorePreparation plan)
     {
         foreach (var table in plan.Records)
@@ -303,7 +309,7 @@ internal static class KeepLaterStagingBuilder
         command.CommandText = sql;
         command.ExecuteNonQuery();
     }
-    private static string CheckSnapshot(string path)
+    internal static string CheckSnapshot(string path)
     {
         if (!Path.IsPathFullyQualified(path)) throw new ArgumentException("Snapshot path must be absolute.");
         var fullPath = Path.GetFullPath(path);
@@ -317,7 +323,7 @@ internal static class KeepLaterStagingBuilder
         if (new[] { "-wal", "-shm", "-journal" }.Any(s => Path.Exists(path + s)))
             throw new InvalidOperationException("Snapshot and output paths must not have WAL, SHM or journal sidecars.");
     }
-    private static void CheckReparsePoints(string path)
+    internal static void CheckReparsePoints(string path)
     {
         for (var current = path; !string.IsNullOrEmpty(current); current = Path.GetDirectoryName(current))
             if (Path.Exists(current) && (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)

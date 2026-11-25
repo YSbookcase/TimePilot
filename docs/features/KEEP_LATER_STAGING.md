@@ -78,6 +78,10 @@ sessions/settings/sidecars, unsupported schema and rollback/owned-file cleanup.
 
 ## Remaining Work
 
+The subsequent [safety workspace phase](KEEP_LATER_SAFETY_WORKSPACE.md) retains
+offline inputs, a verified safety ZIP and operation state. It still performs no
+live replacement, automatic rollback or crash recovery.
+
 Before any live restore: explicit open/crossing-session and snapshot timing
 policy; retained frozen inputs and UI approval lifetime; progress/cancellation;
 quiesced recording and safety backup; atomic replacement/reopen and rollback;
