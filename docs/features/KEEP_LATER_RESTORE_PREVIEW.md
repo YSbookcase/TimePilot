@@ -8,6 +8,10 @@ cancel that chooser to finish analysis without changing data. **Continue full
 restore** still starts the existing full-replacement workflow, not keep-later
 restore. Both merge/import radio choices remain disabled.
 
+Phase 2 preparation now adds an Inspect preparation button from the preview;
+see `KEEP_LATER_RESTORE_PREPARATION.md` for identity candidates, settings choices,
+blockers and frozen DB/plan hashes. It still does not enable live restoration.
+
 This phase does not implement a writer, ID remapping, settings restore, recovery
 or session splicing. It must not be interpreted as completion of #346.
 
@@ -71,8 +75,9 @@ Analysis runs off the UI thread. Duplicate analysis, chooser continuation and
 user closing are blocked while it runs; failures leave the future restore modes
 disabled. New preview warnings use the selected KO/EN language independently of
 global language settings.
-The chooser shows six real stages: backup extraction, current DB snapshot, backup
-record reads, current record reads, interval comparisons, and cutoff classification.
+The chooser shows seven real stages: backup extraction, current DB snapshot, backup
+record reads, current record reads, interval comparisons, cutoff classification,
+and identity mapping/snapshot hash preparation.
 Extraction/snapshot use an indeterminate bar. Read/compare stages show completed
 table passes out of four; cutoff classification shows five reference-evidence
 passes followed by ten source/table count passes (15 total). These are actual work

@@ -148,7 +148,7 @@ namespace TimePilot.WinForms
             keepLaterPreviewButton.Click += (_, _) =>
             {
                 if (plan.DetailedComparison?.KeepLaterPreview is not { } preview) return;
-                using var form = new KeepLaterRestorePreviewForm(preview, language);
+                using var form = new KeepLaterRestorePreviewForm(preview, language, plan.DetailedComparison.Preparation);
                 form.ShowDialog(this);
             };
 
@@ -383,9 +383,11 @@ namespace TimePilot.WinForms
                 RestoreAnalysisStage.ReadBackup => isEnglish ? "Reading backup records" : "백업 기록 조회 중",
                 RestoreAnalysisStage.ReadCurrent => isEnglish ? "Reading current records" : "현재 기록 조회 중",
                 RestoreAnalysisStage.Compare => isEnglish ? "Comparing record intervals" : "기록 구간 비교 중",
+                RestoreAnalysisStage.PrepareMapping => isEnglish ? "Checking identity mapping and snapshot hashes" : "앱·분류 연결과 스냅샷 해시 점검 중",
                 _ => isEnglish ? "Classifying records by reference time" : "기준 시각별 기록 집계 중"
             };
             var step = (int)progress.Stage + 1;
+            var stages = Enum.GetValues<RestoreAnalysisStage>().Length;
             var unitText = "";
             if (progress.Total is > 0)
             {
@@ -397,8 +399,8 @@ namespace TimePilot.WinForms
             }
             else analysisProgressBar.Style = ProgressBarStyle.Marquee;
             analysisStatusLabel.Text = isEnglish
-                ? $"Step {step}/6: {stage}{unitText}\nThe bar shows this stage, not overall time remaining. No data is being restored."
-                : $"{step}/6단계: {stage}{unitText}\n막대는 현재 단계의 처리량이며 남은 시간 비율이 아닙니다. 복원은 실행하지 않습니다.";
+                ? $"Step {step}/{stages}: {stage}{unitText}\nThe bar shows this stage, not overall time remaining. No data is being restored."
+                : $"{step}/{stages}단계: {stage}{unitText}\n막대는 현재 단계의 처리량이며 남은 시간 비율이 아닙니다. 복원은 실행하지 않습니다.";
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)

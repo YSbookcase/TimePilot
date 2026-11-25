@@ -4,7 +4,7 @@ namespace TimePilot.WinForms;
 
 internal sealed class KeepLaterRestorePreviewForm : Form
 {
-    internal KeepLaterRestorePreviewForm(KeepLaterRestorePreview plan, UiLanguage language)
+    internal KeepLaterRestorePreviewForm(KeepLaterRestorePreview plan, UiLanguage language, KeepLaterRestorePreparation? preparation = null)
     {
         var english = language == UiLanguage.English;
         Text = english ? "Keep later records: preview only" : "이후 기록 유지: 미리보기 전용";
@@ -72,6 +72,16 @@ internal sealed class KeepLaterRestorePreviewForm : Form
         var footer = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
         var close = new Button { Name = "restorePreviewClose", Text = english ? "Close" : "닫기", Size = new Size(90, 30), DialogResult = DialogResult.Cancel };
         footer.Controls.Add(close);
+        if (preparation is not null)
+        {
+            var inspect = new Button { Name = "inspectRestorePreparation", Text = english ? "Inspect preparation" : "적용 준비 점검", Size = new Size(180, 30) };
+            inspect.Click += (_, _) =>
+            {
+                using var form = new KeepLaterRestorePreparationForm(preparation, language);
+                form.ShowDialog(this);
+            };
+            footer.Controls.Add(inspect);
+        }
         layout.Controls.Add(footer, 0, 3);
         Controls.Add(layout);
         CancelButton = close;

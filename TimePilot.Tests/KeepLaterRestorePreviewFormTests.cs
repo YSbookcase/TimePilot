@@ -90,7 +90,7 @@ public sealed class KeepLaterRestorePreviewFormTests
             Assert.True(entered.Wait(TimeSpan.FromSeconds(2)));
             reporter!.Report(new(RestoreAnalysisStage.SnapshotCurrent));
             Application.DoEvents();
-            Assert.Contains("2/6단계", Find<Label>(form, "restoreAnalysisStatus").Text);
+            Assert.Contains("2/7단계", Find<Label>(form, "restoreAnalysisStatus").Text);
             Assert.Equal(ProgressBarStyle.Marquee, Find<ProgressBar>(form, "restoreAnalysisProgress").Style);
             reporter.Report(new(RestoreAnalysisStage.Compare, 2, 4));
             Application.DoEvents();

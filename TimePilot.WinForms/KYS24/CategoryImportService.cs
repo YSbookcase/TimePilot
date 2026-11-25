@@ -246,7 +246,7 @@ internal sealed class CategoryImportService(string databasePath)
         catch { connection.Dispose(); throw; }
     }
 
-    private static CategoryImportState ReadState(SqliteConnection connection, SqliteTransaction? transaction = null)
+    internal static CategoryImportState ReadState(SqliteConnection connection, SqliteTransaction? transaction = null)
     {
         var categories = new List<ImportCategory>();
         using (var command = connection.CreateCommand())
