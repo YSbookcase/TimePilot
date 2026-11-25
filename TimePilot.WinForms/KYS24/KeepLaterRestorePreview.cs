@@ -31,11 +31,14 @@ internal static class KeepLaterRestorePreviewReader
     private static readonly string[] Tables = ["foreground_sessions", "idle_sessions", "app_runtime_sessions", "process_runtime_sessions", "system_events"];
 
     public static KeepLaterRestorePreview Read(SqliteConnection backup, SqliteConnection current,
-        DateTimeOffset? metadataAt, DateTimeOffset observedAt)
+        DateTimeOffset? metadataAt, DateTimeOffset observedAt, IProgress<RestoreAnalysisProgress>? progress = null)
     {
         var backupTables = Tables.ToDictionary(name => name, name => DescribeTable(backup, name));
         var currentTables = Tables.ToDictionary(name => name, name => DescribeTable(current, name));
         DateTimeOffset? last = null, heartbeat = null;
+        var completed = 0;
+        const int passes = 15;
+        progress?.Report(new(RestoreAnalysisStage.Classify, completed, passes));
         foreach (var table in backupTables.Values)
         {
             foreach (var row in ReadRecords(backup, table))
@@ -44,6 +47,7 @@ internal static class KeepLaterRestorePreviewReader
                 last = Latest(last, Latest(row.Start, Latest(row.End, row.Observation)));
                 if (table.Name == "app_runtime_sessions") heartbeat = Latest(heartbeat, row.Observation);
             }
+            progress?.Report(new(RestoreAnalysisStage.Classify, ++completed, passes));
         }
         DateTimeOffset? cutoff;
         RestoreReferenceSource source;
@@ -55,9 +59,16 @@ internal static class KeepLaterRestorePreviewReader
             (cutoff, source) = (observation, RestoreReferenceSource.LastObservation);
         else
             (cutoff, source) = (null, RestoreReferenceSource.Missing);
-        return new(cutoff, source, observedAt, metadataAt, last, Tables.Select(name => new RestorePreviewTable(name,
-            Count(ReadRecords(backup, backupTables[name]), cutoff, observedAt), Count(ReadRecords(current, currentTables[name]), cutoff, observedAt),
-            backupTables[name].Available, currentTables[name].Available)).ToArray());
+        var tables = new List<RestorePreviewTable>();
+        foreach (var name in Tables)
+        {
+            var backupCounts = Count(ReadRecords(backup, backupTables[name]), cutoff, observedAt);
+            progress?.Report(new(RestoreAnalysisStage.Classify, ++completed, passes));
+            var currentCounts = Count(ReadRecords(current, currentTables[name]), cutoff, observedAt);
+            progress?.Report(new(RestoreAnalysisStage.Classify, ++completed, passes));
+            tables.Add(new(name, backupCounts, currentCounts, backupTables[name].Available, currentTables[name].Available));
+        }
+        return new(cutoff, source, observedAt, metadataAt, last, tables);
     }
 
     internal static RestorePreviewCounts Count(IEnumerable<RestorePreviewRecord> rows,

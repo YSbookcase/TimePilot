@@ -6,7 +6,7 @@ namespace TimePilot.WinForms
     {
         private readonly bool isEnglish;
         private readonly UiLanguage language;
-        private readonly Func<DataBackupDetailedComparison?>? detailedComparisonLoader;
+        private readonly Func<IProgress<RestoreAnalysisProgress>, DataBackupDetailedComparison?>? detailedComparisonLoader;
         private DataBackupRestorePlan plan;
         private readonly Label planLabel = new();
         private Label? keepLaterDescriptionLabel;
@@ -19,11 +19,12 @@ namespace TimePilot.WinForms
         private readonly ProgressBar analysisProgressBar = new();
         private bool detailedAnalysisAttempted;
         private bool isAnalyzing;
+        private int analysisGeneration;
 
         public RestoreModeChoiceForm(
             UiLanguage language,
             DataBackupRestorePlan plan,
-            Func<DataBackupDetailedComparison?>? detailedComparisonLoader = null)
+            Func<IProgress<RestoreAnalysisProgress>, DataBackupDetailedComparison?>? detailedComparisonLoader = null)
         {
             isEnglish = language == UiLanguage.English;
             this.language = language;
@@ -317,18 +318,25 @@ namespace TimePilot.WinForms
                 return;
 
             isAnalyzing = true;
+            var generation = ++analysisGeneration;
             continueButton.Enabled = false;
             cancelButton.Enabled = false;
             keepLaterPreviewButton.Enabled = false;
             detailedAnalysisButton.Enabled = false;
             detailedAnalysisButton.Text = isEnglish ? "Analyzing..." : "분석 중...";
             analysisProgressBar.Visible = true;
+            analysisProgressBar.Style = ProgressBarStyle.Marquee;
+            analysisProgressBar.Value = 0;
             analysisStatusLabel.Text = isEnglish
                 ? "Analyzing backup and current records... Large databases may take time. No data is being restored."
                 : "백업과 현재 기록을 분석 중입니다... 기록이 많으면 시간이 걸릴 수 있습니다. 복원은 실행하지 않습니다.";
             try
             {
-                var comparison = await Task.Run(detailedComparisonLoader);
+                var progress = new Progress<RestoreAnalysisProgress>(value =>
+                {
+                    if (!IsDisposed && isAnalyzing && generation == analysisGeneration) ShowAnalysisProgress(value);
+                });
+                var comparison = await Task.Run(() => detailedComparisonLoader(progress));
                 if (IsDisposed) return;
                 detailedAnalysisAttempted = true;
                 plan = plan with { DetailedComparison = comparison };
@@ -364,6 +372,33 @@ namespace TimePilot.WinForms
                     keepLaterPreviewButton.Enabled = plan.DetailedComparison?.KeepLaterPreview is not null;
                 }
             }
+        }
+
+        private void ShowAnalysisProgress(RestoreAnalysisProgress progress)
+        {
+            var stage = progress.Stage switch
+            {
+                RestoreAnalysisStage.ExtractBackup => isEnglish ? "Extracting backup" : "백업 추출 중",
+                RestoreAnalysisStage.SnapshotCurrent => isEnglish ? "Creating current DB snapshot" : "현재 DB 스냅샷 생성 중",
+                RestoreAnalysisStage.ReadBackup => isEnglish ? "Reading backup records" : "백업 기록 조회 중",
+                RestoreAnalysisStage.ReadCurrent => isEnglish ? "Reading current records" : "현재 기록 조회 중",
+                RestoreAnalysisStage.Compare => isEnglish ? "Comparing record intervals" : "기록 구간 비교 중",
+                _ => isEnglish ? "Classifying records by reference time" : "기준 시각별 기록 집계 중"
+            };
+            var step = (int)progress.Stage + 1;
+            var unitText = "";
+            if (progress.Total is > 0)
+            {
+                var completed = Math.Clamp(progress.Completed, 0, progress.Total.Value);
+                analysisProgressBar.Style = ProgressBarStyle.Continuous;
+                analysisProgressBar.Maximum = progress.Total.Value;
+                analysisProgressBar.Value = completed;
+                unitText = isEnglish ? $" | Table passes {completed}/{progress.Total}" : $" | 테이블 처리 {completed}/{progress.Total}";
+            }
+            else analysisProgressBar.Style = ProgressBarStyle.Marquee;
+            analysisStatusLabel.Text = isEnglish
+                ? $"Step {step}/6: {stage}{unitText}\nThe bar shows this stage, not overall time remaining. No data is being restored."
+                : $"{step}/6단계: {stage}{unitText}\n막대는 현재 단계의 처리량이며 남은 시간 비율이 아닙니다. 복원은 실행하지 않습니다.";
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)

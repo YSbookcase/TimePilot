@@ -71,9 +71,14 @@ Analysis runs off the UI thread. Duplicate analysis, chooser continuation and
 user closing are blocked while it runs; failures leave the future restore modes
 disabled. New preview warnings use the selected KO/EN language independently of
 global language settings.
-The chooser shows an indeterminate animated progress bar and a persistent analysis
-status. It does not invent a percentage or ETA. Completion, unavailable results and
-failure are distinct; the bar disappears when work ends and retry remains available.
+The chooser shows six real stages: backup extraction, current DB snapshot, backup
+record reads, current record reads, interval comparisons, and cutoff classification.
+Extraction/snapshot use an indeterminate bar. Read/compare stages show completed
+table passes out of four; cutoff classification shows five reference-evidence
+passes followed by ten source/table count passes (15 total). These are actual work
+units, not weighted overall time percentages or an ETA. Unequal table sizes mean a
+single pass can take much longer than another. Completion, unavailable results and
+failure remain distinct; late progress callbacks cannot replace the final outcome.
 
 ## Verification And Follow-Up
 

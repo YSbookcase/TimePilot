@@ -99,7 +99,8 @@ public sealed class KeepLaterRestorePreviewTests
         var currentHash = f.Hash(f.TargetDb);
         var settingsHash = f.Hash(f.Settings);
         var zipHash = f.Hash(f.Zip);
-        var comparison = new DataBackupService(Path.GetDirectoryName(f.TargetDb)!).InspectBackupDetailedComparison(f.Zip, f.Now.AddDays(1));
+        var progress = new CollectingProgress();
+        var comparison = new DataBackupService(Path.GetDirectoryName(f.TargetDb)!).InspectBackupDetailedComparison(f.Zip, f.Now.AddDays(1), progress);
         Assert.NotNull(comparison);
         var preview = Assert.IsType<KeepLaterRestorePreview>(comparison.KeepLaterPreview);
         Assert.Equal(RestoreReferenceSource.Metadata, preview.ReferenceSource);
@@ -112,6 +113,14 @@ public sealed class KeepLaterRestorePreviewTests
         Assert.Equal(currentHash, f.Hash(f.TargetDb));
         Assert.Equal(settingsHash, f.Hash(f.Settings));
         Assert.Equal(zipHash, f.Hash(f.Zip));
+        Assert.Equal(Enum.GetValues<RestoreAnalysisStage>(), progress.Values.Select(v => v.Stage).Distinct());
+        foreach (var group in progress.Values.Where(v => v.Total is not null).GroupBy(v => v.Stage))
+        {
+            Assert.Equal(0, group.First().Completed);
+            Assert.Equal(group.Last().Total, group.Last().Completed);
+            Assert.Equal(group.Select(v => v.Completed).OrderBy(v => v), group.Select(v => v.Completed));
+        }
+        Assert.Equal(15, progress.Values.Last().Completed);
     }
 
     [Theory]
@@ -137,6 +146,12 @@ public sealed class KeepLaterRestorePreviewTests
         zip.GetEntry("metadata.json")?.Delete();
         using var stream = zip.CreateEntry("metadata.json").Open();
         JsonSerializer.Serialize(stream, metadata);
+    }
+
+    private sealed class CollectingProgress : IProgress<RestoreAnalysisProgress>
+    {
+        internal List<RestoreAnalysisProgress> Values { get; } = new();
+        public void Report(RestoreAnalysisProgress value) => Values.Add(value);
     }
 
     private static SqliteConnection Open(string path)

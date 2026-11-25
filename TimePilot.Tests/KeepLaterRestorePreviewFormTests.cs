@@ -23,7 +23,7 @@ public sealed class KeepLaterRestorePreviewFormTests
             using var release = new ManualResetEventSlim();
             using var entered = new ManualResetEventSlim();
             var calls = 0;
-            using var chooser = new RestoreModeChoiceForm((UiLanguage)language, plan, () =>
+            using var chooser = new RestoreModeChoiceForm((UiLanguage)language, plan, _ =>
             {
                 Interlocked.Increment(ref calls);
                 entered.Set();
@@ -70,12 +70,54 @@ public sealed class KeepLaterRestorePreviewFormTests
     }
 
     [Fact]
+    public void RealStageReportsSwitchBetweenUnknownAndMeasuredProgressAndDoNotOverwriteOutcome()
+    {
+        InSta(() =>
+        {
+            var plan = new DataBackupRestorePlan(true, false, 0, null, DataBackupRecordCounts.Empty, null);
+            using var entered = new ManualResetEventSlim();
+            using var release = new ManualResetEventSlim();
+            IProgress<RestoreAnalysisProgress>? reporter = null;
+            using var form = new RestoreModeChoiceForm(UiLanguage.Korean, plan, progress =>
+            {
+                reporter = progress;
+                entered.Set();
+                if (!release.Wait(TimeSpan.FromSeconds(5))) throw new TimeoutException();
+                return null;
+            });
+            form.Show();
+            var task = form.AnalyzeAsync();
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(2)));
+            reporter!.Report(new(RestoreAnalysisStage.SnapshotCurrent));
+            Application.DoEvents();
+            Assert.Contains("2/6단계", Find<Label>(form, "restoreAnalysisStatus").Text);
+            Assert.Equal(ProgressBarStyle.Marquee, Find<ProgressBar>(form, "restoreAnalysisProgress").Style);
+            reporter.Report(new(RestoreAnalysisStage.Compare, 2, 4));
+            Application.DoEvents();
+            var bar = Find<ProgressBar>(form, "restoreAnalysisProgress");
+            Assert.Equal(ProgressBarStyle.Continuous, bar.Style);
+            Assert.Equal(4, bar.Maximum);
+            Assert.Equal(2, bar.Value);
+            Assert.Contains("테이블 처리 2/4", Find<Label>(form, "restoreAnalysisStatus").Text);
+            Save(form, "restore-analysis-measured.png");
+            AssertLayout(form);
+            release.Set();
+            Wait(task);
+            var result = Find<Label>(form, "restoreAnalysisStatus").Text;
+            reporter.Report(new(RestoreAnalysisStage.Classify, 15, 15));
+            Application.DoEvents();
+            Assert.Equal(result, Find<Label>(form, "restoreAnalysisStatus").Text);
+            Assert.False(bar.Visible);
+        });
+    }
+
+    [Fact]
     public void AnalysisFailureCannotEnableKeepLaterRestore()
     {
         InSta(() =>
         {
             var plan = new DataBackupRestorePlan(true, false, 0, null, DataBackupRecordCounts.Empty, null);
-            using var form = new RestoreModeChoiceForm(UiLanguage.Korean, plan, () => throw new IOException("Synthetic unavailable snapshot"));
+            using var form = new RestoreModeChoiceForm(UiLanguage.Korean, plan, _ => throw new IOException("Synthetic unavailable snapshot"));
             form.Show();
             Wait(form.AnalyzeAsync());
             Assert.False(Find<Button>(form, "keepLaterPreview").Enabled);
