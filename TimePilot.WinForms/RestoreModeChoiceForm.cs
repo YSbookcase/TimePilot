@@ -136,7 +136,7 @@ namespace TimePilot.WinForms
             cancelButton.DialogResult = DialogResult.Cancel;
             cancelButton.Click += (_, _) => Choice = RestoreModeChoice.Cancel;
 
-            detailedAnalysisButton.Text = isEnglish ? "Detailed analysis" : "상세 분석";
+            detailedAnalysisButton.Text = AnalysisButtonText();
             detailedAnalysisButton.Name = "analyzeRestore";
             detailedAnalysisButton.AutoSize = true;
             detailedAnalysisButton.Enabled = detailedComparisonLoader is not null;
@@ -345,10 +345,10 @@ namespace TimePilot.WinForms
                     ? (isEnglish ? "Analysis unavailable. No data was changed. You can retry."
                         : "분석 결과를 만들지 못했습니다. 데이터는 변경하지 않았습니다. 다시 시도할 수 있습니다.")
                     : comparison.KeepLaterPreview is null
-                        ? (isEnglish ? "Overlap analysis completed; keep-later preview unavailable. No data was changed."
-                            : "겹침 분석 완료. 이후 기록 유지 미리보기는 사용할 수 없습니다. 데이터는 변경하지 않았습니다.")
-                        : (isEnglish ? "Analysis completed. Open Keep-later preview to review the results. No data was changed."
-                            : "분석 완료. 이후 기록 유지 미리보기에서 결과를 확인하세요. 데이터는 변경하지 않았습니다.");
+                        ? (isEnglish ? "Overlap analysis completed; keep-later preview unavailable. No data was changed.\nResults reflect the last analysis. Reanalyze to refresh them."
+                            : "겹침 분석 완료. 이후 기록 유지 미리보기는 사용할 수 없습니다. 데이터는 변경하지 않았습니다.\n결과는 마지막 분석 당시 기준입니다. 갱신하려면 재분석을 누르세요.")
+                        : (isEnglish ? "Analysis completed. Open Keep-later preview. No data was changed.\nResults reflect the last analysis. Reanalyze to refresh them."
+                            : "분석 완료. 이후 기록 유지 미리보기에서 결과를 확인하세요. 데이터는 변경하지 않았습니다.\n결과는 마지막 분석 당시 기준입니다. 갱신하려면 재분석을 누르세요.");
             }
             catch
             {
@@ -365,7 +365,7 @@ namespace TimePilot.WinForms
                 if (!IsDisposed)
                 {
                     analysisProgressBar.Visible = false;
-                    detailedAnalysisButton.Text = isEnglish ? "Detailed analysis" : "상세 분석";
+                    detailedAnalysisButton.Text = AnalysisButtonText();
                     detailedAnalysisButton.Enabled = true;
                     continueButton.Enabled = true;
                     cancelButton.Enabled = true;
@@ -373,6 +373,12 @@ namespace TimePilot.WinForms
                 }
             }
         }
+
+        private string AnalysisButtonText() => plan.DetailedComparison is not null
+            ? (isEnglish ? "Reanalyze" : "재분석")
+            : detailedAnalysisAttempted
+                ? (isEnglish ? "Retry analysis" : "분석 다시 시도")
+                : (isEnglish ? "Detailed analysis" : "상세 분석");
 
         private void ShowAnalysisProgress(RestoreAnalysisProgress progress)
         {

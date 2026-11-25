@@ -84,6 +84,10 @@ passes followed by ten source/table count passes (15 total). These are actual wo
 units, not weighted overall time percentages or an ETA. Unequal table sizes mean a
 single pass can take much longer than another. Completion, unavailable results and
 failure remain distinct; late progress callbacks cannot replace the final outcome.
+After a successful analysis the button reads Reanalyze, and the status states that
+results reflect that analysis snapshot rather than live data. Failure/unavailable
+results use Retry analysis. Reanalysis remains available because recording can
+continue after a previous analysis; it replaces the old result, not accumulates it.
 
 ## Verification And Follow-Up
 
